@@ -106,7 +106,7 @@ def metro(simPar, iniPar, e_data, param_info, num_iters=5):
     variances.tauP = 20
     
     # Calculate likelihood of initial guess
-    prev_p.likelihood = 0
+    prev_p.likelihood = np.zeros(len(iniPar))
     for i in range(len(iniPar)):
         g = Grid()
         g.thickness = simPar[0][i] if isinstance(simPar[0], list) else simPar[0]
@@ -122,7 +122,7 @@ def metro(simPar, iniPar, e_data, param_info, num_iters=5):
         
         sol = model(iniPar[i], g, p)
         
-        prev_p.likelihood -= np.sum((np.log10(sol) - vals[i])**2)
+        prev_p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
         #sol.plot_PL(g)
         
     prev_p.likelihood /= tf
@@ -136,7 +136,7 @@ def metro(simPar, iniPar, e_data, param_info, num_iters=5):
     
             print_status(p, means, param_info)
             # Calculate new likelihood?
-            p.likelihood = 0
+            p.likelihood = np.zeros(len(iniPar))
             for i in range(len(iniPar)):
                 g = Grid()
                 g.thickness = simPar[0][i] if isinstance(simPar[0], list) else simPar[0]
@@ -152,36 +152,39 @@ def metro(simPar, iniPar, e_data, param_info, num_iters=5):
                 
                 sol = model(iniPar[i], g, p)
                 
-                p.likelihood -= np.sum((np.log10(sol) - vals[i])**2)
+                p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
                 #sol.plot_PL(g)
                 
-            p.likelihood /= tf
-            #p.likelihood = np.exp(p.likelihood)
-            # Compare with prior likelihood
+                p.likelihood[i] /= tf
             
+                # Compare with prior likelihood
+
+                logratio = p.likelihood[i] - prev_p.likelihood[i]
             
-            logratio = p.likelihood - prev_p.likelihood
+                print("Partial Ratio: {}".format(10 ** logratio))
             
-            print("Ratio: {}".format(10 ** logratio))
+                accepted = False
+                if logratio >= 0:
+                    # Continue
+                    accepted = True
+                    
+                else:
+                    accept = np.random.random()
+                    if accept < 10 ** logratio:
+                        # Continue
+                        accepted = True
+                        
+                if not accepted:
+                    print("Rejected!")
+                    break
+                
             print("Iter {}".format(k))
             print("#####")
-            
-            if logratio >= 0:
-                # Reshape distribution
+            if accepted:
                 update_means(p, means, param_info)
                 H.accept[k] = 1
-                H.ratio[k] = 10 ** logratio
+                #H.ratio[k] = 10 ** logratio
                 prev_p.likelihood = p.likelihood
-                
-            else:
-                accept = np.random.random()
-                
-                if accept < 10 ** logratio:
-                    # Reshape distribution
-                    update_means(p, means, param_info)
-                    H.accept[k] = 1
-                    H.ratio[k] = logratio
-                    prev_p.likelihood = p.likelihood
                 
             
             update_history(H, k, p, means, param_info)
