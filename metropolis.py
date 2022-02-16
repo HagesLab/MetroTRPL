@@ -104,8 +104,31 @@ def metro(simPar, iniPar, e_data, param_info, num_iters=5):
     variances.Sb = 0.1
     variances.tauN = 20
     variances.tauP = 20
+    
+    # Calculate likelihood of initial guess
+    prev_p.likelihood = 0
+    for i in range(len(iniPar)):
+        g = Grid()
+        g.thickness = simPar[0][i] if isinstance(simPar[0], list) else simPar[0]
+        g.nx = simPar[2]
+        g.dx = g.thickness / g.nx
+        g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
+        
+        g.time = times[i][-1]
+        g.nt = len(times[i]) - 1
+        g.dt = g.time / g.nt
+        g.hmax = 4
+        g.tSteps = times[i]
+        
+        sol = model(iniPar[i], g, p)
+        
+        prev_p.likelihood -= np.sum((np.log10(sol) - vals[i])**2)
+        #sol.plot_PL(g)
+        
+    prev_p.likelihood /= tf
+    update_history(H, 0, prev_p, means, param_info)
 
-    for k in range(num_iters):
+    for k in range(1, num_iters):
         try:
             # Select next sample from distribution
             
@@ -136,34 +159,29 @@ def metro(simPar, iniPar, e_data, param_info, num_iters=5):
             #p.likelihood = np.exp(p.likelihood)
             # Compare with prior likelihood
             
-            if k == 0:
-                print("")
-                H.ratio[k] = 1
+            
+            logratio = p.likelihood - prev_p.likelihood
+            
+            print("Ratio: {}".format(10 ** logratio))
+            print("Iter {}".format(k))
+            print("#####")
+            
+            if logratio >= 0:
+                # Reshape distribution
+                update_means(p, means, param_info)
                 H.accept[k] = 1
+                H.ratio[k] = 10 ** logratio
                 prev_p.likelihood = p.likelihood
+                
             else:
-                logratio = p.likelihood - prev_p.likelihood
+                accept = np.random.random()
                 
-                print("Ratio: {}".format(10 ** logratio))
-                print("Iter {}".format(k))
-                print("#####")
-                
-                if logratio >= 0:
+                if accept < 10 ** logratio:
                     # Reshape distribution
                     update_means(p, means, param_info)
                     H.accept[k] = 1
-                    H.ratio[k] = 10 ** logratio
+                    H.ratio[k] = logratio
                     prev_p.likelihood = p.likelihood
-                    
-                else:
-                    accept = np.random.random()
-                    
-                    if accept < 10 ** logratio:
-                        # Reshape distribution
-                        update_means(p, means, param_info)
-                        H.accept[k] = 1
-                        H.ratio[k] = logratio
-                        prev_p.likelihood = p.likelihood
                 
             
             update_history(H, k, p, means, param_info)
