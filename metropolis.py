@@ -141,6 +141,10 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
         pass
     elif DA_mode == 'off':
         prev_p.likelihood = np.sum(prev_p.likelihood)
+    elif DA_mode == 'cumulative':
+        rand_i = np.arange(len(iniPar))
+        np.random.shuffle(rand_i)
+        prev_p.cumulikelihood = np.cumsum(prev_p.likelihood[rand_i])
     
     update_history(H, 0, prev_p, means, param_info)
 
@@ -153,6 +157,7 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
             print_status(p, means, param_info)
             # Calculate new likelihood?
             p.likelihood = np.zeros(len(iniPar))
+            
             
             if DA_mode == "on":
                 for i in range(len(iniPar)):
@@ -168,6 +173,32 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
                     accepted = roll_acceptance(logratio)
                     if not accepted:
                         break
+                if accepted:
+                    prev_p.likelihood = p.likelihood
+                    
+            elif DA_mode == "cumulative":
+                p.cumulikelihood = np.zeros(len(iniPar))
+                for i in range(len(iniPar)):
+                    thickness, nx = unpack_simpar(simPar, rand_i[i])
+                    sol = do_simulation(p, thickness, nx, iniPar[rand_i[i]], times[rand_i[i]])
+                    p.likelihood[rand_i[i]] -= np.sum((np.log10(sol) - vals[rand_i[i]])**2)
+                    p.likelihood[rand_i[i]] /= tf
+                
+                    # Compare with prior likelihood
+                    if i > 0: p.cumulikelihood[i] = p.cumulikelihood[i-1] + p.likelihood[rand_i[i]]
+                    else: p.cumulikelihood[i] = p.likelihood[rand_i[i]]
+                    logratio = p.cumulikelihood[i] - prev_p.cumulikelihood[i]
+                    print("Partial Ratio: {}".format(10 ** logratio))
+                
+                    accepted = roll_acceptance(logratio)
+                    if not accepted:
+                        break
+                    
+                np.random.shuffle(rand_i)
+                if accepted:
+                    prev_p.likelihood = p.likelihood
+                    
+                prev_p.cumulikelihood = np.cumsum(prev_p.likelihood[rand_i])
                     
             elif DA_mode == "off":
                 for i in range(len(iniPar)):
@@ -184,6 +215,9 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
             
                 accepted = roll_acceptance(logratio)
                 
+                if accepted:
+                    prev_p.likelihood = p.likelihood
+                
             if not accepted:
                 print("Rejected!")
                 
@@ -193,7 +227,7 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
                 update_means(p, means, param_info)
                 H.accept[k] = 1
                 #H.ratio[k] = 10 ** logratio
-                prev_p.likelihood = p.likelihood
+                
                 
             
             update_history(H, k, p, means, param_info)

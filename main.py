@@ -17,8 +17,8 @@ from time import perf_counter
 if __name__ == "__main__":
     
     # Set space and time grid options
-    #Length = [311,2000,311,2000, 311, 2000]
-    Length  = 2000                            # Length (nm)
+    Length = [311,2000,311,2000, 311, 2000]
+    #Length  = 2000                            # Length (nm)
     L   = 2 ** 7                                # Spatial points
     plT = 1                                  # Set PL interval (dt)
     pT  = (0,1,3,10,30,100)                   # Set plot intervals (%)
@@ -40,22 +40,22 @@ if __name__ == "__main__":
               "m":0}
     
     initial_guess = {"n0":1e8, 
-                     "p0":1e17, 
-                     "mu_n":100, 
-                     "mu_p":100, 
-                     "B":1e-11, 
-                     "Sf":10, 
-                     "Sb":10, 
+                     "p0":3e15, 
+                     "mu_n":20, 
+                     "mu_p":20, 
+                     "B":4.8e-11, 
+                     "Sf":100, 
+                     "Sb":0.05, 
                      "tauN":900, 
                      "tauP":900, 
                      "eps":10, 
                      "m":0}
     
     active_params = {"n0":0, 
-                     "p0":1, 
-                     "mu_n":1, 
-                     "mu_p":1, 
-                     "B":1, 
+                     "p0":0, 
+                     "mu_n":0, 
+                     "mu_p":0, 
+                     "B":0, 
                      "Sf":1, 
                      "Sb":1, 
                      "tauN":1, 
@@ -70,15 +70,15 @@ if __name__ == "__main__":
                   "initial_guess":initial_guess}
     
     # Other options
-    ic_flags = {"time_cutoff":15.75,
+    ic_flags = {"time_cutoff":None,
                 "select_obs_sets": None,
-                "noise_level":None}
+                "noise_level":1e14}
     
     gpu_info = {"sims_per_gpu": 2 ** 13,
                 "num_gpus": 8}
     
-    sim_flags = {"num_iters": 10,
-                 "delayed_acceptance": 'off', # "off", "on", "cumulative"
+    sim_flags = {"num_iters": 100,
+                 "delayed_acceptance": 'cumulative', # "off", "on", "cumulative"
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
@@ -99,8 +99,8 @@ if __name__ == "__main__":
         init_dir = r"bay_inputs"
         out_dir = r"bay_outputs"
 
-    init_fname = "staub_MAPI_power_thick_input.csv"
-    exp_fname = "staub_MAPI_power_thick_n.csv"
+    init_fname = "staub_MAPI_threepower_twothick_input.csv"
+    exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
     out_fname = "DEBUG"
     init_pathname = os.path.join(init_dir, init_fname)
     experimental_data_pathname = os.path.join(init_dir, exp_fname)
