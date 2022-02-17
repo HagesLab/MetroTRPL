@@ -7,6 +7,7 @@ Created on Mon Jan 31 22:03:46 2022
 import numpy as np
 import os
 import pickle
+import sys
 
 from bayes_io import get_data, get_initpoints
 from metropolis import metro
@@ -69,7 +70,7 @@ if __name__ == "__main__":
                   "initial_guess":initial_guess}
     
     # Other options
-    num_iters = 2000
+    num_iters = 10
     ic_flags = {"time_cutoff":None,
                 "select_obs_sets": None,
                 "noise_level":None}
@@ -86,11 +87,21 @@ if __name__ == "__main__":
                  "num_points":2**17}
     
     # Collect filenames
-    init_dir = r"bay_inputs"
-    out_dir = r"bay_outputs"
+    try:
+        on_hpg = sys.argv[1]
+    except IndexError:
+        on_hpg = False
+
+    if on_hpg:
+        init_dir = r"/blue/c.hages/cfai2304/Metro_in"
+        out_dir = r"/blue/c.hages/cfai2304/Metro_out"
+    else:
+        init_dir = r"bay_inputs"
+        out_dir = r"bay_outputs"
+
     init_fname = "staub_MAPI_threepower_twothick_input.csv"
     exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
-    out_fname = "twothick on"
+    out_fname = "twothick DA"
     init_pathname = os.path.join(init_dir, init_fname)
     experimental_data_pathname = os.path.join(init_dir, exp_fname)
     out_pathname = os.path.join(out_dir, out_fname)
@@ -104,7 +115,6 @@ if __name__ == "__main__":
     # Get observations and initial condition
     iniPar = get_initpoints(init_pathname, ic_flags)
     e_data = get_data(experimental_data_pathname, ic_flags, sim_flags, scale_f=1e-23)
-    
     clock0 = perf_counter()
     history = metro(simPar, iniPar, e_data, param_info, num_iters=num_iters)
     final_t = perf_counter() - clock0
