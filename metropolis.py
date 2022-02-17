@@ -33,7 +33,7 @@ def select_next_params(p, means, variances, param_info):
             var = getattr(variances, param)
             
             if do_log.get(param, 0):    
-                setattr(p, param, 10 ** np.random.normal(loc=mean, scale=var))
+                setattr(p, param, 10 ** np.random.normal(loc=np.log10(mean), scale=var))
                 
             else:
                 setattr(p, param, np.random.normal(loc=mean, scale=var))
@@ -44,38 +44,25 @@ def select_next_params(p, means, variances, param_info):
     return
 
 def update_means(p, means, param_info):
-    do_log = param_info["do_log"]
     for param in param_info['names']:
-        if do_log.get(param, 0):
-            setattr(means, param, np.log10(getattr(p, param)))
-        else:
-            setattr(means, param, getattr(p, param))
+        setattr(means, param, getattr(p, param))
     return
 
 def print_status(p, means, param_info):
     is_active = param_info['active']
-    do_log = param_info["do_log"]
     ucs = param_info["unit_conversions"]
     for param in param_info['names']:
         if is_active.get(param, 0):
-            if do_log.get(param, 0):
-                print("Next {}: {} from mean {}".format(param, getattr(p, param) / ucs.get(param, 1), 10 ** getattr(means, param) / ucs.get(param, 1)))
-            else:
-                print("Next {}: {} from mean {}".format(param, getattr(p, param) / ucs.get(param, 1), getattr(means, param) / ucs.get(param, 1)))
+            print("Next {}: {} from mean {}".format(param, getattr(p, param) / ucs.get(param, 1), getattr(means, param) / ucs.get(param, 1)))
             
     return
 
 def update_history(H, k, p, means, param_info):
-    do_log = param_info["do_log"]
     for param in param_info['names']:
         h = getattr(H, param)
         h[k] = getattr(p, param)
         h_mean = getattr(H, f"mean_{param}")
-        
-        if do_log.get(param, 0):
-            h_mean[k] = 10 ** getattr(means, param)
-        else:
-            h_mean[k] = getattr(means, param)
+        h_mean[k] = getattr(means, param)
             
 def do_simulation(p, thickness, nx, iniPar, times):
     g = Grid()
@@ -94,6 +81,7 @@ def do_simulation(p, thickness, nx, iniPar, times):
     return sol
     
 def roll_acceptance(logratio):
+    accepted = False
     if logratio >= 0:
         # Continue
         accepted = True
@@ -127,7 +115,6 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
     
     means = Parameters(param_info)
     means.apply_unit_conversions(param_info)
-    means.make_log(param_info)
     
     variances = Parameters(param_info)
     variances.mu_n = 5
