@@ -17,8 +17,8 @@ from time import perf_counter
 if __name__ == "__main__":
     
     # Set space and time grid options
-    Length = [311,2000,311,2000, 311, 2000]
-    #Length  = 2000                            # Length (nm)
+    #Length = [311,2000,311,2000, 311, 2000]
+    Length  = 2000                            # Length (nm)
     L   = 2 ** 7                                # Spatial points
     plT = 1                                  # Set PL interval (dt)
     pT  = (0,1,3,10,30,100)                   # Set plot intervals (%)
@@ -40,10 +40,10 @@ if __name__ == "__main__":
               "m":0}
     
     initial_guess = {"n0":1e8, 
-                     "p0":3e15, 
-                     "mu_n":20, 
-                     "mu_p":20, 
-                     "B":4.8e-11, 
+                     "p0":1e17, 
+                     "mu_n":100, 
+                     "mu_p":100, 
+                     "B":1e-11, 
                      "Sf":10, 
                      "Sb":10, 
                      "tauN":900, 
@@ -52,10 +52,10 @@ if __name__ == "__main__":
                      "m":0}
     
     active_params = {"n0":0, 
-                     "p0":0, 
-                     "mu_n":0, 
-                     "mu_p":0, 
-                     "B":0, 
+                     "p0":1, 
+                     "mu_n":1, 
+                     "mu_p":1, 
+                     "B":1, 
                      "Sf":1, 
                      "Sb":1, 
                      "tauN":1, 
@@ -70,21 +70,19 @@ if __name__ == "__main__":
                   "initial_guess":initial_guess}
     
     # Other options
-    num_iters = 10
-    ic_flags = {"time_cutoff":None,
+    ic_flags = {"time_cutoff":15.75,
                 "select_obs_sets": None,
                 "noise_level":None}
     
     gpu_info = {"sims_per_gpu": 2 ** 13,
                 "num_gpus": 8}
     
-    sim_flags = {"load_PL_from_file": False,
+    sim_flags = {"num_iters": 10,
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
                  "self_normalize":False,
-                 "random_sample":True,
-                 "num_points":2**17}
+                 }
     
     # Collect filenames
     try:
@@ -99,9 +97,9 @@ if __name__ == "__main__":
         init_dir = r"bay_inputs"
         out_dir = r"bay_outputs"
 
-    init_fname = "staub_MAPI_threepower_twothick_input.csv"
-    exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
-    out_fname = "twothick DA"
+    init_fname = "staub_MAPI_power_thick_input.csv"
+    exp_fname = "staub_MAPI_power_thick_n.csv"
+    out_fname = "DEBUG"
     init_pathname = os.path.join(init_dir, init_fname)
     experimental_data_pathname = os.path.join(init_dir, exp_fname)
     out_pathname = os.path.join(out_dir, out_fname)
@@ -116,10 +114,10 @@ if __name__ == "__main__":
     iniPar = get_initpoints(init_pathname, ic_flags)
     e_data = get_data(experimental_data_pathname, ic_flags, sim_flags, scale_f=1e-23)
     clock0 = perf_counter()
-    history = metro(simPar, iniPar, e_data, param_info, num_iters=num_iters)
+    history = metro(simPar, iniPar, e_data, param_info, sim_flags)
     final_t = perf_counter() - clock0
     print("Metro took {} s".format(final_t))
-    print("Avg: {} s per iter".format(final_t / num_iters))
+    print("Avg: {} s per iter".format(final_t / sim_flags["num_iters"]))
     
     history.apply_unit_conversions(param_info)
     print("Acceptance rate:", np.sum(history.accept) / len(history.accept))

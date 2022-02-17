@@ -76,10 +76,45 @@ def update_history(H, k, p, means, param_info):
             h_mean[k] = 10 ** getattr(means, param)
         else:
             h_mean[k] = getattr(means, param)
+            
+def do_simulation(p, thickness, nx, iniPar, times):
+    g = Grid()
+    g.thickness = thickness
+    g.nx = nx
+    g.dx = g.thickness / g.nx
+    g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
     
-def metro(simPar, iniPar, e_data, param_info, num_iters=5):
+    g.time = times[-1]
+    g.nt = len(times) - 1
+    g.dt = g.time / g.nt
+    g.hmax = 4
+    g.tSteps = times
+    
+    sol = model(iniPar, g, p)
+    return sol
+    
+def roll_acceptance(logratio):
+    if logratio >= 0:
+        # Continue
+        accepted = True
+        
+    else:
+        accept = np.random.random()
+        if accept < 10 ** logratio:
+            # Continue
+            accepted = True
+    return accepted
+
+def unpack_simpar(simPar, i):
+    thickness = simPar[0][i] if isinstance(simPar[0], list) else simPar[0]
+    nx = simPar[2]
+    return thickness, nx
+    
+def metro(simPar, iniPar, e_data, param_info, sim_flags):
     # Setup
     np.random.seed(42)
+    
+    num_iters = sim_flags["num_iters"]
     times, vals, uncs = e_data    
     tf = sum([len(time)-1 for time in times]) * (1/2000)
     p = Parameters(param_info)
@@ -108,23 +143,10 @@ def metro(simPar, iniPar, e_data, param_info, num_iters=5):
     # Calculate likelihood of initial guess
     prev_p.likelihood = np.zeros(len(iniPar))
     for i in range(len(iniPar)):
-        g = Grid()
-        g.thickness = simPar[0][i] if isinstance(simPar[0], list) else simPar[0]
-        g.nx = simPar[2]
-        g.dx = g.thickness / g.nx
-        g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
-        
-        g.time = times[i][-1]
-        g.nt = len(times[i]) - 1
-        g.dt = g.time / g.nt
-        g.hmax = 4
-        g.tSteps = times[i]
-        
-        sol = model(iniPar[i], g, p)
-        
+        thickness, nx = unpack_simpar(simPar, i)
+        sol = do_simulation(prev_p, thickness, nx, iniPar[i], times[i])
         prev_p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
-        #sol.plot_PL(g)
-        
+
     prev_p.likelihood /= tf
     update_history(H, 0, prev_p, means, param_info)
 
@@ -138,22 +160,9 @@ def metro(simPar, iniPar, e_data, param_info, num_iters=5):
             # Calculate new likelihood?
             p.likelihood = np.zeros(len(iniPar))
             for i in range(len(iniPar)):
-                g = Grid()
-                g.thickness = simPar[0][i] if isinstance(simPar[0], list) else simPar[0]
-                g.nx = simPar[2]
-                g.dx = g.thickness / g.nx
-                g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
-                
-                g.time = times[i][-1]
-                g.nt = len(times[i]) - 1
-                g.dt = g.time / g.nt
-                g.hmax = 4
-                g.tSteps = times[i]
-                
-                sol = model(iniPar[i], g, p)
-                
+                thickness, nx = unpack_simpar(simPar, i)
+                sol = do_simulation(p, thickness, nx, iniPar[i], times[i])
                 p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
-                #sol.plot_PL(g)
                 
                 p.likelihood[i] /= tf
             
@@ -163,17 +172,7 @@ def metro(simPar, iniPar, e_data, param_info, num_iters=5):
             
                 print("Partial Ratio: {}".format(10 ** logratio))
             
-                accepted = False
-                if logratio >= 0:
-                    # Continue
-                    accepted = True
-                    
-                else:
-                    accept = np.random.random()
-                    if accept < 10 ** logratio:
-                        # Continue
-                        accepted = True
-                        
+                accepted = roll_acceptance(logratio)
                 if not accepted:
                     print("Rejected!")
                     break
