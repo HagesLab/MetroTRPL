@@ -103,6 +103,8 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
     np.random.seed(42)
     
     num_iters = sim_flags["num_iters"]
+    DA_mode = sim_flags["delayed_acceptance"]
+    
     times, vals, uncs = e_data    
     tf = sum([len(time)-1 for time in times]) * (1/2000)
     p = Parameters(param_info)
@@ -135,6 +137,11 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
         prev_p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
 
     prev_p.likelihood /= tf
+    if DA_mode == 'on':
+        pass
+    elif DA_mode == 'off':
+        prev_p.likelihood = np.sum(prev_p.likelihood)
+    
     update_history(H, 0, prev_p, means, param_info)
 
     for k in range(1, num_iters):
@@ -146,23 +153,39 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
             print_status(p, means, param_info)
             # Calculate new likelihood?
             p.likelihood = np.zeros(len(iniPar))
-            for i in range(len(iniPar)):
-                thickness, nx = unpack_simpar(simPar, i)
-                sol = do_simulation(p, thickness, nx, iniPar[i], times[i])
-                p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
-                
-                p.likelihood[i] /= tf
             
+            if DA_mode == "on":
+                for i in range(len(iniPar)):
+                    thickness, nx = unpack_simpar(simPar, i)
+                    sol = do_simulation(p, thickness, nx, iniPar[i], times[i])
+                    p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
+                    p.likelihood[i] /= tf
+                
+                    # Compare with prior likelihood
+                    logratio = p.likelihood[i] - prev_p.likelihood[i]
+                    print("Partial Ratio: {}".format(10 ** logratio))
+                
+                    accepted = roll_acceptance(logratio)
+                    if not accepted:
+                        break
+                    
+            elif DA_mode == "off":
+                for i in range(len(iniPar)):
+                    thickness, nx = unpack_simpar(simPar, i)
+                    sol = do_simulation(p, thickness, nx, iniPar[i], times[i])
+                    p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
+                    p.likelihood[i] /= tf
+                
                 # Compare with prior likelihood
-
-                logratio = p.likelihood[i] - prev_p.likelihood[i]
+                p.likelihood = np.sum(p.likelihood)
+                logratio = p.likelihood - prev_p.likelihood
             
                 print("Partial Ratio: {}".format(10 ** logratio))
             
                 accepted = roll_acceptance(logratio)
-                if not accepted:
-                    print("Rejected!")
-                    break
+                
+            if not accepted:
+                print("Rejected!")
                 
             print("Iter {}".format(k))
             print("#####")

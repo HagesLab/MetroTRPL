@@ -78,10 +78,12 @@ if __name__ == "__main__":
                 "num_gpus": 8}
     
     sim_flags = {"num_iters": 10,
+                 "delayed_acceptance": 'off', # "off", "on", "cumulative"
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
                  "self_normalize":False,
+                 
                  }
     
     # Collect filenames
