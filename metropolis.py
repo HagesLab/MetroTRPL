@@ -8,7 +8,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 
 from forward_solver import dydt
-from utils import Grid, Solution, Parameters, History
+from sim_utils import Grid, Solution, Parameters, History
 
 def model(init_dN, g, p):
     N = init_dN + p.n0
