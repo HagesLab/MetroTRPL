@@ -14,7 +14,7 @@ import os
 import pickle
 
 from metro_plot_lib import make_1D_tracker, make_2D_tracker, make_1D_histo, make_2D_histo
-from postprocessing_utils import fetch_param, recommend_logscale, calc_contours
+from postprocessing_utils import fetch, fetch_param, recommend_logscale, calc_contours
 
 
 true_vals = {"mu_n":20,
@@ -63,7 +63,8 @@ if __name__ == "__main__":
             first = False
              
         for add_param in adds:
-            proposed, accepted = fetch_param(path, add_param, thickness=2000)
+            raw_fetched, mean_fetched = fetch(path, add_param)
+            proposed, accepted = fetch_param(raw_fetched, mean_fetched, add_param, thickness=2000)
             recommended_log = recommend_logscale(add_param, do_log)
             make_1D_tracker(proposed, accepted, mark_value=adds[add_param], ylabel=add_param,
                             show_legend=first, do_log=recommended_log)
@@ -83,7 +84,8 @@ if __name__ == "__main__":
             print(param, " std ", np.std(accepted))
             
         for add_param in adds:
-            proposed, accepted = fetch_param(path, add_param, thickness=2000)
+            raw_fetched, mean_fetched = fetch(path, add_param)
+            proposed, accepted = fetch_param(raw_fetched, mean_fetched, add_param, thickness=2000)
             recommended_log = recommend_logscale(add_param, do_log)
             make_1D_histo(accepted, mark_value=adds[add_param], xlabel=add_param,
                           do_log=recommended_log, bin_count=24)
