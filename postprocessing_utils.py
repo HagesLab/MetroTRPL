@@ -30,33 +30,21 @@ def fetch(path, which_param):
     raw_fetched = {}
     mean_fetched = {}
     if which_param == "Sf+Sb":
-        raw_fetched["Sf"] = np.load(os.path.join(path, "Sf.npy"))
-        mean_fetched["Sf"] = np.load(os.path.join(path, "mean_Sf.npy"))
-        raw_fetched["Sb"] = np.load(os.path.join(path, "Sb.npy"))
-        mean_fetched["Sb"] = np.load(os.path.join(path, "mean_Sb.npy"))
+        params = ["Sf", "Sb"]
         
     elif which_param == "tau_eff":
-        raw_fetched["Sf"] = np.load(os.path.join(path, "Sf.npy"))
-        mean_fetched["Sf"] = np.load(os.path.join(path, "mean_Sf.npy"))
-        raw_fetched["Sb"] = np.load(os.path.join(path, "Sb.npy"))
-        mean_fetched["Sb"] = np.load(os.path.join(path, "mean_Sb.npy"))
-        raw_fetched["tauN"] = np.load(os.path.join(path, "tauN.npy"))
-        mean_fetched["tauN"] = np.load(os.path.join(path, "mean_tauN.npy"))
-        raw_fetched["mu_n"] = np.load(os.path.join(path, "mu_n.npy"))
-        mean_fetched["mu_n"] = np.load(os.path.join(path, "mean_mu_n.npy"))
-        raw_fetched["mu_p"] = np.load(os.path.join(path, "mu_p.npy"))
-        mean_fetched["mu_p"] = np.load(os.path.join(path, "mean_mu_p.npy"))
-        raw_fetched["B"] = np.load(os.path.join(path, "B.npy"))
-        mean_fetched["B"] = np.load(os.path.join(path, "mean_B.npy"))
-        raw_fetched["p0"] = np.load(os.path.join(path, "p0.npy"))
-        mean_fetched["p0"] = np.load(os.path.join(path, "mean_p0.npy"))
+        params = ["Sf", "Sb", "tauN", "mu_n", "mu_p", "B", "p0"]
         
     elif which_param == "mu_eff":
-        raw_fetched["mu_n"] = np.load(os.path.join(path, "mu_n.npy"))
-        mean_fetched["mu_n"] = np.load(os.path.join(path, "mean_mu_n.npy"))
-        raw_fetched["mu_p"] = np.load(os.path.join(path, "mu_p.npy"))
-        mean_fetched["mu_p"] = np.load(os.path.join(path, "mean_mu_p.npy"))
+        params = ["mu_n", "mu_p"]
         
+    else:
+        raise KeyError
+        
+    for param in params:
+        raw_fetched[param] = np.load(os.path.join(path, f"{param}.npy"))
+        mean_fetched[param] = np.load(os.path.join(path, f"mean_{param}.npy"))
+
     return raw_fetched, mean_fetched
 
 def fetch_param(raw_fetched, mean_fetched, which_param, **kwargs):
@@ -109,5 +97,3 @@ def calc_contours(x_accepted, y_accepted, clevels, which_params, size=1000, do_l
         raise NotImplementedError
         
     return (cx, cy, cZ, clevels)
-    
-    
