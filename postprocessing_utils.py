@@ -71,19 +71,32 @@ def fetch_param(path, which_param, **kwargs):
         
     return proposed, accepted
 
-def calc_contours(x_accepted, y_accepted, clevels, which_params):
+def calc_contours(x_accepted, y_accepted, clevels, which_params, size=1000, do_logx=False, do_logy=False):
     minx = min(x_accepted)
     miny = min(y_accepted)
     maxx = max(x_accepted)
     maxy = max(y_accepted)
-    cx = np.linspace(minx, maxx, 100)
-    cy = np.linspace(miny, maxy, 100)
+    if do_logx:
+        cx = np.geomspace(minx, maxx, size)
+    else:
+        cx = np.linspace(minx, maxx, size)
+        
+    if do_logy:
+        cy = np.geomspace(miny, maxy, size)
+    else:
+        cy = np.linspace(miny, maxy, size)
 
     cx, cy = np.meshgrid(cx, cy)
 
     if "Sf" in which_params and "Sb" in which_params:
         # Sf+Sb
         cZ = cx+cy
+        
+    elif "mu_n" in which_params and "mu_p" in which_params:
+        cZ = mu_eff(cx, cy)
+        
+    else:
+        raise NotImplementedError
         
     return (cx, cy, cZ, clevels)
     

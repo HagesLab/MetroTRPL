@@ -105,7 +105,8 @@ if __name__ == "__main__":
             x_accepted = np.load(os.path.join(path, f"mean_{paramx}.npy"))
             y_accepted = np.load(os.path.join(path, f"mean_{paramy}.npy"))
             if clevels is not None:
-                contour_info = calc_contours(x_accepted, y_accepted, clevels, (paramx, paramy))
+                contour_info = calc_contours(x_accepted, y_accepted, clevels, (paramx, paramy),
+                                             do_logx=do_log[paramx], do_logy=do_log[paramy])
             else:
                 contour_info = None
             if do["2D_trackers"]:
