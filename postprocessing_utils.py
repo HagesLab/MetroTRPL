@@ -18,6 +18,12 @@ def recommend_logscale(which_param, do_log):
     elif which_param == "mu_eff":
         recommend = (do_log["mu_n"] and do_log["mu_p"])
         
+    elif which_param in do_log:
+        recommend = do_log[which_param]
+        
+    else:
+        recommend = False
+
     return recommend
 
 def fetch_param(path, which_param, **kwargs):
