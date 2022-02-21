@@ -13,10 +13,10 @@ def recommend_logscale(which_param, do_log):
         recommend = (do_log["Sf"] or do_log["Sb"])
         
     elif which_param == "tau_eff":
-        recommend = (do_log["tauN"] and (do_log["Sf"] or do_log["Sb"]))
+        recommend = (do_log["tauN"] or (do_log["Sf"] or do_log["Sb"]))
         
     elif which_param == "mu_eff":
-        recommend = (do_log["mu_n"] and do_log["mu_p"])
+        recommend = (do_log["mu_n"] or do_log["mu_p"])
         
     elif which_param in do_log:
         recommend = do_log[which_param]
