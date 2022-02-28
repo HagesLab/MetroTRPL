@@ -78,7 +78,8 @@ if __name__ == "__main__":
                 "num_gpus": 8}
     
     sim_flags = {"num_iters": 100,
-                 "delayed_acceptance": 'cumulative', # "off", "on", "cumulative"
+                 "delayed_acceptance": 'on', # "off", "on", "cumulative"
+                 "DA time subdivisions": 4,
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,

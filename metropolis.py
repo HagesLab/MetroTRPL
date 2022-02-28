@@ -10,19 +10,37 @@ from scipy.integrate import solve_ivp
 from forward_solver import dydt
 from sim_utils import Grid, Solution, Parameters, History
 
+## Constants
+eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
+q = 1.0 # [e]
+q_C = 1.602e-19 # [C]
+kB = 8.61773e-5  # [eV / K]
+
+def E_field(N, P, PA, dx):
+    if N.ndim == 1:
+        corner_E = 0
+        E = corner_E + q_C / (PA.eps * eps0) * dx * np.cumsum(((P - PA.p0) - (N - PA.n0)))
+        E = np.concatenate(([corner_E], E))
+    elif N.ndim == 2:
+        corner_E = 0
+        E = corner_E + q_C / (PA.eps * eps0) * dx * np.cumsum(((P - PA.p0) - (N - PA.n0)), axis=1)
+        num_tsteps = len(N)
+        E = np.concatenate((np.ones(shape=(num_tsteps,1))*corner_E, E), axis=1)
+    return E
+
 def model(init_dN, g, p):
     N = init_dN + p.n0
     P = init_dN + p.p0
-    E_field = np.zeros(len(N)+1)
+    E_f = E_field(N, P, p, g.dx)
     
-    init_condition = np.concatenate([N, P, E_field], axis=None)
+    init_condition = np.concatenate([N, P, E_f], axis=None)
     args = (g,p)
-    sol = solve_ivp(dydt, [0,g.time], init_condition, args=args, t_eval=g.tSteps, method='BDF', max_step=g.hmax)
+    sol = solve_ivp(dydt, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='BDF', max_step=g.hmax)
     data = sol.y.T
     s = Solution()
-    s.N, s.P, E_field = np.split(data, [g.nx, 2*g.nx], axis=1)
+    s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
     s.calculate_PL(g, p)
-    return s.PL
+    return s.PL, (s.N[-1]-p.n0)
 
 def select_next_params(p, means, variances, param_info):
     is_active = param_info["active"]
@@ -72,13 +90,14 @@ def do_simulation(p, thickness, nx, iniPar, times):
     g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
     
     g.time = times[-1]
+    g.start_time = times[0]
     g.nt = len(times) - 1
     g.dt = g.time / g.nt
     g.hmax = 4
     g.tSteps = times
     
-    sol = model(iniPar, g, p)
-    return sol
+    sol, next_init_condition = model(iniPar, g, p)
+    return sol, next_init_condition
     
 def roll_acceptance(logratio):
     accepted = False
@@ -104,6 +123,7 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
     
     num_iters = sim_flags["num_iters"]
     DA_mode = sim_flags["delayed_acceptance"]
+    DA_time_subs = sim_flags["DA time subdivisions"]
     
     times, vals, uncs = e_data    
     tf = sum([len(time)-1 for time in times]) * (1/2000)
@@ -130,11 +150,23 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
     variances.tauP = 20
     
     # Calculate likelihood of initial guess
-    prev_p.likelihood = np.zeros(len(iniPar))
+    prev_p.likelihood = np.zeros((len(iniPar), DA_time_subs))
     for i in range(len(iniPar)):
         thickness, nx = unpack_simpar(simPar, i)
-        sol = do_simulation(prev_p, thickness, nx, iniPar[i], times[i])
-        prev_p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
+        subdivided_times = np.split(times[i][1:], DA_time_subs)
+        subdivided_times[0] = np.insert(subdivided_times[0], 0, 0)
+        for j in range(1, DA_time_subs):
+            subdivided_times[j] = np.insert(subdivided_times[j], 0, subdivided_times[j-1][-1])
+            
+        subdivided_vals = np.split(vals[i][1:], DA_time_subs)
+        subdivided_vals[0] = np.insert(subdivided_vals[0], 0, 0)
+        for j in range(1, DA_time_subs):
+            subdivided_vals[j] = np.insert(subdivided_vals[j], 0, subdivided_vals[j-1][-1])
+            
+        next_init_condition = iniPar[i]
+        for j in range(DA_time_subs):
+            sol, next_init_condition = do_simulation(prev_p, thickness, nx, next_init_condition, subdivided_times[j])
+            prev_p.likelihood[i, j] -= np.sum((np.log10(sol[1:]) - subdivided_vals[j][1:])**2)
 
     prev_p.likelihood /= tf
     if DA_mode == 'on':
@@ -156,31 +188,48 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
     
             print_status(p, means, param_info)
             # Calculate new likelihood?
-            p.likelihood = np.zeros(len(iniPar))
+            
             
             
             if DA_mode == "on":
+                p.likelihood = np.zeros((len(iniPar), DA_time_subs))
                 for i in range(len(iniPar)):
                     thickness, nx = unpack_simpar(simPar, i)
-                    sol = do_simulation(p, thickness, nx, iniPar[i], times[i])
-                    p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
-                    p.likelihood[i] /= tf
+                    subdivided_times = np.split(times[i][1:], DA_time_subs)
+                    subdivided_times[0] = np.insert(subdivided_times[0], 0, 0)
+                    for j in range(1, DA_time_subs):
+                        subdivided_times[j] = np.insert(subdivided_times[j], 0, subdivided_times[j-1][-1])
+                        
+                    subdivided_vals = np.split(vals[i][1:], DA_time_subs)
+                    subdivided_vals[0] = np.insert(subdivided_vals[0], 0, 0)
+                    for j in range(1, DA_time_subs):
+                        subdivided_vals[j] = np.insert(subdivided_vals[j], 0, subdivided_vals[j-1][-1])
+                        
+                    next_init_condition = iniPar[i]
+                    for j in range(DA_time_subs):
+                        sol, next_init_condition = do_simulation(p, thickness, nx, next_init_condition, subdivided_times[j])
+                        p.likelihood[i, j] -= np.sum((np.log10(sol[1:]) - subdivided_vals[j][1:])**2)
+                        p.likelihood[i, j] /= tf
                 
                     # Compare with prior likelihood
-                    logratio = p.likelihood[i] - prev_p.likelihood[i]
-                    print("Partial Ratio: {}".format(10 ** logratio))
-                
-                    accepted = roll_acceptance(logratio)
+                        logratio = p.likelihood[i, j] - prev_p.likelihood[i, j]
+                        print("Partial Ratio: {}".format(10 ** logratio))
+                    
+                        accepted = roll_acceptance(logratio)
+                        if not accepted:
+                            break
                     if not accepted:
                         break
+                    
                 if accepted:
                     prev_p.likelihood = p.likelihood
                     
             elif DA_mode == "cumulative":
+                p.likelihood = np.zeros(len(iniPar))
                 p.cumulikelihood = np.zeros(len(iniPar))
                 for i in range(len(iniPar)):
                     thickness, nx = unpack_simpar(simPar, rand_i[i])
-                    sol = do_simulation(p, thickness, nx, iniPar[rand_i[i]], times[rand_i[i]])
+                    sol, next_init_condition = do_simulation(p, thickness, nx, iniPar[rand_i[i]], times[rand_i[i]])
                     p.likelihood[rand_i[i]] -= np.sum((np.log10(sol) - vals[rand_i[i]])**2)
                     p.likelihood[rand_i[i]] /= tf
                 
@@ -201,9 +250,10 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
                 prev_p.cumulikelihood = np.cumsum(prev_p.likelihood[rand_i])
                     
             elif DA_mode == "off":
+                p.likelihood = np.zeros(len(iniPar))
                 for i in range(len(iniPar)):
                     thickness, nx = unpack_simpar(simPar, i)
-                    sol = do_simulation(p, thickness, nx, iniPar[i], times[i])
+                    sol, next_init_condition = do_simulation(p, thickness, nx, iniPar[i], times[i])
                     p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
                     p.likelihood[i] /= tf
                 
