@@ -25,7 +25,6 @@ def dydt(t, y, g, p):
     dJz = np.zeros((g.nx))
     rad_rec = np.zeros((g.nx))
     non_rad_rec = np.zeros((g.nx))
-    G_array = np.zeros((g.nx))
 
     N = y[0:g.nx]
     P = y[g.nx:2*(g.nx)]
@@ -65,14 +64,14 @@ def dydt(t, y, g, p):
 
     ## N(t) = N(t-1) + dt * (dN/dt)
     #N_new = np.maximum(N_previous + dt * ((1/q) * dJz - rad_rec - non_rad_rec + G_array), 0)
-    dNdt = ((1/q) * dJz - rad_rec - non_rad_rec + G_array)
+    dNdt = ((1/q) * dJz - rad_rec - non_rad_rec)
 
     ## Calculate dJp/dx
     dJz = (np.roll(Jp, -1)[:-1] - Jp[:-1]) / (g.dx)
 
     ## P(t) = P(t-1) + dt * (dP/dt)
     #P_new = np.maximum(P_previous + dt * ((1/q) * dJz - rad_rec - non_rad_rec + G_array), 0)
-    dPdt = ((1/q) * -dJz - rad_rec - non_rad_rec + G_array)
+    dPdt = ((1/q) * -dJz - rad_rec - non_rad_rec)
 
 
     ## Package results
