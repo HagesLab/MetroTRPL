@@ -27,28 +27,36 @@ true_vals = {"mu_n":20,
              "tauP":871,}
 
 do = {"1D_trackers":0,
-      "2D_trackers":1,
+      "2D_trackers":0,
       "1D_histos":0,
       "2D_histos":1}
 
-burn = 250
+burn = 0
 adds = {"Sf+Sb": 20, "tau_eff": 454}
 pairs = [("Sf", "Sb", 20)]
 #adds = {"tau_eff": 454}
-adds = {"mu_eff":20}
+#adds = {"mu_eff":20}
 #pairs = [("mu_n", "mu_p")]
 #pairs = []
 
 if __name__ == "__main__":
-    path = "earlymu cuDA"
+    path = "DEBUG2"
     
     path = os.path.join("bay_outputs", path)
     with open(os.path.join(path, "param_info.pik"), "rb") as ifstream:
         param_info = pickle.load(ifstream)
+        
+    did_multicore = (isinstance(param_info, list))
     
-    names = param_info["names"]
-    is_active = param_info["active"]
-    do_log = param_info["do_log"]
+    if did_multicore:
+        # param_info and all param.npy will be 2D
+        names = param_info[0]["names"]
+        is_active = param_info[0]["active"]
+        do_log = param_info[0]["do_log"]
+    else:
+        names = param_info["names"]
+        is_active = param_info["active"]
+        do_log = param_info["do_log"]
     
     if do["1D_trackers"]:
         first = True
@@ -59,7 +67,7 @@ if __name__ == "__main__":
             proposed = np.load(os.path.join(path, f"{param}.npy"))
             accepted = np.load(os.path.join(path, f"mean_{param}.npy"))
             make_1D_tracker(proposed, accepted, mark_value=true_vals[param], ylabel=param,
-                            show_legend=first, do_log=do_log[param])
+                            show_legend=first, do_log=do_log[param], did_multicore=did_multicore)
             first = False
              
         for add_param in adds:
@@ -67,7 +75,7 @@ if __name__ == "__main__":
             proposed, accepted = fetch_param(raw_fetched, mean_fetched, add_param, thickness=2000)
             recommended_log = recommend_logscale(add_param, do_log)
             make_1D_tracker(proposed, accepted, mark_value=adds[add_param], ylabel=add_param,
-                            show_legend=first, do_log=recommended_log)
+                            show_legend=first, do_log=recommended_log, did_multicore=did_multicore)
             
     if do["1D_histos"]:
         for i, param in enumerate(names):
@@ -88,7 +96,7 @@ if __name__ == "__main__":
             proposed, accepted = fetch_param(raw_fetched, mean_fetched, add_param, thickness=2000)
             recommended_log = recommend_logscale(add_param, do_log)
             make_1D_histo(accepted, mark_value=adds[add_param], xlabel=add_param,
-                          do_log=recommended_log, bin_count=24)
+                          do_log=recommended_log, bin_count=24, did_multicore=did_multicore)
             
             print(add_param, " mean ", np.mean(accepted))
             print(add_param, " std ", np.std(accepted))
@@ -114,12 +122,12 @@ if __name__ == "__main__":
             if do["2D_trackers"]:
                 make_2D_tracker(x_accepted, y_accepted, markx=true_vals[paramx], marky=true_vals[paramy],
                                 do_logx=do_log[paramx], do_logy=do_log[paramy],xlabel=paramx,ylabel=paramy,
-                                contours=contour_info)
+                                contours=contour_info, did_multicore=did_multicore)
                 
             if do["2D_histos"]:
                 make_2D_histo(x_accepted, y_accepted, markx=true_vals[paramx], marky=true_vals[paramy],
                               do_logx=do_log[paramx], do_logy=do_log[paramy],xlabel=paramx,ylabel=paramy,
-                              contours=contour_info)
+                              contours=contour_info, did_multicore=did_multicore)
 
                 
             

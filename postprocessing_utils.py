@@ -70,10 +70,10 @@ def fetch_param(raw_fetched, mean_fetched, which_param, **kwargs):
     return proposed, accepted
 
 def calc_contours(x_accepted, y_accepted, clevels, which_params, size=1000, do_logx=False, do_logy=False):
-    minx = min(x_accepted)
-    miny = min(y_accepted)
-    maxx = max(x_accepted)
-    maxy = max(y_accepted)
+    minx = min(x_accepted.flatten())
+    miny = min(y_accepted.flatten())
+    maxx = max(x_accepted.flatten())
+    maxy = max(y_accepted.flatten())
     if do_logx:
         cx = np.geomspace(minx, maxx, size)
     else:
