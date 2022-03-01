@@ -46,10 +46,10 @@ if __name__ == "__main__":
                         "mu_n":20, 
                         "mu_p":20, 
                         "B":4.8e-11, 
-                        "Sf":[100]*8, 
-                        "Sb":[0.05]*8, 
-                        "tauN":[800]*8, 
-                        "tauP":[900]*8, 
+                        "Sf":np.logspace(-1, 2, 8), 
+                        "Sb":np.logspace(-1, 2, 8), 
+                        "tauN":np.linspace(100, 1000, 8), 
+                        "tauP":np.linspace(100, 1000, 8), 
                         "eps":10, 
                         "m":0}
     
@@ -72,14 +72,15 @@ if __name__ == "__main__":
     gpu_info = {"sims_per_gpu": 2 ** 13,
                 "num_gpus": 8}
     
+    # TODO: Validation
     sim_flags = {"num_iters": 50,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
-                 "DA time subdivisions": 4,
+                 "DA time subdivisions": [10, 50],
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
                  "self_normalize":False,
-                 "do_multicore":True
+                 "do_multicore":False
                  }
     
     if sim_flags.get("do_multicore", False):
@@ -103,8 +104,8 @@ if __name__ == "__main__":
     
     else:
         param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
-        if not any(param_is_iterable.values()):
-            logging.warn("Multiple initial guesses detected without do_multicore, taking only first guess "
+        if any(param_is_iterable.values()):
+            logging.warning("Multiple initial guesses detected without do_multicore, taking only first guess "
                          "- did you mean to enable do_multicore?")
         initial_guess = {}
         for param in initial_guesses:

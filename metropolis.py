@@ -121,6 +121,16 @@ def unpack_simpar(simPar, i):
     nx = simPar[2]
     return thickness, nx
 
+def convert_DA_times(DA_time_subs, total_len):
+    # DA_time_subs: if int, treat as number of equally spaced time subs
+    # If list, treat as percentages over which to subdivide data
+    # e.g. [10,30,60] splits data into 0-10%, 10-30%, 30-60%, and 60-100%
+    if isinstance(DA_time_subs, list):
+        splits = np.array(DA_time_subs) / 100 * total_len
+        splits = splits.astype(int)
+    else:
+        splits = DA_time_subs
+    return splits
 
 def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_infos):
     #num_cpus = 2
@@ -143,6 +153,10 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info):
     num_iters = sim_flags["num_iters"]
     DA_mode = sim_flags["delayed_acceptance"]
     DA_time_subs = sim_flags["DA time subdivisions"]
+    if isinstance(DA_time_subs, list):
+        num_time_subs = len(DA_time_subs)+1
+    else:
+        num_time_subs = DA_time_subs
     
     times, vals, uncs = e_data    
     tf = sum([len(time)-1 for time in times]) * (1/2000)
@@ -169,21 +183,23 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info):
     variances.tauP = 20
     
     # Calculate likelihood of initial guess
-    prev_p.likelihood = np.zeros((len(iniPar), DA_time_subs))
+    prev_p.likelihood = np.zeros((len(iniPar), num_time_subs))
     for i in range(len(iniPar)):
         thickness, nx = unpack_simpar(simPar, i)
-        subdivided_times = np.split(times[i][1:], DA_time_subs)
+        splits = convert_DA_times(DA_time_subs, len(times[i][1:]))
+        
+        subdivided_times = np.split(times[i][1:], splits)
         subdivided_times[0] = np.insert(subdivided_times[0], 0, 0)
-        for j in range(1, DA_time_subs):
+        for j in range(1, num_time_subs):
             subdivided_times[j] = np.insert(subdivided_times[j], 0, subdivided_times[j-1][-1])
             
-        subdivided_vals = np.split(vals[i][1:], DA_time_subs)
+        subdivided_vals = np.split(vals[i][1:], splits)
         subdivided_vals[0] = np.insert(subdivided_vals[0], 0, 0)
-        for j in range(1, DA_time_subs):
+        for j in range(1, num_time_subs):
             subdivided_vals[j] = np.insert(subdivided_vals[j], 0, subdivided_vals[j-1][-1])
             
         next_init_condition = iniPar[i]
-        for j in range(DA_time_subs):
+        for j in range(num_time_subs):
             sol, next_init_condition = do_simulation(prev_p, thickness, nx, next_init_condition, subdivided_times[j])
             prev_p.likelihood[i, j] -= np.sum((np.log10(sol[1:]) - subdivided_vals[j][1:])**2)
 
@@ -208,24 +224,24 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info):
             print_status(p, means, param_info)
             # Calculate new likelihood?
             
-            
-            
             if DA_mode == "on":
-                p.likelihood = np.zeros((len(iniPar), DA_time_subs))
+                p.likelihood = np.zeros((len(iniPar), num_time_subs))
                 for i in range(len(iniPar)):
                     thickness, nx = unpack_simpar(simPar, i)
-                    subdivided_times = np.split(times[i][1:], DA_time_subs)
+                    splits = convert_DA_times(DA_time_subs, len(times[i][1:]))
+                    
+                    subdivided_times = np.split(times[i][1:], splits)
                     subdivided_times[0] = np.insert(subdivided_times[0], 0, 0)
-                    for j in range(1, DA_time_subs):
+                    for j in range(1, num_time_subs):
                         subdivided_times[j] = np.insert(subdivided_times[j], 0, subdivided_times[j-1][-1])
                         
-                    subdivided_vals = np.split(vals[i][1:], DA_time_subs)
+                    subdivided_vals = np.split(vals[i][1:], splits)
                     subdivided_vals[0] = np.insert(subdivided_vals[0], 0, 0)
-                    for j in range(1, DA_time_subs):
+                    for j in range(1, num_time_subs):
                         subdivided_vals[j] = np.insert(subdivided_vals[j], 0, subdivided_vals[j-1][-1])
                         
                     next_init_condition = iniPar[i]
-                    for j in range(DA_time_subs):
+                    for j in range(num_time_subs):
                         sol, next_init_condition = do_simulation(p, thickness, nx, next_init_condition, subdivided_times[j])
                         p.likelihood[i, j] -= np.sum((np.log10(sol[1:]) - subdivided_vals[j][1:])**2)
                         p.likelihood[i, j] /= tf
