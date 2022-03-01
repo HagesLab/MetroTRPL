@@ -81,7 +81,29 @@ class History():
         self.ratio = self.ratio[:k]
         return
         
-
+class HistoryList():
+    
+    def __init__(self, list_of_histories, param_info):
+        # TODO: assert all param_info["names"] are the same
+        self.join("accept", list_of_histories)
+        self.join("ratio", list_of_histories)
+        for param in param_info[0]["names"]:
+            self.join(param, list_of_histories)
+            self.join(f"mean_{param}", list_of_histories)
+        
+        
+    def join(self, attr, list_of_histories):
+        attr_from_each_hist = [getattr(H, attr) for H in list_of_histories]
+        setattr(self, attr, np.vstack(attr_from_each_hist))
+        
+    def export(self, param_info, out_pathname):
+        for param in param_info[0]["names"]:
+            np.save(os.path.join(out_pathname, f"{param}"), getattr(self, param))
+            np.save(os.path.join(out_pathname, f"mean_{param}"), getattr(self, f"mean_{param}"))
+                    
+        np.save(os.path.join(out_pathname, "accept"), self.accept)
+        
+        
 class Grid():
     def __init__(self):
         return

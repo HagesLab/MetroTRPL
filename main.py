@@ -8,9 +8,10 @@ import numpy as np
 import os
 import pickle
 import sys
+import logging
 
 from bayes_io import get_data, get_initpoints
-from metropolis import metro
+from metropolis import metro, start_metro_controller
 from time import perf_counter
 
 
@@ -39,17 +40,18 @@ if __name__ == "__main__":
               "Sf":1,"Sb":1,"tauN":0,"tauP":0,"eps":1,
               "m":0}
     
-    initial_guess = {"n0":1e8, 
-                     "p0":3e15, 
-                     "mu_n":20, 
-                     "mu_p":20, 
-                     "B":4.8e-11, 
-                     "Sf":100, 
-                     "Sb":0.05, 
-                     "tauN":900, 
-                     "tauP":900, 
-                     "eps":10, 
-                     "m":0}
+    num_initial_guesses = 8
+    initial_guesses = {"n0":1e8, 
+                        "p0":3e15, 
+                        "mu_n":20, 
+                        "mu_p":20, 
+                        "B":4.8e-11, 
+                        "Sf":[100]*8, 
+                        "Sb":[0.05]*8, 
+                        "tauN":[800]*8, 
+                        "tauP":[900]*8, 
+                        "eps":10, 
+                        "m":0}
     
     active_params = {"n0":0, 
                      "p0":0, 
@@ -62,13 +64,6 @@ if __name__ == "__main__":
                      "tauP":1, 
                      "eps":0, 
                      "m":0}
-    
-    param_info = {"names":param_names,
-                  "active":active_params,
-                  "unit_conversions":unit_conversions,
-                  "do_log":do_log,
-                  "initial_guess":initial_guess}
-    
     # Other options
     ic_flags = {"time_cutoff":None,
                 "select_obs_sets": None,
@@ -77,15 +72,53 @@ if __name__ == "__main__":
     gpu_info = {"sims_per_gpu": 2 ** 13,
                 "num_gpus": 8}
     
-    sim_flags = {"num_iters": 100,
+    sim_flags = {"num_iters": 50,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
                  "DA time subdivisions": 4,
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
                  "self_normalize":False,
-                 
+                 "do_multicore":True
                  }
+    
+    if sim_flags.get("do_multicore", False):
+        param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
+        param_infos = []
+        for ig in range(num_initial_guesses):
+            initial_guess = {}
+            for param in initial_guesses:
+                if param_is_iterable[param]:
+                    initial_guess[param] = initial_guesses[param][ig]
+                else:
+                    initial_guess[param] = initial_guesses[param]
+                    
+            param_info = {"names":param_names,
+                          "active":active_params,
+                          "unit_conversions":unit_conversions,
+                          "do_log":do_log,
+                          "initial_guess":initial_guess}
+        
+            param_infos.append(param_info)
+    
+    else:
+        param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
+        if not any(param_is_iterable.values()):
+            logging.warn("Multiple initial guesses detected without do_multicore, taking only first guess "
+                         "- did you mean to enable do_multicore?")
+        initial_guess = {}
+        for param in initial_guesses:
+            if param_is_iterable[param]:
+                initial_guess[param] = initial_guesses[param][0]
+            else:
+                initial_guess[param] = initial_guesses[param]
+                
+        param_infos = {"names":param_names,
+                      "active":active_params,
+                      "unit_conversions":unit_conversions,
+                      "do_log":do_log,
+                      "initial_guess":initial_guess}
+
     
     # Collect filenames
     try:
@@ -102,7 +135,7 @@ if __name__ == "__main__":
 
     init_fname = "staub_MAPI_threepower_twothick_input.csv"
     exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
-    out_fname = "DEBUG"
+    out_fname = "DEBUG2"
     init_pathname = os.path.join(init_dir, init_fname)
     experimental_data_pathname = os.path.join(init_dir, exp_fname)
     out_pathname = os.path.join(out_dir, out_fname)
@@ -111,19 +144,20 @@ if __name__ == "__main__":
         os.mkdir(out_pathname)
     
     with open(os.path.join(out_pathname, "param_info.pik"), "wb+") as ofstream:
-        pickle.dump(param_info, ofstream)
+        pickle.dump(param_infos, ofstream)
     
     # Get observations and initial condition
     iniPar = get_initpoints(init_pathname, ic_flags)
     e_data = get_data(experimental_data_pathname, ic_flags, sim_flags, scale_f=1e-23)
     clock0 = perf_counter()
-    history = metro(simPar, iniPar, e_data, param_info, sim_flags)
+    if sim_flags.get("do_multicore", False):
+        history = start_metro_controller(simPar, iniPar, e_data, sim_flags, param_infos)
+    else:
+        history = metro(simPar, iniPar, e_data, sim_flags, param_infos)
+    
     final_t = perf_counter() - clock0
     print("Metro took {} s".format(final_t))
     print("Avg: {} s per iter".format(final_t / sim_flags["num_iters"]))
+    print("Acceptance rate:", np.sum(history.accept) / len(history.accept.flatten()))
     
-    history.apply_unit_conversions(param_info)
-    print("Acceptance rate:", np.sum(history.accept) / len(history.accept))
-    
-    history.export(param_info, out_pathname)
-    
+    history.export(param_infos, out_pathname)

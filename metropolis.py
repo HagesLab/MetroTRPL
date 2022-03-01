@@ -6,9 +6,13 @@ Created on Mon Jan 31 22:13:26 2022
 """
 import numpy as np
 from scipy.integrate import solve_ivp
+from multiprocessing import Pool
+import os
+from functools import partial
+import logging
 
 from forward_solver import dydt
-from sim_utils import Grid, Solution, Parameters, History
+from sim_utils import Grid, Solution, Parameters, History, HistoryList
 
 ## Constants
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
@@ -116,8 +120,23 @@ def unpack_simpar(simPar, i):
     thickness = simPar[0][i] if isinstance(simPar[0], list) else simPar[0]
     nx = simPar[2]
     return thickness, nx
+
+
+def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_infos):
+    #num_cpus = 2
+    num_cpus = os.cpu_count()
+    print(f"{num_cpus} CPUs detected")
+    print(f"{len(param_infos)} MC chains needed")
+    with Pool(num_cpus) as pool:
+        histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags), param_infos)
+        
+    history_list = HistoryList(histories, param_infos)
     
-def metro(simPar, iniPar, e_data, param_info, sim_flags):
+    return history_list
+        
+    
+
+def metro(simPar, iniPar, e_data, sim_flags, param_info):
     # Setup
     np.random.seed(42)
     
@@ -286,4 +305,5 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
             H.truncate(k, param_info)
             break
         
+    H.apply_unit_conversions(param_info)
     return H
