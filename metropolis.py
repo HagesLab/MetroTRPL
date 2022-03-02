@@ -134,8 +134,8 @@ def convert_DA_times(DA_time_subs, total_len):
 
 def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_infos):
     #num_cpus = 2
-    num_cpus = os.cpu_count()
-    print(f"{num_cpus} CPUs detected")
+    num_cpus = min(os.cpu_count(), sim_flags["num_initial_guesses"])
+    print(f"{num_cpus} CPUs marshalled")
     print(f"{len(param_infos)} MC chains needed")
     with Pool(num_cpus) as pool:
         histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags), param_infos)
