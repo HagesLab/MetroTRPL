@@ -27,11 +27,11 @@ true_vals = {"mu_n":20,
              "tauP":871,}
 
 do = {"1D_trackers":1,
-      "2D_trackers":1,
-      "1D_histos":1,
-      "2D_histos":1}
+      "2D_trackers":0,
+      "1D_histos":0,
+      "2D_histos":0}
 
-burn = 375
+burn = 0
 adds = {"Sf+Sb": 20, "tau_eff": 454}
 pairs = [("Sf", "Sb", 20)]
 #adds = {"tau_eff": 454}
@@ -40,23 +40,21 @@ pairs = [("Sf", "Sb", 20)]
 #pairs = []
 
 if __name__ == "__main__":
-    path = "twothick 8C"
+    path = "DEBUG"
     
     path = os.path.join("bay_outputs", path)
     with open(os.path.join(path, "param_info.pik"), "rb") as ifstream:
         param_info = pickle.load(ifstream)
         
-    did_multicore = (isinstance(param_info, list))
+    with open(os.path.join(path, "sim_flags.pik"), "rb") as ifstream:
+        sim_flags = pickle.load(ifstream)
+        
+        
+    did_multicore = sim_flags["do_multicore"]
     
-    if did_multicore:
-        # param_info and all param.npy will be 2D
-        names = param_info[0]["names"]
-        is_active = param_info[0]["active"]
-        do_log = param_info[0]["do_log"]
-    else:
-        names = param_info["names"]
-        is_active = param_info["active"]
-        do_log = param_info["do_log"]
+    names = param_info["names"]
+    is_active = param_info["active"]
+    do_log = param_info["do_log"]
     
     if do["1D_trackers"]:
         first = True

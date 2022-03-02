@@ -132,21 +132,21 @@ def convert_DA_times(DA_time_subs, total_len):
         splits = DA_time_subs
     return splits
 
-def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_infos):
+def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list):
     #num_cpus = 2
     num_cpus = min(os.cpu_count(), sim_flags["num_initial_guesses"])
     print(f"{num_cpus} CPUs marshalled")
-    print(f"{len(param_infos)} MC chains needed")
+    print(f"{len(initial_guess_list)} MC chains needed")
     with Pool(num_cpus) as pool:
-        histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags), param_infos)
+        histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags, param_info), initial_guess_list)
         
-    history_list = HistoryList(histories, param_infos)
+    history_list = HistoryList(histories, param_info)
     
     return history_list
         
     
 
-def metro(simPar, iniPar, e_data, sim_flags, param_info):
+def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_guess):
     # Setup
     np.random.seed(42)
     
@@ -160,18 +160,18 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info):
     
     times, vals, uncs = e_data    
     tf = sum([len(time)-1 for time in times]) * (1/2000)
-    p = Parameters(param_info)
+    p = Parameters(param_info, initial_guess)
     p.apply_unit_conversions(param_info)
     
     H = History(num_iters, param_info)
     
-    prev_p = Parameters(param_info)
+    prev_p = Parameters(param_info, initial_guess)
     prev_p.apply_unit_conversions(param_info)
     
-    means = Parameters(param_info)
+    means = Parameters(param_info, initial_guess)
     means.apply_unit_conversions(param_info)
     
-    variances = Parameters(param_info)
+    variances = Parameters(param_info, initial_guess)
     variances.mu_n = 5
     variances.mu_p = 5
     variances.apply_unit_conversions(param_info)

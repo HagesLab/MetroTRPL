@@ -24,11 +24,11 @@ class Parameters():
     tauP : float    # Hole bulk nonradiative decayl lifetime
     eps : float     # Relative dielectric cofficient
     Tm : float      # Temperature
-    def __init__(self, param_info):
+    def __init__(self, param_info, initial_guesses):
         param_names = param_info["names"]
         
         for param in param_names:
-            setattr(self, param, param_info["initial_guess"][param])
+            setattr(self, param, initial_guesses[param])
         self.Tm = 300
         return
     
@@ -84,10 +84,9 @@ class History():
 class HistoryList():
     
     def __init__(self, list_of_histories, param_info):
-        # TODO: assert all param_info["names"] are the same
         self.join("accept", list_of_histories)
         self.join("ratio", list_of_histories)
-        for param in param_info[0]["names"]:
+        for param in param_info["names"]:
             self.join(param, list_of_histories)
             self.join(f"mean_{param}", list_of_histories)
         
@@ -97,7 +96,7 @@ class HistoryList():
         setattr(self, attr, np.vstack(attr_from_each_hist))
         
     def export(self, param_info, out_pathname):
-        for param in param_info[0]["names"]:
+        for param in param_info["names"]:
             np.save(os.path.join(out_pathname, f"{param}"), getattr(self, param))
             np.save(os.path.join(out_pathname, f"mean_{param}"), getattr(self, f"mean_{param}"))
                     

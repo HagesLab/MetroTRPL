@@ -64,12 +64,18 @@ if __name__ == "__main__":
                      "eps":0, 
                      "m":0}
     # Other options
+    
+    param_info = {"names":param_names,
+                  "active":active_params,
+                  "unit_conversions":unit_conversions,
+                  "do_log":do_log,}
+    
     ic_flags = {"time_cutoff":15.75,
                 "select_obs_sets": None,
                 "noise_level":1e14}
     
     # TODO: Validation
-    sim_flags = {"num_iters": 2000,
+    sim_flags = {"num_iters": 20,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -77,48 +83,29 @@ if __name__ == "__main__":
                  "log_pl":True,
                  "self_normalize":False,
                  "do_multicore":True,
-                 "num_initial_guesses":16
+                 "num_initial_guesses":8
                  }
 
+    np.random.seed(42)
+    initial_guess_list = []
     param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
     for param in initial_guesses:
         if param_is_iterable[param]:
             np.random.shuffle(initial_guesses[param])
     
-    if sim_flags.get("do_multicore", False):
-        param_infos = []
-        for ig in range(sim_flags["num_initial_guesses"]):
-            initial_guess = {}
-            for param in initial_guesses:
-                if param_is_iterable[param]:
-                    initial_guess[param] = initial_guesses[param][ig]
-                else:
-                    initial_guess[param] = initial_guesses[param]
-                    
-            param_info = {"names":param_names,
-                          "active":active_params,
-                          "unit_conversions":unit_conversions,
-                          "do_log":do_log,
-                          "initial_guess":initial_guess}
-        
-            param_infos.append(param_info)
-    
-    else:
-        if any(param_is_iterable.values()):
-            logging.warning("Multiple initial guesses detected without do_multicore, taking only first guess "
-                         "- did you mean to enable do_multicore?")
+    if not sim_flags.get("do_multicore", False) and any(param_is_iterable.values()):
+        logging.warning("Multiple initial guesses detected without do_multicore - doing only first guess"
+                        "- did you mean to enable do_multicore?")
+
+    for ig in range(sim_flags["num_initial_guesses"]):
         initial_guess = {}
         for param in initial_guesses:
             if param_is_iterable[param]:
-                initial_guess[param] = initial_guesses[param][0]
+                initial_guess[param] = initial_guesses[param][ig]
             else:
                 initial_guess[param] = initial_guesses[param]
-                
-        param_infos = {"names":param_names,
-                      "active":active_params,
-                      "unit_conversions":unit_conversions,
-                      "do_log":do_log,
-                      "initial_guess":initial_guess}
+                        
+        initial_guess_list.append(initial_guess)
 
     
     # Collect filenames
@@ -134,7 +121,7 @@ if __name__ == "__main__":
     else:
         init_dir = r"bay_inputs"
         out_dir = r"bay_outputs"
-        out_fname = "onethick DA-1T"
+        out_fname = "DEBUG"
 
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
@@ -147,10 +134,13 @@ if __name__ == "__main__":
         os.mkdir(out_pathname)
     
     with open(os.path.join(out_pathname, "param_info.pik"), "wb+") as ofstream:
-        pickle.dump(param_infos, ofstream)
+        pickle.dump(param_info, ofstream)
+        
+    with open(os.path.join(out_pathname, "sim_flags.pik"), "wb+") as ofstream:
+        pickle.dump(sim_flags, ofstream)
 
     print("IC flags: {}".format(ic_flags))
-    print("Param infos: {}".format(param_infos))
+    print("Param infos: {}".format(param_info))
     print("Sim flags: {}".format(sim_flags))
     
     # Get observations and initial condition
@@ -158,9 +148,9 @@ if __name__ == "__main__":
     e_data = get_data(experimental_data_pathname, ic_flags, sim_flags, scale_f=1e-23)
     clock0 = perf_counter()
     if sim_flags.get("do_multicore", False):
-        history = start_metro_controller(simPar, iniPar, e_data, sim_flags, param_infos)
+        history = start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list)
     else:
-        history = metro(simPar, iniPar, e_data, sim_flags, param_infos)
+        history = metro(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list[0])
     
     final_t = perf_counter() - clock0
     print("Metro took {} s".format(final_t))
@@ -168,4 +158,4 @@ if __name__ == "__main__":
     print("Acceptance rate:", np.sum(history.accept) / len(history.accept.flatten()))
     
     print("Exporting to {}".format(out_pathname))
-    history.export(param_infos, out_pathname)
+    history.export(param_info, out_pathname)
