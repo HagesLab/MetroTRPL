@@ -26,21 +26,21 @@ true_vals = {"mu_n":20,
              "tauN":511,
              "tauP":871,}
 
-do = {"1D_trackers":0,
-      "2D_trackers":0,
-      "1D_histos":0,
+do = {"1D_trackers":1,
+      "2D_trackers":1,
+      "1D_histos":1,
       "2D_histos":1}
 
-burn = 0
+burn = 375
 adds = {"Sf+Sb": 20, "tau_eff": 454}
 pairs = [("Sf", "Sb", 20)]
 #adds = {"tau_eff": 454}
 #adds = {"mu_eff":20}
-#pairs = [("mu_n", "mu_p")]
+#pairs = [("mu_n", "mu_p", 20)]
 #pairs = []
 
 if __name__ == "__main__":
-    path = "DEBUG2"
+    path = "twothick 8C"
     
     path = os.path.join("bay_outputs", path)
     with open(os.path.join(path, "param_info.pik"), "rb") as ifstream:
@@ -83,7 +83,10 @@ if __name__ == "__main__":
                 continue
             
             accepted = np.load(os.path.join(path, f"mean_{param}.npy"))
-            accepted = accepted[burn:]
+            if did_multicore:
+                accepted = accepted[:, burn:]
+            else:
+                accepted = accepted[burn:]
             
             make_1D_histo(accepted, mark_value=true_vals[param], xlabel=param,
                           do_log=do_log[param], bin_count=24)
