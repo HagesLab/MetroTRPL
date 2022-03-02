@@ -18,8 +18,8 @@ from time import perf_counter
 if __name__ == "__main__":
     
     # Set space and time grid options
-    Length = [311,2000,311,2000, 311, 2000]
-    #Length  = 2000                            # Length (nm)
+    #Length = [311,2000,311,2000, 311, 2000]
+    Length  = 2000                            # Length (nm)
     L   = 2 ** 7                                # Spatial points
     plT = 1                                  # Set PL interval (dt)
     pT  = (0,1,3,10,30,100)                   # Set plot intervals (%)
@@ -40,24 +40,23 @@ if __name__ == "__main__":
               "Sf":1,"Sb":1,"tauN":0,"tauP":0,"eps":1,
               "m":0}
     
-    num_initial_guesses = 8
     initial_guesses = {"n0":1e8, 
-                        "p0":3e15, 
-                        "mu_n":20, 
-                        "mu_p":20, 
-                        "B":4.8e-11, 
-                        "Sf":np.logspace(-1, 2, 8), 
-                        "Sb":np.logspace(-1, 2, 8), 
-                        "tauN":np.linspace(100, 1000, 8), 
-                        "tauP":np.linspace(100, 1000, 8), 
+                        "p0":np.logspace(13, 17, 16), 
+                        "mu_n":np.linspace(1, 100, 16), 
+                        "mu_p":np.linspace(1, 100, 16), 
+                        "B":np.logspace(-13, -10, 16), 
+                        "Sf":np.logspace(-1, 2, 16), 
+                        "Sb":np.logspace(-1, 2, 16), 
+                        "tauN":np.linspace(100, 1000, 16), 
+                        "tauP":np.linspace(100, 1000, 16), 
                         "eps":10, 
                         "m":0}
     
     active_params = {"n0":0, 
-                     "p0":0, 
-                     "mu_n":0, 
-                     "mu_p":0, 
-                     "B":0, 
+                     "p0":1, 
+                     "mu_n":1, 
+                     "mu_p":1, 
+                     "B":1, 
                      "Sf":1, 
                      "Sb":1, 
                      "tauN":1, 
@@ -65,28 +64,30 @@ if __name__ == "__main__":
                      "eps":0, 
                      "m":0}
     # Other options
-    ic_flags = {"time_cutoff":None,
+    ic_flags = {"time_cutoff":15.75,
                 "select_obs_sets": None,
                 "noise_level":1e14}
     
-    gpu_info = {"sims_per_gpu": 2 ** 13,
-                "num_gpus": 8}
-    
     # TODO: Validation
-    sim_flags = {"num_iters": 50,
+    sim_flags = {"num_iters": 2000,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
-                 "DA time subdivisions": [10, 50],
+                 "DA time subdivisions": 1,
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
                  "self_normalize":False,
-                 "do_multicore":False
+                 "do_multicore":True,
+                 "num_initial_guesses":16
                  }
+
+    param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
+    for param in initial_guesses:
+        if param_is_iterable[param]:
+            np.random.shuffle(initial_guesses[param])
     
     if sim_flags.get("do_multicore", False):
-        param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
         param_infos = []
-        for ig in range(num_initial_guesses):
+        for ig in range(sim_flags["num_initial_guesses"]):
             initial_guess = {}
             for param in initial_guesses:
                 if param_is_iterable[param]:
@@ -103,7 +104,6 @@ if __name__ == "__main__":
             param_infos.append(param_info)
     
     else:
-        param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
         if any(param_is_iterable.values()):
             logging.warning("Multiple initial guesses detected without do_multicore, taking only first guess "
                          "- did you mean to enable do_multicore?")
@@ -130,13 +130,15 @@ if __name__ == "__main__":
     if on_hpg:
         init_dir = r"/blue/c.hages/cfai2304/Metro_in"
         out_dir = r"/blue/c.hages/cfai2304/Metro_out"
+        out_fname = sys.argv[1]
     else:
         init_dir = r"bay_inputs"
         out_dir = r"bay_outputs"
+        out_fname = "onethick DA-1T"
 
-    init_fname = "staub_MAPI_threepower_twothick_input.csv"
-    exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
-    out_fname = "DEBUG2"
+    init_fname = "staub_MAPI_power_thick_input.csv"
+    exp_fname = "staub_MAPI_power_thick.csv"
+
     init_pathname = os.path.join(init_dir, init_fname)
     experimental_data_pathname = os.path.join(init_dir, exp_fname)
     out_pathname = os.path.join(out_dir, out_fname)
@@ -146,6 +148,10 @@ if __name__ == "__main__":
     
     with open(os.path.join(out_pathname, "param_info.pik"), "wb+") as ofstream:
         pickle.dump(param_infos, ofstream)
+
+    print("IC flags: {}".format(ic_flags))
+    print("Param infos: {}".format(param_infos))
+    print("Sim flags: {}".format(sim_flags))
     
     # Get observations and initial condition
     iniPar = get_initpoints(init_pathname, ic_flags)
@@ -161,4 +167,5 @@ if __name__ == "__main__":
     print("Avg: {} s per iter".format(final_t / sim_flags["num_iters"]))
     print("Acceptance rate:", np.sum(history.accept) / len(history.accept.flatten()))
     
+    print("Exporting to {}".format(out_pathname))
     history.export(param_infos, out_pathname)
