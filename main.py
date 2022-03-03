@@ -157,12 +157,12 @@ if __name__ == "__main__":
     if not os.path.isdir(out_pathname):
         os.mkdir(out_pathname)
 
-    if jobid == 0:    
-        with open(os.path.join(out_pathname, "param_info.pik"), "wb+") as ofstream:
-            pickle.dump(param_info, ofstream)
+    
+    with open(os.path.join(out_pathname, "param_info.pik"), "wb+") as ofstream:
+        pickle.dump(param_info, ofstream)
         
-        with open(os.path.join(out_pathname, "sim_flags.pik"), "wb+") as ofstream:
-            pickle.dump(sim_flags, ofstream)
+    with open(os.path.join(out_pathname, "sim_flags.pik"), "wb+") as ofstream:
+        pickle.dump(sim_flags, ofstream)
 
     print("Length: {}".format(Length))
     print("Init_fname: {}".format(init_fname))
