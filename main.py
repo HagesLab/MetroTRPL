@@ -42,8 +42,8 @@ if __name__ == "__main__":
     
     initial_guesses = {"n0":1e8, 
                         "p0":np.logspace(13, 17, 16), 
-                        "mu_n":np.linspace(1, 100, 16), 
-                        "mu_p":np.linspace(1, 100, 16), 
+                        "mu_n":20,#np.linspace(1, 100, 16), 
+                        "mu_p":20,#np.linspace(1, 100, 16), 
                         "B":np.logspace(-13, -10, 16), 
                         "Sf":np.logspace(-1, 2, 16), 
                         "Sb":np.logspace(-1, 2, 16), 
@@ -54,8 +54,8 @@ if __name__ == "__main__":
     
     active_params = {"n0":0, 
                      "p0":1, 
-                     "mu_n":1, 
-                     "mu_p":1, 
+                     "mu_n":0, 
+                     "mu_p":0, 
                      "B":1, 
                      "Sf":1, 
                      "Sb":1, 
@@ -70,19 +70,19 @@ if __name__ == "__main__":
                   "unit_conversions":unit_conversions,
                   "do_log":do_log,}
     
-    ic_flags = {"time_cutoff":15.75,
+    ic_flags = {"time_cutoff":None,
                 "select_obs_sets": None,
                 "noise_level":1e14}
     
     # TODO: Validation
-    sim_flags = {"num_iters": 20,
+    sim_flags = {"num_iters": 10000,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
-                 "DA time subdivisions": 1,
+                 "DA time subdivisions": 4,
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
                  "self_normalize":False,
-                 "do_multicore":True,
+                 "do_multicore":False,
                  "num_initial_guesses":8
                  }
 
@@ -110,35 +110,63 @@ if __name__ == "__main__":
     
     # Collect filenames
     try:
-        on_hpg = sys.argv[1]
+        on_hpg = int(sys.argv[1])
     except IndexError:
         on_hpg = False
+    except ValueError:
+        logging.error("First CL arg should be 1 for HPG and 0 for desktop")
+        sys.exit(1)
 
     if on_hpg:
         init_dir = r"/blue/c.hages/cfai2304/Metro_in"
         out_dir = r"/blue/c.hages/cfai2304/Metro_out"
-        out_fname = sys.argv[1]
+
+        init_fname = sys.argv[4]
+        exp_fname = sys.argv[3]
+        out_fname = sys.argv[2]
+
+
     else:
         init_dir = r"bay_inputs"
         out_dir = r"bay_outputs"
+
+        init_fname = "staub_MAPI_threepower_twothick_input.csv"
+        exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
         out_fname = "DEBUG"
 
-    init_fname = "staub_MAPI_power_thick_input.csv"
-    exp_fname = "staub_MAPI_power_thick.csv"
+
+    if on_hpg:
+        jobid = os.getenv('SLURM_ARRAY_TASK_ID')
+        assert jobid is not None, "Error: use a job array script"
+        jobid = int(jobid)
+        print("Array job detected, ID={}".format(jobid))
+    else:
+        jobid = 0
+        print("Not array job, using ID=0")
 
     init_pathname = os.path.join(init_dir, init_fname)
     experimental_data_pathname = os.path.join(init_dir, exp_fname)
     out_pathname = os.path.join(out_dir, out_fname)
-    
+    if not os.path.isdir(out_pathname):
+        try:
+            os.mkdir(out_pathname)
+        except FileExistsError:
+            logging.warning("race condition lmao")
+
+    out_pathname = os.path.join(out_pathname, f"{out_fname}-{jobid}")
     if not os.path.isdir(out_pathname):
         os.mkdir(out_pathname)
-    
-    with open(os.path.join(out_pathname, "param_info.pik"), "wb+") as ofstream:
-        pickle.dump(param_info, ofstream)
-        
-    with open(os.path.join(out_pathname, "sim_flags.pik"), "wb+") as ofstream:
-        pickle.dump(sim_flags, ofstream)
 
+    if jobid == 0:    
+        with open(os.path.join(out_pathname, "param_info.pik"), "wb+") as ofstream:
+            pickle.dump(param_info, ofstream)
+        
+        with open(os.path.join(out_pathname, "sim_flags.pik"), "wb+") as ofstream:
+            pickle.dump(sim_flags, ofstream)
+
+    print("Length: {}".format(Length))
+    print("Init_fname: {}".format(init_fname))
+    print("Exp_fname: {}".format(exp_fname))
     print("IC flags: {}".format(ic_flags))
     print("Param infos: {}".format(param_info))
     print("Sim flags: {}".format(sim_flags))
@@ -150,7 +178,9 @@ if __name__ == "__main__":
     if sim_flags.get("do_multicore", False):
         history = start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list)
     else:
-        history = metro(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list[0])
+
+        print("Initial guess: {}".format(initial_guess_list[jobid]))
+        history = metro(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list[jobid])
     
     final_t = perf_counter() - clock0
     print("Metro took {} s".format(final_t))
