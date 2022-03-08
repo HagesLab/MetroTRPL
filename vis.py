@@ -26,21 +26,22 @@ true_vals = {"mu_n":20,
              "tauN":511,
              "tauP":871,}
 
-do = {"1D_trackers":1,
+do = {"1D_trackers":0,
       "2D_trackers":0,
-      "1D_histos":0,
+      "1D_histos":1,
       "2D_histos":0}
 
-burn = 0
+burn = 4000
 adds = {"Sf+Sb": 20, "tau_eff": 454}
-pairs = [("Sf", "Sb", 20)]
-#adds = {"tau_eff": 454}
-#adds = {"mu_eff":20}
-#pairs = [("mu_n", "mu_p", 20)]
-#pairs = []
+#pairs = [("Sf", "Sb", 20)]
+adds = {"tau_eff": 454}
+pairs = [("B", "p0")]
+adds = {"mu_eff":20}
+pairs = [("mu_n", "mu_p", 20)]
+
 
 if __name__ == "__main__":
-    path = "DEBUG"
+    path = "earlymu_DA/joined"
     
     path = os.path.join("bay_outputs", path)
     with open(os.path.join(path, "param_info.pik"), "rb") as ifstream:
@@ -50,7 +51,7 @@ if __name__ == "__main__":
         sim_flags = pickle.load(ifstream)
         
         
-    did_multicore = sim_flags["do_multicore"]
+    did_multicore = sim_flags["do_multicore"] or sim_flags.get("joined", False)
     
     names = param_info["names"]
     is_active = param_info["active"]
@@ -95,6 +96,11 @@ if __name__ == "__main__":
         for add_param in adds:
             raw_fetched, mean_fetched = fetch(path, add_param)
             proposed, accepted = fetch_param(raw_fetched, mean_fetched, add_param, thickness=2000)
+            if did_multicore:
+                accepted = accepted[:, burn:]
+            else:
+                accepted = accepted[burn:]
+            
             recommended_log = recommend_logscale(add_param, do_log)
             make_1D_histo(accepted, mark_value=adds[add_param], xlabel=add_param,
                           do_log=recommended_log, bin_count=24, did_multicore=did_multicore)
