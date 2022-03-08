@@ -7,7 +7,7 @@ Created on Fri Feb 18 13:25:44 2022
 import matplotlib.pyplot as plt
 from matplotlib.cm import ScalarMappable
 import numpy as np
-from math import floor
+from math import floor, ceil
 
 def make_1D_tracker(all_proposed, all_accepted, **kwargs):
     mark_value = kwargs.get("mark_value", None)
@@ -28,14 +28,14 @@ def make_1D_tracker(all_proposed, all_accepted, **kwargs):
                 labelp = None
                 labela = None
             
-            ax.plot(all_proposed[i], label=labelp, color='steelblue')
-            ax.plot(all_accepted[i], label=labela, color='orange')
+            ax.plot(all_proposed[i], label=labelp, color='steelblue', zorder=1)
+            ax.plot(all_accepted[i], label=labela, color='orange', zorder=2)
     
     else:
-        ax.plot(all_proposed, label="Proposed samples", color='steelblue')
-        ax.plot(all_accepted, label="Accepted samples", color='orange')
+        ax.plot(all_proposed, label="Proposed samples", color='steelblue', zorder=1)
+        ax.plot(all_accepted, label="Accepted samples", color='orange', zorder=2)
     if mark_value is not None:
-        ax.axhline(mark_value, color='r', linestyle='dashed', label="Actual value")
+        ax.axhline(mark_value, color='r', linestyle='dashed', label="Actual value", zorder=3)
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
     if do_log: ax.set_yscale('log')
@@ -72,7 +72,7 @@ def make_1D_histo(accepted, **kwargs):
         ax.axvline(mark_value, color='r',linewidth=1)
     
     if do_log:
-        decades = np.arange(floor(min(accepted.flatten())), floor(max(accepted.flatten())) + 1)
+        decades = np.arange(floor(minx), ceil(maxx) + 1)
         if len(decades) == 1:
             decades = np.arange(decades[0] - 1, decades[-1] + 2)
         ax.set_xticks(decades)
