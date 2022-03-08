@@ -11,15 +11,15 @@ import sys
 import logging
 
 from bayes_io import get_data, get_initpoints
-from metropolis import metro, start_metro_controller
+from metropolis import metro, start_metro_controller, draw_initial_guesses
 from time import perf_counter
 
 
 if __name__ == "__main__":
     
     # Set space and time grid options
-    #Length = [311,2000,311,2000, 311, 2000]
-    Length  = 2000                            # Length (nm)
+    Length = [311,2000,311,2000, 311, 2000]
+    #Length  = 2000                            # Length (nm)
     L   = 2 ** 7                                # Spatial points
     plT = 1                                  # Set PL interval (dt)
     pT  = (0,1,3,10,30,100)                   # Set plot intervals (%)
@@ -87,7 +87,6 @@ if __name__ == "__main__":
                  }
 
     np.random.seed(42)
-    initial_guess_list = []
     param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
     for param in initial_guesses:
         if param_is_iterable[param]:
@@ -97,15 +96,7 @@ if __name__ == "__main__":
         logging.warning("Multiple initial guesses detected without do_multicore - doing only first guess"
                         "- did you mean to enable do_multicore?")
 
-    for ig in range(sim_flags["num_initial_guesses"]):
-        initial_guess = {}
-        for param in initial_guesses:
-            if param_is_iterable[param]:
-                initial_guess[param] = initial_guesses[param][ig]
-            else:
-                initial_guess[param] = initial_guesses[param]
-                        
-        initial_guess_list.append(initial_guess)
+    initial_guess_list = draw_initial_guesses(initial_guesses, sim_flags["num_initial_guesses"])
 
     
     # Collect filenames

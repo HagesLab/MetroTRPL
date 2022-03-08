@@ -2,7 +2,8 @@ import unittest
 import numpy as np
 
 from metropolis import E_field, model, select_next_params, update_means, update_history
-from metropolis import do_simulation, roll_acceptance, unpack_simpar, convert_DA_times
+from metropolis import do_simulation, roll_acceptance, unpack_simpar, convert_DA_times, subdivide
+from metropolis import draw_initial_guesses, init_param_managers, run_DA_iteration
 from sim_utils import Parameters, Grid, History
 from scipy.integrate import trapz
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
@@ -102,6 +103,37 @@ class TestUtils(unittest.TestCase):
         self.assertAlmostEqual(test_PL[-1], trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2)
         return
 
+    def test_init_param_mgrs(self):
+        param_info = {'names':['a','b','c'],
+                      'unit_conversions':{'a':1,'b':10,'c':1}}
+        initial_guess = {'a':1, 'b':2,'c':3}
+        num_iters = 10
+        p, prev_p, h, means, variances = init_param_managers(param_info, initial_guess, num_iters)
+        
+        self.assertTrue(isinstance(p, Parameters))
+        self.assertTrue(isinstance(prev_p, Parameters))
+        self.assertTrue(isinstance(means, Parameters))
+        self.assertTrue(isinstance(variances, Parameters))
+        self.assertTrue(isinstance(h, History))
+        
+        self.assertEqual(p.b, initial_guess['b']*param_info['unit_conversions']['b'])
+        self.assertEqual(prev_p.b, initial_guess['b']*param_info['unit_conversions']['b'])
+        return
+
+    def test_draw_init_guesses(self):
+        initial_guesses = {"a":0, 
+                           "b":np.arange(10), 
+                           "c":0,}
+        
+        guesses = draw_initial_guesses(initial_guesses, 2)
+        expected = [{'a':0, 'b':0, 'c':0}, {'a':0, 'b':1, 'c':0}]
+        self.assertEqual(expected, guesses)
+        
+        guesses = draw_initial_guesses(initial_guesses, 2)
+        for i, g in enumerate(guesses):
+            self.assertEqual(g['b'], i)
+        return
+        
     def test_select_next_params(self):
         # This function assigns a set of randomly generated values
         np.random.seed(1)
@@ -276,3 +308,72 @@ class TestUtils(unittest.TestCase):
         # DA_time_subs as list should take percentages
         np.testing.assert_equal([8000, 40000], convert_DA_times(DA_time_subs, total_len))
         return
+
+    def test_subdivide(self):
+        y = np.arange(101)
+        splits = 2
+        y_s = subdivide(y[1:], splits)
+        
+        np.testing.assert_equal(y_s[0], np.arange(51))
+        np.testing.assert_equal(y_s[1], 50 + np.arange(51))
+        
+        splits = [10, 90]
+        y_s = subdivide(y[1:], splits)
+        
+        np.testing.assert_equal(y_s[0], np.arange(11))
+        np.testing.assert_equal(y_s[1], 10 + np.arange(81))
+        np.testing.assert_equal(y_s[2], 90 + np.arange(11))
+        return
+        
+    def test_run_DA_iter(self):
+        np.random.seed(42)
+        Length  = 2000                            # Length (nm)
+        L   = 2 ** 7                                # Spatial points
+        plT = 1                                  # Set PL interval (dt)
+        pT  = (0,1,3,10,30,100)                   # Set plot intervals (%)
+        tol = 7                                   # Convergence tolerance
+        MAX = 10000                                  # Max iterations
+        
+        simPar = [Length, -1, L, -1, plT, pT, tol, MAX]
+        
+        iniPar = [1e15 * np.ones(L) * 1e-21, 1e16 * np.ones(L) * 1e-21]
+        DA_time_subs = 2
+        num_time_subs = 2
+        
+        param_names = ["n0", "p0", "mu_n", "mu_p", "B", 
+                       "Sf", "Sb", "tauN", "tauP", "eps", "m"]
+        unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
+                            "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
+                            "B":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
+        param_info = {"names":param_names,
+                      "unit_conversions":unit_conversions}
+        initial_guess = {"n0":0, 
+                         "p0":0, 
+                         "mu_n":0, 
+                         "mu_p":0, 
+                         "B":1e-11, 
+                         "Sf":0, 
+                         "Sb":0, 
+                         "tauN":1e99, 
+                         "tauP":1e99, 
+                         "eps":10, 
+                         "m":0}
+        
+        p = Parameters(param_info, initial_guess)
+        p.apply_unit_conversions(param_info)
+        p2 = Parameters(param_info, initial_guess)
+        p2.apply_unit_conversions(param_info)
+        
+        nt = 1000
+        times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
+        vals = [np.zeros(nt+1), np.zeros(nt+1)]
+        tf = sum([len(time)-1 for time in times]) * (1/2000)
+        accepted = run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, 
+                                    times, vals, tf, prev_p=None)
+        np.testing.assert_almost_equal(p.likelihood, [[-29638.7444281,-29642.086483], [-16251.5092385,-16276.1505375]])
+        self.assertTrue(accepted)
+        accepted = run_DA_iteration(p2, simPar, iniPar, DA_time_subs, num_time_subs, 
+                                    times, vals, tf, prev_p=p)
+        self.assertTrue(accepted)
+        
+        np.testing.assert_equal(p.likelihood, p2.likelihood)
