@@ -20,13 +20,11 @@ q = 1.0 # [e]
 q_C = 1.602e-19 # [C]
 kB = 8.61773e-5  # [eV / K]
 
-def E_field(N, P, PA, dx):
+def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
-        corner_E = 0
         E = corner_E + q_C / (PA.eps * eps0) * dx * np.cumsum(((P - PA.p0) - (N - PA.n0)))
         E = np.concatenate(([corner_E], E))
     elif N.ndim == 2:
-        corner_E = 0
         E = corner_E + q_C / (PA.eps * eps0) * dx * np.cumsum(((P - PA.p0) - (N - PA.n0)), axis=1)
         num_tsteps = len(N)
         E = np.concatenate((np.ones(shape=(num_tsteps,1))*corner_E, E), axis=1)
