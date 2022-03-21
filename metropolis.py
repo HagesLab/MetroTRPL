@@ -6,23 +6,58 @@ Created on Mon Jan 31 22:13:26 2022
 """
 import numpy as np
 from scipy.integrate import solve_ivp
+from multiprocessing import Pool
+import os
+from functools import partial
+import logging
 
 from forward_solver import dydt
-from sim_utils import Grid, Solution, Parameters, History
+from sim_utils import Grid, Solution, Parameters, History, HistoryList
+
+## Constants
+eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
+q = 1.0 # [e]
+q_C = 1.602e-19 # [C]
+kB = 8.61773e-5  # [eV / K]
+
+def E_field(N, P, PA, dx, corner_E=0):
+    if N.ndim == 1:
+        E = corner_E + q_C / (PA.eps * eps0) * dx * np.cumsum(((P - PA.p0) - (N - PA.n0)))
+        E = np.concatenate(([corner_E], E))
+    elif N.ndim == 2:
+        E = corner_E + q_C / (PA.eps * eps0) * dx * np.cumsum(((P - PA.p0) - (N - PA.n0)), axis=1)
+        num_tsteps = len(N)
+        E = np.concatenate((np.ones(shape=(num_tsteps,1))*corner_E, E), axis=1)
+    return E
 
 def model(init_dN, g, p):
     N = init_dN + p.n0
     P = init_dN + p.p0
-    E_field = np.zeros(len(N)+1)
+    E_f = E_field(N, P, p, g.dx)
     
-    init_condition = np.concatenate([N, P, E_field], axis=None)
+    init_condition = np.concatenate([N, P, E_f], axis=None)
     args = (g,p)
-    sol = solve_ivp(dydt, [0,g.time], init_condition, args=args, t_eval=g.tSteps, method='BDF', max_step=g.hmax)
+    sol = solve_ivp(dydt, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='BDF', max_step=g.hmax)
     data = sol.y.T
     s = Solution()
-    s.N, s.P, E_field = np.split(data, [g.nx, 2*g.nx], axis=1)
+    s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
     s.calculate_PL(g, p)
-    return s.PL
+    return s.PL, (s.N[-1]-p.n0)
+
+def draw_initial_guesses(initial_guesses, num_initial_guesses):
+    initial_guess_list = []
+    param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
+    
+    for ig in range(num_initial_guesses):
+        initial_guess = {}
+        for param in initial_guesses:
+            if param_is_iterable[param]:
+                initial_guess[param] = initial_guesses[param][ig]
+            else:
+                initial_guess[param] = initial_guesses[param]
+                        
+        initial_guess_list.append(initial_guess)
+    return initial_guess_list
 
 def select_next_params(p, means, variances, param_info):
     is_active = param_info["active"]
@@ -72,13 +107,14 @@ def do_simulation(p, thickness, nx, iniPar, times):
     g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
     
     g.time = times[-1]
+    g.start_time = times[0]
     g.nt = len(times) - 1
     g.dt = g.time / g.nt
     g.hmax = 4
     g.tSteps = times
     
-    sol = model(iniPar, g, p)
-    return sol
+    sol, next_init_condition = model(iniPar, g, p)
+    return sol, next_init_condition
     
 def roll_acceptance(logratio):
     accepted = False
@@ -97,28 +133,45 @@ def unpack_simpar(simPar, i):
     thickness = simPar[0][i] if isinstance(simPar[0], list) else simPar[0]
     nx = simPar[2]
     return thickness, nx
-    
-def metro(simPar, iniPar, e_data, param_info, sim_flags):
-    # Setup
-    np.random.seed(42)
-    
-    num_iters = sim_flags["num_iters"]
-    DA_mode = sim_flags["delayed_acceptance"]
-    
-    times, vals, uncs = e_data    
-    tf = sum([len(time)-1 for time in times]) * (1/2000)
-    p = Parameters(param_info)
+
+def convert_DA_times(DA_time_subs, total_len):
+    # DA_time_subs: if int, treat as number of equally spaced time subs
+    # If list, treat as percentages over which to subdivide data
+    # e.g. [10,30,60] splits data into 0-10%, 10-30%, 30-60%, and 60-100%
+    if isinstance(DA_time_subs, list):
+        splits = np.array(DA_time_subs) / 100 * total_len
+        splits = splits.astype(int)
+    else:
+        splits = DA_time_subs
+    return splits
+
+def subdivide(y, splits):
+    # Split 'y' into 'splits' groups, then transfers the end of each to the beginning of the next
+    if isinstance(splits, list):
+        num_time_subs = len(splits) + 1
+    else:
+        num_time_subs = splits
+    y = np.split(y, splits)
+    y[0] = np.insert(y[0], 0, 0)
+    for j in range(1, num_time_subs):
+        y[j] = np.insert(y[j], 0, y[j-1][-1])
+    return y
+
+def init_param_managers(param_info, initial_guess, num_iters):
+    # Initializes a current parameters, previous parameters, 
+    # history, means, and variances objects
+    p = Parameters(param_info, initial_guess)
     p.apply_unit_conversions(param_info)
     
     H = History(num_iters, param_info)
     
-    prev_p = Parameters(param_info)
+    prev_p = Parameters(param_info, initial_guess)
     prev_p.apply_unit_conversions(param_info)
     
-    means = Parameters(param_info)
+    means = Parameters(param_info, initial_guess)
     means.apply_unit_conversions(param_info)
     
-    variances = Parameters(param_info)
+    variances = Parameters(param_info, initial_guess)
     variances.mu_n = 5
     variances.mu_p = 5
     variances.apply_unit_conversions(param_info)
@@ -129,14 +182,69 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
     variances.tauN = 20
     variances.tauP = 20
     
-    # Calculate likelihood of initial guess
-    prev_p.likelihood = np.zeros(len(iniPar))
+    return p, prev_p, H, means, variances
+    
+def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, prev_p=None):
+    # Calculates likelihood of a new proposed parameter set
+    accepted = True
+    p.likelihood = np.zeros((len(iniPar), num_time_subs))
     for i in range(len(iniPar)):
         thickness, nx = unpack_simpar(simPar, i)
-        sol = do_simulation(prev_p, thickness, nx, iniPar[i], times[i])
-        prev_p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
+        splits = convert_DA_times(DA_time_subs, len(times[i][1:]))
+        
+        subdivided_times = subdivide(times[i][1:], splits)
+        subdivided_vals = subdivide(vals[i][1:], splits)
+        
+        next_init_condition = iniPar[i]
+        for j in range(num_time_subs):
+            sol, next_init_condition = do_simulation(p, thickness, nx, next_init_condition, subdivided_times[j])
+            p.likelihood[i, j] -= np.sum((np.log10(sol[1:]) - subdivided_vals[j][1:])**2)
+            p.likelihood[i, j] /= tf
+            
+            if prev_p is not None:
+                logratio = p.likelihood[i, j] - prev_p.likelihood[i, j]
+                print("Partial Ratio: {}".format(10 ** logratio))
+                
+                accepted = roll_acceptance(logratio)
+                if not accepted:
+                    return
 
-    prev_p.likelihood /= tf
+    if prev_p is not None and accepted:
+        prev_p.likelihood = p.likelihood
+    return accepted
+
+def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list):
+    #num_cpus = 2
+    num_cpus = min(os.cpu_count(), sim_flags["num_initial_guesses"])
+    print(f"{num_cpus} CPUs marshalled")
+    print(f"{len(initial_guess_list)} MC chains needed")
+    with Pool(num_cpus) as pool:
+        histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags, param_info), initial_guess_list)
+        
+    history_list = HistoryList(histories, param_info)
+    
+    return history_list
+        
+def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_guess):
+    # Setup
+    np.random.seed(42)
+    
+    num_iters = sim_flags["num_iters"]
+    DA_mode = sim_flags["delayed_acceptance"]
+    DA_time_subs = sim_flags["DA time subdivisions"]
+    
+    if isinstance(DA_time_subs, list):
+        num_time_subs = len(DA_time_subs)+1
+    else:
+        num_time_subs = DA_time_subs
+    
+    times, vals, uncs = e_data    
+    tf = sum([len(time)-1 for time in times]) * (1/2000)
+    
+    p, prev_p, H, means, variances = init_param_managers(param_info, initial_guess, num_iters)
+    
+    # Calculate likelihood of initial guess
+    run_DA_iteration(prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf)
     if DA_mode == 'on':
         pass
     elif DA_mode == 'off':
@@ -156,31 +264,18 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
     
             print_status(p, means, param_info)
             # Calculate new likelihood?
-            p.likelihood = np.zeros(len(iniPar))
-            
             
             if DA_mode == "on":
-                for i in range(len(iniPar)):
-                    thickness, nx = unpack_simpar(simPar, i)
-                    sol = do_simulation(p, thickness, nx, iniPar[i], times[i])
-                    p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
-                    p.likelihood[i] /= tf
+                accepted = run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs,
+                                            times, vals, tf, prev_p)
                 
-                    # Compare with prior likelihood
-                    logratio = p.likelihood[i] - prev_p.likelihood[i]
-                    print("Partial Ratio: {}".format(10 ** logratio))
                 
-                    accepted = roll_acceptance(logratio)
-                    if not accepted:
-                        break
-                if accepted:
-                    prev_p.likelihood = p.likelihood
-                    
             elif DA_mode == "cumulative":
+                p.likelihood = np.zeros(len(iniPar))
                 p.cumulikelihood = np.zeros(len(iniPar))
                 for i in range(len(iniPar)):
                     thickness, nx = unpack_simpar(simPar, rand_i[i])
-                    sol = do_simulation(p, thickness, nx, iniPar[rand_i[i]], times[rand_i[i]])
+                    sol, next_init_condition = do_simulation(p, thickness, nx, iniPar[rand_i[i]], times[rand_i[i]])
                     p.likelihood[rand_i[i]] -= np.sum((np.log10(sol) - vals[rand_i[i]])**2)
                     p.likelihood[rand_i[i]] /= tf
                 
@@ -201,9 +296,10 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
                 prev_p.cumulikelihood = np.cumsum(prev_p.likelihood[rand_i])
                     
             elif DA_mode == "off":
+                p.likelihood = np.zeros(len(iniPar))
                 for i in range(len(iniPar)):
                     thickness, nx = unpack_simpar(simPar, i)
-                    sol = do_simulation(p, thickness, nx, iniPar[i], times[i])
+                    sol, next_init_condition = do_simulation(p, thickness, nx, iniPar[i], times[i])
                     p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
                     p.likelihood[i] /= tf
                 
@@ -226,14 +322,14 @@ def metro(simPar, iniPar, e_data, param_info, sim_flags):
             if accepted:
                 update_means(p, means, param_info)
                 H.accept[k] = 1
+                
                 #H.ratio[k] = 10 ** logratio
                 
-                
-            
             update_history(H, k, p, means, param_info)
         except KeyboardInterrupt:
             print("Terminating with k={} iters completed:".format(k-1))
             H.truncate(k, param_info)
             break
         
+    H.apply_unit_conversions(param_info)
     return H

@@ -67,7 +67,7 @@ def get_data(exp_file, ic_flags, sim_flags, scale_f=1e-23, verbose=False):
                     next_PL[next_PL < bval_cutoff] = bval_cutoff
 
                     next_uncertainty /= next_PL
-                    next_uncertainty /= 2.3 # Since we use log10 instead of ln
+                    next_uncertainty /= np.log(10) # Since we use log10 instead of ln
                     next_PL = np.log10(next_PL)
 
                 t.append(next_t)
@@ -91,7 +91,15 @@ def get_data(exp_file, ic_flags, sim_flags, scale_f=1e-23, verbose=False):
             count += 1
 
     if SELECT is not None:
-        return (np.array(t)[SELECT], np.array(PL)[SELECT], np.array(uncertainty)[SELECT])
+        t_s = []
+        v_s = []
+        u_s = []
+        for i in range(len(t)):
+            if i in SELECT:
+                t_s.append(t[i])
+                v_s.append(PL[i])
+                u_s.append(uncertainty[i])
+        return (t_s, v_s, u_s)
     else:
         return (t, PL, uncertainty)
 
@@ -108,40 +116,3 @@ def get_initpoints(init_file, ic_flags, scale_f=1e-21):
     if SELECT is not None:
         initpoints = np.array(initpoints)[SELECT]
     return np.array(initpoints, dtype=float) * scale_f
-
-def export(out_filename, P, X):
-    try:
-        print("Creating dir {}".format(out_filename))
-        os.mkdir(out_filename)
-    except FileExistsError:
-        print("{} dir already exists".format(out_filename))
-
-    try:
-        print("Writing to /blue:")
-        base = os.path.basename(out_filename)
-        np.save(os.path.join(out_filename, "{}_BAYRAN_P.npy".format(base)), P)
-        np.save(os.path.join(out_filename, "{}_BAYRAN_X.npy".format(base)), X)
-
-    except Exception as e:
-        print(e)
-        print("Write failed; rewriting to backup location /home:")
-        out_filename = r"/home/cfai2304/super_bayes"
-        np.save(os.path.join(out_filename, "{}_BAYRAN_P.npy".format(base)), P)
-        np.save(os.path.join(out_filename, "{}_BAYRAN_X.npy".format(base)), X)
-    return
-
-def save_raw_pl(out_filename, ic_num, blk, plI):
-    try:
-        np.save(os.path.join(out_filename, "plI{}_grp{}.npy".format(ic_num, blk), plI))
-        print("Saved plI of size ", plI.shape)
-    except Exception as e:
-        print("Warning: save failed\n", e)
-        
-def load_raw_pl(out_filename, ic_num, blk):
-    try:
-        plI = np.load(os.path.join(out_filename, "plI{}_grp{}.npy".format(ic_num, blk)))
-        print("Loaded plI of size ", plI.shape)
-    except Exception as e:
-        print("Error: load failed\n", e)
-        sys.exit()
-    return plI
