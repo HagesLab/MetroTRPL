@@ -1,10 +1,12 @@
 import unittest
 import numpy as np
+import sys
+sys.path.append("..")
 
 from metropolis import E_field, model, select_next_params, update_means, update_history
 from metropolis import do_simulation, roll_acceptance, unpack_simpar, convert_DA_times, subdivide
 from metropolis import draw_initial_guesses, init_param_managers, run_DA_iteration
-from sim_utils import Parameters, Grid, History
+from sim_utils import Parameters, Grid, History, Covariance
 from scipy.integrate import trapz
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
 q = 1.0 # [e]
@@ -105,19 +107,25 @@ class TestUtils(unittest.TestCase):
 
     def test_init_param_mgrs(self):
         param_info = {'names':['a','b','c'],
-                      'unit_conversions':{'a':1,'b':10,'c':1}}
+                      'unit_conversions':{'a':1,'b':10,'c':1}, 
+                      'active':{'a':1,'b':0,'c':1}}
         initial_guess = {'a':1, 'b':2,'c':3}
+        initial_variances = {'a':1, 'b':2, 'c':3}
         num_iters = 10
-        p, prev_p, h, means, variances = init_param_managers(param_info, initial_guess, num_iters)
+        p, prev_p, h, means, variances = init_param_managers(param_info, initial_guess, 
+                                                             initial_variances, num_iters)
         
         self.assertTrue(isinstance(p, Parameters))
         self.assertTrue(isinstance(prev_p, Parameters))
         self.assertTrue(isinstance(means, Parameters))
-        self.assertTrue(isinstance(variances, Parameters))
+        self.assertTrue(isinstance(variances, Covariance))
         self.assertTrue(isinstance(h, History))
         
         self.assertEqual(p.b, initial_guess['b']*param_info['unit_conversions']['b'])
         self.assertEqual(prev_p.b, initial_guess['b']*param_info['unit_conversions']['b'])
+        np.testing.assert_equal(variances.cov, np.array([[1,0,0], 
+                                                         [0,0,0], 
+                                                         [0,0,3]]))
         return
 
     def test_draw_init_guesses(self):
@@ -158,17 +166,17 @@ class TestUtils(unittest.TestCase):
         
         pa = Parameters(param_info, initial_guesses)
         means = Parameters(param_info, initial_guesses)
-        variances = Parameters(param_info, initial_guesses)
-        variances.a = 10
-        variances.b = 0.1
-        variances.c = 1
-        variances.d = 1
+        variances = Covariance(param_info)
+        variances.set_variance('a', 10)
+        variances.set_variance('b', 0.1)
+        variances.set_variance('c', 1)
+        variances.set_variance('d', 1)
         select_next_params(pa, means, variances, param_info)
         
         self.assertEqual(pa.a, initial_guesses['a']) #Inactive and shouldn't change
-        self.assertAlmostEqual(pa.b, 145.3565265)
-        self.assertAlmostEqual(pa.c, 0.865407629)
-        self.assertAlmostEqual(pa.d, 7.698461303)
+        self.assertAlmostEqual(pa.b, 45.78229186)
+        self.assertAlmostEqual(pa.c, -0.52817175)
+        self.assertAlmostEqual(pa.d, 9.38824359)
         return
     
     def test_update_means(self):
@@ -377,3 +385,7 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(accepted)
         
         np.testing.assert_equal(p.likelihood, p2.likelihood)
+        
+if __name__ == "__main__":
+    t = TestUtils()
+    t.test_select_next_params()

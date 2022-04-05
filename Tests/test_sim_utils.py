@@ -1,7 +1,8 @@
 import unittest
 import numpy as np
-
-from sim_utils import Parameters, History, HistoryList, Solution, Grid
+import sys
+sys.path.append("..")
+from sim_utils import Parameters, History, HistoryList, Solution, Grid, Covariance
 
 class TestUtils(unittest.TestCase):
     
@@ -26,6 +27,11 @@ class TestUtils(unittest.TestCase):
         for param in dummy_names:
             self.assertEqual(getattr(testp, param), dummy_parameters[param])
             
+        # Test asarray
+        arr = testp.asarray(dummy_param_info)
+        expected = np.array([4,3,2,1])
+        np.testing.assert_equal(arr, expected)
+        
         # Test init with duplicate params
         duplicate_names = ['a', 'a']
         dup_info = {'names':duplicate_names,
@@ -53,6 +59,31 @@ class TestUtils(unittest.TestCase):
         for param in dummy_names:
             self.assertEqual(getattr(testp, param), expected_logged_values[param])
             
+    def test_Covariance(self):
+        dummy_names = ['mu_n', 'c', 'b', 'a']
+        d = len(dummy_names)
+        
+        # Must contain one for each name
+        dummy_parameters = {'a':1, 'b':2, 'c':3, 'mu_n':4}
+        
+        # Should (but not required) contain one for each name
+        dummy_unitconversions = {'a':1, 'c':10, 'mu_n':0.25}
+        dummy_do_log = {'a':True, 'b':0, 'mu_n':1, 'mu_p':True}
+        
+        dummy_param_info = {'names':dummy_names,
+                            'unit_conversions':dummy_unitconversions,
+                            'do_log':dummy_do_log}
+        
+        # Test init
+        testC = Covariance(dummy_param_info)
+        np.testing.assert_equal(testC.cov, np.zeros((d,d)))
+        
+        # Test initial set
+        testC.set_variance('c', 1)
+        expected = np.zeros((d,d))
+        expected[1,1] = 1
+        np.testing.assert_equal(testC.cov, expected)
+        
     def test_History(self):
         # Will only look for these
         dummy_names = ['mu_n', 'c', 'b', 'a']
@@ -96,8 +127,8 @@ class TestUtils(unittest.TestCase):
         # Test truncate
         truncate_at = 10
         for param in dummy_names:
-            setattr(testh, param, np.arange(num_iters))
-            setattr(testh, f"mean_{param}", np.arange(num_iters) + 10)
+            setattr(testh, param, np.arange(num_iters, dtype=float))
+            setattr(testh, f"mean_{param}", np.arange(num_iters, dtype=float) + 10)
         testh.truncate(truncate_at, dummy_param_info)
         
         for param in dummy_names:
@@ -106,6 +137,14 @@ class TestUtils(unittest.TestCase):
             
         self.assertEqual(len(testh.accept), truncate_at)
         self.assertEqual(len(testh.ratio), truncate_at)
+        
+        # Test KT
+        R = 3
+        t = 9
+        kt = testh.get_KT(dummy_param_info, R, t)
+        self.assertEqual(kt.shape, (R, len(dummy_names)))
+        
+        np.testing.assert_equal(np.mean(kt, axis=0), np.zeros(len(dummy_names)))
     
     def test_HistoryList(self):
         # Will only look for these
@@ -169,3 +208,7 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(np.ones(num_tsteps) * 18 * num_nodes, testS.PL)
         
         return
+    
+if __name__ == "__main__":
+    t = TestUtils()
+    t.test_History()

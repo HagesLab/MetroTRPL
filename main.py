@@ -64,6 +64,17 @@ if __name__ == "__main__":
                      "eps":0, 
                      "m":0}
     # Other options
+    initial_variances = {"n0":0, 
+                        "p0":0.5, 
+                        "mu_n":5e5,#np.linspace(1, 100, 16), 
+                        "mu_p":5e5,#np.linspace(1, 100, 16), 
+                        "B":0.5, 
+                        "Sf":0.1, 
+                        "Sb":0.1, 
+                        "tauN":400, 
+                        "tauP":400, 
+                        "eps":0, 
+                        "m":0}
     
     param_info = {"names":param_names,
                   "active":active_params,
@@ -75,7 +86,7 @@ if __name__ == "__main__":
                 "noise_level":1e14}
     
     # TODO: Validation
-    sim_flags = {"num_iters": 10000,
+    sim_flags = {"num_iters": 100,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
                  "DA time subdivisions": 4,
                  "override_equal_mu":False,
@@ -158,6 +169,7 @@ if __name__ == "__main__":
     print("Length: {}".format(Length))
     print("Init_fname: {}".format(init_fname))
     print("Exp_fname: {}".format(exp_fname))
+    print("Out_fname: {}".format(out_pathname))
     print("IC flags: {}".format(ic_flags))
     print("Param infos: {}".format(param_info))
     print("Sim flags: {}".format(sim_flags))
@@ -167,11 +179,11 @@ if __name__ == "__main__":
     e_data = get_data(experimental_data_pathname, ic_flags, sim_flags, scale_f=1e-23)
     clock0 = perf_counter()
     if sim_flags.get("do_multicore", False):
-        history = start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list)
+        history = start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variances)
     else:
 
         print("Initial guess: {}".format(initial_guess_list[jobid]))
-        history = metro(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list[jobid])
+        history = metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, initial_guess_list[jobid])
     
     final_t = perf_counter() - clock0
     print("Metro took {} s".format(final_t))

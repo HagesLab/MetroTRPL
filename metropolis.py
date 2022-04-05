@@ -12,7 +12,7 @@ from functools import partial
 import logging
 
 from forward_solver import dydt
-from sim_utils import Grid, Solution, Parameters, History, HistoryList
+from sim_utils import Grid, Solution, Parameters, History, HistoryList, Covariance
 
 ## Constants
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
@@ -62,19 +62,21 @@ def draw_initial_guesses(initial_guesses, num_initial_guesses):
 def select_next_params(p, means, variances, param_info):
     is_active = param_info["active"]
     do_log = param_info["do_log"]
-    for param in param_info["names"]:
-        if is_active.get(param, 0):
-            mean = getattr(means, param)
-            var = getattr(variances, param)
+    names = param_info["names"]
+    mean = means.asarray(param_info)
+    for i, param in enumerate(names):        
+        if do_log[param]:
+            mean[i] = np.log10(mean[i])
             
-            if do_log.get(param, 0):    
-                setattr(p, param, 10 ** np.random.normal(loc=np.log10(mean), scale=var))
-                
+    cov = variances.cov
+    new_p = np.random.multivariate_normal(mean, cov)
+    
+    for i, param in enumerate(names):
+        if is_active[param]:
+            if do_log[param]:
+                setattr(p, param, 10 ** new_p[i])
             else:
-                setattr(p, param, np.random.normal(loc=mean, scale=var))
-                while getattr(p, param) <= 0:
-                    # Negative values not allowed - choose again
-                    setattr(p, param, np.random.normal(loc=mean, scale=var))
+                setattr(p, param, new_p[i])
         
     return
 
@@ -157,7 +159,7 @@ def subdivide(y, splits):
         y[j] = np.insert(y[j], 0, y[j-1][-1])
     return y
 
-def init_param_managers(param_info, initial_guess, num_iters):
+def init_param_managers(param_info, initial_guess, initial_variances, num_iters):
     # Initializes a current parameters, previous parameters, 
     # history, means, and variances objects
     p = Parameters(param_info, initial_guess)
@@ -171,16 +173,10 @@ def init_param_managers(param_info, initial_guess, num_iters):
     means = Parameters(param_info, initial_guess)
     means.apply_unit_conversions(param_info)
     
-    variances = Parameters(param_info, initial_guess)
-    variances.mu_n = 5
-    variances.mu_p = 5
-    variances.apply_unit_conversions(param_info)
-    variances.B = 0.1
-    variances.p0 = 0.1
-    variances.Sf = 0.1
-    variances.Sb = 0.1
-    variances.tauN = 20
-    variances.tauP = 20
+    variances = Covariance(param_info)
+    for param in param_info['names']:
+        if param_info['active'][param]:
+            variances.set_variance(param, initial_variances[param])
     
     return p, prev_p, H, means, variances
     
@@ -213,19 +209,19 @@ def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals
         prev_p.likelihood = p.likelihood
     return accepted
 
-def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list):
+def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variances):
     #num_cpus = 2
     num_cpus = min(os.cpu_count(), sim_flags["num_initial_guesses"])
     print(f"{num_cpus} CPUs marshalled")
     print(f"{len(initial_guess_list)} MC chains needed")
     with Pool(num_cpus) as pool:
-        histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags, param_info), initial_guess_list)
+        histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags, param_info, initial_variances), initial_guess_list)
         
     history_list = HistoryList(histories, param_info)
     
     return history_list
         
-def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_guess):
+def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, initial_guess):
     # Setup
     np.random.seed(42)
     
@@ -239,9 +235,9 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_guess):
         num_time_subs = DA_time_subs
     
     times, vals, uncs = e_data    
-    tf = sum([len(time)-1 for time in times]) * (1/2000)
+    tf = sum([len(time)-1 for time in times]) * (1/2500)
     
-    p, prev_p, H, means, variances = init_param_managers(param_info, initial_guess, num_iters)
+    p, prev_p, H, means, variances = init_param_managers(param_info, initial_guess, initial_variances, num_iters)
     
     # Calculate likelihood of initial guess
     run_DA_iteration(prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf)

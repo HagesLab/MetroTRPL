@@ -11,6 +11,11 @@ import os
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
 q_C = 1.602e-19 # [C per carrier]
 
+def arrayify_pdict(names, pdict):
+    # Converts a dict of (name,value) into array with values in order of names
+    arr = np.array([pdict[name] for name in names])
+    return arr
+
 class Parameters():
     Sf : float      # Front surface recombination velocity
     Sb : float      # Back surface recombination velocity
@@ -42,6 +47,23 @@ class Parameters():
             if param_info["do_log"].get(param, 0) and hasattr(self, param):
                 val = getattr(self, param)
                 setattr(self, param, np.log10(val))
+                
+    def asarray(self, param_info):
+        arr = np.array([getattr(self, param) for param in param_info["names"]])
+        return arr
+    
+class Covariance():
+    
+    def __init__(self, param_info):
+        self.names = param_info["names"]
+        d = len(self.names)
+        self.cov = np.zeros((d,d))
+        return
+        
+    def set_variance(self, param, var):
+        i = self.names.index(param)
+        self.cov[i,i] = var
+        return
                         
 class History():
     
@@ -80,6 +102,15 @@ class History():
         self.accept = self.accept[:k]
         self.ratio = self.ratio[:k]
         return
+    
+    def get_KT(self, param_info, R, t):
+        # Returns the transpose of the "K squiggle" matrix used for the adaptive d-dimensional proposal
+        # Essentially packages and mean subs the R most recent accepted steps into a Rxd array
+        arr = np.array([getattr(self,f"mean_{param}") for param in param_info['names']])
+        arr = arr.T
+        arr = arr[t-R+1:t+1]
+        arr -= np.mean(arr, axis=0)
+        return arr
         
 class HistoryList():
     
