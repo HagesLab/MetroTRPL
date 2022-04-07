@@ -64,6 +64,9 @@ class Covariance():
         i = self.names.index(param)
         self.cov[i,i] = var
         return
+    
+    def trace(self):
+        return np.diag(self.cov)
                         
 class History():
     
@@ -107,6 +110,9 @@ class History():
         # Returns the transpose of the "K squiggle" matrix used for the adaptive d-dimensional proposal
         # Essentially packages and mean subs the R most recent accepted steps into a Rxd array
         arr = np.array([getattr(self,f"mean_{param}") for param in param_info['names']])
+        for i, param in enumerate(param_info["names"]):
+            if param_info["do_log"][param]:
+                arr[i] = np.log10(arr[i])
         arr = arr.T
         arr = arr[t-R+1:t+1]
         arr -= np.mean(arr, axis=0)

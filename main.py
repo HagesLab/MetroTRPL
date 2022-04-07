@@ -37,7 +37,7 @@ if __name__ == "__main__":
                         "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
                         "B":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
     do_log = {"n0":1, "p0":1,"mu_n":0,"mu_p":0,"B":1,
-              "Sf":1,"Sb":1,"tauN":0,"tauP":0,"eps":1,
+              "Sf":1,"Sb":1,"tauN":1,"tauP":1,"eps":1,
               "m":0}
     
     initial_guesses = {"n0":1e8, 
@@ -65,14 +65,14 @@ if __name__ == "__main__":
                      "m":0}
     # Other options
     initial_variances = {"n0":0, 
-                        "p0":0.5, 
+                        "p0":0.001, 
                         "mu_n":5e5,#np.linspace(1, 100, 16), 
                         "mu_p":5e5,#np.linspace(1, 100, 16), 
-                        "B":0.5, 
-                        "Sf":0.1, 
-                        "Sb":0.1, 
-                        "tauN":400, 
-                        "tauP":400, 
+                        "B":0.001, 
+                        "Sf":0.001, 
+                        "Sb":0.001, 
+                        "tauN":0.001, 
+                        "tauP":0.001, 
                         "eps":0, 
                         "m":0}
     
@@ -86,7 +86,7 @@ if __name__ == "__main__":
                 "noise_level":1e14}
     
     # TODO: Validation
-    sim_flags = {"num_iters": 100,
+    sim_flags = {"num_iters": 500,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
                  "DA time subdivisions": 4,
                  "override_equal_mu":False,
@@ -94,7 +94,8 @@ if __name__ == "__main__":
                  "log_pl":True,
                  "self_normalize":False,
                  "do_multicore":False,
-                 "num_initial_guesses":8
+                 "num_initial_guesses":8,
+                 "adaptive_covariance":1,
                  }
 
     np.random.seed(42)

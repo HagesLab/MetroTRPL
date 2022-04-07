@@ -71,6 +71,7 @@ def select_next_params(p, means, variances, param_info):
     cov = variances.cov
     new_p = np.random.multivariate_normal(mean, cov)
     
+    
     for i, param in enumerate(names):
         if is_active[param]:
             if do_log[param]:
@@ -79,6 +80,17 @@ def select_next_params(p, means, variances, param_info):
                 setattr(p, param, new_p[i])
         
     return
+
+def update_covariance(variances, history, param_info, t, R):
+    num_actives = 0
+    for param, active in param_info['active'].items():
+        if active:
+            num_actives += 1
+    
+    K = history.get_KT(param_info, R, t)
+    C = 2.4 ** 2 / num_actives / (R-1)
+    variances.cov = np.matmul(K.T, K) * C 
+
 
 def update_means(p, means, param_info):
     for param in param_info['names']:
@@ -90,7 +102,7 @@ def print_status(p, means, param_info):
     ucs = param_info["unit_conversions"]
     for param in param_info['names']:
         if is_active.get(param, 0):
-            print("Next {}: {} from mean {}".format(param, getattr(p, param) / ucs.get(param, 1), getattr(means, param) / ucs.get(param, 1)))
+            print("Next {}: {:.3e} from mean {:.3e}".format(param, getattr(p, param) / ucs.get(param, 1), getattr(means, param) / ucs.get(param, 1)))
             
     return
 
@@ -177,7 +189,7 @@ def init_param_managers(param_info, initial_guess, initial_variances, num_iters)
     for param in param_info['names']:
         if param_info['active'][param]:
             variances.set_variance(param, initial_variances[param])
-    
+
     return p, prev_p, H, means, variances
     
 def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, prev_p=None):
@@ -255,6 +267,12 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, init
     for k in range(1, num_iters):
         try:
             # Select next sample from distribution
+            if sim_flags.get("adaptive_covariance", 0) == "AP":
+                R = 50
+                U = 50
+                if k > R and k % U == 0:
+                    update_covariance(variances, H, param_info, k-1, R)
+                    print("New covariance: {}".format(variances.trace()))
             
             select_next_params(p, means, variances, param_info)
     
