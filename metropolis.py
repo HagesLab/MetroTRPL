@@ -81,7 +81,7 @@ def select_next_params(p, means, variances, param_info):
         
     return
 
-def update_covariance(variances, history, param_info, t, R):
+def update_covariance_AP(variances, history, param_info, t, R):
     num_actives = 0
     for param, active in param_info['active'].items():
         if active:
@@ -91,6 +91,50 @@ def update_covariance(variances, history, param_info, t, R):
     C = 2.4 ** 2 / num_actives / (R-1)
     variances.cov = np.matmul(K.T, K) * C 
 
+def update_covariance_AM(p, variances, history, param_info, t, eps=1e-5):
+    do_log = param_info["do_log"]
+    names = param_info["names"]
+    is_active = param_info["active"]
+    num_actives = 0
+    for param, active in param_info['active'].items():
+        if active:
+            num_actives += 1
+    C = 2.4 ** 2 / num_actives
+    new_X = p.asarray(param_info)[:, None]
+    
+    for i, param in enumerate(names):        
+        if do_log[param]:
+            new_X[i] = np.log10(new_X[i])
+        
+    
+    if not hasattr(variances, "X_all"):
+        # First time initialization
+        variances.prev_X_all = history.get_XT_AM(param_info, t-2)
+        variances.prev_X_all = np.mean(variances.prev_X_all, axis=1)[:, None]
+        variances.X_all = history.get_XT_AM(param_info, t-1)
+        variances.X_all = np.mean(variances.X_all, axis=1)[:, None]
+        
+        variances.ID = np.zeros((len(new_X), len(new_X)))
+        for i, param in enumerate(names):  
+            if is_active[param]:
+                variances.ID[i,i] = 1
+    else:
+        variances.prev_X_all = variances.X_all
+        variances.X_all += (new_X - variances.X_all) / (t-1)
+        
+    # Contributions
+    # base = (t-2)/(t-1)*variances.cov
+    # prev = (t-1) * np.matmul(variances.prev_X_all, variances.prev_X_all.T)
+    # current = (t) * np.matmul(variances.X_all, variances.X_all.T)
+    # new = np.matmul(new_X, new_X.T)
+    # minimum = eps * variances.ID
+    # variances.cov = base + (C/(t-1)) * (prev - current + new + minimum)
+    
+    dx = variances.prev_X_all - new_X
+    base = (t-2)/(t-1)*variances.cov
+    variances.cov = base + (C/t) * np.matmul(dx, dx.T)
+    
+    return
 
 def update_means(p, means, param_info):
     for param in param_info['names']:
@@ -271,9 +315,13 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, init
                 R = 50
                 U = 50
                 if k > R and k % U == 0:
-                    update_covariance(variances, H, param_info, k-1, R)
+                    update_covariance_AP(variances, H, param_info, k-1, R)
                     print("New covariance: {}".format(variances.trace()))
-            
+                    
+            elif (k > sim_flags.get("AM_activation_time", np.inf) and 
+                  sim_flags.get("adaptive_covariance", 0) == "AM"):
+                update_covariance_AM(means, variances, H, param_info, k)
+                print("New covariance: {}".format(variances.trace()))
             select_next_params(p, means, variances, param_info)
     
             print_status(p, means, param_info)
@@ -346,4 +394,5 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, init
             break
         
     H.apply_unit_conversions(param_info)
+    H.final_cov = variances.cov
     return H

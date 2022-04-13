@@ -93,6 +93,7 @@ class History():
             np.save(os.path.join(out_pathname, f"mean_{param}"), getattr(self, f"mean_{param}"))
                     
         np.save(os.path.join(out_pathname, "accept"), self.accept)
+        np.save(os.path.join(out_pathname, "final_cov"), self.final_cov)
         
     def truncate(self, k, param_info):
         for param in param_info["names"]:
@@ -117,12 +118,22 @@ class History():
         arr = arr[t-R+1:t+1]
         arr -= np.mean(arr, axis=0)
         return arr
+    
+    def get_XT_AM(self, param_info, t):
+        arr = np.array([getattr(self,f"mean_{param}")[:t+1] for param in param_info['names']])
+        for i, param in enumerate(param_info["names"]):
+            if param_info["do_log"][param]:
+                arr[i] = np.log10(arr[i])
+
+        return arr
+        
         
 class HistoryList():
     
     def __init__(self, list_of_histories, param_info):
         self.join("accept", list_of_histories)
         self.join("ratio", list_of_histories)
+        self.join("final_cov", list_of_histories)
         for param in param_info["names"]:
             self.join(param, list_of_histories)
             self.join(f"mean_{param}", list_of_histories)
@@ -138,6 +149,7 @@ class HistoryList():
             np.save(os.path.join(out_pathname, f"mean_{param}"), getattr(self, f"mean_{param}"))
                     
         np.save(os.path.join(out_pathname, "accept"), self.accept)
+        np.save(os.path.join(out_pathname, "final_cov"), self.final_cov)
              
 class Grid():
     def __init__(self):

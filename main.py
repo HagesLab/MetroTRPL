@@ -36,15 +36,15 @@ if __name__ == "__main__":
     unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
                         "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
                         "B":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
-    do_log = {"n0":1, "p0":1,"mu_n":0,"mu_p":0,"B":1,
+    do_log = {"n0":1, "p0":1,"mu_n":1,"mu_p":1,"B":1,
               "Sf":1,"Sb":1,"tauN":1,"tauP":1,"eps":1,
               "m":0}
     
     initial_guesses = {"n0":1e8, 
-                        "p0":np.logspace(13, 17, 16), 
+                        "p0":3e15, #np.logspace(13, 17, 16), 
                         "mu_n":20,#np.linspace(1, 100, 16), 
                         "mu_p":20,#np.linspace(1, 100, 16), 
-                        "B":np.logspace(-13, -10, 16), 
+                        "B":4.8e-11,#np.logspace(-13, -10, 16), 
                         "Sf":np.logspace(-1, 2, 16), 
                         "Sb":np.logspace(-1, 2, 16), 
                         "tauN":np.linspace(100, 1000, 16), 
@@ -53,10 +53,10 @@ if __name__ == "__main__":
                         "m":0}
     
     active_params = {"n0":0, 
-                     "p0":1, 
+                     "p0":0, 
                      "mu_n":0, 
                      "mu_p":0, 
-                     "B":1, 
+                     "B":0, 
                      "Sf":1, 
                      "Sb":1, 
                      "tauN":1, 
@@ -65,14 +65,14 @@ if __name__ == "__main__":
                      "m":0}
     # Other options
     initial_variances = {"n0":0, 
-                        "p0":0.001, 
+                        "p0":0.1, 
                         "mu_n":5e5,#np.linspace(1, 100, 16), 
                         "mu_p":5e5,#np.linspace(1, 100, 16), 
-                        "B":0.001, 
-                        "Sf":0.001, 
-                        "Sb":0.001, 
-                        "tauN":0.001, 
-                        "tauP":0.001, 
+                        "B":0.0001, 
+                        "Sf":0.0001, 
+                        "Sb":0.0001, 
+                        "tauN":0.0001, 
+                        "tauP":0.0001, 
                         "eps":0, 
                         "m":0}
     
@@ -86,16 +86,17 @@ if __name__ == "__main__":
                 "noise_level":1e14}
     
     # TODO: Validation
-    sim_flags = {"num_iters": 500,
+    sim_flags = {"num_iters": 10000,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
-                 "DA time subdivisions": 4,
+                 "DA time subdivisions": 1,
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
                  "self_normalize":False,
                  "do_multicore":False,
                  "num_initial_guesses":8,
-                 "adaptive_covariance":1,
+                 "adaptive_covariance":"",
+                 "AM_activation_time":10
                  }
 
     np.random.seed(42)
@@ -135,7 +136,7 @@ if __name__ == "__main__":
 
         init_fname = "staub_MAPI_threepower_twothick_input.csv"
         exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
-        out_fname = "DEBUG"
+        out_fname = "canon 2T bad3 D1"
 
 
     if on_hpg:
