@@ -35,7 +35,7 @@ else:
 
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
-    out_fname = "canon_1T_AM_D1"
+    out_fname = "DEBUG"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -52,7 +52,10 @@ if on_hpg:
     assert jobid is not None, "Error: use a job array script"
     jobid = int(jobid)
 else:
-    jobid = int(sys.argv[2])
+    try:
+        jobid = int(sys.argv[2])
+    except IndexError:
+        jobid = 0
 
 if jobid == 0 and os.path.exists(os.path.join(out_dir, out_fname, "metrolog-main.log")):
     try:
@@ -129,17 +132,7 @@ if __name__ == "__main__":
                      "eps":0,
                      "m":0}
     # Other options
-    initial_variances = {"n0":0,
-                        "p0":0.1,
-                        "mu_n":0.1,
-                        "mu_p":0.1,
-                        "B":0.1,
-                        "Sf":0.1,
-                        "Sb":0.1,
-                        "tauN":0.1,
-                        "tauP":0.1,
-                        "eps":0,
-                        "m":0}
+    initial_variance = 2.4 ** 2 / (sum(active_params.values()))
 
     param_info = {"names":param_names,
                   "active":active_params,
@@ -151,7 +144,7 @@ if __name__ == "__main__":
                 "noise_level":1e14}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 24000,
+    sim_flags = {"num_iters": 500,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -160,7 +153,7 @@ if __name__ == "__main__":
                  "self_normalize":False,
                  "do_multicore":False,
                  "num_initial_guesses":8,
-                 "adaptive_covariance":"AM",
+                 "adaptive_covariance":"LAP",
                  "AM_activation_time":240
                  }
 
@@ -202,11 +195,11 @@ if __name__ == "__main__":
     e_data = get_data(experimental_data_pathname, ic_flags, sim_flags, scale_f=1e-23)
     clock0 = perf_counter()
     if sim_flags.get("do_multicore", False):
-        history = start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variances, logger)
+        history = start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variance, logger)
     else:
 
         logger.info("Initial guess: {}".format(initial_guess_list[jobid]))
-        history = metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, True, logger, initial_guess_list[jobid])
+        history = metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, True, logger, initial_guess_list[jobid])
 
     final_t = perf_counter() - clock0
     logging.basicConfig(filename=os.path.join(out_dir, out_fname, "metrolog-main.log"), filemode='a', level=logging.DEBUG, force=True)
@@ -218,4 +211,6 @@ if __name__ == "__main__":
 
     logger.info("Exporting to {}".format(out_pathname))
     history.export(param_info, out_pathname)
+    
+    logging.shutdown()
     print(f"{jobid} Finished")

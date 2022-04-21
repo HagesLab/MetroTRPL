@@ -90,10 +90,20 @@ def update_covariance_AP(variances, history, param_info, t, R):
     for param, active in param_info['active'].items():
         if active:
             num_actives += 1
+    a = 0.8
+    b = 1
+            
+    r_nk = np.sum(history.accept[t-R+1:t+1]) / R
+    r_opt = 0.234
     
     K = history.get_KT(param_info, R, t)
-    C = 2.4 ** 2 / num_actives / (R-1)
-    variances.cov = np.matmul(K.T, K) * C 
+    Sigma = np.matmul(K.T, K) / (R-1)
+    
+    gamma_1 = np.power(t, -a)
+    gamma_2 = b * gamma_1
+    variances.little_sigma *= np.exp(gamma_2*(r_nk - r_opt))
+    variances.big_sigma += gamma_1 * (Sigma - variances.big_sigma)
+    variances.cov = variances.little_sigma * variances.big_sigma
 
 def update_covariance_AM(p, variances, history, param_info, t, eps=1e-5):
     do_log = param_info["do_log"]
@@ -222,7 +232,7 @@ def subdivide(y, splits):
         y[j] = np.insert(y[j], 0, y[j-1][-1])
     return y
 
-def init_param_managers(param_info, initial_guess, initial_variances, num_iters):
+def init_param_managers(param_info, initial_guess, initial_variance, num_iters):
     # Initializes a current parameters, previous parameters, 
     # history, means, and variances objects
     p = Parameters(param_info, initial_guess)
@@ -239,8 +249,10 @@ def init_param_managers(param_info, initial_guess, initial_variances, num_iters)
     variances = Covariance(param_info)
     for param in param_info['names']:
         if param_info['active'][param]:
-            variances.set_variance(param, initial_variances[param])
-
+            variances.set_variance(param, initial_variance)
+            
+    variances.little_sigma = initial_variance
+    variances.big_sigma = variances.cov / initial_variance
     return p, prev_p, H, means, variances
     
 def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger, prev_p=None):
@@ -280,19 +292,19 @@ def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals
         prev_p.likelihood = p.likelihood
     return accepted
 
-def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variances, logger):
+def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variance, logger):
     #num_cpus = 2
     num_cpus = min(os.cpu_count(), sim_flags["num_initial_guesses"])
     logger.info(f"{num_cpus} CPUs marshalled")
     logger.info(f"{len(initial_guess_list)} MC chains needed")
     with Pool(num_cpus) as pool:
-        histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags, param_info, initial_variances, False, logger), initial_guess_list)
+        histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags, param_info, initial_variance, False, logger), initial_guess_list)
         
     history_list = HistoryList(histories, param_info)
     
     return history_list
         
-def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, verbose, logger, initial_guess):
+def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbose, logger, initial_guess):
     # Setup
     np.random.seed(42)
     
@@ -308,7 +320,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, verb
     times, vals, uncs = e_data    
     tf = sum([len(time)-1 for time in times]) * (1/2500)
     
-    p, prev_p, H, means, variances = init_param_managers(param_info, initial_guess, initial_variances, num_iters)
+    p, prev_p, H, means, variances = init_param_managers(param_info, initial_guess, initial_variance, num_iters)
     
     # Calculate likelihood of initial guess
     run_DA_iteration(prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger)
@@ -326,10 +338,9 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, verb
     for k in range(1, num_iters):
         try:
             # Select next sample from distribution
-            if sim_flags.get("adaptive_covariance", 0) == "AP":
+            if sim_flags.get("adaptive_covariance", 0) == "LAP":
                 R = 50
-                U = 50
-                if k > R and k % U == 0:
+                if k > R and k % R == 0:
                     update_covariance_AP(variances, H, param_info, k-1, R)
                     logger.info("New covariance: {}".format(variances.trace()))
                     
