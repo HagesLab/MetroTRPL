@@ -151,7 +151,7 @@ if __name__ == "__main__":
                 "noise_level":1e14}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 24000,
+    sim_flags = {"num_iters": 100,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
