@@ -29,27 +29,27 @@ class Parameters():
     eps : float     # Relative dielectric cofficient
     Tm : float      # Temperature
     def __init__(self, param_info, initial_guesses):
-        param_names = param_info["names"]
+        self.param_names = param_info["names"]
         
-        for param in param_names:
+        for param in self.param_names:
             if hasattr(self, param): raise KeyError(f"Param with name {param} already exists")
             setattr(self, param, initial_guesses[param])
         self.Tm = 300
         return
     
-    def apply_unit_conversions(self, param_info):
-        for param in param_info["names"]:
+    def apply_unit_conversions(self, param_info=None):
+        for param in self.param_names:
             val = getattr(self, param)
             setattr(self, param, val * param_info["unit_conversions"].get(param, 1))
         
-    def make_log(self, param_info):
-        for param in param_info["names"]:
+    def make_log(self, param_info=None):
+        for param in self.param_names:
             if param_info["do_log"].get(param, 0) and hasattr(self, param):
                 val = getattr(self, param)
                 setattr(self, param, np.log10(val))
                 
-    def asarray(self, param_info):
-        arr = np.array([getattr(self, param) for param in param_info["names"]])
+    def asarray(self, param_info=None):
+        arr = np.array([getattr(self, param) for param in self.param_names])
         return arr
     
 class Covariance():
