@@ -59,7 +59,7 @@ def draw_initial_guesses(initial_guesses, num_initial_guesses):
         initial_guess_list.append(initial_guess)
     return initial_guess_list
 
-def select_next_params(p, means, variances, param_info):
+def select_next_params(p, means, variances, param_info, logger):
     is_active = param_info["active"]
     do_log = param_info["do_log"]
     names = param_info["names"]
@@ -69,8 +69,12 @@ def select_next_params(p, means, variances, param_info):
             mean[i] = np.log10(mean[i])
             
     cov = variances.cov
-    new_p = np.random.multivariate_normal(mean, cov)
-    
+
+    try:
+        new_p = np.random.multivariate_normal(mean, cov)
+    except Exception:
+        logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
+        new_p = mean
     
     for i, param in enumerate(names):
         if is_active[param]:
@@ -127,13 +131,16 @@ def update_covariance_AM(p, variances, history, param_info, t, eps=1e-5):
     # prev = (t-1) * np.matmul(variances.prev_X_all, variances.prev_X_all.T)
     # current = (t) * np.matmul(variances.X_all, variances.X_all.T)
     # new = np.matmul(new_X, new_X.T)
-    # minimum = eps * variances.ID
+    minimum = eps * variances.ID
+    maximum = 3
     # variances.cov = base + (C/(t-1)) * (prev - current + new + minimum)
-    
+
     dx = variances.prev_X_all - new_X
     base = (t-2)/(t-1)*variances.cov
-    variances.cov = base + (C/t) * np.matmul(dx, dx.T)
-    
+    variances.cov = base + (C/t) * (np.matmul(dx, dx.T) + minimum)
+
+    for i in range(len(variances.cov)):
+        if variances.cov[i,i] > maximum: variances.cov[i,i] = maximum
     return
 
 def update_means(p, means, param_info):
@@ -141,12 +148,12 @@ def update_means(p, means, param_info):
         setattr(means, param, getattr(p, param))
     return
 
-def print_status(p, means, param_info):
+def print_status(p, means, param_info, logger):
     is_active = param_info['active']
     ucs = param_info["unit_conversions"]
     for param in param_info['names']:
         if is_active.get(param, 0):
-            print("Next {}: {:.3e} from mean {:.3e}".format(param, getattr(p, param) / ucs.get(param, 1), getattr(means, param) / ucs.get(param, 1)))
+            logger.info("Next {}: {:.3e} from mean {:.3e}".format(param, getattr(p, param) / ucs.get(param, 1), getattr(means, param) / ucs.get(param, 1)))
             
     return
 
@@ -236,7 +243,7 @@ def init_param_managers(param_info, initial_guess, initial_variances, num_iters)
 
     return p, prev_p, H, means, variances
     
-def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, prev_p=None):
+def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger, prev_p=None):
     # Calculates likelihood of a new proposed parameter set
     accepted = True
     p.likelihood = np.zeros((len(iniPar), num_time_subs))
@@ -250,12 +257,20 @@ def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals
         next_init_condition = iniPar[i]
         for j in range(num_time_subs):
             sol, next_init_condition = do_simulation(p, thickness, nx, next_init_condition, subdivided_times[j])
-            p.likelihood[i, j] -= np.sum((np.log10(sol[1:]) - subdivided_vals[j][1:])**2)
+            try: p.likelihood[i, j] -= np.sum((np.log10(sol[1:]) - subdivided_vals[j][1:])**2)
+            except ValueError:
+                p.likelihood[i,j] = -np.inf
+                fail_i = 0
+                while os.path.exists(os.path.join("Fails", f"fail_{fail_i}.npy")):
+                    fail_i += 1
+                np.save(os.path.join("Fails", f"fail_{fail_i}.npy"), p.asarray())
+                logger.error("Simulation failed! Wrote to {}".format(os.path.join("Fails", f"fail_{fail_i}.npy")))
+
             p.likelihood[i, j] /= tf
             
             if prev_p is not None:
                 logratio = p.likelihood[i, j] - prev_p.likelihood[i, j]
-                print("Partial Ratio: {}".format(10 ** logratio))
+                if verbose: logger.info("Partial Ratio: {}".format(10 ** logratio))
                 
                 accepted = roll_acceptance(logratio)
                 if not accepted:
@@ -265,19 +280,19 @@ def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals
         prev_p.likelihood = p.likelihood
     return accepted
 
-def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variances):
+def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variances, logger):
     #num_cpus = 2
     num_cpus = min(os.cpu_count(), sim_flags["num_initial_guesses"])
-    print(f"{num_cpus} CPUs marshalled")
-    print(f"{len(initial_guess_list)} MC chains needed")
+    logger.info(f"{num_cpus} CPUs marshalled")
+    logger.info(f"{len(initial_guess_list)} MC chains needed")
     with Pool(num_cpus) as pool:
-        histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags, param_info, initial_variances), initial_guess_list)
+        histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags, param_info, initial_variances, False, logger), initial_guess_list)
         
     history_list = HistoryList(histories, param_info)
     
     return history_list
         
-def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, initial_guess):
+def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, verbose, logger, initial_guess):
     # Setup
     np.random.seed(42)
     
@@ -296,7 +311,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, init
     p, prev_p, H, means, variances = init_param_managers(param_info, initial_guess, initial_variances, num_iters)
     
     # Calculate likelihood of initial guess
-    run_DA_iteration(prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf)
+    run_DA_iteration(prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger)
     if DA_mode == 'on':
         pass
     elif DA_mode == 'off':
@@ -316,20 +331,21 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, init
                 U = 50
                 if k > R and k % U == 0:
                     update_covariance_AP(variances, H, param_info, k-1, R)
-                    print("New covariance: {}".format(variances.trace()))
+                    logger.info("New covariance: {}".format(variances.trace()))
                     
             elif (k > sim_flags.get("AM_activation_time", np.inf) and 
                   sim_flags.get("adaptive_covariance", 0) == "AM"):
                 update_covariance_AM(means, variances, H, param_info, k)
-                print("New covariance: {}".format(variances.trace()))
-            select_next_params(p, means, variances, param_info)
+                if verbose: logger.info("New covariance: {}".format(variances.trace()))
+            select_next_params(p, means, variances, param_info, logger)
     
-            print_status(p, means, param_info)
+            if verbose: print_status(p, means, param_info, logger)
+            else: logger.info(f"Iter {k}")
             # Calculate new likelihood?
             
             if DA_mode == "on":
                 accepted = run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs,
-                                            times, vals, tf, prev_p)
+                                            times, vals, tf, verbose, logger, prev_p)
                 
                 
             elif DA_mode == "cumulative":
@@ -345,7 +361,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, init
                     if i > 0: p.cumulikelihood[i] = p.cumulikelihood[i-1] + p.likelihood[rand_i[i]]
                     else: p.cumulikelihood[i] = p.likelihood[rand_i[i]]
                     logratio = p.cumulikelihood[i] - prev_p.cumulikelihood[i]
-                    print("Partial Ratio: {}".format(10 ** logratio))
+                    logger.info("Partial Ratio: {}".format(10 ** logratio))
                 
                     accepted = roll_acceptance(logratio)
                     if not accepted:
@@ -369,18 +385,18 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, init
                 p.likelihood = np.sum(p.likelihood)
                 logratio = p.likelihood - prev_p.likelihood
             
-                print("Partial Ratio: {}".format(10 ** logratio))
+                logger.info("Partial Ratio: {}".format(10 ** logratio))
             
                 accepted = roll_acceptance(logratio)
                 
                 if accepted:
                     prev_p.likelihood = p.likelihood
                 
-            if not accepted:
-                print("Rejected!")
+            if verbose and not accepted:
+                logger.info("Rejected!")
                 
-            print("Iter {}".format(k))
-            print("#####")
+            logger.info("Iter {}".format(k))
+            logger.info("#####")
             if accepted:
                 update_means(p, means, param_info)
                 H.accept[k] = 1
@@ -389,7 +405,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variances, init
                 
             update_history(H, k, p, means, param_info)
         except KeyboardInterrupt:
-            print("Terminating with k={} iters completed:".format(k-1))
+            logger.info("Terminating with k={} iters completed:".format(k-1))
             H.truncate(k, param_info)
             break
         
