@@ -269,7 +269,10 @@ def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals
         next_init_condition = iniPar[i]
         for j in range(num_time_subs):
             sol, next_init_condition = do_simulation(p, thickness, nx, next_init_condition, subdivided_times[j])
-            try: p.likelihood[i, j] -= np.sum((np.log10(sol[1:]) - subdivided_vals[j][1:])**2)
+            try:
+                p.likelihood[i, j] -= np.sum((np.log10(sol[1:]) - subdivided_vals[j][1:])**2)
+                # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
+                if np.isnan(p.likelihood[i,j]): p.likelihood[i,j] = -np.inf
             except ValueError:
                 p.likelihood[i,j] = -np.inf
                 fail_i = 0
@@ -282,6 +285,7 @@ def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals
             
             if prev_p is not None:
                 logratio = p.likelihood[i, j] - prev_p.likelihood[i, j]
+                if np.isnan(logratio): logratio = -np.inf
                 if verbose: logger.info("Partial Ratio: {}".format(10 ** logratio))
                 
                 accepted = roll_acceptance(logratio)
