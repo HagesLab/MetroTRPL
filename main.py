@@ -35,7 +35,7 @@ else:
 
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
-    out_fname = "DEBUG"
+    out_fname = "canon_1T_LAP_D1"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -144,7 +144,7 @@ if __name__ == "__main__":
                 "noise_level":1e14}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 100,
+    sim_flags = {"num_iters": 24000,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -153,8 +153,9 @@ if __name__ == "__main__":
                  "self_normalize":False,
                  "do_multicore":False,
                  "num_initial_guesses":8,
-                 "adaptive_covariance":"LAP",
-                 "AM_activation_time":240
+                 "adaptive_covariance":"LAP", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
+                 "AM_activation_time":240,
+                 "LAP_block_time":100
                  }
 
     np.random.seed(1)

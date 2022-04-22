@@ -343,7 +343,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
         try:
             # Select next sample from distribution
             if sim_flags.get("adaptive_covariance", 0) == "LAP":
-                R = 50
+                R = int(sim_flags["LAP_block_time"])
                 if k > R and k % R == 0:
                     update_covariance_AP(variances, H, param_info, k-1, R)
                     logger.info("New covariance: {}".format(variances.trace()))
