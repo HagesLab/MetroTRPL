@@ -59,7 +59,7 @@ def draw_initial_guesses(initial_guesses, num_initial_guesses):
         initial_guess_list.append(initial_guess)
     return initial_guess_list
 
-def select_next_params(p, means, variances, param_info, logger):
+def select_next_params(p, means, variances, param_info, picked_param, logger):
     is_active = param_info["active"]
     do_log = param_info["do_log"]
     names = param_info["names"]
@@ -76,6 +76,17 @@ def select_next_params(p, means, variances, param_info, logger):
         logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
         new_p = mean
     
+
+    # for i, param in enumerate(names):
+    #     if is_active[param]:
+    #         if picked_param is None or i == picked_param[1]:
+    #             if do_log[param]:
+    #                 setattr(p, param, 10 ** new_p[i])
+    #             else:
+    #                 setattr(p, param, new_p[i])
+    #         else:
+    #             setattr(p, param, getattr(means, param))
+
     for i, param in enumerate(names):
         if is_active[param]:
             if do_log[param]:
@@ -85,7 +96,7 @@ def select_next_params(p, means, variances, param_info, logger):
         
     return
 
-def update_covariance_AP(p, variances, history, param_info, t):
+def update_covariance_AP(p, variances, history, param_info, picked_param, t):
     do_log = param_info["do_log"]
     names = param_info["names"]
     is_active = param_info["active"]
@@ -124,9 +135,17 @@ def update_covariance_AP(p, variances, history, param_info, t):
     
     gamma_1 = np.power(t, -a)
     gamma_2 = b * gamma_1
-    variances.little_sigma *= np.exp(gamma_2*(variances.r_nk - r_opt))
-    variances.big_sigma += gamma_1 * (Sigma - variances.big_sigma)
-    variances.cov = variances.little_sigma * variances.big_sigma
+    if picked_param is None:
+        variances.little_sigma *= np.exp(gamma_2*(variances.r_nk - r_opt))
+        variances.big_sigma += gamma_1 * (Sigma - variances.big_sigma)
+        variances.cov = variances.little_sigma * variances.big_sigma
+    else:
+        i = picked_param[1]
+        variances.little_sigma[i] *= np.exp(gamma_2*(variances.r_nk - r_opt))
+        variances.big_sigma += gamma_1 * (Sigma - variances.big_sigma)
+        variances.cov = np.zeros_like(variances.cov)
+        variances.cov[i,i] = variances.little_sigma[i] * variances.big_sigma[i,i]
+    
     return
 
 def update_covariance_AM(p, variances, history, param_info, t, eps=1e-5):
@@ -275,7 +294,7 @@ def init_param_managers(param_info, initial_guess, initial_variance, num_iters):
         if param_info['active'][param]:
             variances.set_variance(param, initial_variance)
             
-    variances.little_sigma = initial_variance
+    variances.little_sigma = np.ones(len(variances.cov)) * initial_variance
     variances.big_sigma = variances.cov / initial_variance
     return p, prev_p, H, means, variances
     
@@ -319,6 +338,7 @@ def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals
     if prev_p is not None and accepted:
         prev_p.likelihood = p.likelihood
     return accepted
+
 
 def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variance, logger):
     #num_cpus = 2
@@ -365,18 +385,23 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
 
     for k in range(1, num_iters):
         try:
+            # Identify which parameter to move
+            if sim_flags.get("one_param_at_a_time", 0):
+                picked_param = means.actives[k % len(means.actives)]
+            else:
+                picked_param = None
             # Select next sample from distribution
             if (k > sim_flags.get("AM_activation_time", np.inf) and 
                   sim_flags.get("adaptive_covariance", 0) == "LAP"):
 
-                update_covariance_AP(means, variances, H, param_info, k)
+                update_covariance_AP(means, variances, H, param_info, picked_param, k)
                 if verbose: logger.info("New covariance: {}".format(variances.trace()))
                     
             elif (k > sim_flags.get("AM_activation_time", np.inf) and 
                   sim_flags.get("adaptive_covariance", 0) == "AM"):
                 update_covariance_AM(means, variances, H, param_info, k)
                 if verbose: logger.info("New covariance: {}".format(variances.trace()))
-            select_next_params(p, means, variances, param_info, logger)
+            select_next_params(p, means, variances, param_info, picked_param, logger)
     
             if verbose: print_status(p, means, param_info, logger)
             else: logger.info(f"Iter {k}")

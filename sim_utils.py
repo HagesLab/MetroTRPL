@@ -30,6 +30,7 @@ class Parameters():
     Tm : float      # Temperature
     def __init__(self, param_info, initial_guesses):
         self.param_names = param_info["names"]
+        self.actives = [(param, index) for index, param in enumerate(self.param_names) if param_info["active"][param]]
         
         for param in self.param_names:
             if hasattr(self, param): raise KeyError(f"Param with name {param} already exists")

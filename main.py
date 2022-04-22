@@ -155,6 +155,7 @@ if __name__ == "__main__":
                  "num_initial_guesses":8,
                  "adaptive_covariance":"LAP", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
                  "AM_activation_time":5,
+                 "one_param_at_a_time":True,
                  }
 
     np.random.seed(1)
