@@ -55,7 +55,7 @@ else:
     try:
         jobid = int(sys.argv[2])
     except IndexError:
-        jobid = 0
+        jobid = 3
 
 if jobid == 0 and os.path.exists(os.path.join(out_dir, out_fname, "metrolog-main.log")):
     try:
@@ -144,7 +144,7 @@ if __name__ == "__main__":
                 "noise_level":1e14}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 24000,
+    sim_flags = {"num_iters": 100,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -154,8 +154,7 @@ if __name__ == "__main__":
                  "do_multicore":False,
                  "num_initial_guesses":8,
                  "adaptive_covariance":"LAP", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
-                 "AM_activation_time":240,
-                 "LAP_block_time":100
+                 "AM_activation_time":5,
                  }
 
     np.random.seed(1)

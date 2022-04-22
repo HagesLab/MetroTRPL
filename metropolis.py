@@ -85,25 +85,49 @@ def select_next_params(p, means, variances, param_info, logger):
         
     return
 
-def update_covariance_AP(variances, history, param_info, t, R):
+def update_covariance_AP(p, variances, history, param_info, t):
+    do_log = param_info["do_log"]
+    names = param_info["names"]
+    is_active = param_info["active"]
     num_actives = 0
-    for param, active in param_info['active'].items():
+    for param, active in is_active.items():
         if active:
             num_actives += 1
     a = 0.8
     b = 1
-            
-    r_nk = np.sum(history.accept[t-R+1:t+1]) / R
     r_opt = 0.234
     
-    K = history.get_KT(param_info, R, t)
-    Sigma = np.matmul(K.T, K) / (R-1)
+    new_X = p.asarray(param_info)[:, None]
+    for i, param in enumerate(names):        
+        if do_log[param]:
+            new_X[i] = np.log10(new_X[i])
+            
+    if not hasattr(variances, "X_all"):
+        # First time initialization
+        variances.prev_X_all = history.get_XT_AM(param_info, t-2)
+        variances.prev_X_all = np.mean(variances.prev_X_all, axis=1)[:, None]
+        variances.X_all = history.get_XT_AM(param_info, t-1)
+        variances.X_all = np.mean(variances.X_all, axis=1)[:, None]
+        
+        variances.ID = np.zeros((len(new_X), len(new_X)))
+        for i, param in enumerate(names):  
+            if is_active[param]:
+                variances.ID[i,i] = 1
+        variances.r_nk = np.sum(history.accept[:t+1]) / t
+    else:
+        variances.prev_X_all = variances.X_all
+        variances.X_all += (new_X - variances.X_all) / (t-1)
+        variances.r_nk += (history.accept[t] - variances.r_nk) / (t-1)
+        
+    dx = variances.prev_X_all - new_X
+    Sigma = np.matmul(dx, dx.T)
     
     gamma_1 = np.power(t, -a)
     gamma_2 = b * gamma_1
-    variances.little_sigma *= np.exp(gamma_2*(r_nk - r_opt))
+    variances.little_sigma *= np.exp(gamma_2*(variances.r_nk - r_opt))
     variances.big_sigma += gamma_1 * (Sigma - variances.big_sigma)
     variances.cov = variances.little_sigma * variances.big_sigma
+    return
 
 def update_covariance_AM(p, variances, history, param_info, t, eps=1e-5):
     do_log = param_info["do_log"]
@@ -342,11 +366,11 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     for k in range(1, num_iters):
         try:
             # Select next sample from distribution
-            if sim_flags.get("adaptive_covariance", 0) == "LAP":
-                R = int(sim_flags["LAP_block_time"])
-                if k > R and k % R == 0:
-                    update_covariance_AP(variances, H, param_info, k-1, R)
-                    logger.info("New covariance: {}".format(variances.trace()))
+            if (k > sim_flags.get("AM_activation_time", np.inf) and 
+                  sim_flags.get("adaptive_covariance", 0) == "LAP"):
+
+                update_covariance_AP(means, variances, H, param_info, k)
+                if verbose: logger.info("New covariance: {}".format(variances.trace()))
                     
             elif (k > sim_flags.get("AM_activation_time", np.inf) and 
                   sim_flags.get("adaptive_covariance", 0) == "AM"):
