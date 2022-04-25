@@ -95,7 +95,7 @@ def select_next_params(p, means, variances, param_info, picked_param, logger):
 
     return
 
-def update_covariance_AP(p, variances, history, param_info, picked_param, t, LAP_params=(1,0.8,0.234)):
+def update_covariance_AP(p, variances, history, param_info, picked_param, t, last_r, LAP_params=(1,0.8,0.234)):
     do_log = param_info["do_log"]
     names = param_info["names"]
     is_active = param_info["active"]
@@ -136,12 +136,12 @@ def update_covariance_AP(p, variances, history, param_info, picked_param, t, LAP
     gamma_1 = np.power(t, -a)
     gamma_2 = b * gamma_1
     if picked_param is None:
-        variances.little_sigma *= np.exp(gamma_2*(variances.r_nk - r_opt))
+        variances.little_sigma *= np.exp(gamma_2*(last_r - r_opt))
         variances.big_sigma += gamma_1 * (Sigma - variances.big_sigma)
         variances.cov = variances.little_sigma * variances.big_sigma
     else:
         i = picked_param[1]
-        variances.little_sigma[i] *= np.exp(gamma_2*(variances.r_nk - r_opt))
+        variances.little_sigma[i] *= np.exp(gamma_2*(last_r - r_opt))
         variances.big_sigma += gamma_1 * (Sigma - variances.big_sigma)
         variances.cov = np.zeros_like(variances.cov)
         variances.cov[i,i] = variances.little_sigma[i] * variances.big_sigma[i,i]
@@ -355,6 +355,8 @@ def init_param_managers(param_info, initial_guess, initial_variance, num_iters):
 def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger, prev_p=None):
     # Calculates likelihood of a new proposed parameter set
     accepted = True
+    logratio = 0 # acceptance ratio = 1
+    cu_logratio = 0
     p.likelihood = np.zeros((len(iniPar), num_time_subs))
     for i in range(len(iniPar)):
         thickness, nx = unpack_simpar(simPar, i)
@@ -382,16 +384,21 @@ def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals
             
             if prev_p is not None:
                 logratio = p.likelihood[i, j] - prev_p.likelihood[i, j]
+                
                 if np.isnan(logratio): logratio = -np.inf
-                if verbose: logger.info("Partial Ratio: {}".format(10 ** logratio))
+                
+                cu_logratio += min(0, logratio)
+                if verbose: 
+                    logger.info("Partial Ratio: {}, Cu: {}".format(10 ** logratio, 10 ** cu_logratio))
+                    
                 
                 accepted = roll_acceptance(logratio)
                 if not accepted:
-                    return
+                    return accepted, min(1, 10 ** cu_logratio)
 
     if prev_p is not None and accepted:
         prev_p.likelihood = p.likelihood
-    return accepted
+    return accepted, min(1, 10 ** cu_logratio)
 
 
 def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variance, logger):
@@ -426,6 +433,8 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     
     # Calculate likelihood of initial guess
     run_DA_iteration(prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger)
+    last_r = sim_flags["LAP_params"][2]
+    
     if DA_mode == 'on':
         pass
     elif DA_mode == 'off':
@@ -447,7 +456,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             # Select next sample from distribution
             if (k > sim_flags.get("AM_activation_time", np.inf) and 
                   sim_flags.get("adaptive_covariance", "None") == "LAP"):
-                update_covariance_AP(means, variances, H, param_info, picked_param, k, sim_flags["LAP_params"])
+                update_covariance_AP(means, variances, H, param_info, picked_param, k, last_r, sim_flags["LAP_params"])
                 if verbose: logger.info("New covariance: {}".format(variances.trace()))
 
             elif (k > sim_flags.get("AM_activation_time", np.inf) and 
@@ -465,7 +474,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             # Calculate new likelihood?
 
             if DA_mode == "on":
-                accepted = run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs,
+                accepted, last_r = run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs,
                                             times, vals, tf, verbose, logger, prev_p)
 
             elif DA_mode == "cumulative":

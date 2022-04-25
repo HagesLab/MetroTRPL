@@ -35,7 +35,7 @@ else:
 
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
-    out_fname = "amtest_1T_LAP_all_r5_D1"
+    out_fname = "DEBUG"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -144,7 +144,7 @@ if __name__ == "__main__":
                 "noise_level":1e14}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 5000,
+    sim_flags = {"num_iters": 100,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -156,7 +156,7 @@ if __name__ == "__main__":
                  "adaptive_covariance":"LAP", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
                  "AM_activation_time":5,
                  "one_param_at_a_time":False,
-                 "LAP_params":(1,0.8,0.05)
+                 "LAP_params":(1,0.8,0.234)
                  }
 
     np.random.seed(1)
