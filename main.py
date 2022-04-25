@@ -35,7 +35,7 @@ else:
 
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
-    out_fname = "canon_1T_LAP_D1"
+    out_fname = "amtest_1T_LAP_all_r5_D1"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -144,7 +144,7 @@ if __name__ == "__main__":
                 "noise_level":1e14}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 100,
+    sim_flags = {"num_iters": 5000,
                  "delayed_acceptance": 'on', # "off", "on", "cumulative"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -155,7 +155,8 @@ if __name__ == "__main__":
                  "num_initial_guesses":8,
                  "adaptive_covariance":"LAP", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
                  "AM_activation_time":5,
-                 "one_param_at_a_time":True,
+                 "one_param_at_a_time":False,
+                 "LAP_params":(1,0.8,0.05)
                  }
 
     np.random.seed(1)
@@ -163,20 +164,17 @@ if __name__ == "__main__":
     for param in initial_guesses:
         if param_is_iterable[param]:
             np.random.shuffle(initial_guesses[param])
-    
+ 
     if not sim_flags.get("do_multicore", False) and any(param_is_iterable.values()):
         logger.warning("Multiple initial guesses detected without do_multicore - doing only first guess"
                         "- did you mean to enable do_multicore?")
 
     initial_guess_list = draw_initial_guesses(initial_guesses, sim_flags["num_initial_guesses"])
 
-    
-
     out_pathname = os.path.join(out_pathname, f"{out_fname}-{jobid}")
     if not os.path.isdir(out_pathname):
         os.mkdir(out_pathname)
 
-    
     with open(os.path.join(out_pathname, "param_info.pik"), "wb+") as ofstream:
         pickle.dump(param_info, ofstream)
 
@@ -212,6 +210,6 @@ if __name__ == "__main__":
 
     logger.info("Exporting to {}".format(out_pathname))
     history.export(param_info, out_pathname)
-    
+
     logging.shutdown()
     print(f"{jobid} Finished")
