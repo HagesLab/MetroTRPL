@@ -16,6 +16,7 @@ def make_1D_tracker(all_proposed, all_accepted, **kwargs):
     xlabel = kwargs.get("xlabel", "Sample #")
     do_log = kwargs.get("do_log", 0)
     show_legend = kwargs.get("show_legend", 0)
+    burn = kwargs.get("burn", 0)
     did_multicore = kwargs.get("did_multicore", (all_proposed.ndim == 2))
     
     fig, ax = plt.subplots(1,1,dpi=200, figsize=size)
@@ -36,6 +37,8 @@ def make_1D_tracker(all_proposed, all_accepted, **kwargs):
         ax.plot(all_accepted, label="Accepted samples", color='orange', zorder=2)
     if mark_value is not None:
         ax.axhline(mark_value, color='r', linestyle='dashed', label="Actual value", zorder=3)
+    
+    ax.axvline(burn, color='k', linestyle='dashed', linewidth=1)
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
     if do_log: ax.set_yscale('log')
@@ -70,6 +73,7 @@ def make_1D_histo(accepted, **kwargs):
     
     if mark_value is not None: 
         ax.axvline(mark_value, color='r',linewidth=1)
+    
     
     if do_log:
         decades = np.arange(floor(minx), ceil(maxx) + 1)
