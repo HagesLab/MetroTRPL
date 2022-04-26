@@ -31,17 +31,19 @@ do = {"1D_trackers":0,
       "1D_histos":1,
       "2D_histos":0}
 
-burn = 4000
-adds = {"Sf+Sb": 20, "tau_eff": 454}
+burn = 0
+#adds = {"Sf+Sb": 20, "tau_eff": 454}
 #pairs = [("Sf", "Sb", 20)]
 adds = {"tau_eff": 454}
-pairs = [("B", "p0")]
-adds = {"mu_eff":20}
-pairs = [("mu_n", "mu_p", 20)]
+pairs = [("p0", "tauP"),]
+#adds = {"mu_eff":20}
+#pairs = [("mu_n", "mu_p", 20)]
 
 
 if __name__ == "__main__":
-    path = "earlymu_DA/joined"
+    path = "amtest_1T_LAP_one_D1_FIXED/joined"
+    #path = "canon_1T_AM_D1/canon_1T_AM_D1-3"
+    path = "DEBUG/DEBUG-0"
     
     path = os.path.join("bay_outputs", path)
     with open(os.path.join(path, "param_info.pik"), "rb") as ifstream:
@@ -66,7 +68,7 @@ if __name__ == "__main__":
             proposed = np.load(os.path.join(path, f"{param}.npy"))
             accepted = np.load(os.path.join(path, f"mean_{param}.npy"))
             make_1D_tracker(proposed, accepted, mark_value=true_vals[param], ylabel=param,
-                            show_legend=first, do_log=do_log[param], did_multicore=did_multicore)
+                            show_legend=first, do_log=do_log[param], did_multicore=did_multicore, burn=burn)
             first = False
              
         for add_param in adds:
@@ -74,7 +76,7 @@ if __name__ == "__main__":
             proposed, accepted = fetch_param(raw_fetched, mean_fetched, add_param, thickness=2000)
             recommended_log = recommend_logscale(add_param, do_log)
             make_1D_tracker(proposed, accepted, mark_value=adds[add_param], ylabel=add_param,
-                            show_legend=first, do_log=recommended_log, did_multicore=did_multicore)
+                            show_legend=first, do_log=recommended_log, did_multicore=did_multicore, burn=burn)
             
     if do["1D_histos"]:
         for i, param in enumerate(names):
