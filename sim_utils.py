@@ -63,7 +63,11 @@ class Covariance():
         
     def set_variance(self, param, var):
         i = self.names.index(param)
-        self.cov[i,i] = var
+        
+        if isinstance(var, (int, float)):
+            self.cov[i,i] = var
+        elif isinstance(var, dict):
+            self.cov[i,i] = var[param]
         return
     
     def trace(self):

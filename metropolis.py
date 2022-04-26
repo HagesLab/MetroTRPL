@@ -59,6 +59,29 @@ def draw_initial_guesses(initial_guesses, num_initial_guesses):
         initial_guess_list.append(initial_guess)
     return initial_guess_list
 
+def select_from_box(p, means, variances, param_info, picked_param, logger):
+    is_active = param_info["active"]
+    do_log = param_info["do_log"]
+    names = param_info["names"]
+    mean = means.asarray(param_info)
+    for i, param in enumerate(names):        
+        if do_log[param]:
+            mean[i] = np.log10(mean[i])
+            
+    cov = variances.cov
+    new_p = np.zeros_like(mean)
+    for i, param in enumerate(names):
+        new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
+        
+    for i, param in enumerate(names):
+        if is_active[param]:
+            if do_log[param]:
+                setattr(p, param, 10 ** new_p[i])
+            else:
+                setattr(p, param, new_p[i])
+    return
+    
+
 def select_next_params(p, means, variances, param_info, picked_param, logger):
     is_active = param_info["active"]
     do_log = param_info["do_log"]
@@ -344,12 +367,24 @@ def init_param_managers(param_info, initial_guess, initial_variance, num_iters):
     means.apply_unit_conversions(param_info)
     
     variances = Covariance(param_info)
+    
+    
     for param in param_info['names']:
         if param_info['active'][param]:
             variances.set_variance(param, initial_variance)
             
-    variances.little_sigma = np.ones(len(variances.cov)) * initial_variance
-    variances.big_sigma = variances.cov / initial_variance
+    iv_arr = 0
+    if isinstance(initial_variance, dict):
+        iv_arr = np.ones(len(variances.cov))
+        for i, param in enumerate(param_info['names']):
+            if param_info['active'][param]:
+                iv_arr[i] = initial_variance[param]
+    
+    elif isinstance(initial_variance, (float, int)):
+        iv_arr = initial_variance
+            
+    variances.little_sigma = np.ones(len(variances.cov)) * iv_arr
+    variances.big_sigma = variances.cov * iv_arr**-1
     return p, prev_p, H, means, variances
     
 def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger, prev_p=None):
@@ -453,6 +488,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                 picked_param = means.actives[k % len(means.actives)]
             else:
                 picked_param = None
+                
             # Select next sample from distribution
             if (k > sim_flags.get("AM_activation_time", np.inf) and 
                   sim_flags.get("adaptive_covariance", "None") == "LAP"):
@@ -467,7 +503,10 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             elif sim_flags.get("adaptive_covariance", "None") == "None":
                 update_covariance(variances, picked_param)
 
-            select_next_params(p, means, variances, param_info, picked_param, logger)
+            if sim_flags["proposal_function"] == "gauss":
+                select_next_params(p, means, variances, param_info, picked_param, logger)
+            elif sim_flags["proposal_function"] == "box":
+                select_from_box(p, means, variances, param_info, picked_param, logger)
 
             if verbose: print_status(p, means, param_info, logger)
             else: logger.info(f"Iter {k}")
@@ -520,6 +559,9 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                 
                 if accepted:
                     prev_p.likelihood = p.likelihood
+                
+            elif DA_mode == 'DEBUG':
+                accepted = False
                 
             if verbose and not accepted:
                 logger.info("Rejected!")

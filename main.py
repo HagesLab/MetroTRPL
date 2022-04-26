@@ -55,7 +55,7 @@ else:
     try:
         jobid = int(sys.argv[2])
     except IndexError:
-        jobid = 3
+        jobid = 0
 
 if jobid == 0 and os.path.exists(os.path.join(out_dir, out_fname, "metrolog-main.log")):
     try:
@@ -132,7 +132,17 @@ if __name__ == "__main__":
                      "eps":0,
                      "m":0}
     # Other options
-    initial_variance = 2.4 ** 2 / (sum(active_params.values()))
+    initial_variance = {"n0":1,
+                     "p0":1,
+                     "mu_n":0,
+                     "mu_p":0,
+                     "B":1,
+                     "Sf":1,
+                     "Sb":1,
+                     "tauN":1,
+                     "tauP":1,
+                     "eps":0,
+                     "m":0}
 
     param_info = {"names":param_names,
                   "active":active_params,
@@ -145,7 +155,7 @@ if __name__ == "__main__":
 
     # TODO: Validation
     sim_flags = {"num_iters": 100,
-                 "delayed_acceptance": 'on', # "off", "on", "cumulative"
+                 "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
                  "override_equal_s":False,
@@ -153,9 +163,10 @@ if __name__ == "__main__":
                  "self_normalize":False,
                  "do_multicore":False,
                  "num_initial_guesses":8,
-                 "adaptive_covariance":"LAP", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
+                 "proposal_function":"box", # box or gauss; anything else disables new proposals
+                 "adaptive_covariance":"None", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
                  "AM_activation_time":5,
-                 "one_param_at_a_time":False,
+                 "one_param_at_a_time":True,
                  "LAP_params":(1,0.8,0.234)
                  }
 
