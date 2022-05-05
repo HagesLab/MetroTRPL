@@ -8,6 +8,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 from multiprocessing import Pool
 import os
+import sys
 from functools import partial
 import logging
 
@@ -37,7 +38,7 @@ def model(init_dN, g, p):
     
     init_condition = np.concatenate([N, P, E_f], axis=None)
     args = (g,p)
-    sol = solve_ivp(dydt, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='BDF', max_step=g.hmax)
+    sol = solve_ivp(dydt, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='BDF', max_step=g.hmax, rtol=1e-7, atol=1e-10)
     data = sol.y.T
     s = Solution()
     s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
@@ -404,16 +405,25 @@ def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals
         for j in range(num_time_subs):
             sol, next_init_condition = do_simulation(p, thickness, nx, next_init_condition, subdivided_times[j])
             try:
+                if len(sol) < len(subdivided_vals[j]):
+                    sol2 = np.ones_like(subdivided_vals[j]) * sys.float_info.min
+                    sol2[:len(sol)] = sol
+                    sol = np.array(sol)
+                    logger.warning(f"{i}: Simulation terminated early!")
+                if np.any(sol < 0):
+                    sol[sol <= 0] = sys.float_info.min
+                    logger.warning(f"{i}: Carriers depleted!")
                 p.likelihood[i, j] -= np.sum((np.log10(sol[1:]) - subdivided_vals[j][1:])**2)
                 # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
-                if np.isnan(p.likelihood[i,j]): p.likelihood[i,j] = -np.inf
-            except ValueError:
+                if np.isnan(p.likelihood[i,j]): raise ValueError(f"{i}: Simulation failed!")
+            except ValueError as e:
+                logger.warning(e)
                 p.likelihood[i,j] = -np.inf
-                fail_i = 0
-                while os.path.exists(os.path.join("Fails", f"fail_{fail_i}.npy")):
-                    fail_i += 1
-                np.save(os.path.join("Fails", f"fail_{fail_i}.npy"), p.asarray())
-                logger.error("Simulation failed! Wrote to {}".format(os.path.join("Fails", f"fail_{fail_i}.npy")))
+                #fail_i = 0
+                #while os.path.exists(os.path.join("Fails", f"fail_{fail_i}.npy")):
+                #    fail_i += 1
+                #np.save(os.path.join("Fails", f"fail_{fail_i}.npy"), p.asarray())
+                #logger.error("Simulation failed! Wrote to {}".format(os.path.join("Fails", f"fail_{fail_i}.npy")))
 
             p.likelihood[i, j] /= tf
             
@@ -546,13 +556,31 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                 for i in range(len(iniPar)):
                     thickness, nx = unpack_simpar(simPar, i)
                     sol, next_init_condition = do_simulation(p, thickness, nx, iniPar[i], times[i])
-                    p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
+                    try:
+                        if len(sol) < len(vals[i]):
+                            sol2 = np.ones_like(vals[i]) * sys.float_info.min
+                            sol2[0:len(sol)] = sol
+                            sol = np.array(sol2)
+                            logger.warning(f"{i}: Simulation stopped early!")
+
+                        if np.any(sol < 0):
+                            sol[sol <= 0] = sys.float_info.min
+                            logger.warning(f"{i}: Carriers depleted!")
+                        p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
+                        if np.isnan(p.likelihood[i]): raise ValueError(f"{i}: Simulation failed!")
+                    except ValueError as e:
+                        logger.warning(e)
+                        p.likelihood[i] = -np.inf
+
                     p.likelihood[i] /= tf
                 
                 # Compare with prior likelihood
                 p.likelihood = np.sum(p.likelihood)
                 logratio = p.likelihood - prev_p.likelihood
-            
+                if np.isnan(logratio): 
+                    logratio = -np.inf
+                    logger.warning("Invalid logratio; autorejecting")
+
                 logger.info("Partial Ratio: {}".format(10 ** logratio))
             
                 accepted = roll_acceptance(logratio)
