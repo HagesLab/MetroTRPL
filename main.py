@@ -35,7 +35,7 @@ else:
 
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
-    out_fname = "DEBUG"
+    out_fname = "1T_stat_tf_x0.001_sigma_0.1"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -108,18 +108,18 @@ if __name__ == "__main__":
               "Sf":1,"Sb":1,"tauN":1,"tauP":1,"eps":1,
               "m":0}
 
-    initial_guesses = {"n0":1e8, 
-                        "p0":np.logspace(13, 17, 16), 
-                        "mu_n":20, #np.logspace(-2, 3, 16), 
-                        "mu_p":20, #np.logspace(-2, 3, 16), 
-                        "B":np.logspace(-13, -10, 16), 
-                        "Sf":np.logspace(-1, 2, 16), 
-                        "Sb":np.logspace(-1, 2, 16), 
-                        "tauN":np.logspace(0, 4, 16), 
-                        "tauP":np.logspace(0, 4, 16), 
-                        "eps":10, 
+    initial_guesses = {"n0":1e8,
+                        "p0": 3e15, #np.logspace(13, 17, 16),
+                        "mu_n": 20, #np.array([0.1, 0.1, 100, 100]), #np.logspace(-1, 2, 16),
+                        "mu_p": 20, #np.array([0.1, 100, 0.1, 100]), #np.logspace(-1, 2, 16),
+                        "B": 4.8e-11, #np.logspace(-13, -10, 16),
+                        "Sf": 10, #np.logspace(-1, 2, 16),
+                        "Sb": 10, #np.logspace(-1, 2, 16),
+                        "tauN": 511, #np.logspace(0, 4, 16),
+                        "tauP": 871, #np.logspace(0, 4, 16),
+                        "eps":10,
                         "m":0}
-    
+
     active_params = {"n0":0,
                      "p0":1,
                      "mu_n":0,
@@ -131,11 +131,23 @@ if __name__ == "__main__":
                      "tauP":1,
                      "eps":0,
                      "m":0}
+
+    #initial_guesses = {"n0":1e8,
+    #                 "p0":[1e10,1e12,1e14,1e16],
+    #                 "mu_n":20,
+    #                 "mu_p":20,
+    #                 "B":1.585e-12,
+    #                 "Sf":1.585e-1,
+    #                 "Sb":1e-1,
+    #                 "tauN":1e4,
+    #                 "tauP":3.415,
+    #                 "eps":10,
+    #                 "m":0}
     # Other options
-    initial_variance = {"n0":1,
+    initial_variance = {"n0":0,
                      "p0":1,
-                     "mu_n":0,
-                     "mu_p":0,
+                     "mu_n":0.1,
+                     "mu_p":0.1,
                      "B":1,
                      "Sf":1,
                      "Sb":1,
@@ -143,7 +155,7 @@ if __name__ == "__main__":
                      "tauP":1,
                      "eps":0,
                      "m":0}
-
+    initial_variance = 0.1
     param_info = {"names":param_names,
                   "active":active_params,
                   "unit_conversions":unit_conversions,
@@ -154,7 +166,8 @@ if __name__ == "__main__":
                 "noise_level":1e14}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 100,
+    sim_flags = {"num_iters": 2500,
+                 "tf": 1/2500*0.001,
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -162,20 +175,20 @@ if __name__ == "__main__":
                  "log_pl":True,
                  "self_normalize":False,
                  "do_multicore":False,
-                 "num_initial_guesses":8,
+                 "num_initial_guesses":4,
                  "proposal_function":"box", # box or gauss; anything else disables new proposals
                  "adaptive_covariance":"None", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
-                 "AM_activation_time":5,
+                 "AM_activation_time":0,
                  "one_param_at_a_time":True,
                  "LAP_params":(1,0.8,0.234)
                  }
 
-    np.random.seed(1)
+    np.random.seed(jobid)
     param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
     for param in initial_guesses:
         if param_is_iterable[param]:
             np.random.shuffle(initial_guesses[param])
- 
+
     if not sim_flags.get("do_multicore", False) and any(param_is_iterable.values()):
         logger.warning("Multiple initial guesses detected without do_multicore - doing only first guess"
                         "- did you mean to enable do_multicore?")
@@ -199,6 +212,7 @@ if __name__ == "__main__":
     logger.info("IC flags: {}".format(ic_flags))
     logger.info("Param infos: {}".format(param_info))
     logger.info("Sim flags: {}".format(sim_flags))
+    logger.info("Initial variances: {}".format(initial_variance))
 
     # Get observations and initial condition
     iniPar = get_initpoints(init_pathname, ic_flags)

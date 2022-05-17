@@ -38,7 +38,7 @@ def model(init_dN, g, p):
     
     init_condition = np.concatenate([N, P, E_f], axis=None)
     args = (g,p)
-    sol = solve_ivp(dydt, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='BDF', max_step=g.hmax, rtol=1e-7, atol=1e-10)
+    sol = solve_ivp(dydt, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='BDF', max_step=g.hmax, rtol=1e-5, atol=1e-8)
     data = sol.y.T
     s = Solution()
     s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
@@ -411,7 +411,7 @@ def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals
                     sol = np.array(sol)
                     logger.warning(f"{i}: Simulation terminated early!")
                 if np.any(sol < 0):
-                    sol[sol <= 0] = sys.float_info.min
+                    sol = np.abs(sol + sys.float_info.min)
                     logger.warning(f"{i}: Carriers depleted!")
                 p.likelihood[i, j] -= np.sum((np.log10(sol[1:]) - subdivided_vals[j][1:])**2)
                 # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
@@ -460,7 +460,7 @@ def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initia
         
 def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbose, logger, initial_guess):
     # Setup
-    np.random.seed(42)
+    #np.random.seed(42)
     
     num_iters = sim_flags["num_iters"]
     DA_mode = sim_flags["delayed_acceptance"]
@@ -472,7 +472,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
         num_time_subs = DA_time_subs
     
     times, vals, uncs = e_data    
-    tf = sum([len(time)-1 for time in times]) * (1/2500)
+    tf = sum([len(time)-1 for time in times]) * sim_flags["tf"]
     
     p, prev_p, H, means, variances = init_param_managers(param_info, initial_guess, initial_variance, num_iters)
     
@@ -557,6 +557,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                     thickness, nx = unpack_simpar(simPar, i)
                     sol, next_init_condition = do_simulation(p, thickness, nx, iniPar[i], times[i])
                     try:
+                        logger.info("Simulation complete; final t {}".format(times[i][len(sol)-1]))
                         if len(sol) < len(vals[i]):
                             sol2 = np.ones_like(vals[i]) * sys.float_info.min
                             sol2[0:len(sol)] = sol
@@ -564,7 +565,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                             logger.warning(f"{i}: Simulation stopped early!")
 
                         if np.any(sol < 0):
-                            sol[sol <= 0] = sys.float_info.min
+                            sol = np.abs(sol + sys.float_info.min)
                             logger.warning(f"{i}: Carriers depleted!")
                         p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
                         if np.isnan(p.likelihood[i]): raise ValueError(f"{i}: Simulation failed!")
