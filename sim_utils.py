@@ -7,9 +7,45 @@ Created on Thu Jan 13 13:04:20 2022
 import numpy as np
 from scipy.integrate import trapz
 import os
+import pickle
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
 q_C = 1.602e-19 # [C per carrier]
+
+class MetroState():
+    
+    def __init__(self, param_info, initial_guess, initial_variance, num_iters):
+        self.p = Parameters(param_info, initial_guess)
+        self.p.apply_unit_conversions(param_info)
+        
+        self.H = History(num_iters, param_info)
+        
+        self.prev_p = Parameters(param_info, initial_guess)
+        self.prev_p.apply_unit_conversions(param_info)
+        
+        self.means = Parameters(param_info, initial_guess)
+        self.means.apply_unit_conversions(param_info)
+        
+        self.variances = Covariance(param_info)
+        
+        
+        for param in param_info['names']:
+            if param_info['active'][param]:
+                self.variances.set_variance(param, initial_variance)
+                
+        iv_arr = 0
+        if isinstance(initial_variance, dict):
+            iv_arr = np.ones(len(self.variances.cov))
+            for i, param in enumerate(param_info['names']):
+                if param_info['active'][param]:
+                    iv_arr[i] = initial_variance[param]
+        
+        elif isinstance(initial_variance, (float, int)):
+            iv_arr = initial_variance
+                
+        self.variances.little_sigma = np.ones(len(self.variances.cov)) * iv_arr
+        self.variances.big_sigma = self.variances.cov * iv_arr**-1
+        return
 
 def arrayify_pdict(names, pdict):
     # Converts a dict of (name,value) into array with values in order of names

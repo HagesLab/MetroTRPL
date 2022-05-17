@@ -10,10 +10,9 @@ from multiprocessing import Pool
 import os
 import sys
 from functools import partial
-import logging
 
 from forward_solver import dydt
-from sim_utils import Grid, Solution, Parameters, History, HistoryList, Covariance
+from sim_utils import MetroState, Grid, Solution, HistoryList
 
 ## Constants
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
@@ -353,40 +352,6 @@ def subdivide(y, splits):
         y[j] = np.insert(y[j], 0, y[j-1][-1])
     return y
 
-def init_param_managers(param_info, initial_guess, initial_variance, num_iters):
-    # Initializes a current parameters, previous parameters, 
-    # history, means, and variances objects
-    p = Parameters(param_info, initial_guess)
-    p.apply_unit_conversions(param_info)
-    
-    H = History(num_iters, param_info)
-    
-    prev_p = Parameters(param_info, initial_guess)
-    prev_p.apply_unit_conversions(param_info)
-    
-    means = Parameters(param_info, initial_guess)
-    means.apply_unit_conversions(param_info)
-    
-    variances = Covariance(param_info)
-    
-    
-    for param in param_info['names']:
-        if param_info['active'][param]:
-            variances.set_variance(param, initial_variance)
-            
-    iv_arr = 0
-    if isinstance(initial_variance, dict):
-        iv_arr = np.ones(len(variances.cov))
-        for i, param in enumerate(param_info['names']):
-            if param_info['active'][param]:
-                iv_arr[i] = initial_variance[param]
-    
-    elif isinstance(initial_variance, (float, int)):
-        iv_arr = initial_variance
-            
-    variances.little_sigma = np.ones(len(variances.cov)) * iv_arr
-    variances.big_sigma = variances.cov * iv_arr**-1
-    return p, prev_p, H, means, variances
     
 def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger, prev_p=None):
     # Calculates likelihood of a new proposed parameter set
@@ -474,71 +439,71 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     times, vals, uncs = e_data    
     tf = sum([len(time)-1 for time in times]) * sim_flags["tf"]
     
-    p, prev_p, H, means, variances = init_param_managers(param_info, initial_guess, initial_variance, num_iters)
+    MS = MetroState(param_info, initial_guess, initial_variance, num_iters)
     
     # Calculate likelihood of initial guess
-    run_DA_iteration(prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger)
+    run_DA_iteration(MS.prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger)
     last_r = sim_flags["LAP_params"][2]
     
     if DA_mode == 'on':
         pass
     elif DA_mode == 'off':
-        prev_p.likelihood = np.sum(prev_p.likelihood)
+        MS.prev_p.likelihood = np.sum(MS.prev_p.likelihood)
     elif DA_mode == 'cumulative':
         rand_i = np.arange(len(iniPar))
         np.random.shuffle(rand_i)
-        prev_p.cumulikelihood = np.cumsum(prev_p.likelihood[rand_i])
+        MS.prev_p.cumulikelihood = np.cumsum(MS.prev_p.likelihood[rand_i])
     
-    update_history(H, 0, prev_p, means, param_info)
+    update_history(MS.H, 0, MS.prev_p, MS.means, param_info)
 
     for k in range(1, num_iters):
         try:
             # Identify which parameter to move
             if sim_flags.get("one_param_at_a_time", 0):
-                picked_param = means.actives[k % len(means.actives)]
+                picked_param = MS.means.actives[k % len(MS.means.actives)]
             else:
                 picked_param = None
                 
             # Select next sample from distribution
             if (k > sim_flags.get("AM_activation_time", np.inf) and 
                   sim_flags.get("adaptive_covariance", "None") == "LAP"):
-                update_covariance_AP(means, variances, H, param_info, picked_param, k, last_r, sim_flags["LAP_params"])
-                if verbose: logger.info("New covariance: {}".format(variances.trace()))
+                update_covariance_AP(MS.means, MS.variances, MS.H, param_info, picked_param, k, last_r, sim_flags["LAP_params"])
+                if verbose: logger.info("New covariance: {}".format(MS.variances.trace()))
 
             elif (k > sim_flags.get("AM_activation_time", np.inf) and 
                   sim_flags.get("adaptive_covariance", "None") == "AM"):
-                update_covariance_AM(means, variances, H, param_info, picked_param, k)
-                if verbose: logger.info("New covariance: {}".format(variances.trace()))
+                update_covariance_AM(MS.means, MS.variances, MS.H, param_info, picked_param, k)
+                if verbose: logger.info("New covariance: {}".format(MS.variances.trace()))
 
             elif sim_flags.get("adaptive_covariance", "None") == "None":
-                update_covariance(variances, picked_param)
+                update_covariance(MS.variances, picked_param)
 
             if sim_flags["proposal_function"] == "gauss":
-                select_next_params(p, means, variances, param_info, picked_param, logger)
+                select_next_params(MS.p, MS.means, MS.variances, param_info, picked_param, logger)
             elif sim_flags["proposal_function"] == "box":
-                select_from_box(p, means, variances, param_info, picked_param, logger)
+                select_from_box(MS.p, MS.means, MS.variances, param_info, picked_param, logger)
 
-            if verbose: print_status(p, means, param_info, logger)
+            if verbose: print_status(MS.p, MS.means, param_info, logger)
             else: logger.info(f"Iter {k}")
             # Calculate new likelihood?
 
             if DA_mode == "on":
-                accepted, last_r = run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs,
-                                            times, vals, tf, verbose, logger, prev_p)
+                accepted, last_r = run_DA_iteration(MS.p, simPar, iniPar, DA_time_subs, num_time_subs,
+                                            times, vals, tf, verbose, logger, MS.prev_p)
 
             elif DA_mode == "cumulative":
-                p.likelihood = np.zeros(len(iniPar))
-                p.cumulikelihood = np.zeros(len(iniPar))
+                MS.p.likelihood = np.zeros(len(iniPar))
+                MS.p.cumulikelihood = np.zeros(len(iniPar))
                 for i in range(len(iniPar)):
                     thickness, nx = unpack_simpar(simPar, rand_i[i])
-                    sol, next_init_condition = do_simulation(p, thickness, nx, iniPar[rand_i[i]], times[rand_i[i]])
-                    p.likelihood[rand_i[i]] -= np.sum((np.log10(sol) - vals[rand_i[i]])**2)
-                    p.likelihood[rand_i[i]] /= tf
+                    sol, next_init_condition = do_simulation(MS.p, thickness, nx, iniPar[rand_i[i]], times[rand_i[i]])
+                    MS.p.likelihood[rand_i[i]] -= np.sum((np.log10(sol) - vals[rand_i[i]])**2)
+                    MS.p.likelihood[rand_i[i]] /= tf
                 
                     # Compare with prior likelihood
-                    if i > 0: p.cumulikelihood[i] = p.cumulikelihood[i-1] + p.likelihood[rand_i[i]]
-                    else: p.cumulikelihood[i] = p.likelihood[rand_i[i]]
-                    logratio = p.cumulikelihood[i] - prev_p.cumulikelihood[i]
+                    if i > 0: MS.p.cumulikelihood[i] = MS.p.cumulikelihood[i-1] + MS.p.likelihood[rand_i[i]]
+                    else: MS.p.cumulikelihood[i] = MS.p.likelihood[rand_i[i]]
+                    logratio = MS.p.cumulikelihood[i] - MS.prev_p.cumulikelihood[i]
                     logger.info("Partial Ratio: {}".format(10 ** logratio))
                 
                     accepted = roll_acceptance(logratio)
@@ -547,15 +512,15 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                     
                 np.random.shuffle(rand_i)
                 if accepted:
-                    prev_p.likelihood = p.likelihood
+                    MS.prev_p.likelihood = MS.p.likelihood
                     
-                prev_p.cumulikelihood = np.cumsum(prev_p.likelihood[rand_i])
+                MS.prev_p.cumulikelihood = np.cumsum(MS.prev_p.likelihood[rand_i])
                     
             elif DA_mode == "off":
-                p.likelihood = np.zeros(len(iniPar))
+                MS.p.likelihood = np.zeros(len(iniPar))
                 for i in range(len(iniPar)):
                     thickness, nx = unpack_simpar(simPar, i)
-                    sol, next_init_condition = do_simulation(p, thickness, nx, iniPar[i], times[i])
+                    sol, next_init_condition = do_simulation(MS.p, thickness, nx, iniPar[i], times[i])
                     try:
                         logger.info("Simulation complete; final t {}".format(times[i][len(sol)-1]))
                         if len(sol) < len(vals[i]):
@@ -567,17 +532,17 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                         if np.any(sol < 0):
                             sol = np.abs(sol + sys.float_info.min)
                             logger.warning(f"{i}: Carriers depleted!")
-                        p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
-                        if np.isnan(p.likelihood[i]): raise ValueError(f"{i}: Simulation failed!")
+                        MS.p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
+                        if np.isnan(MS.p.likelihood[i]): raise ValueError(f"{i}: Simulation failed!")
                     except ValueError as e:
                         logger.warning(e)
-                        p.likelihood[i] = -np.inf
+                        MS.p.likelihood[i] = -np.inf
 
-                    p.likelihood[i] /= tf
+                    MS.p.likelihood[i] /= tf
                 
                 # Compare with prior likelihood
-                p.likelihood = np.sum(p.likelihood)
-                logratio = p.likelihood - prev_p.likelihood
+                MS.p.likelihood = np.sum(MS.p.likelihood)
+                logratio = MS.p.likelihood - MS.prev_p.likelihood
                 if np.isnan(logratio): 
                     logratio = -np.inf
                     logger.warning("Invalid logratio; autorejecting")
@@ -587,7 +552,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                 accepted = roll_acceptance(logratio)
                 
                 if accepted:
-                    prev_p.likelihood = p.likelihood
+                    MS.prev_p.likelihood = MS.p.likelihood
                 
             elif DA_mode == 'DEBUG':
                 accepted = False
@@ -598,17 +563,17 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             logger.info("Iter {}".format(k))
             logger.info("#####")
             if accepted:
-                update_means(p, means, param_info)
-                H.accept[k] = 1
+                update_means(MS.p, MS.means, param_info)
+                MS.H.accept[k] = 1
                 
-                #H.ratio[k] = 10 ** logratio
+                #MS.H.ratio[k] = 10 ** logratio
                 
-            update_history(H, k, p, means, param_info)
+            update_history(MS.H, k, MS.p, MS.means, param_info)
         except KeyboardInterrupt:
             logger.info("Terminating with k={} iters completed:".format(k-1))
-            H.truncate(k, param_info)
+            MS.H.truncate(k, param_info)
             break
         
-    H.apply_unit_conversions(param_info)
-    H.final_cov = variances.cov
-    return H
+    MS.H.apply_unit_conversions(param_info)
+    MS.H.final_cov = MS.variances.cov
+    return MS.H

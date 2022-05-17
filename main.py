@@ -17,7 +17,7 @@ try:
 except IndexError:
     on_hpg = False
 except ValueError:
-    logger.error("First CL arg should be 1 for HPG and 0 for desktop")
+    print("First CL arg should be 1 for HPG and 0 for desktop")
     sys.exit(1)
 
 if on_hpg:
@@ -35,7 +35,7 @@ else:
 
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
-    out_fname = "1T_stat_tf_x0.001_sigma_0.1"
+    out_fname = "DEBUG"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -64,7 +64,7 @@ if jobid == 0 and os.path.exists(os.path.join(out_dir, out_fname, "metrolog-main
         print("metrolog-main already resetted")
 
 logging.basicConfig(filename=os.path.join(out_dir, out_fname, "metrolog-main.log"), filemode='a', level=logging.DEBUG)
-logger = logging.getLogger(f"Metro Logger Main")
+logger = logging.getLogger("Metro Logger Main")
 
 
 if on_hpg:
@@ -166,8 +166,8 @@ if __name__ == "__main__":
                 "noise_level":1e14}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 2500,
-                 "tf": 1/2500*0.001,
+    sim_flags = {"num_iters": 20,
+                 "tf": 1/2500*100,
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -227,7 +227,7 @@ if __name__ == "__main__":
 
     final_t = perf_counter() - clock0
     logging.basicConfig(filename=os.path.join(out_dir, out_fname, "metrolog-main.log"), filemode='a', level=logging.DEBUG, force=True)
-    logger = logging.getLogger(f"Metro Logger Main")
+    logger = logging.getLogger("Metro Logger Main")
 
     logger.info("Metro took {} s".format(final_t))
     logger.info("Avg: {} s per iter".format(final_t / sim_flags["num_iters"]))
