@@ -430,6 +430,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     num_iters = sim_flags["num_iters"]
     DA_mode = sim_flags["delayed_acceptance"]
     DA_time_subs = sim_flags["DA time subdivisions"]
+    checkpoint_freq = sim_flags["checkpoint_freq"]
     
     if isinstance(DA_time_subs, list):
         num_time_subs = len(DA_time_subs)+1
@@ -573,6 +574,11 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             logger.info("Terminating with k={} iters completed:".format(k-1))
             MS.H.truncate(k, param_info)
             break
+        
+        if checkpoint_freq is not None and k % checkpoint_freq == 0:
+            chpt_fname = os.path.join(sim_flags["checkpoint_dirname"], f"checkpoint_{k}.pik")
+            logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
+            MS.checkpoint(chpt_fname)
         
     MS.H.apply_unit_conversions(param_info)
     MS.H.final_cov = MS.variances.cov

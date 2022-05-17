@@ -35,7 +35,7 @@ else:
 
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
-    out_fname = "DEBUG"
+    out_fname = "DEBUG2"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -180,9 +180,20 @@ if __name__ == "__main__":
                  "adaptive_covariance":"None", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
                  "AM_activation_time":0,
                  "one_param_at_a_time":True,
-                 "LAP_params":(1,0.8,0.234)
+                 "LAP_params":(1,0.8,0.234),
+                 "checkpoint_dirname": "Checkpoints",
+                 "checkpoint_freq":5, # Save a checkpoint every #this many iterations#
+                 "load_checkpoint": "checkpoint_5.pik",
                  }
-
+    
+    if not os.path.isdir(sim_flags["checkpoint_dirname"]):
+        os.mkdir(sim_flags["checkpoint_dirname"])
+        
+    # Reset (clear) checkpoints
+    if sim_flags["load_checkpoint"] is None:
+        for chpt in os.listdir(sim_flags["checkpoint_dirname"]):
+            os.remove(os.path.join(sim_flags["checkpoint_dirname"], chpt))
+            
     np.random.seed(jobid)
     param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
     for param in initial_guesses:

@@ -46,6 +46,11 @@ class MetroState():
         self.variances.little_sigma = np.ones(len(self.variances.cov)) * iv_arr
         self.variances.big_sigma = self.variances.cov * iv_arr**-1
         return
+    
+    def checkpoint(self, fname):
+        with open(fname, "wb+") as ofstream:
+            pickle.dump(self, ofstream)
+        return
 
 def arrayify_pdict(names, pdict):
     # Converts a dict of (name,value) into array with values in order of names
