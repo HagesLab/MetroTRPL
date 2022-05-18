@@ -183,7 +183,7 @@ if __name__ == "__main__":
                  "LAP_params":(1,0.8,0.234),
                  "checkpoint_dirname": "Checkpoints",
                  "checkpoint_freq":5, # Save a checkpoint every #this many iterations#
-                 "load_checkpoint": "checkpoint_5.pik",
+                 "load_checkpoint": "checkpoint_10.pik",
                  }
     
     if not os.path.isdir(sim_flags["checkpoint_dirname"]):

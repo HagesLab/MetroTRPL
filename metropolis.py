@@ -13,6 +13,7 @@ from functools import partial
 
 from forward_solver import dydt
 from sim_utils import MetroState, Grid, Solution, HistoryList
+import pickle
 
 ## Constants
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
@@ -431,6 +432,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     DA_mode = sim_flags["delayed_acceptance"]
     DA_time_subs = sim_flags["DA time subdivisions"]
     checkpoint_freq = sim_flags["checkpoint_freq"]
+    load_checkpoint = sim_flags["load_checkpoint"]
     
     if isinstance(DA_time_subs, list):
         num_time_subs = len(DA_time_subs)+1
@@ -440,24 +442,30 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     times, vals, uncs = e_data    
     tf = sum([len(time)-1 for time in times]) * sim_flags["tf"]
     
-    MS = MetroState(param_info, initial_guess, initial_variance, num_iters)
+    if load_checkpoint is not None:
+        with open(os.path.join(sim_flags["checkpoint_dirname"], load_checkpoint), 'rb') as ifstream:
+            MS = pickle.load(ifstream)
+            starting_iter = int(load_checkpoint[load_checkpoint.find("_")+1:load_checkpoint.rfind(".pik")])+1
+    else:
+        MS = MetroState(param_info, initial_guess, initial_variance, num_iters)
+        starting_iter = 1
     
-    # Calculate likelihood of initial guess
-    run_DA_iteration(MS.prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger)
-    last_r = sim_flags["LAP_params"][2]
-    
-    if DA_mode == 'on':
-        pass
-    elif DA_mode == 'off':
-        MS.prev_p.likelihood = np.sum(MS.prev_p.likelihood)
-    elif DA_mode == 'cumulative':
-        rand_i = np.arange(len(iniPar))
-        np.random.shuffle(rand_i)
-        MS.prev_p.cumulikelihood = np.cumsum(MS.prev_p.likelihood[rand_i])
-    
-    update_history(MS.H, 0, MS.prev_p, MS.means, param_info)
+        # Calculate likelihood of initial guess
+        run_DA_iteration(MS.prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger)
+        last_r = sim_flags["LAP_params"][2]
+        
+        if DA_mode == 'on':
+            pass
+        elif DA_mode == 'off':
+            MS.prev_p.likelihood = np.sum(MS.prev_p.likelihood)
+        elif DA_mode == 'cumulative':
+            rand_i = np.arange(len(iniPar))
+            np.random.shuffle(rand_i)
+            MS.prev_p.cumulikelihood = np.cumsum(MS.prev_p.likelihood[rand_i])
+        
+        update_history(MS.H, 0, MS.prev_p, MS.means, param_info)
 
-    for k in range(1, num_iters):
+    for k in range(starting_iter, num_iters):
         try:
             # Identify which parameter to move
             if sim_flags.get("one_param_at_a_time", 0):
