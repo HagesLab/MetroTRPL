@@ -60,6 +60,11 @@ def draw_initial_guesses(initial_guesses, num_initial_guesses):
         initial_guess_list.append(initial_guess)
     return initial_guess_list
 
+def check_approved_param(new_p):
+    #return True
+    # tau_n and tau_p must be *close* (within 3 OM) for a reasonable midgap SRH
+    return (np.abs(new_p[7] - new_p[8]) <= 3)
+    
 def select_from_box(p, means, variances, param_info, picked_param, logger):
     is_active = param_info["active"]
     do_log = param_info["do_log"]
@@ -70,9 +75,18 @@ def select_from_box(p, means, variances, param_info, picked_param, logger):
             mean[i] = np.log10(mean[i])
             
     cov = variances.cov
-    new_p = np.zeros_like(mean)
-    for i, param in enumerate(names):
-        new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
+    approved = False
+    attempts = 0
+    while not approved:
+        new_p = np.zeros_like(mean)
+        for i, param in enumerate(names):
+            new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
+        
+        approved = check_approved_param(new_p)
+        attempts += 1
+        if attempts > 100: break
+    
+    logger.info(f"Found suitable parameters in {attempts} attempts")
         
     for i, param in enumerate(names):
         if is_active[param]:
@@ -82,6 +96,7 @@ def select_from_box(p, means, variances, param_info, picked_param, logger):
                 setattr(p, param, new_p[i])
     return
     
+
 
 def select_next_params(p, means, variances, param_info, picked_param, logger):
     is_active = param_info["active"]
