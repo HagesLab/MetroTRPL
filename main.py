@@ -35,7 +35,8 @@ else:
 
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
-    out_fname = "DEBUG2"
+    exp_fname = "abrupt_p0.csv"
+    out_fname = "abrupt_p0_tf_x100"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -99,24 +100,24 @@ if __name__ == "__main__":
     # This code follows a strict order of parameters:
     # matPar = [N0, P0, DN, DP, rate, sr0, srL, tauN, tauP, Lambda, mag_offset]
     # Set the parameter ranges/sample space
-    param_names = ["n0", "p0", "mu_n", "mu_p", "B", 
+    param_names = ["n0", "p0", "mu_n", "mu_p", "ks", 
                    "Sf", "Sb", "tauN", "tauP", "eps", "m"]
     unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
                         "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
-                        "B":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
-    do_log = {"n0":1, "p0":1,"mu_n":1,"mu_p":1,"B":1,
+                        "ks":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
+    do_log = {"n0":1, "p0":1,"mu_n":1,"mu_p":1,"ks":1,
               "Sf":1,"Sb":1,"tauN":1,"tauP":1,"eps":1,
               "m":0}
 
     initial_guesses = {"n0":1e8,
-                        "p0": 3e15, #np.logspace(13, 17, 16),
-                        "mu_n": 20, #np.array([0.1, 0.1, 100, 100]), #np.logspace(-1, 2, 16),
-                        "mu_p": 20, #np.array([0.1, 100, 0.1, 100]), #np.logspace(-1, 2, 16),
-                        "B": 4.8e-11, #np.logspace(-13, -10, 16),
-                        "Sf": 10, #np.logspace(-1, 2, 16),
-                        "Sb": 10, #np.logspace(-1, 2, 16),
-                        "tauN": 511, #np.logspace(0, 4, 16),
-                        "tauP": 871, #np.logspace(0, 4, 16),
+                        "p0": 2.3e11,
+                        "mu_n": 20,
+                        "mu_p": 20,
+                        "ks": 9e-11,
+                        "Sf": 10,
+                        "Sb": 100,
+                        "tauN": 1.27e3,
+                        "tauP": 1.27e3,
                         "eps":10,
                         "m":0}
 
@@ -124,7 +125,7 @@ if __name__ == "__main__":
                      "p0":1,
                      "mu_n":0,
                      "mu_p":0,
-                     "B":1,
+                     "ks":1,
                      "Sf":1,
                      "Sb":1,
                      "tauN":1,
@@ -136,7 +137,7 @@ if __name__ == "__main__":
     #                 "p0":[1e10,1e12,1e14,1e16],
     #                 "mu_n":20,
     #                 "mu_p":20,
-    #                 "B":1.585e-12,
+    #                 "ks":1.585e-12,
     #                 "Sf":1.585e-1,
     #                 "Sb":1e-1,
     #                 "tauN":1e4,
@@ -148,14 +149,14 @@ if __name__ == "__main__":
                      "p0":1,
                      "mu_n":0.1,
                      "mu_p":0.1,
-                     "B":1,
+                     "ks":1,
                      "Sf":1,
                      "Sb":1,
                      "tauN":1,
                      "tauP":1,
                      "eps":0,
                      "m":0}
-    initial_variance = 0.1
+    initial_variance = 1
     param_info = {"names":param_names,
                   "active":active_params,
                   "unit_conversions":unit_conversions,
@@ -163,10 +164,10 @@ if __name__ == "__main__":
 
     ic_flags = {"time_cutoff":None,
                 "select_obs_sets": None,
-                "noise_level":1e14}
+                "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 20,
+    sim_flags = {"num_iters": 100000,
                  "tf": 1/2500*100,
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
@@ -182,8 +183,8 @@ if __name__ == "__main__":
                  "one_param_at_a_time":True,
                  "LAP_params":(1,0.8,0.234),
                  "checkpoint_dirname": "Checkpoints",
-                 "checkpoint_freq":5, # Save a checkpoint every #this many iterations#
-                 "load_checkpoint": "checkpoint_10.pik",
+                 "checkpoint_freq":10000, # Save a checkpoint every #this many iterations#
+                 "load_checkpoint": None,
                  }
     
     if not os.path.isdir(sim_flags["checkpoint_dirname"]):
