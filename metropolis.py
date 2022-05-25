@@ -327,7 +327,8 @@ def do_simulation(p, thickness, nx, iniPar, times):
     sol, next_init_condition = model(iniPar, g, p)
     return sol, next_init_condition
     
-def roll_acceptance(logratio):
+def roll_acceptance(logratio, logger):
+    logger.debug(f"DEBUG: LOGRATIO WAS {logratio}")
     accepted = False
     if logratio >= 0:
         # Continue
@@ -418,13 +419,58 @@ def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals
                     logger.info("Partial Ratio: {}, Cu: {}".format(10 ** logratio, 10 ** cu_logratio))
                     
                 
-                accepted = roll_acceptance(logratio)
+                accepted = roll_acceptance(logratio, logger)
                 if not accepted:
                     return accepted, min(1, 10 ** cu_logratio)
 
     if prev_p is not None and accepted:
         prev_p.likelihood = p.likelihood
     return accepted, min(1, 10 ** cu_logratio)
+
+def run_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger, prev_p=None):
+    # Calculates likelihood of a new proposed parameter set
+    accepted = True
+    logratio = 0 # acceptance ratio = 1
+    p.likelihood = np.zeros(len(iniPar))
+    for i in range(len(iniPar)):
+        thickness, nx = unpack_simpar(simPar, i)
+        next_init_condition = iniPar[i]
+        sol, next_init_condition = do_simulation(p, thickness, nx, next_init_condition, times[i])
+        try:
+            logger.info("Simulation complete; final t {}".format(times[i][len(sol)-1]))
+            if len(sol) < len(vals[i]):
+                sol2 = np.ones_like(vals[i]) * sys.float_info.min
+                sol2[:len(sol)] = sol
+                sol = np.array(sol)
+                logger.warning(f"{i}: Simulation terminated early!")
+                
+            if np.any(sol < 0):
+                sol = np.abs(sol + sys.float_info.min)
+                logger.warning(f"{i}: Carriers depleted!")
+                
+            p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
+            # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
+            if np.isnan(p.likelihood[i]): raise ValueError(f"{i}: Simulation failed!")
+        except ValueError as e:
+            logger.warning(e)
+            p.likelihood[i] = -np.inf
+            
+        p.likelihood[i] /= tf
+        
+    if prev_p is not None:
+        logratio = np.sum(p.likelihood) - np.sum(prev_p.likelihood)
+        
+        if np.isnan(logratio): logratio = -np.inf
+        
+        if verbose: 
+            logger.info("Partial Ratio: {}".format(10 ** logratio))
+            
+        
+        accepted = roll_acceptance(logratio, logger)
+
+    if prev_p is not None and accepted:
+        prev_p.likelihood = p.likelihood
+    return accepted
 
 
 def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variance, logger):
@@ -444,8 +490,8 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     #np.random.seed(42)
     
     num_iters = sim_flags["num_iters"]
-    DA_mode = sim_flags["delayed_acceptance"]
-    DA_time_subs = sim_flags["DA time subdivisions"]
+    DA_mode = sim_flags.get("delayed_acceptance", "off")
+    DA_time_subs = sim_flags.get("DA time subdivisions", 1) if (DA_mode == "on" or DA_mode == "cumulative") else 1
     checkpoint_freq = sim_flags["checkpoint_freq"]
     load_checkpoint = sim_flags["load_checkpoint"]
     
@@ -467,13 +513,13 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
         starting_iter = 1
     
         # Calculate likelihood of initial guess
-        run_DA_iteration(MS.prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger)
+        run_iteration(MS.prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger)
         last_r = sim_flags["LAP_params"][2]
         
         if DA_mode == 'on':
             pass
         elif DA_mode == 'off':
-            MS.prev_p.likelihood = np.sum(MS.prev_p.likelihood)
+            pass
         elif DA_mode == 'cumulative':
             rand_i = np.arange(len(iniPar))
             np.random.shuffle(rand_i)
@@ -542,42 +588,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                 MS.prev_p.cumulikelihood = np.cumsum(MS.prev_p.likelihood[rand_i])
                     
             elif DA_mode == "off":
-                MS.p.likelihood = np.zeros(len(iniPar))
-                for i in range(len(iniPar)):
-                    thickness, nx = unpack_simpar(simPar, i)
-                    sol, next_init_condition = do_simulation(MS.p, thickness, nx, iniPar[i], times[i])
-                    try:
-                        logger.info("Simulation complete; final t {}".format(times[i][len(sol)-1]))
-                        if len(sol) < len(vals[i]):
-                            sol2 = np.ones_like(vals[i]) * sys.float_info.min
-                            sol2[0:len(sol)] = sol
-                            sol = np.array(sol2)
-                            logger.warning(f"{i}: Simulation stopped early!")
-
-                        if np.any(sol < 0):
-                            sol = np.abs(sol + sys.float_info.min)
-                            logger.warning(f"{i}: Carriers depleted!")
-                        MS.p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
-                        if np.isnan(MS.p.likelihood[i]): raise ValueError(f"{i}: Simulation failed!")
-                    except ValueError as e:
-                        logger.warning(e)
-                        MS.p.likelihood[i] = -np.inf
-
-                    MS.p.likelihood[i] /= tf
-                
-                # Compare with prior likelihood
-                MS.p.likelihood = np.sum(MS.p.likelihood)
-                logratio = MS.p.likelihood - MS.prev_p.likelihood
-                if np.isnan(logratio): 
-                    logratio = -np.inf
-                    logger.warning("Invalid logratio; autorejecting")
-
-                logger.info("Partial Ratio: {}".format(10 ** logratio))
-            
-                accepted = roll_acceptance(logratio)
-                
-                if accepted:
-                    MS.prev_p.likelihood = MS.p.likelihood
+                accepted = run_iteration(MS.p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger, MS.prev_p)
                 
             elif DA_mode == 'DEBUG':
                 accepted = False
