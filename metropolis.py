@@ -134,118 +134,6 @@ def select_next_params(p, means, variances, param_info, picked_param, logger):
 
     return
 
-def update_covariance_AP(p, variances, history, param_info, picked_param, t, last_r, LAP_params=(1,0.8,0.234)):
-    do_log = param_info["do_log"]
-    names = param_info["names"]
-    is_active = param_info["active"]
-    num_actives = 0
-    for param, active in is_active.items():
-        if active:
-            num_actives += 1
-    a = LAP_params[1]
-    b = LAP_params[0]
-    r_opt = LAP_params[2]
-    maximum = 3
-
-    new_X = p.asarray(param_info)[:, None]
-    for i, param in enumerate(names):
-        if do_log[param]:
-            new_X[i] = np.log10(new_X[i])
-
-    if not hasattr(variances, "X_all"):
-        # First time initialization
-        variances.prev_X_all = history.get_XT_AM(param_info, t-2)
-        variances.prev_X_all = np.mean(variances.prev_X_all, axis=1)[:, None]
-        variances.X_all = history.get_XT_AM(param_info, t-1)
-        variances.X_all = np.mean(variances.X_all, axis=1)[:, None]
-
-        variances.ID = np.zeros((len(new_X), len(new_X)))
-        for i, param in enumerate(names):  
-            if is_active[param]:
-                variances.ID[i,i] = 1
-        variances.r_nk = np.sum(history.accept[:t+1]) / t
-    else:
-        variances.prev_X_all = variances.X_all
-        variances.X_all += (new_X - variances.X_all) / (t-1)
-        variances.r_nk += (history.accept[t] - variances.r_nk) / (t-1)
-
-    dx = variances.prev_X_all - new_X
-    Sigma = np.matmul(dx, dx.T)
-
-    gamma_1 = np.power(t, -a)
-    gamma_2 = b * gamma_1
-    if picked_param is None:
-        variances.little_sigma *= np.exp(gamma_2*(last_r - r_opt))
-        variances.big_sigma += gamma_1 * (Sigma - variances.big_sigma)
-        variances.cov = variances.little_sigma * variances.big_sigma
-    else:
-        i = picked_param[1]
-        variances.little_sigma[i] *= np.exp(gamma_2*(last_r - r_opt))
-        variances.big_sigma += gamma_1 * (Sigma - variances.big_sigma)
-        variances.cov = np.zeros_like(variances.cov)
-        variances.cov[i,i] = variances.little_sigma[i] * variances.big_sigma[i,i]
-
-
-    for i in range(len(variances.cov)):
-        if variances.cov[i,i] > maximum: variances.cov[i,i] = maximum
-
-    return
-
-def update_covariance_AM(p, variances, history, param_info, picked_param, t, eps=1e-5):
-    do_log = param_info["do_log"]
-    names = param_info["names"]
-    is_active = param_info["active"]
-    num_actives = 0
-    for param, active in param_info['active'].items():
-        if active:
-            num_actives += 1
-    C = 2.4 ** 2 / num_actives
-    new_X = p.asarray(param_info)[:, None]
-    
-    for i, param in enumerate(names):        
-        if do_log[param]:
-            new_X[i] = np.log10(new_X[i])
-        
-    
-    if not hasattr(variances, "X_all"):
-        # First time initialization
-        variances.prev_X_all = history.get_XT_AM(param_info, t-2)
-        variances.prev_X_all = np.mean(variances.prev_X_all, axis=1)[:, None]
-        variances.X_all = history.get_XT_AM(param_info, t-1)
-        variances.X_all = np.mean(variances.X_all, axis=1)[:, None]
-        
-        variances.ID = np.zeros((len(new_X), len(new_X)))
-        for i, param in enumerate(names):  
-            if is_active[param]:
-                variances.ID[i,i] = 1
-    else:
-        variances.prev_X_all = variances.X_all
-        variances.X_all += (new_X - variances.X_all) / (t-1)
-
-    # Contributions
-    # base = (t-2)/(t-1)*variances.cov
-    # prev = (t-1) * np.matmul(variances.prev_X_all, variances.prev_X_all.T)
-    # current = (t) * np.matmul(variances.X_all, variances.X_all.T)
-    # new = np.matmul(new_X, new_X.T)
-    minimum = eps * variances.ID
-    maximum = 3
-    # variances.cov = base + (C/(t-1)) * (prev - current + new + minimum)
-
-    dx = variances.prev_X_all - new_X
-    base = (t-2)/(t-1)*variances.big_sigma
-    variances.big_sigma = base + (1/t) * (np.matmul(dx, dx.T) + minimum)
-
-    if picked_param is None:
-        variances.cov = variances.little_sigma * variances.big_sigma
-    else:
-        i = picked_param[1]
-        variances.cov = np.zeros_like(variances.cov)
-        variances.cov[i,i] = variances.little_sigma[i] * variances.big_sigma[i,i]
-
-    for i in range(len(variances.cov)):
-        if variances.cov[i,i] > maximum: variances.cov[i,i] = maximum
-    return
-
 def update_covariance(variances, picked_param):
     # Induce a univariate gaussian if doing one-param-at-a-time
     if picked_param is None:
@@ -254,39 +142,6 @@ def update_covariance(variances, picked_param):
         i = picked_param[1]
         variances.cov = np.zeros_like(variances.cov)
         variances.cov[i,i] = variances.little_sigma[i] * variances.big_sigma[i,i]
-
-def update_covariance_RAM(p_just_prop, means, variances, history, param_info, picked_param, t, LAP_params=(1,0.8,0.234)):
-    names = param_info["names"]
-    is_active = param_info["active"]
-    sn = np.linalg.cholesky(variances.big_sigma)
-    a = LAP_params[1]
-    b = LAP_params[0]
-    r_opt = LAP_params[2]
-    gamma = b * np.power(t, -a)
-
-    new_X = p_just_prop.asarray(param_info)[:, None]
-    mean = means.asarray(param_info)[:,None]
-    un = np.matmul(np.linalg.inv(variances.big_sigma), new_X - mean)
-
-    if not hasattr(variances, "ID"):
-        # First time initialization
-        variances.ID = np.zeros((len(new_X), len(new_X)))
-        for i, param in enumerate(names):  
-            if is_active[param]:
-                variances.ID[i,i] = 1
-
-        variances.r_nk = np.sum(history.accept[:t+1]) / t
-    else:
-        variances.r_nk += (history.accept[t] - variances.r_nk) / (t-1)
-
-    adapt_factor = variances.ID + gamma * (variances.r_nk - r_opt) * np.matmul(un, un.T) / np.linalg.norm(un)**2
-    variances.big_sigma = np.matmul(np.matmul(sn, adapt_factor), sn.T)
-
-    if picked_param is None:
-        variances.cov = variances.little_sigma * variances.big_sigma
-    else:
-        raise NotImplementedError("Adaptive RAM with 1AAT WIP")
-    return
 
 def update_means(p, means, param_info):
     for param in param_info['names']:
@@ -345,87 +200,6 @@ def unpack_simpar(simPar, i):
     thickness = simPar[0][i] if isinstance(simPar[0], list) else simPar[0]
     nx = simPar[2]
     return thickness, nx
-
-def convert_DA_times(DA_time_subs, total_len):
-    # DA_time_subs: if int, treat as number of equally spaced time subs
-    # If list, treat as percentages over which to subdivide data
-    # e.g. [10,30,60] splits data into 0-10%, 10-30%, 30-60%, and 60-100%
-    if isinstance(DA_time_subs, list):
-        splits = np.array(DA_time_subs) / 100 * total_len
-        splits = splits.astype(int)
-    else:
-        splits = DA_time_subs
-    return splits
-
-def subdivide(y, splits):
-    # Split 'y' into 'splits' groups, then transfers the end of each to the beginning of the next
-    if isinstance(splits, list):
-        num_time_subs = len(splits) + 1
-    else:
-        num_time_subs = splits
-    y = np.split(y, splits)
-    y[0] = np.insert(y[0], 0, 0)
-    for j in range(1, num_time_subs):
-        y[j] = np.insert(y[j], 0, y[j-1][-1])
-    return y
-
-    
-def run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger, prev_p=None):
-    # Calculates likelihood of a new proposed parameter set
-    accepted = True
-    logratio = 0 # acceptance ratio = 1
-    cu_logratio = 0
-    p.likelihood = np.zeros((len(iniPar), num_time_subs))
-    for i in range(len(iniPar)):
-        thickness, nx = unpack_simpar(simPar, i)
-        splits = convert_DA_times(DA_time_subs, len(times[i][1:]))
-        
-        subdivided_times = subdivide(times[i][1:], splits)
-        subdivided_vals = subdivide(vals[i][1:], splits)
-        
-        next_init_condition = iniPar[i]
-        for j in range(num_time_subs):
-            sol, next_init_condition = do_simulation(p, thickness, nx, next_init_condition, subdivided_times[j])
-            try:
-                if len(sol) < len(subdivided_vals[j]):
-                    sol2 = np.ones_like(subdivided_vals[j]) * sys.float_info.min
-                    sol2[:len(sol)] = sol
-                    sol = np.array(sol)
-                    logger.warning(f"{i}: Simulation terminated early!")
-                if np.any(sol < 0):
-                    sol = np.abs(sol + sys.float_info.min)
-                    logger.warning(f"{i}: Carriers depleted!")
-                p.likelihood[i, j] -= np.sum((np.log10(sol[1:]) - subdivided_vals[j][1:])**2)
-                # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
-                if np.isnan(p.likelihood[i,j]): raise ValueError(f"{i}: Simulation failed!")
-            except ValueError as e:
-                logger.warning(e)
-                p.likelihood[i,j] = -np.inf
-                #fail_i = 0
-                #while os.path.exists(os.path.join("Fails", f"fail_{fail_i}.npy")):
-                #    fail_i += 1
-                #np.save(os.path.join("Fails", f"fail_{fail_i}.npy"), p.asarray())
-                #logger.error("Simulation failed! Wrote to {}".format(os.path.join("Fails", f"fail_{fail_i}.npy")))
-
-            p.likelihood[i, j] /= tf
-            
-            if prev_p is not None:
-                logratio = p.likelihood[i, j] - prev_p.likelihood[i, j]
-                
-                if np.isnan(logratio): logratio = -np.inf
-                
-                cu_logratio += min(0, logratio)
-                if verbose: 
-                    logger.info("Partial Ratio: {}, Cu: {}".format(10 ** logratio, 10 ** cu_logratio))
-                    
-                
-                accepted = roll_acceptance(logratio, logger)
-                if not accepted:
-                    return accepted, min(1, 10 ** cu_logratio)
-
-    if prev_p is not None and accepted:
-        prev_p.likelihood = p.likelihood
-    return accepted, min(1, 10 ** cu_logratio)
 
 def run_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger, prev_p=None):
     # Calculates likelihood of a new proposed parameter set
@@ -516,15 +290,6 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
         run_iteration(MS.prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger)
         last_r = sim_flags["LAP_params"][2]
         
-        if DA_mode == 'on':
-            pass
-        elif DA_mode == 'off':
-            pass
-        elif DA_mode == 'cumulative':
-            rand_i = np.arange(len(iniPar))
-            np.random.shuffle(rand_i)
-            MS.prev_p.cumulikelihood = np.cumsum(MS.prev_p.likelihood[rand_i])
-        
         update_history(MS.H, 0, MS.prev_p, MS.means, param_info)
 
     for k in range(starting_iter, num_iters):
@@ -536,17 +301,8 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                 picked_param = None
                 
             # Select next sample from distribution
-            if (k > sim_flags.get("AM_activation_time", np.inf) and 
-                  sim_flags.get("adaptive_covariance", "None") == "LAP"):
-                update_covariance_AP(MS.means, MS.variances, MS.H, param_info, picked_param, k, last_r, sim_flags["LAP_params"])
-                if verbose: logger.info("New covariance: {}".format(MS.variances.trace()))
-
-            elif (k > sim_flags.get("AM_activation_time", np.inf) and 
-                  sim_flags.get("adaptive_covariance", "None") == "AM"):
-                update_covariance_AM(MS.means, MS.variances, MS.H, param_info, picked_param, k)
-                if verbose: logger.info("New covariance: {}".format(MS.variances.trace()))
-
-            elif sim_flags.get("adaptive_covariance", "None") == "None":
+            
+            if sim_flags.get("adaptive_covariance", "None") == "None":
                 update_covariance(MS.variances, picked_param)
 
             if sim_flags["proposal_function"] == "gauss":
@@ -557,37 +313,8 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             if verbose: print_status(MS.p, MS.means, param_info, logger)
             else: logger.info(f"Iter {k}")
             # Calculate new likelihood?
-
-            if DA_mode == "on":
-                accepted, last_r = run_DA_iteration(MS.p, simPar, iniPar, DA_time_subs, num_time_subs,
-                                            times, vals, tf, verbose, logger, MS.prev_p)
-
-            elif DA_mode == "cumulative":
-                MS.p.likelihood = np.zeros(len(iniPar))
-                MS.p.cumulikelihood = np.zeros(len(iniPar))
-                for i in range(len(iniPar)):
-                    thickness, nx = unpack_simpar(simPar, rand_i[i])
-                    sol, next_init_condition = do_simulation(MS.p, thickness, nx, iniPar[rand_i[i]], times[rand_i[i]])
-                    MS.p.likelihood[rand_i[i]] -= np.sum((np.log10(sol) - vals[rand_i[i]])**2)
-                    MS.p.likelihood[rand_i[i]] /= tf
-                
-                    # Compare with prior likelihood
-                    if i > 0: MS.p.cumulikelihood[i] = MS.p.cumulikelihood[i-1] + MS.p.likelihood[rand_i[i]]
-                    else: MS.p.cumulikelihood[i] = MS.p.likelihood[rand_i[i]]
-                    logratio = MS.p.cumulikelihood[i] - MS.prev_p.cumulikelihood[i]
-                    logger.info("Partial Ratio: {}".format(10 ** logratio))
-                
-                    accepted = roll_acceptance(logratio)
-                    if not accepted:
-                        break
                     
-                np.random.shuffle(rand_i)
-                if accepted:
-                    MS.prev_p.likelihood = MS.p.likelihood
-                    
-                MS.prev_p.cumulikelihood = np.cumsum(MS.prev_p.likelihood[rand_i])
-                    
-            elif DA_mode == "off":
+            if DA_mode == "off":
                 accepted = run_iteration(MS.p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger, MS.prev_p)
                 
             elif DA_mode == 'DEBUG':
@@ -600,8 +327,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             logger.info("#####")
             if accepted:
                 update_means(MS.p, MS.means, param_info)
-                MS.H.accept[k] = 1
-                
+                MS.H.accept[k] = 1              
                 #MS.H.ratio[k] = 10 ** logratio
                 
             update_history(MS.H, k, MS.p, MS.means, param_info)
