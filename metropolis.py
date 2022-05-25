@@ -115,16 +115,6 @@ def select_next_params(p, means, variances, param_info, picked_param, logger):
         logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
         new_p = mean
 
-    # for i, param in enumerate(names):
-    #     if is_active[param]:
-    #         if picked_param is None or i == picked_param[1]:
-    #             if do_log[param]:
-    #                 setattr(p, param, 10 ** new_p[i])
-    #             else:
-    #                 setattr(p, param, new_p[i])
-    #         else:
-    #             setattr(p, param, getattr(means, param))
-
     for i, param in enumerate(names):
         if is_active[param]:
             if do_log[param]:
@@ -229,10 +219,8 @@ def run_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, t
             logger.warning(e)
             p.likelihood[i] = -np.inf
             
-        p.likelihood[i] /= tf
-        
     if prev_p is not None:
-        logratio = np.sum(p.likelihood) - np.sum(prev_p.likelihood)
+        logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood)) / tf
         
         if np.isnan(logratio): logratio = -np.inf
         
@@ -288,8 +276,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     
         # Calculate likelihood of initial guess
         run_iteration(MS.prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger)
-        last_r = sim_flags["LAP_params"][2]
-        
+
         update_history(MS.H, 0, MS.prev_p, MS.means, param_info)
 
     for k in range(starting_iter, num_iters):
