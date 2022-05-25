@@ -460,6 +460,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     if load_checkpoint is not None:
         with open(os.path.join(sim_flags["checkpoint_dirname"], load_checkpoint), 'rb') as ifstream:
             MS = pickle.load(ifstream)
+            np.random.set_state(MS.random_state)
             starting_iter = int(load_checkpoint[load_checkpoint.find("_")+1:load_checkpoint.rfind(".pik")])+1
     else:
         MS = MetroState(param_info, initial_guess, initial_variance, num_iters)
@@ -601,6 +602,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
         if checkpoint_freq is not None and k % checkpoint_freq == 0:
             chpt_fname = os.path.join(sim_flags["checkpoint_dirname"], f"checkpoint_{k}.pik")
             logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
+            MS.random_state = np.random.get_state()
             MS.checkpoint(chpt_fname)
         
     MS.H.apply_unit_conversions(param_info)
