@@ -55,7 +55,7 @@ def dydt(t, y, g, p):
     dEdt = (Jn + Jp) * ((q_C) / (p.eps * eps0))
     
     ## Calculate recombination (consumption) terms
-    rad_rec = p.B * (N * P - p.n0 * p.p0)
+    rad_rec = p.ks * (N * P - p.n0 * p.p0)
     non_rad_rec = (N * P - p.n0 * p.p0) / ((p.tauN * P) + (p.tauP * N))
         
 

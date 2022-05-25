@@ -35,8 +35,8 @@ else:
 
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
-    exp_fname = "abrupt_p0.csv"
-    out_fname = "abrupt_p0_tf_x100"
+    #exp_fname = "abrupt_p0.csv"
+    out_fname = "1T_tf_x100_p0fixed"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -114,10 +114,10 @@ if __name__ == "__main__":
                         "mu_n": 20,
                         "mu_p": 20,
                         "ks": 9e-11,
-                        "Sf": 10,
-                        "Sb": 100,
-                        "tauN": 1.27e3,
-                        "tauP": 1.27e3,
+                        "Sf": 2.5e-8,
+                        "Sb": 4.9e-17,
+                        "tauN": 1.99,
+                        "tauP": 1270,
                         "eps":10,
                         "m":0}
 
@@ -182,7 +182,7 @@ if __name__ == "__main__":
                  "AM_activation_time":0,
                  "one_param_at_a_time":True,
                  "LAP_params":(1,0.8,0.234),
-                 "checkpoint_dirname": "Checkpoints",
+                 "checkpoint_dirname": os.path.join(out_dir, out_fname, "Checkpoints"),
                  "checkpoint_freq":10000, # Save a checkpoint every #this many iterations#
                  "load_checkpoint": None,
                  }

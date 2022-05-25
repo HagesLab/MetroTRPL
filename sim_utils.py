@@ -206,7 +206,7 @@ class Solution():
         return
 
     def calculate_PL(self, g, p):
-        rr = p.B * (self.N * self.P - p.n0*p.p0)
+        rr = p.ks * (self.N * self.P - p.n0*p.p0)
         
         self.PL = trapz(rr, dx=g.dx, axis=1)
         self.PL += rr[:, 0] * g.dx / 2
