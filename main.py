@@ -36,7 +36,7 @@ else:
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
     #exp_fname = "abrupt_p0.csv"
-    out_fname = "DEBUG2"
+    out_fname = "SA_exp_tau4"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -110,14 +110,14 @@ if __name__ == "__main__":
               "m":0}
 
     initial_guesses = {"n0":1e8,
-                        "p0": 3.909e14,
+                        "p0": 2.3e12,
                         "mu_n": 20,
                         "mu_p": 20,
-                        "ks": 5.5e-11,
-                        "Sf": 9.739e-27,
-                        "Sb": 1.078e-124,
-                        "tauN": 27.6,
-                        "tauP": 200.2,
+                        "ks": 9.579e-11,
+                        "Sf": 2.5e-8,
+                        "Sb": 4.9e-17,
+                        "tauN": 1.9e-10,
+                        "tauP": 1270,
                         "eps":10,
                         "m":0}
 
@@ -167,9 +167,9 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 20,
-                 "anneal_mode": "exp", # None, "exp"
-                 "anneal_params": [1/2500*100, 4.6],
+    sim_flags = {"num_iters": 100000,
+                 "anneal_mode": "exp", # None, "exp", "log"
+                 "anneal_params": [1/2500*100, 10000], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -183,7 +183,7 @@ if __name__ == "__main__":
                  "AM_activation_time":0,
                  "one_param_at_a_time":True,
                  "LAP_params":(1,0.8,0.234),
-                 "checkpoint_dirname": os.path.join(out_dir, out_fname, "Checkpoints"),
+                 "checkpoint_dirname": os.path.join(out_dir, out_fname, "Checkpoints1"),
                  "checkpoint_freq":10000, # Save a checkpoint every #this many iterations#
                  "load_checkpoint": None,
                  }

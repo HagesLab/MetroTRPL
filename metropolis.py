@@ -197,6 +197,9 @@ def anneal(t, anneal_mode, anneal_params):
     elif anneal_mode == "exp":
         return anneal_params[0] * np.exp(-t / anneal_params[1])
 
+    elif anneal_mode == "log":
+        return (anneal_params[0] * np.log(2)) / (np.log(t / anneal_params[1] + 2))
+
 def run_iteration(p, simPar, iniPar, times, vals, sim_flags, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
     accepted = True
