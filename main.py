@@ -35,8 +35,8 @@ else:
 
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
-    #exp_fname = "abrupt_p0.csv"
-    out_fname = "1T_tf_x100_p0fixed"
+    exp_fname = "abrupt_p0.csv"
+    out_fname = "abrupt_p0_tf_x100_part2"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -110,14 +110,14 @@ if __name__ == "__main__":
               "m":0}
 
     initial_guesses = {"n0":1e8,
-                        "p0": 2.3e11,
+                        "p0": 3.909e14,
                         "mu_n": 20,
                         "mu_p": 20,
-                        "ks": 9e-11,
-                        "Sf": 2.5e-8,
-                        "Sb": 4.9e-17,
-                        "tauN": 1.99,
-                        "tauP": 1270,
+                        "ks": 5.5e-11,
+                        "Sf": 9.739e-27,
+                        "Sb": 1.078e-124,
+                        "tauN": 27.6,
+                        "tauP": 200.2,
                         "eps":10,
                         "m":0}
 
@@ -168,7 +168,8 @@ if __name__ == "__main__":
 
     # TODO: Validation
     sim_flags = {"num_iters": 100000,
-                 "tf": 1/2500*100,
+                 "anneal_mode":  None,
+                 "anneal_params": (1/2500*100,)
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,

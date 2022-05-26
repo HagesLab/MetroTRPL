@@ -172,8 +172,7 @@ def do_simulation(p, thickness, nx, iniPar, times):
     sol, next_init_condition = model(iniPar, g, p)
     return sol, next_init_condition
     
-def roll_acceptance(logratio, logger):
-    logger.debug(f"DEBUG: LOGRATIO WAS {logratio}")
+def roll_acceptance(logratio):
     accepted = False
     if logratio >= 0:
         # Continue
@@ -191,7 +190,14 @@ def unpack_simpar(simPar, i):
     nx = simPar[2]
     return thickness, nx
 
-def run_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger, prev_p=None):
+def anneal(t, anneal_mode, anneal_params):
+    if anneal_mode is None:
+        return anneal_params[0]
+
+    elif anneal_mode == "exp":
+        return anneal_params[0] * np.exp(-t / anneal_params[1])
+
+def run_iteration(p, simPar, iniPar, times, vals, sim_flags, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
     accepted = True
     logratio = 0 # acceptance ratio = 1
@@ -207,11 +213,11 @@ def run_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, t
                 sol2[:len(sol)] = sol
                 sol = np.array(sol)
                 logger.warning(f"{i}: Simulation terminated early!")
-                
+
             if np.any(sol < 0):
                 sol = np.abs(sol + sys.float_info.min)
                 logger.warning(f"{i}: Carriers depleted!")
-                
+
             p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
             # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
             if np.isnan(p.likelihood[i]): raise ValueError(f"{i}: Simulation failed!")
@@ -220,15 +226,16 @@ def run_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, t
             p.likelihood[i] = -np.inf
             
     if prev_p is not None:
-        logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood)) / tf
-        
+        T = anneal(t, sim_flags["anneal_mode"], sim_flags["anneal_params"])
+        logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood)) / T
+        logger.debug(f"Temperature: {T}")
         if np.isnan(logratio): logratio = -np.inf
         
         if verbose: 
             logger.info("Partial Ratio: {}".format(10 ** logratio))
             
         
-        accepted = roll_acceptance(logratio, logger)
+        accepted = roll_acceptance(logratio)
 
     if prev_p is not None and accepted:
         prev_p.likelihood = p.likelihood
@@ -261,10 +268,11 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
         num_time_subs = len(DA_time_subs)+1
     else:
         num_time_subs = DA_time_subs
-    
-    times, vals, uncs = e_data    
-    tf = sum([len(time)-1 for time in times]) * sim_flags["tf"]
-    
+
+    times, vals, uncs = e_data
+    # As init temperature we take cN, where c is specified in main and N is number of observations
+    sim_flags["anneal_params"][0] *= sum([len(time)-1 for time in times])
+
     if load_checkpoint is not None:
         with open(os.path.join(sim_flags["checkpoint_dirname"], load_checkpoint), 'rb') as ifstream:
             MS = pickle.load(ifstream)
@@ -275,7 +283,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
         starting_iter = 1
     
         # Calculate likelihood of initial guess
-        run_iteration(MS.prev_p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger)
+        run_iteration(MS.prev_p, simPar, iniPar, times, vals, sim_flags, verbose, logger)
 
         update_history(MS.H, 0, MS.prev_p, MS.means, param_info)
 
@@ -302,7 +310,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             # Calculate new likelihood?
                     
             if DA_mode == "off":
-                accepted = run_iteration(MS.p, simPar, iniPar, DA_time_subs, num_time_subs, times, vals, tf, verbose, logger, MS.prev_p)
+                accepted = run_iteration(MS.p, simPar, iniPar, times, vals, sim_flags, verbose, logger, prev_p=MS.prev_p, t=k)
                 
             elif DA_mode == 'DEBUG':
                 accepted = False
@@ -314,7 +322,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             logger.info("#####")
             if accepted:
                 update_means(MS.p, MS.means, param_info)
-                MS.H.accept[k] = 1              
+                MS.H.accept[k] = 1
                 #MS.H.ratio[k] = 10 ** logratio
                 
             update_history(MS.H, k, MS.p, MS.means, param_info)
