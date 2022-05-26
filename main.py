@@ -35,8 +35,8 @@ else:
 
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
-    exp_fname = "abrupt_p0.csv"
-    out_fname = "abrupt_p0_tf_x100_part2"
+    #exp_fname = "abrupt_p0.csv"
+    out_fname = "DEBUG2"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -167,9 +167,9 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 100000,
-                 "anneal_mode":  None,
-                 "anneal_params": (1/2500*100,)
+    sim_flags = {"num_iters": 20,
+                 "anneal_mode": "exp", # None, "exp"
+                 "anneal_params": [1/2500*100, 4.6],
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,

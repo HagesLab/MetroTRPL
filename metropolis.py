@@ -289,6 +289,9 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
 
     for k in range(starting_iter, num_iters):
         try:
+            logger.info("#####")
+            logger.info("Iter {}".format(k))
+            logger.info("#####")
             # Identify which parameter to move
             if sim_flags.get("one_param_at_a_time", 0):
                 picked_param = MS.means.actives[k % len(MS.means.actives)]
@@ -306,7 +309,6 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                 select_from_box(MS.p, MS.means, MS.variances, param_info, picked_param, logger)
 
             if verbose: print_status(MS.p, MS.means, param_info, logger)
-            else: logger.info(f"Iter {k}")
             # Calculate new likelihood?
                     
             if DA_mode == "off":
@@ -318,8 +320,6 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             if verbose and not accepted:
                 logger.info("Rejected!")
                 
-            logger.info("Iter {}".format(k))
-            logger.info("#####")
             if accepted:
                 update_means(MS.p, MS.means, param_info)
                 MS.H.accept[k] = 1
