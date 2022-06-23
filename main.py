@@ -80,7 +80,7 @@ logging.basicConfig(filename=os.path.join(out_dir, out_fname, f"metrolog-{jobid}
 logger = logging.getLogger(f"Metro Logger N{jobid}")
 
 from bayes_io import get_data, get_initpoints
-from metropolis import metro, start_metro_controller, draw_initial_guesses
+from metropolis import metro, draw_initial_guesses
 from time import perf_counter
 
 
@@ -167,16 +167,15 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 100000,
-                 "anneal_mode": 'log', # None, "exp", "log"
-                 "anneal_params": [1/2500*100, 1e2], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when t/2=
+    sim_flags = {"num_iters": 20,
+                 "anneal_mode": "log", # None, "exp", "log"
+                 "anneal_params": [1/2500*100, 100], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
                  "self_normalize":False,
-                 "do_multicore":False,
                  "num_initial_guesses":4,
                  "proposal_function":"box", # box or gauss; anything else disables new proposals
                  "adaptive_covariance":"None", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
@@ -185,7 +184,7 @@ if __name__ == "__main__":
                  "LAP_params":(1,0.8,0.234),
                  "checkpoint_dirname": os.path.join(out_dir, out_fname, "Checkpoints"),
                  "checkpoint_freq":10000, # Save a checkpoint every #this many iterations#
-                 "load_checkpoint": None,
+                 "load_checkpoint": "checkpoint_40000.pik",
                  }
 
     if not os.path.isdir(sim_flags["checkpoint_dirname"]):
@@ -231,12 +230,9 @@ if __name__ == "__main__":
     iniPar = get_initpoints(init_pathname, ic_flags)
     e_data = get_data(experimental_data_pathname, ic_flags, sim_flags, scale_f=1e-23)
     clock0 = perf_counter()
-    if sim_flags.get("do_multicore", False):
-        history = start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variance, logger)
-    else:
 
-        logger.info("Initial guess: {}".format(initial_guess_list[jobid]))
-        history = metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, True, logger, initial_guess_list[jobid])
+    logger.info("Initial guess: {}".format(initial_guess_list[jobid]))
+    history = metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, True, logger, initial_guess_list[jobid])
 
     final_t = perf_counter() - clock0
     logging.basicConfig(filename=os.path.join(out_dir, out_fname, "metrolog-main.log"), filemode='a', level=logging.DEBUG, force=True)

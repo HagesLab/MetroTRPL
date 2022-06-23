@@ -13,7 +13,7 @@ import signal
 from functools import partial
 
 from forward_solver import dydt
-from sim_utils import MetroState, Grid, Solution, HistoryList
+from sim_utils import MetroState, Grid, Solution
 import pickle
 
 ## Constants
@@ -63,21 +63,42 @@ def draw_initial_guesses(initial_guesses, num_initial_guesses):
 
 def check_approved_param(new_p, param_info):
     #return True
-    ucs = param_info['unit_conversions']
+    order = param_info['names']
+    ucs = param_info.get('unit_conversions', {})
     # mu_n and mu_p between 1e-6 and 1e6; a reasonable range for most materials
-    mu_n_size = (np.abs(new_p[2] - np.log10(ucs.get('mu_n', 1))) < 6)
-    mu_p_size = (np.abs(new_p[3] - np.log10(ucs.get('mu_p', 1))) < 6)
-    sf_size = (np.abs(new_p[5] - np.log10(ucs.get('Sf', 1))) < 7)
-    sb_size = (np.abs(new_p[6] - np.log10(ucs.get('Sb', 1))) < 7)
+    if 'mu_n' in order:
+        mu_n_size = (np.abs(new_p[order.index('mu_n')] - np.log10(ucs.get('mu_n', 1))) < 6)
+    else:
+        mu_n_size = True
+
+    if 'mu_p' in order:
+        mu_p_size = (np.abs(new_p[order.index('mu_p')] - np.log10(ucs.get('mu_p', 1))) < 6)
+    else:
+        mu_p_size = True
+
+    if 'Sf' in order:
+        sf_size = (np.abs(new_p[order.index('Sf')] - np.log10(ucs.get('Sf', 1))) < 7)
+    else:
+        sf_size = True
+
+    if 'Sb' in order:
+        sb_size = (np.abs(new_p[order.index('Sb')] - np.log10(ucs.get('Sb', 1))) < 7)
+    else:
+        sb_size = True
+
     # tau_n and tau_p must be *close* (within 3 OM) for a reasonable midgap SRH
-    tn_tp_constraint = (np.abs(new_p[7] - new_p[8]) <= 3)
+    if 'tauN' in order and 'tauP' in order:
+        tn_tp_constraint = (np.abs(new_p[order.index('tauN')] - new_p[order.index('tauP')]) <= 3)
+    else:
+        tn_tp_constraint = True
+
     return tn_tp_constraint and mu_n_size and mu_p_size and sf_size and sb_size
-    
-def select_from_box(p, means, variances, param_info, picked_param, logger):
+
+def select_from_box(p, means, variances, param_info, logger=None):
     is_active = param_info["active"]
     do_log = param_info["do_log"]
     names = param_info["names"]
-    mean = means.asarray(param_info)
+    mean = means.to_array(param_info)
     for i, param in enumerate(names):        
         if do_log[param]:
             mean[i] = np.log10(mean[i])
@@ -94,7 +115,8 @@ def select_from_box(p, means, variances, param_info, picked_param, logger):
         attempts += 1
         if attempts > 100: break
     
-    logger.info(f"Found suitable parameters in {attempts} attempts")
+    if logger is not None:
+        logger.info(f"Found suitable parameters in {attempts} attempts")
         
     for i, param in enumerate(names):
         if is_active[param]:
@@ -106,11 +128,11 @@ def select_from_box(p, means, variances, param_info, picked_param, logger):
     
 
 
-def select_next_params(p, means, variances, param_info, picked_param, logger):
+def select_next_params(p, means, variances, param_info, logger=None):
     is_active = param_info["active"]
     do_log = param_info["do_log"]
     names = param_info["names"]
-    mean = means.asarray(param_info)
+    mean = means.to_array(param_info)
     for i, param in enumerate(names):        
         if do_log[param]:
             mean[i] = np.log10(mean[i])
@@ -120,7 +142,8 @@ def select_next_params(p, means, variances, param_info, picked_param, logger):
     try:
         new_p = np.random.multivariate_normal(mean, cov)
     except Exception:
-        logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
+        if logger is not None:
+            logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
         new_p = mean
 
     for i, param in enumerate(names):
@@ -221,16 +244,19 @@ def run_iteration(p, simPar, iniPar, times, vals, sim_flags, verbose, logger, pr
         next_init_condition = iniPar[i]
         sol, next_init_condition = do_simulation(p, thickness, nx, next_init_condition, times[i])
         try:
-            logger.info("Simulation complete; final t {}".format(times[i][len(sol)-1]))
+            if verbose and logger is not None: 
+                logger.info("Simulation complete; final t {}".format(times[i][len(sol)-1]))
             if len(sol) < len(vals[i]):
                 sol2 = np.ones_like(vals[i]) * sys.float_info.min
                 sol2[:len(sol)] = sol
                 sol = np.array(sol)
-                logger.warning(f"{i}: Simulation terminated early!")
+                if logger is not None:
+                    logger.warning(f"{i}: Simulation terminated early!")
 
             if np.any(sol < 0):
                 sol = np.abs(sol + sys.float_info.min)
-                logger.warning(f"{i}: Carriers depleted!")
+                if logger is not None:
+                    logger.warning(f"{i}: Carriers depleted!")
 
             p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
             # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
@@ -242,10 +268,11 @@ def run_iteration(p, simPar, iniPar, times, vals, sim_flags, verbose, logger, pr
     if prev_p is not None:
         T = anneal(t, sim_flags["anneal_mode"], sim_flags["anneal_params"])
         logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood)) / T
-        logger.debug(f"Temperature: {T}")
+        if verbose and logger is not None: 
+            logger.debug(f"Temperature: {T}")
         if np.isnan(logratio): logratio = -np.inf
         
-        if verbose: 
+        if verbose and logger is not None: 
             logger.info("Partial Ratio: {}".format(10 ** logratio))
             
         
@@ -278,14 +305,8 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
 
     num_iters = sim_flags["num_iters"]
     DA_mode = sim_flags.get("delayed_acceptance", "off")
-    DA_time_subs = sim_flags.get("DA time subdivisions", 1) if (DA_mode == "on" or DA_mode == "cumulative") else 1
     checkpoint_freq = sim_flags["checkpoint_freq"]
     load_checkpoint = sim_flags["load_checkpoint"]
-    
-    if isinstance(DA_time_subs, list):
-        num_time_subs = len(DA_time_subs)+1
-    else:
-        num_time_subs = DA_time_subs
 
     times, vals, uncs = e_data
     # As init temperature we take cN, where c is specified in main and N is number of observations
@@ -302,7 +323,6 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     
         # Calculate likelihood of initial guess
         run_iteration(MS.prev_p, simPar, iniPar, times, vals, sim_flags, verbose, logger)
-
         update_history(MS.H, 0, MS.prev_p, MS.means, param_info)
 
     for k in range(starting_iter, num_iters):
@@ -322,9 +342,9 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                 update_covariance(MS.variances, picked_param)
 
             if sim_flags["proposal_function"] == "gauss":
-                select_next_params(MS.p, MS.means, MS.variances, param_info, picked_param, logger)
+                select_next_params(MS.p, MS.means, MS.variances, param_info, logger)
             elif sim_flags["proposal_function"] == "box":
-                select_from_box(MS.p, MS.means, MS.variances, param_info, picked_param, logger)
+                select_from_box(MS.p, MS.means, MS.variances, param_info, logger)
 
             if verbose: print_status(MS.p, MS.means, param_info, logger)
             # Calculate new likelihood?

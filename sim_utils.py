@@ -27,35 +27,13 @@ class MetroState():
         self.means.apply_unit_conversions(param_info)
         
         self.variances = Covariance(param_info)
-        
-        
-        for param in param_info['names']:
-            if param_info['active'][param]:
-                self.variances.set_variance(param, initial_variance)
-                
-        iv_arr = 0
-        if isinstance(initial_variance, dict):
-            iv_arr = np.ones(len(self.variances.cov))
-            for i, param in enumerate(param_info['names']):
-                if param_info['active'][param]:
-                    iv_arr[i] = initial_variance[param]
-        
-        elif isinstance(initial_variance, (float, int)):
-            iv_arr = initial_variance
-                
-        self.variances.little_sigma = np.ones(len(self.variances.cov)) * iv_arr
-        self.variances.big_sigma = self.variances.cov * iv_arr**-1
+        self.variances.apply_values(initial_variance)
         return
     
     def checkpoint(self, fname):
         with open(fname, "wb+") as ofstream:
             pickle.dump(self, ofstream)
         return
-
-def arrayify_pdict(names, pdict):
-    # Converts a dict of (name,value) into array with values in order of names
-    arr = np.array([pdict[name] for name in names])
-    return arr
 
 class Parameters():
     Sf : float      # Front surface recombination velocity
@@ -90,14 +68,15 @@ class Parameters():
                 val = getattr(self, param)
                 setattr(self, param, np.log10(val))
                 
-    def asarray(self, param_info=None):
-        arr = np.array([getattr(self, param) for param in self.param_names])
+    def to_array(self, param_info=None):
+        arr = np.array([getattr(self, param) for param in self.param_names], dtype=float)
         return arr
     
 class Covariance():
     
     def __init__(self, param_info):
         self.names = param_info["names"]
+        self.actives = param_info['active']
         d = len(self.names)
         self.cov = np.zeros((d,d))
         return
@@ -113,6 +92,24 @@ class Covariance():
     
     def trace(self):
         return np.diag(self.cov)
+    
+    def apply_values(self, initial_variance):
+        for param in self.names:
+            if self.actives[param]:
+                self.set_variance(param, initial_variance)
+                
+        iv_arr = 0
+        if isinstance(initial_variance, dict):
+            iv_arr = np.ones(len(self.cov))
+            for i, param in enumerate(self.names):
+                if self.actives[param]:
+                    iv_arr[i] = initial_variance[param]
+        
+        elif isinstance(initial_variance, (float, int)):
+            iv_arr = initial_variance
+                
+        self.little_sigma = np.ones(len(self.cov)) * iv_arr
+        self.big_sigma = self.cov * iv_arr**-1
                         
 class History():
     
@@ -153,49 +150,6 @@ class History():
         self.ratio = self.ratio[:k]
         return
     
-    def get_KT(self, param_info, R, t):
-        # Returns the transpose of the "K squiggle" matrix used for the adaptive d-dimensional proposal
-        # Essentially packages and mean subs the R most recent accepted steps into a Rxd array
-        arr = np.array([getattr(self,f"mean_{param}") for param in param_info['names']])
-        for i, param in enumerate(param_info["names"]):
-            if param_info["do_log"][param]:
-                arr[i] = np.log10(arr[i])
-        arr = arr.T
-        arr = arr[t-R+1:t+1]
-        arr -= np.mean(arr, axis=0)
-        return arr
-    
-    def get_XT_AM(self, param_info, t):
-        arr = np.array([getattr(self,f"mean_{param}")[:t+1] for param in param_info['names']])
-        for i, param in enumerate(param_info["names"]):
-            if param_info["do_log"][param]:
-                arr[i] = np.log10(arr[i])
-
-        return arr
-        
-        
-class HistoryList():
-    
-    def __init__(self, list_of_histories, param_info):
-        self.join("accept", list_of_histories)
-        self.join("ratio", list_of_histories)
-        self.join("final_cov", list_of_histories)
-        for param in param_info["names"]:
-            self.join(param, list_of_histories)
-            self.join(f"mean_{param}", list_of_histories)
-        
-        
-    def join(self, attr, list_of_histories):
-        attr_from_each_hist = [getattr(H, attr) for H in list_of_histories]
-        setattr(self, attr, np.vstack(attr_from_each_hist))
-        
-    def export(self, param_info, out_pathname):
-        for param in param_info["names"]:
-            np.save(os.path.join(out_pathname, f"{param}"), getattr(self, param))
-            np.save(os.path.join(out_pathname, f"mean_{param}"), getattr(self, f"mean_{param}"))
-                    
-        np.save(os.path.join(out_pathname, "accept"), self.accept)
-        np.save(os.path.join(out_pathname, "final_cov"), self.final_cov)
              
 class Grid():
     def __init__(self):

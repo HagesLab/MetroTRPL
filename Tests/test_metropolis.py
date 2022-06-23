@@ -127,7 +127,8 @@ class TestUtils(unittest.TestCase):
         return
     
     def test_approve_param(self):
-        info = {'names':['tauP', 'tauN', 'somethingelse']}
+        info = {'names':['tauP', 'tauN', 'somethingelse'],
+                 'unit_conversions':{'tauP':1, 'tauN':1, 'somethingelse':1}}
         # taun, taup must be within 3 OM
         # Accepts new_p as log10
         # [n0, p0, mu_n, mu_p, ks, sf, sb, taun, taup, eps, m]
@@ -148,7 +149,8 @@ class TestUtils(unittest.TestCase):
         param_names = ["a", "b", "c", "d"]
 
         do_log = {"a":0, "b":1,"c":0,"d":0}
-        
+        unit_conversions = {'a':1,'b':1,'c':1,'d':1}
+
         initial_guesses = {"a":0, 
                             "b":100, 
                             "c":0,
