@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import sys
 sys.path.append("..")
-from sim_utils import Parameters, History, HistoryList, Solution, Grid, Covariance
+from sim_utils import Parameters, History, Solution, Grid, Covariance, MetroState
 
 class TestUtils(unittest.TestCase):
     
@@ -16,10 +16,12 @@ class TestUtils(unittest.TestCase):
         # Should (but not required) contain one for each name
         dummy_unitconversions = {'a':1, 'c':10, 'mu_n':0.25}
         dummy_do_log = {'a':True, 'b':0, 'mu_n':1, 'mu_p':True}
+        dummy_active = {'a':1, 'b':1, 'c':1, 'mu_n':1}
         
         dummy_param_info = {'names':dummy_names,
                             'unit_conversions':dummy_unitconversions,
-                            'do_log':dummy_do_log}
+                            'do_log':dummy_do_log,
+                            'active':dummy_active}
         
         # Test initialization
         testp = Parameters(dummy_param_info, dummy_parameters)
@@ -28,7 +30,7 @@ class TestUtils(unittest.TestCase):
             self.assertEqual(getattr(testp, param), dummy_parameters[param])
             
         # Test asarray
-        arr = testp.asarray(dummy_param_info)
+        arr = testp.to_array(dummy_param_info)
         expected = np.array([4,3,2,1])
         np.testing.assert_equal(arr, expected)
         
@@ -37,14 +39,14 @@ class TestUtils(unittest.TestCase):
         dup_info = {'names':duplicate_names,
                     'unit_conversions':dummy_unitconversions}
         with self.assertRaises(KeyError):
-            testp_dup = Parameters(dup_info, dummy_parameters)
+            Parameters(dup_info, dummy_parameters)
             
         # Test init with missing params
         bad_params = {}
         dup_info = {'names':dummy_names}
         
         with self.assertRaises(KeyError):
-            testp_dup = Parameters(dup_info, bad_params)
+            Parameters(dup_info, bad_params)
             
         # Test unit conversion
         expected_converted_values = {'a':1, 'b':2, 'c':30, 'mu_n':1.0}
@@ -64,7 +66,6 @@ class TestUtils(unittest.TestCase):
         d = len(dummy_names)
         
         # Must contain one for each name
-        dummy_parameters = {'a':1, 'b':2, 'c':3, 'mu_n':4}
         
         # Should (but not required) contain one for each name
         dummy_unitconversions = {'a':1, 'c':10, 'mu_n':0.25}
@@ -72,17 +73,27 @@ class TestUtils(unittest.TestCase):
         
         dummy_param_info = {'names':dummy_names,
                             'unit_conversions':dummy_unitconversions,
-                            'do_log':dummy_do_log}
+                            'do_log':dummy_do_log,
+                            'active':{name:1 for name in dummy_names}}
         
         # Test init
         testC = Covariance(dummy_param_info)
         np.testing.assert_equal(testC.cov, np.zeros((d,d)))
         
-        # Test initial set
-        testC.set_variance('c', 1)
+        # Test setter
         expected = np.zeros((d,d))
+
+        testC.set_variance('c', 1)
         expected[1,1] = 1
+
+        testC.set_variance('a', {'a':26})
+        expected[3,3] = 26
+        
         np.testing.assert_equal(testC.cov, expected)
+        
+        # Test trace
+        
+        np.testing.assert_equal(testC.trace(), [0,1,0,26])
         
     def test_History(self):
         # Will only look for these
@@ -90,7 +101,7 @@ class TestUtils(unittest.TestCase):
 
         # Should (but not required) contain one for each name
         dummy_unitconversions = {'a':1, 'c':10, 'mu_n':0.25}
-        dummy_do_log = {'a':True, 'b':0, 'mu_n':1, 'mu_p':True}
+        dummy_do_log = {'a':True, 'b':0, 'c':0, 'mu_n':1, 'mu_p':True}
         
         dummy_param_info = {'names':dummy_names,
                             'unit_conversions':dummy_unitconversions,
@@ -138,42 +149,6 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(len(testh.accept), truncate_at)
         self.assertEqual(len(testh.ratio), truncate_at)
         
-        # Test KT
-        R = 3
-        t = 9
-        kt = testh.get_KT(dummy_param_info, R, t)
-        self.assertEqual(kt.shape, (R, len(dummy_names)))
-        
-        np.testing.assert_equal(np.mean(kt, axis=0), np.zeros(len(dummy_names)))
-    
-    def test_HistoryList(self):
-        # Will only look for these
-        dummy_names = ['mu_n', 'c']
-        
-        
-        dummy_param_info = {'names':dummy_names}
-        num_cpus = 4
-        num_iters = 10
-        # Test init (and join)
-        histories_from_each_cpu = [History(num_iters, dummy_param_info) for i in range(num_cpus)]
-        for i, h in enumerate(histories_from_each_cpu):
-            for param in dummy_names:
-                setattr(h, param, np.ones(num_iters) + i)
-                setattr(h, f"mean_{param}", 10 * (np.ones(num_iters) + i))
-        
-        test_hlist = HistoryList(histories_from_each_cpu, dummy_param_info)
-        
-        self.assertEqual(np.sum(test_hlist.mu_n), 100)
-        self.assertEqual(np.sum(test_hlist.mean_mu_n), 1000)
-        self.assertEqual(test_hlist.mu_n.shape, (num_cpus, num_iters))
-        self.assertEqual(test_hlist.mean_mu_n.shape, (num_cpus, num_iters))
-        
-        self.assertEqual(np.sum(test_hlist.c), 100)
-        self.assertEqual(np.sum(test_hlist.mean_mu_n), 1000)
-        
-        # Not testing export
-        return
-    
     def test_Solution(self):
         testS = Solution()
         testG = Grid()
@@ -185,23 +160,23 @@ class TestUtils(unittest.TestCase):
         testS.P = np.ones((num_tsteps, num_nodes))
         
         # No PL
-        param_info = {'names':['B', 'n0', 'p0']}
-        initial_guesses = {'B':0, 'n0':0, 'p0':0}
+        param_info = {'names':["ks", 'n0', 'p0'],
+                      'active':{"ks":1, 'n0':1, 'p0':1}}
+        initial_guesses = {"ks":0, 'n0':0, 'p0':0}
+        
         testP = Parameters(param_info, initial_guesses)
         testS.calculate_PL(testG, testP)
         np.testing.assert_equal(np.zeros(num_tsteps), testS.PL)
         
         # Some PL
-        param_info = {'names':['B', 'n0', 'p0']}
-        initial_guesses = {'B':1, 'n0':0, 'p0':0}
+        initial_guesses = {"ks":1, 'n0':0, 'p0':0}
         testS.P = np.ones((num_tsteps, num_nodes)) * 10
         testP = Parameters(param_info, initial_guesses)
         testS.calculate_PL(testG, testP)
         np.testing.assert_equal(np.ones(num_tsteps) * 10 * num_nodes, testS.PL)
         
         # Some more PL
-        param_info = {'names':['B', 'n0', 'p0']}
-        initial_guesses = {'B':2, 'n0':1, 'p0':1}
+        initial_guesses = {"ks":2, 'n0':1, 'p0':1}
         testS.P = np.ones((num_tsteps, num_nodes)) * 10
         testP = Parameters(param_info, initial_guesses)
         testS.calculate_PL(testG, testP)
@@ -209,6 +184,49 @@ class TestUtils(unittest.TestCase):
         
         return
     
+    def test_MetroState(self):
+        # Will only look for these
+        dummy_names = ['mu_n', 'c', 'b', 'a']
+
+        # Should (but not required) contain one for each name
+        dummy_unitconversions = {'a':1, 'c':10, 'mu_n':0.25}
+        dummy_do_log = {'a':True, 'b':0, 'c':0, 'mu_n':1, 'mu_p':True}
+        dummy_active = {'a':1, 'b':1, 'c':1, 'mu_n':1}
+        
+        dummy_param_info = {'names':dummy_names,
+                            'unit_conversions':dummy_unitconversions,
+                            'do_log':dummy_do_log,
+                            'active':dummy_active}
+        
+        dummy_initial_guesses = {'a':1, 'b':2, 'c':3, 'mu_n':4}
+        dummy_initial_variance = {'a':2, 'b':1, 'c':2, 'mu_n':1}
+        num_iters = 100
+        ms = MetroState(dummy_param_info, dummy_initial_guesses, dummy_initial_variance,
+                        num_iters)
+        
+        # The functionality for each of these has already been covered
+        self.assertIsInstance(ms.p, Parameters)
+        self.assertIsInstance(ms.prev_p, Parameters)
+        self.assertIsInstance(ms.means, Parameters)
+        self.assertIsInstance(ms.variances, Covariance)
+        
+        # Covariance scales; Should be 1D and match dummy_inital_variance
+        # Note that this follows the order of dummy_names
+        np.testing.assert_equal(ms.variances.little_sigma, [1,2,1,2])
+        
+        # Descaled Covariance matrix
+        np.testing.assert_equal(ms.variances.big_sigma, np.eye(4))
+        
+        # Testing with samey initial variance
+        samey_variance = 26
+        ms = MetroState(dummy_param_info, dummy_initial_guesses, samey_variance,
+                        num_iters)
+        
+        np.testing.assert_equal(ms.variances.little_sigma, [26,26,26,26])
+        
+        # Descaled Covariance matrix
+        np.testing.assert_equal(ms.variances.big_sigma, np.eye(4))
+        
 if __name__ == "__main__":
     t = TestUtils()
     t.test_History()

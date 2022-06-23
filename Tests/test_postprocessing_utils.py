@@ -4,7 +4,9 @@ import os
 import shutil
 
 from postprocessing_utils import recommend_logscale, calc_contours, fetch_param, fetch
+from postprocessing_utils import ASJD, ESS
 from secondary_parameters import LI_tau_eff
+import math
 
 class TestUtils(unittest.TestCase):
     
@@ -118,7 +120,7 @@ class TestUtils(unittest.TestCase):
     def test_fetch(self):
         tests = {"Test3":(["mu_n", "mu_p"], "mu_eff"),
                  "Test4":(["Sf", "Sb"], "Sf+Sb"),
-                 "Test5":(["Sf", "Sb", "tauN", "mu_n", "mu_p", "B", "p0"], "tau_eff")}
+                 "Test5":(["Sf", "Sb", "tauN", "mu_n", "mu_p", "ks", "p0"], "tau_eff")}
         # Sf+Sb
         for testname, testitems in tests.items():
             if not os.path.exists(testname):
@@ -175,18 +177,46 @@ class TestUtils(unittest.TestCase):
         # Test tau_eff
         raw = {"Sf":np.zeros(10), "Sb":np.ones(10),
                "mu_n":np.ones(10), "mu_p":np.ones(10),
-               "B": np.ones(10), "p0":np.ones(10),
+               "ks": np.ones(10), "p0":np.ones(10),
                "tauN":np.ones(10)}
         mean = {"Sf":np.geomspace(0.1,10,31), "Sb":np.geomspace(0.1,10,31),
                "mu_n":np.geomspace(0.1,100,31), "mu_p":np.geomspace(0.1,100,31),
-               "B": np.geomspace(0.1,100,31), "p0":np.geomspace(0.1,100,31),
+               "ks": np.geomspace(0.1,100,31), "p0":np.geomspace(0.1,100,31),
                "tauN":np.geomspace(0.1,1000,31)}
         thickness = 1e3
         
         expected_raw_mu = 2 / (raw["mu_n"]**-1 + raw["mu_p"]**-1)
         expected_mean_mu = 2 / (mean["mu_n"]**-1 + mean["mu_p"]**-1)
         
-        expected_proposed = LI_tau_eff(raw["B"], raw["p0"], raw["tauN"], raw["Sf"], raw["Sb"], thickness, expected_raw_mu)
-        expected_accepted = LI_tau_eff(mean["B"], mean["p0"], mean["tauN"], mean["Sf"], mean["Sb"], thickness, expected_mean_mu)
+        expected_proposed = LI_tau_eff(raw["ks"], raw["p0"], raw["tauN"], raw["Sf"], raw["Sb"], thickness, expected_raw_mu)
+        expected_accepted = LI_tau_eff(mean["ks"], mean["p0"], mean["tauN"], mean["Sf"], mean["Sb"], thickness, expected_mean_mu)
         output_proposed, output_accepted = fetch_param(raw, mean, "tau_eff", thickness=thickness)
         return
+    
+    def test_ASJD(self):
+        test1 = np.linspace(0,100,101)
+        test2 = np.linspace(0, 50, 101)
+        accepted = np.array([test1, test2])
+        accepted = np.expand_dims(accepted, 1)
+        accepted = np.repeat(accepted, 3, axis=1)
+        
+        # Vary the chains - vary the ASJD
+        accepted[:,0] *= 0.5
+        accepted[:,2] *= 2
+        
+        diffs = ASJD(accepted, [None, None])
+        np.testing.assert_equal(diffs, [1.25 * 0.5 ** 2, 1.25, 1.25 * 2**2])
+        
+    def test_ESS(self):
+        test1 = np.expand_dims(np.arange(100), 0)
+        test2 = np.expand_dims(np.sin(np.arange(100)), 0)
+        
+        avg_ess = ESS(test1, [None, None], do_log=False, verbose=False)
+        self.assertTrue(math.isnan(avg_ess))
+        avg_ess = ESS(test2, [None, None], do_log=False, verbose=False)
+        self.assertAlmostEqual(avg_ess, 3494.367866841)
+        
+        
+if __name__ == "__main__":
+    t = TestUtils()
+    t.test_ESS()

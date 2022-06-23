@@ -23,24 +23,28 @@ class TestUtils(unittest.TestCase):
         g.hmax = 4
         g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
         
-        param_names = ["n0", "p0", "mu_n", "mu_p", "B", 
+        param_names = ["n0", "p0", "mu_n", "mu_p", "ks", 
                        "Sf", "Sb", "tauN", "tauP", "eps", "m"]
         unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
                             "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
-                            "B":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
-        do_log = {"n0":1, "p0":1,"mu_n":0,"mu_p":0,"B":1,
+                            "ks":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
+        do_log = {"n0":1, "p0":1,"mu_n":0,"mu_p":0,"ks":1,
                   "Sf":1,"Sb":1,"tauN":0,"tauP":0,"eps":1,
+                  "m":0}
+        active = {"n0":1, "p0":1,"mu_n":1,"mu_p":1,"ks":1,
+                  "Sf":1,"Sb":1,"tauN":1,"tauP":1,"eps":1,
                   "m":0}
         param_info = {"names":param_names,
                       "unit_conversions":unit_conversions,
-                      "do_log":do_log,}
+                      "do_log":do_log,
+                      "active":active}
         
         ## Nothing ##
         initial_guess ={"n0":0, 
                         "p0":0, 
                         "mu_n":0, 
                         "mu_p":0, 
-                        "B":0, 
+                        "ks":0, 
                         "Sf":0, 
                         "Sb":0, 
                         "tauN":1e99, 
@@ -72,7 +76,7 @@ class TestUtils(unittest.TestCase):
                         "p0":0, 
                         "mu_n":100, 
                         "mu_p":100, 
-                        "B":0, 
+                        "ks":0, 
                         "Sf":0, 
                         "Sb":0, 
                         "tauN":1e99, 
@@ -105,7 +109,7 @@ class TestUtils(unittest.TestCase):
                         "p0":0, 
                         "mu_n":0, 
                         "mu_p":0, 
-                        "B":0, 
+                        "ks":0, 
                         "Sf":0, 
                         "Sb":0, 
                         "tauN":1, 

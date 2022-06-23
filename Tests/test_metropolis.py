@@ -3,10 +3,12 @@ import numpy as np
 import sys
 sys.path.append("..")
 
-from metropolis import E_field, model, select_next_params, update_means, update_history
-from metropolis import do_simulation, roll_acceptance, unpack_simpar, convert_DA_times, subdivide
-from metropolis import draw_initial_guesses, init_param_managers, run_DA_iteration
-from sim_utils import Parameters, Grid, History, Covariance
+from metropolis import E_field, model, select_next_params, select_from_box 
+from metropolis import update_means, update_history, update_covariance
+from metropolis import do_simulation, roll_acceptance, unpack_simpar
+from metropolis import draw_initial_guesses, check_approved_param, anneal
+from metropolis import run_iteration
+from sim_utils import Parameters, Grid, History, Covariance, MetroState
 from scipy.integrate import trapz
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
 q = 1.0 # [e]
@@ -17,7 +19,8 @@ class TestUtils(unittest.TestCase):
     
     def test_E_field(self):
         # Test 1D
-        param_info = {"names":["n0", "p0", "eps"]}
+        param_info = {"names":["n0", "p0", "eps"],
+                      "active":{"n0":1, "p0":1, "eps":1}}
         vals = {'n0':0,
                 'p0':0,
                 'eps':1}
@@ -81,16 +84,20 @@ class TestUtils(unittest.TestCase):
         
         unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
                             "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
-                            "B":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
+                            "ks":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
         
-        param_info = {"names":["n0", "p0", "mu_n", "mu_p", "B", "tauN", "tauP",
+        param_info = {"names":["n0", "p0", "mu_n", "mu_p", "ks", "tauN", "tauP",
                                "Sf", "Sb", "eps"],
+                      "active":{"n0":0, "p0":1, 
+                                "mu_n":0, "mu_p":0, 
+                                "ks":1, "Sf":1, "Sb":1,
+                                "tauN":1,"tauP":1, "eps":0},
                       "unit_conversions":unit_conversions}
         vals = {'n0':0,
                 'p0':0,
                 'mu_n':0,
                 'mu_p':0,
-                'B':1e-11,
+                "ks":1e-11,
                 'tauN':1e99,
                 'tauP':1e99,
                 'Sf':0,
@@ -101,31 +108,8 @@ class TestUtils(unittest.TestCase):
         init_dN = 1e20 * np.ones(g.nx) * 1e-21 # [cm^-3] to [nm^-3]
         
         test_PL, out_dN = model(init_dN, g, pa)
-        rr = pa.B * (out_dN * out_dN - pa.n0 * pa.p0)
+        rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
         self.assertAlmostEqual(test_PL[-1], trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2)
-        return
-
-    def test_init_param_mgrs(self):
-        param_info = {'names':['a','b','c'],
-                      'unit_conversions':{'a':1,'b':10,'c':1}, 
-                      'active':{'a':1,'b':0,'c':1}}
-        initial_guess = {'a':1, 'b':2,'c':3}
-        initial_variances = {'a':1, 'b':2, 'c':3}
-        num_iters = 10
-        p, prev_p, h, means, variances = init_param_managers(param_info, initial_guess, 
-                                                             initial_variances, num_iters)
-        
-        self.assertTrue(isinstance(p, Parameters))
-        self.assertTrue(isinstance(prev_p, Parameters))
-        self.assertTrue(isinstance(means, Parameters))
-        self.assertTrue(isinstance(variances, Covariance))
-        self.assertTrue(isinstance(h, History))
-        
-        self.assertEqual(p.b, initial_guess['b']*param_info['unit_conversions']['b'])
-        self.assertEqual(prev_p.b, initial_guess['b']*param_info['unit_conversions']['b'])
-        np.testing.assert_equal(variances.cov, np.array([[1,0,0], 
-                                                         [0,0,0], 
-                                                         [0,0,3]]))
         return
 
     def test_draw_init_guesses(self):
@@ -141,6 +125,22 @@ class TestUtils(unittest.TestCase):
         for i, g in enumerate(guesses):
             self.assertEqual(g['b'], i)
         return
+    
+    def test_approve_param(self):
+        info = {'names':['tauP', 'tauN', 'somethingelse']}
+        # taun, taup must be within 3 OM
+        # Accepts new_p as log10
+        # [n0, p0, mu_n, mu_p, ks, sf, sb, taun, taup, eps, m]
+        new_p = np.log10([511, 511e3, 1])
+        self.assertTrue(check_approved_param(new_p, info))
+        
+        new_p = np.log10([511, 511e3+1,  1])
+        self.assertFalse(check_approved_param(new_p, info))
+        
+        info_without_taus = {'names':['tauQ', 'somethingelse']}
+        # Always true if criteria do not cover params
+        new_p = np.log10([1,1e10])
+        self.assertTrue(check_approved_param(new_p, info_without_taus))
         
     def test_select_next_params(self):
         # This function assigns a set of randomly generated values
@@ -169,16 +169,45 @@ class TestUtils(unittest.TestCase):
         variances = Covariance(param_info)
         variances.set_variance('a', 10)
         variances.set_variance('b', 0.1)
-        variances.set_variance('c', 1)
+        variances.set_variance('c', 0)
         variances.set_variance('d', 1)
         select_next_params(pa, means, variances, param_info)
         
         self.assertEqual(pa.a, initial_guesses['a']) #Inactive and shouldn't change
-        self.assertAlmostEqual(pa.b, 45.78229186)
-        self.assertAlmostEqual(pa.c, -0.52817175)
+        self.assertAlmostEqual(pa.b, 68.07339753)
+        self.assertEqual(pa.c, initial_guesses['c']) # Shouldn't change because variance is zero
         self.assertAlmostEqual(pa.d, 9.38824359)
+        
+        
+        select_from_box(pa, means, variances, param_info)
+        self.assertEqual(pa.a, initial_guesses['a']) #Inactive and shouldn't change
+        self.assertEqual(pa.c, initial_guesses['c'])
+        num_tests = 100
+        for t in range(num_tests):
+            select_from_box(pa, means, variances, param_info)
+            self.assertTrue(np.abs(np.log10(pa.b) - np.log10(initial_guesses['b'])) <= 0.1, 
+                            msg="Uniform step #{} failed: {} from mean {} and width 0.1".format(t, pa.b, initial_guesses['b']))
+            self.assertTrue(np.abs(pa.d-initial_guesses['d']) <= 1,
+                            msg="Uniform step #{} failed: {} from mean {} and width 1".format(t, pa.d, initial_guesses['d']))
+        
         return
     
+    def test_update_cov(self):
+        info = {'names':['tauQ', 'somethingelse'],
+                'active':{'tauQ':1, 'somethingelse':1}}
+        
+        initial_variance = {"tauQ":469, 'somethingelse':20}
+        var = Covariance(info)
+        var.apply_values(initial_variance)
+        
+        update_covariance(var, None)
+        np.testing.assert_equal(var.cov, [[469, 0], [0, 20]])
+        
+        # Picked_param: tuple of (param_name, index position in list of params)
+        # All variances masked except for the picked param
+        update_covariance(var, ('tauQ', 0))
+        np.testing.assert_equal(var.cov, [[469, 0], [0, 0]])
+        
     def test_update_means(self):
         param_names = ["a", "b", "c", "d"]
         
@@ -192,7 +221,8 @@ class TestUtils(unittest.TestCase):
                         "c":3,
                         "d":4,}
 
-        param_info = {"names":param_names,}
+        param_info = {"names":param_names,
+                      "active": {'a':1,'b':1,'c':1,'d':1}}
         
         
         pa = Parameters(param_info, initial_guesses)
@@ -210,7 +240,8 @@ class TestUtils(unittest.TestCase):
     def test_update_history(self):
         num_iters = 10
         param_names = ["a", "b", "c", "d"]
-        param_info = {"names":param_names,}
+        param_info = {"names":param_names,
+                      "active": {'a':1,'b':1,'c':1,'d':1}}
         history = History(num_iters, param_info)
         
         initial_guesses = {"a":0, 
@@ -239,16 +270,20 @@ class TestUtils(unittest.TestCase):
         # Just verify this realistic simulation converges
         unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
                             "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
-                            "B":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
+                            "ks":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
         
-        param_info = {"names":["n0", "p0", "mu_n", "mu_p", "B", "tauN", "tauP",
+        param_info = {"names":["n0", "p0", "mu_n", "mu_p", "ks", "tauN", "tauP",
                                "Sf", "Sb", "eps"],
+                      "active":{"n0":0, "p0":1, 
+                                "mu_n":0, "mu_p":0, 
+                                "ks":1, "Sf":1, "Sb":1,
+                                "tauN":1,"tauP":1, "eps":0},
                       "unit_conversions":unit_conversions}
         vals = {'n0':1e8,
                 'p0':3e15,
                 'mu_n':20,
                 'mu_p':100,
-                'B':1e-11,
+                "ks":1e-11,
                 'tauN':120,
                 'tauP':200,
                 'Sf':5,
@@ -304,36 +339,25 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(Length[2], thickness)
         self.assertEqual(L, nx)
         return
-    
-    def test_convert_DA_times(self):
-        total_len = 80000
-        DA_time_subs = 10
-        # DA_time_subs as int should just pass unchanged
-        self.assertEqual(DA_time_subs, convert_DA_times(DA_time_subs, total_len))
         
-        DA_time_subs = [10, 50]
+    def test_anneal(self):
+        anneal_mode = None # T = T_0
+        anneal_params = [1] #T_0
+        t = 9999
+        self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params[0])
         
-        # DA_time_subs as list should take percentages
-        np.testing.assert_equal([8000, 40000], convert_DA_times(DA_time_subs, total_len))
-        return
-
-    def test_subdivide(self):
-        y = np.arange(101)
-        splits = 2
-        y_s = subdivide(y[1:], splits)
+        anneal_mode = "exp" # T = T_0 * exp(-t/T_1)
+        anneal_params = [10,1]
+        t = 1
+        self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params / np.exp(1))
         
-        np.testing.assert_equal(y_s[0], np.arange(51))
-        np.testing.assert_equal(y_s[1], 50 + np.arange(51))
+        anneal_mode = "log" # T = (T_0 ln(2)) / (ln(2 + (t / T_1)))
+        t = 23523
+        anneal_params = [10, t / (np.exp(1) - 2)]
+        self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params[0] * np.log(2))
         
-        splits = [10, 90]
-        y_s = subdivide(y[1:], splits)
-        
-        np.testing.assert_equal(y_s[0], np.arange(11))
-        np.testing.assert_equal(y_s[1], 10 + np.arange(81))
-        np.testing.assert_equal(y_s[2], 90 + np.arange(11))
-        return
-        
-    def test_run_DA_iter(self):
+    def test_run_iter(self):
+        # Will basically need to set up a full simulation for this
         np.random.seed(42)
         Length  = 2000                            # Length (nm)
         L   = 2 ** 7                                # Spatial points
@@ -348,24 +372,32 @@ class TestUtils(unittest.TestCase):
         DA_time_subs = 2
         num_time_subs = 2
         
-        param_names = ["n0", "p0", "mu_n", "mu_p", "B", 
+        param_names = ["n0", "p0", "mu_n", "mu_p", "ks", 
                        "Sf", "Sb", "tauN", "tauP", "eps", "m"]
         unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
                             "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
-                            "B":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
+                            "ks":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
+        
+        # Iterations should proceed independent of which params are actively iterated,
+        # as all params are presumably needed to complete the simulation
         param_info = {"names":param_names,
-                      "unit_conversions":unit_conversions}
+                      "unit_conversions":unit_conversions, 
+                      "active":{name:0 for name in param_names}}
         initial_guess = {"n0":0, 
                          "p0":0, 
                          "mu_n":0, 
                          "mu_p":0, 
-                         "B":1e-11, 
+                         "ks":1e-11, 
                          "Sf":0, 
                          "Sb":0, 
                          "tauN":1e99, 
                          "tauP":1e99, 
                          "eps":10, 
                          "m":0}
+        
+        sim_flags = {"anneal_mode": None, # None, "exp", "log"
+                     "anneal_params": [1/2500*100, 10], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=
+                     }
         
         p = Parameters(param_info, initial_guess)
         p.apply_unit_conversions(param_info)
@@ -375,16 +407,20 @@ class TestUtils(unittest.TestCase):
         nt = 1000
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.zeros(nt+1), np.zeros(nt+1)]
-        tf = sum([len(time)-1 for time in times]) * (1/2000)
-        accepted = run_DA_iteration(p, simPar, iniPar, DA_time_subs, num_time_subs, 
-                                    times, vals, tf, prev_p=None)
-        np.testing.assert_almost_equal(p.likelihood, [[-29638.7444281,-29642.086483], [-16251.5092385,-16276.1505375]])
-        self.assertTrue(accepted)
-        accepted = run_DA_iteration(p2, simPar, iniPar, DA_time_subs, num_time_subs, 
-                                    times, vals, tf, prev_p=p)
+        accepted = run_iteration(p, simPar, iniPar, 
+                                 times, vals, sim_flags, verbose=True, logger=None, prev_p=None)
+        
+        # First iter; auto-accept
+        np.testing.assert_almost_equal(p.likelihood, [-59340.105083, -32560.139058])
         self.assertTrue(accepted)
         
+        # Second iter same as the first; auto-accept with likelihood ratio exactly 1
+        accepted = run_iteration(p2, simPar, iniPar, 
+                                 times, vals, sim_flags, verbose=True, logger=None, prev_p=p)
+        self.assertTrue(accepted)
+        # Accept should overwrite p2 (new) into p (old)
         np.testing.assert_equal(p.likelihood, p2.likelihood)
+        
         
 if __name__ == "__main__":
     t = TestUtils()
