@@ -36,7 +36,7 @@ else:
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
     #exp_fname = "abrupt_p0.csv"
-    out_fname = "SA_exp_tau4"
+    out_fname = "prsc_highp0"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -110,21 +110,21 @@ if __name__ == "__main__":
               "m":0}
 
     initial_guesses = {"n0":1e8,
-                        "p0": 2.3e12,
-                        "mu_n": 20,
-                        "mu_p": 20,
-                        "ks": 9.579e-11,
-                        "Sf": 2.5e-8,
-                        "Sb": 4.9e-17,
-                        "tauN": 1.9e-10,
-                        "tauP": 1270,
+                        "p0": 46e19,
+                        "mu_n": 15.8,
+                        "mu_p": 15.8,
+                        "ks": 7.4e-11,
+                        "Sf":440,
+                        "Sb": 440,
+                        "tauN": 454,
+                        "tauP": 454,
                         "eps":10,
                         "m":0}
 
     active_params = {"n0":0,
                      "p0":1,
-                     "mu_n":0,
-                     "mu_p":0,
+                     "mu_n":1,
+                     "mu_p":1,
                      "ks":1,
                      "Sf":1,
                      "Sb":1,
@@ -168,8 +168,8 @@ if __name__ == "__main__":
 
     # TODO: Validation
     sim_flags = {"num_iters": 100000,
-                 "anneal_mode": "exp", # None, "exp", "log"
-                 "anneal_params": [1/2500*100, 10000], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=
+                 "anneal_mode": 'log', # None, "exp", "log"
+                 "anneal_params": [1/2500*100, 1e2], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when t/2=
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -183,14 +183,14 @@ if __name__ == "__main__":
                  "AM_activation_time":0,
                  "one_param_at_a_time":True,
                  "LAP_params":(1,0.8,0.234),
-                 "checkpoint_dirname": os.path.join(out_dir, out_fname, "Checkpoints1"),
+                 "checkpoint_dirname": os.path.join(out_dir, out_fname, "Checkpoints"),
                  "checkpoint_freq":10000, # Save a checkpoint every #this many iterations#
                  "load_checkpoint": None,
                  }
-    
+
     if not os.path.isdir(sim_flags["checkpoint_dirname"]):
         os.mkdir(sim_flags["checkpoint_dirname"])
-        
+
     # Reset (clear) checkpoints
     if sim_flags["load_checkpoint"] is None:
         for chpt in os.listdir(sim_flags["checkpoint_dirname"]):
