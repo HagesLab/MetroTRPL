@@ -9,6 +9,7 @@ from scipy.integrate import solve_ivp
 from multiprocessing import Pool
 import os
 import sys
+import signal
 from functools import partial
 
 from forward_solver import dydt
@@ -60,10 +61,17 @@ def draw_initial_guesses(initial_guesses, num_initial_guesses):
         initial_guess_list.append(initial_guess)
     return initial_guess_list
 
-def check_approved_param(new_p):
+def check_approved_param(new_p, param_info):
     #return True
+    ucs = param_info['unit_conversions']
+    # mu_n and mu_p between 1e-6 and 1e6; a reasonable range for most materials
+    mu_n_size = (np.abs(new_p[2] - np.log10(ucs.get('mu_n', 1))) < 6)
+    mu_p_size = (np.abs(new_p[3] - np.log10(ucs.get('mu_p', 1))) < 6)
+    sf_size = (np.abs(new_p[5] - np.log10(ucs.get('Sf', 1))) < 7)
+    sb_size = (np.abs(new_p[6] - np.log10(ucs.get('Sb', 1))) < 7)
     # tau_n and tau_p must be *close* (within 3 OM) for a reasonable midgap SRH
-    return (np.abs(new_p[7] - new_p[8]) <= 3)
+    tn_tp_constraint = (np.abs(new_p[7] - new_p[8]) <= 3)
+    return tn_tp_constraint and mu_n_size and mu_p_size and sf_size and sb_size
     
 def select_from_box(p, means, variances, param_info, picked_param, logger):
     is_active = param_info["active"]
@@ -82,7 +90,7 @@ def select_from_box(p, means, variances, param_info, picked_param, logger):
         for i, param in enumerate(names):
             new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
         
-        approved = check_approved_param(new_p)
+        approved = check_approved_param(new_p, param_info)
         attempts += 1
         if attempts > 100: break
     
@@ -191,7 +199,7 @@ def unpack_simpar(simPar, i):
     return thickness, nx
 
 def anneal(t, anneal_mode, anneal_params):
-    if anneal_mode is None:
+    if anneal_mode is None or anneal_mode == "None":
         return anneal_params[0]
 
     elif anneal_mode == "exp":
@@ -199,6 +207,9 @@ def anneal(t, anneal_mode, anneal_params):
 
     elif anneal_mode == "log":
         return (anneal_params[0] * np.log(2)) / (np.log(t / anneal_params[1] + 2))
+
+    else:
+        raise ValueError("Invalid annealing type")
 
 def run_iteration(p, simPar, iniPar, times, vals, sim_flags, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
@@ -244,6 +255,8 @@ def run_iteration(p, simPar, iniPar, times, vals, sim_flags, verbose, logger, pr
         prev_p.likelihood = p.likelihood
     return accepted
 
+def kill_from_cl(signal_n, frame):
+    raise KeyboardInterrupt("Terminate from command line")
 
 def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variance, logger):
     #num_cpus = 2
@@ -260,7 +273,9 @@ def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initia
 def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbose, logger, initial_guess):
     # Setup
     #np.random.seed(42)
-    
+    logger.info("PID: {}".format(os.getpid()))
+    signal.signal(signal.SIGTERM, kill_from_cl)
+
     num_iters = sim_flags["num_iters"]
     DA_mode = sim_flags.get("delayed_acceptance", "off")
     DA_time_subs = sim_flags.get("DA time subdivisions", 1) if (DA_mode == "on" or DA_mode == "cumulative") else 1
