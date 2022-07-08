@@ -9,7 +9,7 @@ import os
 import pickle
 import sys
 import logging
-
+from datetime import datetime
 
 # Collect filenames
 try:
@@ -28,7 +28,6 @@ if on_hpg:
     exp_fname = sys.argv[3]
     out_fname = sys.argv[2]
 
-
 else:
     init_dir = r"bay_inputs"
     out_dir = r"bay_outputs"
@@ -36,7 +35,7 @@ else:
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
     #exp_fname = "abrupt_p0.csv"
-    out_fname = "prsc_highp0"
+    out_fname = "DEBUG2"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -58,26 +57,40 @@ else:
     except IndexError:
         jobid = 0
 
-if jobid == 0 and os.path.exists(os.path.join(out_dir, out_fname, "metrolog-main.log")):
-    try:
-        os.remove(os.path.join(out_dir, out_fname, "metrolog-main.log"))
-    except FileNotFoundError:
-        print("metrolog-main already resetted")
+def start_logging(log_dir="Logs"):
 
-logging.basicConfig(filename=os.path.join(out_dir, out_fname, "metrolog-main.log"), filemode='a', level=logging.DEBUG)
-logger = logging.getLogger("Metro Logger Main")
+    if not os.path.isdir(log_dir):
+        try:
+            os.mkdir(log_dir)
+        except FileExistsError:
+            pass
 
+    tstamp = str(datetime.now()).replace(":", "-")
+    #logging.basicConfig(filename=os.path.join(log_dir, f"{tstamp}.log"), filemode='a', level=logging.DEBUG)
+    logger = logging.getLogger("Metro Logger Main")
+    logger.setLevel(logging.DEBUG)
 
-if on_hpg:
-    logger.info("Array job detected, ID={}".format(jobid))
-else:
-    logger.info(f"Not array job, using ID={jobid}")
+    handler = logging.FileHandler(os.path.join(log_dir, f"{tstamp}.log"))
+    handler.setLevel(logging.DEBUG)
 
-if os.path.exists(os.path.join(out_dir, out_fname, f"metrolog-{jobid}.log")):
-    os.remove(os.path.join(out_dir, out_fname, f"metrolog-{jobid}.log"))
+    formatter = logging.Formatter(
+            fmt='%(asctime)s %(levelname)s: %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+            )
 
-logging.basicConfig(filename=os.path.join(out_dir, out_fname, f"metrolog-{jobid}.log"), filemode='a', level=logging.DEBUG, force=True)
-logger = logging.getLogger(f"Metro Logger N{jobid}")
+    handler.setFormatter(formatter)
+
+    logger.addHandler(handler)
+    return logger, handler
+
+def stop(logger, handler, err=0):
+    if err:
+        logger.error(f"Termining with error code {err}")
+
+    # Spyder needs explicit handler handling for some reason
+    logger.removeHandler(handler)
+    logging.shutdown()
+    return
 
 from bayes_io import get_data, get_initpoints
 from metropolis import metro, draw_initial_guesses
@@ -85,7 +98,7 @@ from time import perf_counter
 
 
 if __name__ == "__main__":
-
+    logger, handler = start_logging(log_dir=os.path.join(out_dir, out_fname))
     # Set space and time grid options
     #Length = [311,2000,311,2000, 311, 2000]
     Length  = 2000                            # Length (nm)
@@ -110,7 +123,7 @@ if __name__ == "__main__":
               "m":0}
 
     initial_guesses = {"n0":1e8,
-                        "p0": 46e19,
+                        "p0": 46e16,
                         "mu_n": 15.8,
                         "mu_p": 15.8,
                         "ks": 7.4e-11,
@@ -167,9 +180,9 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 20,
-                 "anneal_mode": "log", # None, "exp", "log"
-                 "anneal_params": [1/2500*100, 100], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=
+    sim_flags = {"num_iters": 1000,
+                 "anneal_mode": None, # None, "exp", "log"
+                 "anneal_params": [1/2500*1000, 100], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -184,7 +197,7 @@ if __name__ == "__main__":
                  "LAP_params":(1,0.8,0.234),
                  "checkpoint_dirname": os.path.join(out_dir, out_fname, "Checkpoints"),
                  "checkpoint_freq":10000, # Save a checkpoint every #this many iterations#
-                 "load_checkpoint": "checkpoint_40000.pik",
+                 "load_checkpoint": None,
                  }
 
     if not os.path.isdir(sim_flags["checkpoint_dirname"]):
@@ -194,7 +207,13 @@ if __name__ == "__main__":
     if sim_flags["load_checkpoint"] is None:
         for chpt in os.listdir(sim_flags["checkpoint_dirname"]):
             os.remove(os.path.join(sim_flags["checkpoint_dirname"], chpt))
-            
+
+    if on_hpg:
+        logger.info("Array job detected, ID={}".format(jobid))
+    else:
+        logger.info(f"Not array job, using ID={jobid}")
+
+
     np.random.seed(jobid)
     param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
     for param in initial_guesses:
@@ -235,8 +254,6 @@ if __name__ == "__main__":
     history = metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, True, logger, initial_guess_list[jobid])
 
     final_t = perf_counter() - clock0
-    logging.basicConfig(filename=os.path.join(out_dir, out_fname, "metrolog-main.log"), filemode='a', level=logging.DEBUG, force=True)
-    logger = logging.getLogger("Metro Logger Main")
 
     logger.info("Metro took {} s".format(final_t))
     logger.info("Avg: {} s per iter".format(final_t / sim_flags["num_iters"]))
@@ -245,5 +262,5 @@ if __name__ == "__main__":
     logger.info("Exporting to {}".format(out_pathname))
     history.export(param_info, out_pathname)
 
-    logging.shutdown()
+    stop(logger, handler, 0)
     print(f"{jobid} Finished")
