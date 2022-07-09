@@ -51,6 +51,7 @@ if on_hpg:
     jobid = os.getenv('SLURM_ARRAY_TASK_ID')
     assert jobid is not None, "Error: use a job array script"
     jobid = int(jobid)
+    out_pathname = os.path.join(out_pathname, f"{jobid}")
 else:
     try:
         jobid = int(sys.argv[2])
@@ -96,9 +97,8 @@ from bayes_io import get_data, get_initpoints
 from metropolis import metro, draw_initial_guesses
 from time import perf_counter
 
-
 if __name__ == "__main__":
-    logger, handler = start_logging(log_dir=os.path.join(out_dir, out_fname))
+    logger, handler = start_logging(log_dir=os.path.join(out_pathname))
     # Set space and time grid options
     #Length = [311,2000,311,2000, 311, 2000]
     Length  = 2000                            # Length (nm)
@@ -123,26 +123,31 @@ if __name__ == "__main__":
               "m":0}
 
     initial_guesses = {"n0":1e8,
-                        "p0": 46e16,
-                        "mu_n": 15.8,
-                        "mu_p": 15.8,
-                        "ks": 7.4e-11,
-                        "Sf":440,
-                        "Sb": 440,
-                        "tauN": 454,
-                        "tauP": 454,
+                        "p0": 3e15,
+                        "mu_n": 20,
+                        "mu_p": 20,
+                        "ks": 4.8e-11,
+                        "Sf":10,
+                        "Sb": 10,
+                        "tauN": 511,
+                        "tauP": 871,
                         "eps":10,
                         "m":0}
+    mods = [{}, {"p0":3e12}, {"p0":3e18}, {"ks":4.8e-14}, {"ks":4.8e-8},
+            {"p0":3e12, "ks":4.8e-14}, {"p0":3e12, "ks":4.8e-8},
+            {"p0":3e18, "ks":4.8e-14}, {"p0":3e18, "ks":4.8e-8}]
+    for p, v in mods[jobid].items():
+        initial_guesses[p] = v
 
     active_params = {"n0":0,
                      "p0":1,
-                     "mu_n":1,
-                     "mu_p":1,
+                     "mu_n":0,
+                     "mu_p":0,
                      "ks":1,
-                     "Sf":1,
-                     "Sb":1,
-                     "tauN":1,
-                     "tauP":1,
+                     "Sf":0,
+                     "Sb":0,
+                     "tauN":0,
+                     "tauP":0,
                      "eps":0,
                      "m":0}
 
@@ -180,9 +185,9 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 1000,
-                 "anneal_mode": None, # None, "exp", "log"
-                 "anneal_params": [1/2500*1000, 100], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=
+    sim_flags = {"num_iters": 100000,
+                 "anneal_mode": "log", # None, "exp", "log"
+                 "anneal_params": [1/2500*100, 100], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -195,7 +200,7 @@ if __name__ == "__main__":
                  "AM_activation_time":0,
                  "one_param_at_a_time":True,
                  "LAP_params":(1,0.8,0.234),
-                 "checkpoint_dirname": os.path.join(out_dir, out_fname, "Checkpoints"),
+                 "checkpoint_dirname": os.path.join(out_pathname, "Checkpoints"),
                  "checkpoint_freq":10000, # Save a checkpoint every #this many iterations#
                  "load_checkpoint": None,
                  }
@@ -215,18 +220,17 @@ if __name__ == "__main__":
 
 
     np.random.seed(jobid)
-    param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
-    for param in initial_guesses:
-        if param_is_iterable[param]:
-            np.random.shuffle(initial_guesses[param])
+    #param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
+    #for param in initial_guesses:
+    #    if param_is_iterable[param]:
+    #        np.random.shuffle(initial_guesses[param])
 
-    if not sim_flags.get("do_multicore", False) and any(param_is_iterable.values()):
-        logger.warning("Multiple initial guesses detected without do_multicore - doing only first guess"
-                        "- did you mean to enable do_multicore?")
+    #if not sim_flags.get("do_multicore", False) and any(param_is_iterable.values()):
+    #    logger.warning("Multiple initial guesses detected without do_multicore - doing only first guess"
+    #                    "- did you mean to enable do_multicore?")
 
-    initial_guess_list = draw_initial_guesses(initial_guesses, sim_flags["num_initial_guesses"])
+    #initial_guess_list = draw_initial_guesses(initial_guesses, sim_flags["num_initial_guesses"])
 
-    out_pathname = os.path.join(out_pathname, f"{out_fname}-{jobid}")
     if not os.path.isdir(out_pathname):
         os.mkdir(out_pathname)
 
@@ -250,8 +254,8 @@ if __name__ == "__main__":
     e_data = get_data(experimental_data_pathname, ic_flags, sim_flags, scale_f=1e-23)
     clock0 = perf_counter()
 
-    logger.info("Initial guess: {}".format(initial_guess_list[jobid]))
-    history = metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, True, logger, initial_guess_list[jobid])
+    logger.info("Initial guess: {}".format(initial_guesses))
+    history = metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, True, logger, initial_guesses)
 
     final_t = perf_counter() - clock0
 
