@@ -34,10 +34,18 @@ def E_field(N, P, PA, dx, corner_E=0):
 def t_rad(B, p0):
     # B [nm^3 / ns]
     # p0 [nm^-3]
-    return 1 / (B*p0)
+    if B == 0 or p0 == 0:
+        return np.inf
+    
+    else:
+        return 1 / (B*p0)
 
 def t_auger(CP, p0):
-    return 1 / (CP*p0**2)
+    if CP == 0 or p0 == 0:
+        return np.inf
+    
+    else:
+        return 1 / (CP*p0**2)
 
 def LI_tau_eff(B, p0, tau_n, Sf, Sb, CP, thickness, mu):
     # S [nm/ns]
@@ -49,7 +57,10 @@ def LI_tau_eff(B, p0, tau_n, Sf, Sb, CP, thickness, mu):
     q = 1
     
     D = mu * kb / q # [nm^2/ns]
-    tau_surf = (thickness / ((Sf+Sb))) + (thickness**2 / (np.pi ** 2 * D))
+    if Sf+Sb == 0 or D == 0:
+        tau_surf = np.inf
+    else:
+        tau_surf = (thickness / ((Sf+Sb))) + (thickness**2 / (np.pi ** 2 * D))
     t_r = t_rad(B, p0)
     t_aug = t_auger(CP, p0)
     return (t_r**-1 + t_aug**-1 + tau_surf**-1 + tau_n**-1)**-1
@@ -162,6 +173,7 @@ def select_next_params(p, means, variances, param_info, logger=None):
     cov = variances.cov
 
     try:
+        assert np.all(cov >= 0)
         new_p = np.random.multivariate_normal(mean, cov)
     except Exception:
         if logger is not None:
@@ -208,6 +220,15 @@ def update_history(H, k, p, means, param_info):
         h_mean[k] = getattr(means, param)
     return
 
+def det_hmax(g, p):
+    teff = LI_tau_eff(p.ks, p.p0, p.tauN, p.Sf, p.Sb, 1e-99, g.thickness, p.mu_n)
+    if teff < g.time / 100:
+        g.hmax = g.nt
+    else:
+    	g.hmax = 4
+        
+    return
+
 def do_simulation(p, thickness, nx, iniPar, times):
     g = Grid()
     g.thickness = thickness
@@ -219,12 +240,8 @@ def do_simulation(p, thickness, nx, iniPar, times):
     g.start_time = times[0]
     g.nt = len(times) - 1
     g.dt = g.time / g.nt
-
-    teff = LI_tau_eff(p.ks, p.p0, p.tauN, p.Sf, p.Sb, 1e-99, g.thickness, p.mu_n)
-    if teff < g.time / 100:
-        g.hmax = g.nt
-    else:
-    	g.hmax = 4
+    
+    det_hmax(g, p)
     g.tSteps = times
     
     sol, next_init_condition = model(iniPar, g, p)
@@ -260,6 +277,20 @@ def anneal(t, anneal_mode, anneal_params):
 
     else:
         raise ValueError("Invalid annealing type")
+        
+def detect_sim_fail(sol, ref_vals):
+    fail = len(sol) < len(ref_vals)
+    if fail:
+        sol2 = np.ones_like(ref_vals) * sys.float_info.min
+        sol2[:len(sol)] = sol
+        sol = np.array(sol2)
+        
+    return sol, fail
+
+def detect_sim_depleted(sol):
+    fail = np.any(sol < 0)
+    if fail: sol = np.abs(sol) + sys.float_info.min
+    return sol, fail
 
 def run_iteration(p, simPar, iniPar, times, vals, sim_flags, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
@@ -273,17 +304,14 @@ def run_iteration(p, simPar, iniPar, times, vals, sim_flags, verbose, logger, pr
         try:
             if verbose and logger is not None: 
                 logger.info("Simulation complete; final t {}".format(times[i][len(sol)-1]))
-            if len(sol) < len(vals[i]):
-                sol2 = np.ones_like(vals[i]) * sys.float_info.min
-                sol2[:len(sol)] = sol
-                sol = np.array(sol)
-                if logger is not None:
-                    logger.warning(f"{i}: Simulation terminated early!")
+            
+            sol, fail = detect_sim_fail(sol, vals[i])
+            if fail and logger is not None:
+                logger.warning(f"{i}: Simulation terminated early!")
 
-            if np.any(sol < 0):
-                sol = np.abs(sol + sys.float_info.min)
-                if logger is not None:
-                    logger.warning(f"{i}: Carriers depleted!")
+            sol, fail = detect_sim_depleted(sol)
+            if fail and logger is not None:
+                logger.warning(f"{i}: Carriers depleted!")
 
             p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
             # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
@@ -312,38 +340,31 @@ def run_iteration(p, simPar, iniPar, times, vals, sim_flags, verbose, logger, pr
 def kill_from_cl(signal_n, frame):
     raise KeyboardInterrupt("Terminate from command line")
 
-def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variance, logger):
-    #num_cpus = 2
-    num_cpus = min(os.cpu_count(), sim_flags["num_initial_guesses"])
-    logger.info(f"{num_cpus} CPUs marshalled")
-    logger.info(f"{len(initial_guess_list)} MC chains needed")
-    with Pool(num_cpus) as pool:
-        histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags, param_info, initial_variance, False, logger), initial_guess_list)
+# def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variance, logger):
+#     #num_cpus = 2
+#     num_cpus = min(os.cpu_count(), sim_flags["num_initial_guesses"])
+#     logger.info(f"{num_cpus} CPUs marshalled")
+#     logger.info(f"{len(initial_guess_list)} MC chains needed")
+#     with Pool(num_cpus) as pool:
+#         histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags, param_info, initial_variance, False, logger), initial_guess_list)
         
-    history_list = HistoryList(histories, param_info)
+#     history_list = HistoryList(histories, param_info)
     
-    return history_list
+#     return history_list
+
+def all_signal_handler(func):
+    for s in signal.Signals:
+        try:
+            signal.signal(s, func)
+        except ValueError:
+            continue
+    return
         
 def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbose, logger, initial_guess):
     # Setup
     #np.random.seed(42)
     logger.info("PID: {}".format(os.getpid()))
-    signal.signal(signal.SIGTERM, kill_from_cl)
-    signal.signal(signal.SIGHUP, kill_from_cl)
-    signal.signal(signal.SIGINT, kill_from_cl)
-    signal.signal(signal.SIGQUIT, kill_from_cl)
-    signal.signal(signal.SIGILL, kill_from_cl)
-    signal.signal(signal.SIGTRAP, kill_from_cl)
-    signal.signal(signal.SIGABRT, kill_from_cl)
-    signal.signal(signal.SIGBUS, kill_from_cl)
-    signal.signal(signal.SIGFPE, kill_from_cl)
-    #signal.signal(signal.SIGKILL, kill_from_cl)
-    signal.signal(signal.SIGUSR1, kill_from_cl)
-    signal.signal(signal.SIGSEGV, kill_from_cl)
-    signal.signal(signal.SIGUSR2, kill_from_cl)
-    signal.signal(signal.SIGPIPE, kill_from_cl)
-    signal.signal(signal.SIGALRM, kill_from_cl)
-    signal.signal(signal.SIGTERM, kill_from_cl)
+    all_signal_handler(kill_from_cl)
 
     num_iters = sim_flags["num_iters"]
     DA_mode = sim_flags.get("delayed_acceptance", "off")

@@ -1,11 +1,14 @@
 import unittest
 import numpy as np
+import logging
 import sys
-sys.path.append("..")
 
+from metropolis import print_status, all_signal_handler
+from metropolis import t_rad, t_auger, LI_tau_eff
 from metropolis import E_field, model, select_next_params, select_from_box 
 from metropolis import update_means, update_history, update_covariance
-from metropolis import do_simulation, roll_acceptance, unpack_simpar
+from metropolis import det_hmax, do_simulation, roll_acceptance, unpack_simpar
+from metropolis import detect_sim_fail, detect_sim_depleted
 from metropolis import draw_initial_guesses, check_approved_param, anneal
 from metropolis import run_iteration
 from sim_utils import Parameters, Grid, History, Covariance, MetroState
@@ -16,6 +19,89 @@ q_C = 1.602e-19 # [C]
 kB = 8.61773e-5  # [eV / K]
 
 class TestUtils(unittest.TestCase):
+    
+    def setUp(self):
+        self.logger = logging.getLogger()
+        pass
+    
+    def test_rad_lifetime(self):
+        B = 1e-11
+        p0 = 1e8
+        self.assertEqual(t_rad(B, p0), 1e3)
+        
+        B = 0
+        p0 = 1e8
+        np.testing.assert_equal(t_rad(B, p0), np.inf)
+        
+        B = 1e-11
+        p0 = 0
+        np.testing.assert_equal(t_rad(B, p0), np.inf)
+        return
+    
+    def test_auger_lifetime(self):
+        CP = 1e-11
+        p0 = 1e8
+        self.assertEqual(t_auger(CP, p0), 1e-5)
+        
+        CP = 0
+        p0 = 1e8
+        np.testing.assert_equal(t_auger(CP, p0), np.inf)
+        
+        CP = 1e-11
+        p0 = 0
+        np.testing.assert_equal(t_auger(CP, p0), np.inf)
+        return
+        
+    def test_LI_lifetime(self):
+        # This one needs inputs in units nm+ns
+        # SRH only
+        self.assertEqual(LI_tau_eff(0, 0, 511, 0, 0, 0, 2000, np.inf), 511)
+        
+        # Rad only
+        self.assertEqual(LI_tau_eff(1e-11, 1e8, np.inf, 0, 0, 0, 2000, np.inf), 1e3)
+        
+        # Auger only
+        self.assertEqual(LI_tau_eff(0, 1e8, np.inf, 0, 0, 1e-11, 2000, np.inf), 1e-5)
+        
+        # Surface only
+        self.assertEqual(LI_tau_eff(0, 0, np.inf, 10, 10, 0, 2000, np.inf), 100)
+        
+        self.assertAlmostEqual(LI_tau_eff(4.8e-11*1e21*1e-9, 3e15*1e-21, 511, 10*1e-2, 10*1e-2, 0, 2000, 20*1e14*1e-9), 454.366108935349)
+        
+    def test_all_signal(self):
+        f = lambda x: x
+        all_signal_handler(f)
+        
+    
+    def test_print_status(self):
+        param_names = ["a", "b", "c", "d"]
+
+        do_log = {"a":0, "b":1,"c":0,"d":0}
+        unit_conversions = {'a':1,'b':1,'c':1,'d':1}
+
+        initial_guesses = {"a":0, 
+                            "b":100, 
+                            "c":0,
+                            "d":10,}
+        
+        active_params = {"a":0, 
+                         "b":1, 
+                         "c":1, 
+                         "d":1,}
+        
+        param_info = {"active":active_params,
+                      "do_log":do_log,
+                      "names":param_names,
+                      "unit_conversions":unit_conversions}
+        
+        
+        pa = Parameters(param_info, initial_guesses)
+        means = pa
+        with self.assertLogs() as captured:
+            print_status(pa, means, param_info, logger=self.logger)
+            
+        # One message per active param
+        self.assertEqual(len(captured.records), sum(active_params.values()))
     
     def test_E_field(self):
         # Test 1D
@@ -138,6 +224,20 @@ class TestUtils(unittest.TestCase):
         new_p = np.log10([511, 511e3+1,  1])
         self.assertFalse(check_approved_param(new_p, info))
         
+        # Check mu_n, mu_p, Sf, and Sb size limits
+        info = {"names":["mu_n", "mu_p", "Sf", "Sb"]}
+        new_p = np.log10([1e6-1, 1e6-1, 1e7-1, 1e7-1])
+        self.assertTrue(check_approved_param(new_p, info))
+        
+        new_p = np.log10([1e6, 1e6-1, 1e7-1, 1e7-1])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.log10([1e6-1, 1e6, 1e7-1, 1e7-1])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.log10([1e6-1, 1e6-1, 1e7, 1e7-1])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.log10([1e6-1, 1e6-1, 1e7-1, 1e7])
+        self.assertFalse(check_approved_param(new_p, info))
+        
         info_without_taus = {'names':['tauQ', 'somethingelse']}
         # Always true if criteria do not cover params
         new_p = np.log10([1,1e10])
@@ -173,6 +273,8 @@ class TestUtils(unittest.TestCase):
         variances.set_variance('b', 0.1)
         variances.set_variance('c', 0)
         variances.set_variance('d', 1)
+        
+        # Try Gaussian selection
         select_next_params(pa, means, variances, param_info)
         
         self.assertEqual(pa.a, initial_guesses['a']) #Inactive and shouldn't change
@@ -180,8 +282,27 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(pa.c, initial_guesses['c']) # Shouldn't change because variance is zero
         self.assertAlmostEqual(pa.d, 9.38824359)
         
+        # Try invalid covaraince: pa should fall back to pre-existing values
+        variances.set_variance('d', -1)
+
+        with self.assertLogs() as captured:
+            select_next_params(pa, means, variances, param_info, logger=self.logger)
+                
+        self.assertEqual(len(captured.records), 1)
         
-        select_from_box(pa, means, variances, param_info)
+        self.assertEqual(pa.a, initial_guesses['a'])
+        self.assertAlmostEqual(pa.b, initial_guesses['b'])
+        self.assertEqual(pa.c, initial_guesses['c'])
+        self.assertAlmostEqual(pa.d, initial_guesses['d'])
+        
+        
+        # Try box selection
+        with self.assertLogs() as captured:
+            select_from_box(pa, means, variances, param_info, logger=self.logger)
+
+        self.assertEqual(len(captured.records), 1) # check that there is only one log message
+        self.assertEqual(captured.records[0].getMessage(), "Found suitable parameters in 1 attempts") # and it is the proper one
+
         self.assertEqual(pa.a, initial_guesses['a']) #Inactive and shouldn't change
         self.assertEqual(pa.c, initial_guesses['c'])
         num_tests = 100
@@ -268,6 +389,44 @@ class TestUtils(unittest.TestCase):
             self.assertEqual(sum(getattr(history, f"mean_{param}")), 2*example_means[param])
         return
     
+    def test_det_hmax(self):
+        unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
+                            "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
+                            "ks":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
+        
+        param_info = {"names":["n0", "p0", "mu_n", "mu_p", "ks", "tauN", "tauP",
+                               "Sf", "Sb", "eps"],
+                      "active":{"n0":0, "p0":1, 
+                                "mu_n":0, "mu_p":0, 
+                                "ks":1, "Sf":1, "Sb":1,
+                                "tauN":1,"tauP":1, "eps":0},
+                      "unit_conversions":unit_conversions}
+        vals = {'n0':1e8,
+                'p0':1e8,
+                'mu_n':1e99,
+                'mu_p':1e99,
+                "ks":1e-99,
+                'tauN':10,
+                'tauP':1e99,
+                'Sf':1e-99,
+                'Sb':1e-99,
+                'eps':1}
+        pa = Parameters(param_info, vals)
+        g = Grid()
+        g.thickness = 1000
+        g.time = 2000
+        g.nt = 0.025
+        
+        # Short lifetime: use precise g.nt
+        det_hmax(g, pa)
+        self.assertEqual(g.hmax, g.nt)
+        
+        pa.tauN = 1e99
+        
+        # Long lifetime: use fast g.hmax
+        det_hmax(g, pa)
+        self.assertEqual(g.hmax, 4)
+    
     def test_do_simulation(self):
         # Just verify this realistic simulation converges
         unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
@@ -301,6 +460,18 @@ class TestUtils(unittest.TestCase):
         iniPar = np.logspace(19, 14, nx) * 1e-21
         do_simulation(pa, thickness, nx, iniPar, times)
         return
+    
+    def test_sim_fail(self):
+        # Suppose our sim aborted halfway through...
+        reference = np.ones(100)
+        sim_output = np.zeros(50)
+        sim_output, fail = detect_sim_fail(sim_output, reference)
+        np.testing.assert_equal(sim_output, [0]*50 + [sys.float_info.min]*50)
+        
+    def test_sim_depleted(self):
+        sim_output = np.ones(10) * -1
+        sim_output, fail = detect_sim_depleted(sim_output)
+        np.testing.assert_equal(sim_output, [1 + sys.float_info.min] * 10)
     
     def test_roll_acceptance(self):
         np.random.seed(1)
@@ -357,6 +528,10 @@ class TestUtils(unittest.TestCase):
         t = 23523
         anneal_params = [10, t / (np.exp(1) - 2)]
         self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params[0] * np.log(2))
+        
+        anneal_mode = "not a mode"
+        with self.assertRaises(ValueError):
+            anneal(t, anneal_mode, anneal_params)
         
     def test_run_iter(self):
         # Will basically need to set up a full simulation for this
