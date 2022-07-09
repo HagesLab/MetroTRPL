@@ -31,6 +31,28 @@ def E_field(N, P, PA, dx, corner_E=0):
         num_tsteps = len(N)
         E = np.concatenate((np.ones(shape=(num_tsteps,1))*corner_E, E), axis=1)
     return E
+def t_rad(B, p0):
+    # B [nm^3 / ns]
+    # p0 [nm^-3]
+    return 1 / (B*p0)
+
+def t_auger(CP, p0):
+    return 1 / (CP*p0**2)
+
+def LI_tau_eff(B, p0, tau_n, Sf, Sb, CP, thickness, mu):
+    # S [nm/ns]
+    # B [nm^3 / ns]
+    # p0 [nm^-3]
+    # tau_n [ns]
+    # thickness [nm]
+    kb = 0.0257 #[ev]
+    q = 1
+    
+    D = mu * kb / q # [nm^2/ns]
+    tau_surf = (thickness / ((Sf+Sb))) + (thickness**2 / (np.pi ** 2 * D))
+    t_r = t_rad(B, p0)
+    t_aug = t_auger(CP, p0)
+    return (t_r**-1 + t_aug**-1 + tau_surf**-1 + tau_n**-1)**-1
 
 def model(init_dN, g, p):
     N = init_dN + p.n0
@@ -197,7 +219,12 @@ def do_simulation(p, thickness, nx, iniPar, times):
     g.start_time = times[0]
     g.nt = len(times) - 1
     g.dt = g.time / g.nt
-    g.hmax = 4
+
+    teff = LI_tau_eff(p.ks, p.p0, p.tauN, p.Sf, p.Sb, 1e-99, g.thickness, p.mu_n)
+    if teff < g.time / 100:
+        g.hmax = g.nt
+    else:
+    	g.hmax = 4
     g.tSteps = times
     
     sol, next_init_condition = model(iniPar, g, p)
@@ -301,6 +328,21 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     # Setup
     #np.random.seed(42)
     logger.info("PID: {}".format(os.getpid()))
+    signal.signal(signal.SIGTERM, kill_from_cl)
+    signal.signal(signal.SIGHUP, kill_from_cl)
+    signal.signal(signal.SIGINT, kill_from_cl)
+    signal.signal(signal.SIGQUIT, kill_from_cl)
+    signal.signal(signal.SIGILL, kill_from_cl)
+    signal.signal(signal.SIGTRAP, kill_from_cl)
+    signal.signal(signal.SIGABRT, kill_from_cl)
+    signal.signal(signal.SIGBUS, kill_from_cl)
+    signal.signal(signal.SIGFPE, kill_from_cl)
+    #signal.signal(signal.SIGKILL, kill_from_cl)
+    signal.signal(signal.SIGUSR1, kill_from_cl)
+    signal.signal(signal.SIGSEGV, kill_from_cl)
+    signal.signal(signal.SIGUSR2, kill_from_cl)
+    signal.signal(signal.SIGPIPE, kill_from_cl)
+    signal.signal(signal.SIGALRM, kill_from_cl)
     signal.signal(signal.SIGTERM, kill_from_cl)
 
     num_iters = sim_flags["num_iters"]
