@@ -5,6 +5,7 @@ import shutil
 
 from postprocessing_utils import recommend_logscale, calc_contours, fetch_param, fetch
 from postprocessing_utils import ASJD, ESS
+from postprocessing_utils import load_all_accepted
 from secondary_parameters import LI_tau_eff
 import math
 
@@ -216,7 +217,18 @@ class TestUtils(unittest.TestCase):
         avg_ess = ESS(test2, [None, None], do_log=False, verbose=False)
         self.assertAlmostEqual(avg_ess, 3494.367866841)
         
+    def test_load_all_accepted(self):
+        path = os.path.join("Tests", "testfiles")
+        names = ["mu_n", "p0", "tauN"]
+        is_active = {"mu_n":1, "p0":1, "tauN":0}
+        do_log = {"mu_n":0, "p0":1, "tauN":0}
+        allll = load_all_accepted(path, names, is_active, do_log)
+        
+        expected = np.array([[20] * 10, [12.36172784, 12.36172784, 12.36172784, 12.36172784, 12.36172784,
+                                         12.36172784, 11.85057902, 11.85057902, 11.85057902, 11.85057902]])
+        
+        np.testing.assert_almost_equal(allll, expected)
         
 if __name__ == "__main__":
     t = TestUtils()
-    t.test_ESS()
+    t.test_load_all_accepted()
