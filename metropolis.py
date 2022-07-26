@@ -253,10 +253,10 @@ def anneal(t, anneal_mode, anneal_params):
         return anneal_params[0]
 
     elif anneal_mode == "exp":
-        return anneal_params[0] * np.exp(-t / anneal_params[1])
+        return anneal_params[0] * np.exp(-t / anneal_params[1]) + anneal_params[2]
 
     elif anneal_mode == "log":
-        return (anneal_params[0] * np.log(2)) / (np.log(t / anneal_params[1] + 2))
+        return (anneal_params[0] * np.log(2)) / (np.log(t / anneal_params[1] + 2)) + anneal_params[2]
 
     else:
         raise ValueError("Invalid annealing type")

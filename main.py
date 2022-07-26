@@ -133,21 +133,22 @@ if __name__ == "__main__":
                         "tauP": 871,
                         "eps":10,
                         "m":0}
-    mods = [{}, {"p0":3e12}, {"p0":3e18}, {"ks":4.8e-14}, {"ks":4.8e-8},
-            {"p0":3e12, "ks":4.8e-14}, {"p0":3e12, "ks":4.8e-8},
-            {"p0":3e18, "ks":4.8e-14}, {"p0":3e18, "ks":4.8e-8}]
+    mods = [{"p0":3e14}, {"p0":3e16}, {"ks":4.8e-12}, {"ks":4.8e-10},
+            {"mu_n":2}, {"mu_n":200}, {"mu_p":2}, {"mu_p":200},
+            {"Sf":1}, {"Sf":100}, {"Sb":1}, {"Sb":100},
+            {"tauN":51.1}, {"tauN":5110}, {"tauP":87.1}, {"tauP":8710}]
     for p, v in mods[jobid].items():
         initial_guesses[p] = v
 
     active_params = {"n0":0,
                      "p0":1,
-                     "mu_n":0,
-                     "mu_p":0,
+                     "mu_n":1,
+                     "mu_p":1,
                      "ks":1,
-                     "Sf":0,
-                     "Sb":0,
-                     "tauN":0,
-                     "tauP":0,
+                     "Sf":1,
+                     "Sb":1,
+                     "tauN":1,
+                     "tauP":1,
                      "eps":0,
                      "m":0}
 
@@ -174,20 +175,21 @@ if __name__ == "__main__":
                      "tauP":1,
                      "eps":0,
                      "m":0}
+
     initial_variance = 1
     param_info = {"names":param_names,
                   "active":active_params,
                   "unit_conversions":unit_conversions,
                   "do_log":do_log,}
 
-    ic_flags = {"time_cutoff":None,
+    ic_flags = {"time_cutoff":2000,
                 "select_obs_sets": None,
                 "noise_level":None}
 
     # TODO: Validation
     sim_flags = {"num_iters": 100000,
-                 "anneal_mode": "log", # None, "exp", "log"
-                 "anneal_params": [1/2500*100, 100], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=
+                 "anneal_mode": "exp", # None, "exp", "log"
+                 "anneal_params": [1/2500*100, 1000, 1/2500*0.1], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=; minT]
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
