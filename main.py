@@ -189,7 +189,7 @@ if __name__ == "__main__":
     # TODO: Validation
     sim_flags = {"num_iters": 100000,
                  "anneal_mode": "exp", # None, "exp", "log"
-                 "anneal_params": [1/2500*100, 1000, 1/2500*0.1], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=; minT]
+                 "anneal_params": [1/2500*100, 1e4, 1/2500*0.1], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=; minT]
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,

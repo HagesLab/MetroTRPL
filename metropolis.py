@@ -356,7 +356,7 @@ def all_signal_handler(func):
     for s in signal.Signals:
         try:
             signal.signal(s, func)
-        except ValueError:
+        except (ValueError, OSError):
             continue
     return
         
@@ -374,6 +374,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     times, vals, uncs = e_data
     # As init temperature we take cN, where c is specified in main and N is number of observations
     sim_flags["anneal_params"][0] *= sum([len(time)-1 for time in times])
+    sim_flags["anneal_params"][2] *= sum([len(time)-1 for time in times])
 
     if load_checkpoint is not None:
         with open(os.path.join(sim_flags["checkpoint_dirname"], load_checkpoint), 'rb') as ifstream:
