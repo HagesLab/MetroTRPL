@@ -4,7 +4,7 @@ import os
 import shutil
 
 from postprocessing_utils import recommend_logscale, calc_contours, fetch_param, fetch
-from postprocessing_utils import ASJD, ESS
+from postprocessing_utils import ASJD, ESS, binned_stderr
 from postprocessing_utils import load_all_accepted
 from secondary_parameters import LI_tau_eff
 import math
@@ -216,6 +216,27 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(math.isnan(avg_ess))
         avg_ess = ESS(test2, [None, None], do_log=False, verbose=False)
         self.assertAlmostEqual(avg_ess, 3494.367866841)
+        
+    def test_binned_stderr(self):
+        test_chain = np.arange(100)
+        binning = 10
+        bins = np.arange(0, len(test_chain), int(binning))[1:]
+        
+        expected_out_submeans = [4.5,14.5,24.5,34.5,44.5,54.5,64.5,74.5,84.5,94.5]
+        
+        # There should be 10 subgroups - hence sqrt(10)
+        expected_out_stderr = np.std(expected_out_submeans, ddof=1) / np.sqrt(10)
+        
+        out_subs, out_stderr = binned_stderr(test_chain, bins)
+        np.testing.assert_equal(out_subs, expected_out_submeans)
+        self.assertEqual(out_stderr, expected_out_stderr)
+        
+        
+        # Disallow uneven binning
+        test_chain = np.arange(101)
+        with self.assertRaises(ValueError):
+            binned_stderr(test_chain, bins)
+        
         
     def test_load_all_accepted(self):
         path = os.path.join("Tests", "testfiles")

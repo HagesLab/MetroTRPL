@@ -6,7 +6,7 @@ Created on Fri Feb 18 13:53:02 2022
 """
 import numpy as np
 import os
-from secondary_parameters import mu_eff, LI_tau_eff
+from secondary_parameters import mu_eff, LI_tau_eff, HI_tau_eff
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
 importr('coda')
@@ -18,6 +18,9 @@ def recommend_logscale(which_param, do_log):
         
     elif which_param == "tau_eff":
         recommend = (do_log["tauN"] or (do_log["Sf"] or do_log["Sb"]))
+        
+    elif which_param == "HI_tau_eff":
+        recommend = (do_log["tauN"] or do_log["tauP"] or (do_log["Sf"] or do_log["Sb"]))
         
     elif which_param == "mu_eff":
         recommend = (do_log["mu_n"] or do_log["mu_p"])
@@ -43,6 +46,44 @@ def load_all_accepted(path, names, is_active, do_log):
             
         means.append(a)
     return np.array(means)
+
+def binned_stderr(vals, bins):
+    """
+    Calculate a standard error for a MC chain with states denoted by vals[] by
+    computing variance of subsample means.
+    
+    vals[] must be evenly subdivisible when bins are applied.
+
+    Parameters
+    ----------
+    vals : 1D array
+        List of states or parameter values visited by MC chain.
+    bins : 1D array
+        List of indices to divide vals[] using numpy.split.
+
+    Returns
+    -------
+    sub_means : 1D array
+        List of means from each subdivided portion of vals[].
+    stderr : float
+        Standard error computed by sqrt(var(sub_means) / N).
+
+    """
+    
+    accepted_subs = np.split(vals, bins)
+    
+    lengths = np.array(list(map(len, accepted_subs)))
+    if not np.all(lengths == lengths[0]):
+        raise ValueError("Uneven binning")
+        
+    num_bins = len(accepted_subs)
+    sub_means = np.zeros(num_bins)
+    for s, sub in enumerate(accepted_subs):
+        sub_means[s] = np.mean(sub)
+        
+    stderr = np.std(sub_means, ddof=1)# / np.sqrt(num_bins)
+    
+    return sub_means, stderr
 
 def ASJD(means, window):   
     diffs = np.diff(means[:,:,window[0]:window[1]], axis=2)
@@ -88,6 +129,9 @@ def fetch(path, which_param):
     elif which_param == "tau_eff":
         params = ["Sf", "Sb", "tauN", "mu_n", "mu_p", "ks", "p0"]
         
+    elif which_param == "HI_tau_eff":
+        params = ["Sf", "Sb", "tauN", "tauP", "mu_n", "mu_p", "ks", "p0"]
+        
     elif which_param == "mu_eff":
         params = ["mu_n", "mu_p"]
         
@@ -119,6 +163,17 @@ def fetch_param(raw_fetched, mean_fetched, which_param, **kwargs):
     elif which_param == "mu_eff":
         proposed = mu_eff(raw_fetched["mu_n"], raw_fetched["mu_p"])
         accepted = mu_eff(mean_fetched["mu_n"], mean_fetched["mu_p"])
+        
+    elif which_param == "HI_tau_eff":
+        mu_a = mu_eff(raw_fetched["mu_n"], raw_fetched["mu_p"])
+        mean_mu_a = mu_eff(mean_fetched["mu_n"], mean_fetched["mu_p"])
+        
+        thickness = kwargs.get("thickness", 2000)
+        proposed = HI_tau_eff(raw_fetched["ks"], raw_fetched["p0"], raw_fetched["tauN"], raw_fetched["tauP"],
+                              raw_fetched["Sf"], raw_fetched["Sb"], thickness, mu_a)
+        accepted = HI_tau_eff(mean_fetched["ks"], mean_fetched["p0"], mean_fetched["tauN"], mean_fetched["tauP"],
+                              mean_fetched["Sf"], mean_fetched["Sb"], thickness, mean_mu_a)
+        
         
     return proposed, accepted
 
