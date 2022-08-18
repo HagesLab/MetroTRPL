@@ -98,14 +98,15 @@ def check_approved_param(new_p, param_info):
     #return True
     order = param_info['names']
     ucs = param_info.get('unit_conversions', {})
-    # mu_n and mu_p between 1e-6 and 1e6; a reasonable range for most materials
+    # mu_n and mu_p between 1e-1 and 1e6; a reasonable range for most materials
     if 'mu_n' in order:
-        mu_n_size = (np.abs(new_p[order.index('mu_n')] - np.log10(ucs.get('mu_n', 1))) < 6)
+        mu_n_size = (new_p[order.index('mu_n')] - np.log10(ucs.get('mu_n', 1)) < 6) and (new_p[order.index('mu_n')] - np.log10(ucs.get('mu_n', 1)) > -1)
     else:
         mu_n_size = True
 
     if 'mu_p' in order:
-        mu_p_size = (np.abs(new_p[order.index('mu_p')] - np.log10(ucs.get('mu_p', 1))) < 6)
+        mu_p_size = (new_p[order.index('mu_p')] - np.log10(ucs.get('mu_p', 1)) < 6) and (new_p[order.index('mu_p')] - np.log10(ucs.get('mu_p', 1)) > -1)
+
     else:
         mu_p_size = True
 
@@ -267,7 +268,7 @@ def unpack_simpar(simPar, i):
 
 def anneal(t, anneal_mode, anneal_params):
     if anneal_mode is None or anneal_mode == "None":
-        return anneal_params[0]
+        return anneal_params[2]
 
     elif anneal_mode == "exp":
         return anneal_params[0] * np.exp(-t / anneal_params[1]) + anneal_params[2]
