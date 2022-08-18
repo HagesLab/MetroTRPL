@@ -35,7 +35,7 @@ else:
     init_fname = "staub_MAPI_power_thick_input.csv"
     exp_fname = "staub_MAPI_power_thick.csv"
     #exp_fname = "abrupt_p0.csv"
-    out_fname = "DEBUG2"
+    out_fname = "1Tbracket-Texp_-1_2_4"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -43,7 +43,7 @@ experimental_data_pathname = os.path.join(init_dir, exp_fname)
 out_pathname = os.path.join(out_dir, out_fname)
 if not os.path.isdir(out_pathname):
     try:
-        os.mkdir(out_pathname)
+        os.makedirs(out_pathname, exist_ok=True)
     except FileExistsError:
         print(f"{out_pathname} already exists")
 
@@ -51,18 +51,20 @@ if on_hpg:
     jobid = os.getenv('SLURM_ARRAY_TASK_ID')
     assert jobid is not None, "Error: use a job array script"
     jobid = int(jobid)
-    out_pathname = os.path.join(out_pathname, f"{jobid}")
+    
 else:
     try:
         jobid = int(sys.argv[2])
     except IndexError:
-        jobid = 0
+        jobid = 15
+        
+out_pathname = os.path.join(out_pathname, f"{jobid}")
 
 def start_logging(log_dir="Logs"):
 
     if not os.path.isdir(log_dir):
         try:
-            os.mkdir(log_dir)
+            os.makedirs(log_dir, exist_ok=True)
         except FileExistsError:
             pass
 
@@ -133,12 +135,12 @@ if __name__ == "__main__":
                         "tauP": 871,
                         "eps":10,
                         "m":0}
-    mods = [{"p0":3e14}, {"p0":3e16}, {"ks":4.8e-12}, {"ks":4.8e-10},
-            {"mu_n":2}, {"mu_n":200}, {"mu_p":2}, {"mu_p":200},
-            {"Sf":1}, {"Sf":100}, {"Sb":1}, {"Sb":100},
-            {"tauN":51.1}, {"tauN":5110}, {"tauP":87.1}, {"tauP":8710}]
-    for p, v in mods[jobid].items():
-        initial_guesses[p] = v
+    #mods = [{"p0":3e14}, {"p0":3e16}, {"ks":4.8e-12}, {"ks":4.8e-10},
+    #        {"mu_n":2}, {"mu_n":200}, {"mu_p":2}, {"mu_p":200},
+    #        {"Sf":1}, {"Sf":100}, {"Sb":1}, {"Sb":100},
+    #        {"tauN":51.1}, {"tauN":5110}, {"tauP":87.1}, {"tauP":8710}]
+    #for p, v in mods[jobid].items():
+    #    initial_guesses[p] = v
 
     active_params = {"n0":0,
                      "p0":1,
@@ -187,9 +189,9 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 100000,
-                 "anneal_mode": "exp", # None, "exp", "log"
-                 "anneal_params": [1/2500*100, 1e4, 1/2500*0.1], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=; minT]
+    sim_flags = {"num_iters": 50000,
+                 "anneal_mode": None, # None, "exp", "log"
+                 "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=; minT]
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
                  "DA time subdivisions": 1,
                  "override_equal_mu":False,
@@ -200,15 +202,15 @@ if __name__ == "__main__":
                  "proposal_function":"box", # box or gauss; anything else disables new proposals
                  "adaptive_covariance":"None", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
                  "AM_activation_time":0,
-                 "one_param_at_a_time":True,
+                 "one_param_at_a_time":False,
                  "LAP_params":(1,0.8,0.234),
                  "checkpoint_dirname": os.path.join(out_pathname, "Checkpoints"),
                  "checkpoint_freq":10000, # Save a checkpoint every #this many iterations#
-                 "load_checkpoint": None,
+                 "load_checkpoint": f"checkpoint_{pkl}.pik",
                  }
 
     if not os.path.isdir(sim_flags["checkpoint_dirname"]):
-        os.mkdir(sim_flags["checkpoint_dirname"])
+        os.makedirs(sim_flags["checkpoint_dirname"], exist_ok=True)
 
     # Reset (clear) checkpoints
     if sim_flags["load_checkpoint"] is None:
@@ -234,7 +236,7 @@ if __name__ == "__main__":
     #initial_guess_list = draw_initial_guesses(initial_guesses, sim_flags["num_initial_guesses"])
 
     if not os.path.isdir(out_pathname):
-        os.mkdir(out_pathname)
+        os.makedirs(out_pathname, exist_ok=True)
 
     with open(os.path.join(out_pathname, "param_info.pik"), "wb+") as ofstream:
         pickle.dump(param_info, ofstream)
