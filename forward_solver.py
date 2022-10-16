@@ -57,21 +57,21 @@ def dydt(t, y, g, p):
     ## Calculate recombination (consumption) terms
     rad_rec = p.ks * (N * P - p.n0 * p.p0)
     non_rad_rec = (N * P - p.n0 * p.p0) / ((p.tauN * P) + (p.tauP * N))
-        
+    auger_rec = (p.Cn * N + p.Cp * P) * (N * P - p.n0 * p.p0)
 
     ## Calculate dJn/dx
     dJz = (np.roll(Jn, -1)[:-1] - Jn[:-1]) / (g.dx)
 
     ## N(t) = N(t-1) + dt * (dN/dt)
     #N_new = np.maximum(N_previous + dt * ((1/q) * dJz - rad_rec - non_rad_rec + G_array), 0)
-    dNdt = ((1/q) * dJz - rad_rec - non_rad_rec)
+    dNdt = ((1/q) * dJz - rad_rec - non_rad_rec - auger_rec)
 
     ## Calculate dJp/dx
     dJz = (np.roll(Jp, -1)[:-1] - Jp[:-1]) / (g.dx)
 
     ## P(t) = P(t-1) + dt * (dP/dt)
     #P_new = np.maximum(P_previous + dt * ((1/q) * dJz - rad_rec - non_rad_rec + G_array), 0)
-    dPdt = ((1/q) * -dJz - rad_rec - non_rad_rec)
+    dPdt = ((1/q) * -dJz - rad_rec - non_rad_rec - auger_rec)
 
 
     ## Package results
