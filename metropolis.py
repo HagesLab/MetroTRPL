@@ -21,7 +21,10 @@ eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
 q = 1.0 # [e]
 q_C = 1.602e-19 # [C]
 kB = 8.61773e-5  # [eV / K]
-
+STARTING_HMAX = 1 # [ns]
+MIN_HMAX = 1e-2 # [ns]
+RTOL = 1e-10
+ATOL = 1e-14
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
         E = corner_E + q_C / (PA.eps * eps0) * dx * np.cumsum(((P - PA.p0) - (N - PA.n0)))
@@ -72,12 +75,14 @@ def model(init_dN, g, p):
     
     init_condition = np.concatenate([N, P, E_f], axis=None)
     args = (g,p)
-    sol = solve_ivp(dydt, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='BDF', max_step=g.hmax, rtol=1e-5, atol=1e-8)
+    sol = solve_ivp(dydt, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='BDF', max_step=g.hmax, rtol=RTOL, atol=ATOL)
     data = sol.y.T
     s = Solution()
     s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
-    s.calculate_PL(g, p)
-    return s.PL, (s.N[-1]-p.n0)
+    #s.calculate_PL(g, p)
+    s.calculate_TRTS(g,p)
+    #return s.PL, (s.N[-1]-p.n0)
+    return s.trts, (s.N[-1] - p.n0)
 
 def draw_initial_guesses(initial_guesses, num_initial_guesses):
     initial_guess_list = []
@@ -222,15 +227,15 @@ def update_history(H, k, p, means, param_info):
     return
 
 def det_hmax(g, p):
-    teff = LI_tau_eff(p.ks, p.p0, p.tauN, p.Sf, p.Sb, 1e-99, g.thickness, p.mu_n)
-    if teff < g.time / 100:
+    teff = LI_tau_eff(p.ks, p.p0, p.tauN, p.Sf, p.Sb, p.Cp, g.thickness, p.mu_n)
+    if teff < g.time / 100 or teff < 1:
         g.hmax = g.nt
     else:
     	g.hmax = 4
         
     return
 
-def do_simulation(p, thickness, nx, iniPar, times):
+def do_simulation(p, thickness, nx, iniPar, times, hmax):
     g = Grid()
     g.thickness = thickness
     g.nx = nx
@@ -240,13 +245,13 @@ def do_simulation(p, thickness, nx, iniPar, times):
     g.time = times[-1]
     g.start_time = times[0]
     g.nt = len(times) - 1
-    g.dt = g.time / g.nt
-    
-    det_hmax(g, p)
+    #g.dt = g.time / g.nt
+    g.hmax = hmax
+    #det_hmax(g, p)
     g.tSteps = times
     
     sol, next_init_condition = model(iniPar, g, p)
-    return sol, next_init_condition
+    return sol, times, next_init_condition
     
 def roll_acceptance(logratio):
     accepted = False
@@ -293,7 +298,13 @@ def detect_sim_depleted(sol):
     if fail: sol = np.abs(sol) + sys.float_info.min
     return sol, fail
 
-def run_iteration(p, simPar, iniPar, times, vals, sim_flags, verbose, logger, prev_p=None, t=0):
+def almost_equal(x, x0, threshold=1e-10):
+    if x.shape != x0.shape: return False
+
+    return np.abs(np.nanmax((x - x0) / x0)) < threshold
+
+
+def run_iteration(p, simPar, iniPar, times, vals, hmax, sim_flags, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
     accepted = True
     logratio = 0 # acceptance ratio = 1
@@ -301,20 +312,54 @@ def run_iteration(p, simPar, iniPar, times, vals, sim_flags, verbose, logger, pr
     for i in range(len(iniPar)):
         thickness, nx = unpack_simpar(simPar, i)
         next_init_condition = iniPar[i]
-        sol, next_init_condition = do_simulation(p, thickness, nx, next_init_condition, times[i])
-        try:
-            if verbose and logger is not None: 
-                logger.info("Simulation complete; final t {}".format(times[i][len(sol)-1]))
+        hmax[i] = min(STARTING_HMAX, hmax[i] * 2) # Always attempt a slightly larger hmax than what worked at previous proposal
+        while hmax[i] > MIN_HMAX:
+            sol, sim_times, n_i_c = do_simulation(p, thickness, nx, next_init_condition, times[i], hmax[i])
+        
+            if verbose: 
+                logger.info("{}: Simulation complete hmax={}; final t {}".format(i, hmax, times[i][len(sol)-1]))
             
             sol, fail = detect_sim_fail(sol, vals[i])
-            if fail and logger is not None:
+            if fail:
                 logger.warning(f"{i}: Simulation terminated early!")
 
             sol, fail = detect_sim_depleted(sol)
-            if fail and logger is not None:
+            if fail:
                 logger.warning(f"{i}: Carriers depleted!")
+                hmax[i] = max(MIN_HMAX, hmax[i] / 2)
+                logger.warning(f"{i}: Retrying hmax={hmax}")
+            else:
+                hmax[i] = max(MIN_HMAX, hmax[i] / 2)
+                if verbose:
+                    logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
+                sol2, sim_times2, n_i_c2 = do_simulation(p, thickness, nx, next_init_condition, times[i], hmax[i])
+                if almost_equal(sol, sol2, threshold=RTOL):
+                    logger.info("Success!")
+                    break
+                else:
+                    if verbose:
+                        logger.info(f"{i}: Fail - not converged")
+                        if hmax[i] <= MIN_HMAX:
+                            logger.warning(f"{i}: MIN_HMAX reached")
+        try:
+            if sim_flags.get("self_normalize", False):
+                sol /= np.nanmax(sol)
+            # TODO: accomodate multiple experiments, just like bayes
+            skip_time_interpolation = almost_equal(sim_times, times[i])
 
-            p.likelihood[i] -= np.sum((np.log10(sol) - vals[i])**2)
+            if logger is not None: 
+                if skip_time_interpolation:
+                    logger.info("Experiment {}: No time interpolation needed; bypassing".format(0))
+
+                else:
+                    logger.info("Experiment {}: time interpolating".format(0))
+
+            if skip_time_interpolation:
+                sol_int = sol
+            else:
+                sol_int = griddata(sim_times, sol, times[i])
+
+            p.likelihood[i] -= np.sum((np.log10(sol_int) - vals[i])**2)
             # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
             if np.isnan(p.likelihood[i]): raise ValueError(f"{i}: Simulation failed!")
         except ValueError as e:
@@ -387,7 +432,8 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
         starting_iter = 1
     
         # Calculate likelihood of initial guess
-        run_iteration(MS.prev_p, simPar, iniPar, times, vals, sim_flags, verbose, logger)
+        MS.running_hmax = [STARTING_HMAX] * len(iniPar)
+        accept = run_iteration(MS.prev_p, simPar, iniPar, times, vals, MS.running_hmax, sim_flags, verbose, logger)
         update_history(MS.H, 0, MS.prev_p, MS.means, param_info)
 
     for k in range(starting_iter, num_iters):
@@ -415,7 +461,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             # Calculate new likelihood?
                     
             if DA_mode == "off":
-                accepted = run_iteration(MS.p, simPar, iniPar, times, vals, sim_flags, verbose, logger, prev_p=MS.prev_p, t=k)
+                accepted = run_iteration(MS.p, simPar, iniPar, times, vals, MS.running_hmax, sim_flags, verbose, logger, prev_p=MS.prev_p, t=k)
                 
             elif DA_mode == 'DEBUG':
                 accepted = False

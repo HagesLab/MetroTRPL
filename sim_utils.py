@@ -43,6 +43,8 @@ class Parameters():
     n0 : float      # Electron doping level
     p0 : float      # Hole doping level
     B : float       # Radiative recombination rate
+    Cn : float      # Auger coef for two-electron one-hole
+    Cp : float      # Auger coef for two-hole one-electron
     tauN : float    # Electron bulk nonradiative decay lifetime
     tauP : float    # Hole bulk nonradiative decayl lifetime
     eps : float     # Relative dielectric cofficient
@@ -165,3 +167,9 @@ class Solution():
         self.PL = trapz(rr, dx=g.dx, axis=1)
         self.PL += rr[:, 0] * g.dx / 2
         self.PL += rr[:, -1] * g.dx / 2
+
+    def calculate_TRTS(self, g, p):
+        trts = p.mu_n * (self.N - p.n0) + p.mu_p * (self.P - p.p0)
+        self.trts = trapz(trts, dx=g.dx, axis=1)
+        self.trts += trts[:, 0] * g.dx / 2
+        self.trts += trts[:, -1] * g.dx / 2

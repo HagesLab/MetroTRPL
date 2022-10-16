@@ -29,13 +29,15 @@ if on_hpg:
     out_fname = sys.argv[2]
 
 else:
-    init_dir = r"bay_inputs"
-    out_dir = r"bay_outputs"
+    init_dir = r"trts_inputs"
+    out_dir = r"trts_outputs"
 
-    init_fname = "staub_MAPI_power_thick_input.csv"
-    exp_fname = "staub_MAPI_power_thick.csv"
+    #init_fname = "mocktrts_cdte_800nm_input.csv"
+    #exp_fname = "mocktrts_cdte_800nm.csv"
     #exp_fname = "abrupt_p0.csv"
-    out_fname = "1Tbracket-Texp_-1_2_4"
+    init_fname = "2A1FS_input.csv"
+    exp_fname = "2A1FS.csv"
+    out_fname = "2A1FS"
 
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -103,8 +105,8 @@ if __name__ == "__main__":
     logger, handler = start_logging(log_dir=os.path.join(out_pathname))
     # Set space and time grid options
     #Length = [311,2000,311,2000, 311, 2000]
-    Length  = 2000                            # Length (nm)
-    L   = 2 ** 7                                # Spatial points
+    Length  = 3000                            # Length (nm)
+    L   = 300                                # Spatial points
     plT = 1                                  # Set PL interval (dt)
     pT  = (0,1,3,10,30,100)                   # Set plot intervals (%)
     tol = 7                                   # Convergence tolerance
@@ -113,27 +115,31 @@ if __name__ == "__main__":
     simPar = [Length, -1, L, -1, plT, pT, tol, MAX]
 
     # This code follows a strict order of parameters:
-    # matPar = [N0, P0, DN, DP, rate, sr0, srL, tauN, tauP, Lambda, mag_offset]
+    # matPar = [N0, P0, DN, DP, rate, Cn, Cp, sr0, srL, tauN, tauP, Lambda, mag_offset]
     # Set the parameter ranges/sample space
-    param_names = ["n0", "p0", "mu_n", "mu_p", "ks", 
+    param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp",
                    "Sf", "Sb", "tauN", "tauP", "eps", "m"]
     unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
                         "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
-                        "ks":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
-    do_log = {"n0":1, "p0":1,"mu_n":1,"mu_p":1,"ks":1,
+                        "ks":((1e7) ** 3) / (1e9), 
+                        "Cn":((1e7) ** 6) / (1e9), "Cp":((1e7) ** 6) / (1e9),
+                        "Sf":1e-2, "Sb":1e-2}
+    do_log = {"n0":1, "p0":1,"mu_n":1,"mu_p":1,"ks":1, "Cn":1, "Cp":1,
               "Sf":1,"Sb":1,"tauN":1,"tauP":1,"eps":1,
               "m":0}
 
     initial_guesses = {"n0":1e8,
-                        "p0": 3e15,
-                        "mu_n": 20,
-                        "mu_p": 20,
-                        "ks": 4.8e-11,
-                        "Sf":10,
-                        "Sb": 10,
-                        "tauN": 511,
-                        "tauP": 871,
-                        "eps":10,
+                        "p0": 1e13,
+                        "mu_n": 320,
+                        "mu_p": 80,
+                        "ks": 2e-10,
+                        "Cn": 1e-99,
+                        "Cp": 1e-99,
+                        "Sf":10000,
+                        "Sb": 1000,
+                        "tauN": 10,
+                        "tauP": 10,
+                        "eps":9.4,
                         "m":0}
     #mods = [{"p0":3e14}, {"p0":3e16}, {"ks":4.8e-12}, {"ks":4.8e-10},
     #        {"mu_n":2}, {"mu_n":200}, {"mu_p":2}, {"mu_p":200},
@@ -147,6 +153,8 @@ if __name__ == "__main__":
                      "mu_n":1,
                      "mu_p":1,
                      "ks":1,
+                     "Cn":0,
+                     "Cp":0,
                      "Sf":1,
                      "Sb":1,
                      "tauN":1,
@@ -171,6 +179,8 @@ if __name__ == "__main__":
                      "mu_n":0.1,
                      "mu_p":0.1,
                      "ks":1,
+                     "Cn":1,
+                     "Cp":1,
                      "Sf":1,
                      "Sb":1,
                      "tauN":1,
@@ -178,7 +188,8 @@ if __name__ == "__main__":
                      "eps":0,
                      "m":0}
 
-    initial_variance = 1
+    initial_variance = 1e-2
+
     param_info = {"names":param_names,
                   "active":active_params,
                   "unit_conversions":unit_conversions,
@@ -189,7 +200,7 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 50000,
+    sim_flags = {"num_iters": 10000,
                  "anneal_mode": None, # None, "exp", "log"
                  "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=; minT]
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
@@ -197,7 +208,7 @@ if __name__ == "__main__":
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
-                 "self_normalize":False,
+                 "self_normalize":True,
                  "num_initial_guesses":4,
                  "proposal_function":"box", # box or gauss; anything else disables new proposals
                  "adaptive_covariance":"None", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
@@ -205,8 +216,8 @@ if __name__ == "__main__":
                  "one_param_at_a_time":False,
                  "LAP_params":(1,0.8,0.234),
                  "checkpoint_dirname": os.path.join(out_pathname, "Checkpoints"),
-                 "checkpoint_freq":10000, # Save a checkpoint every #this many iterations#
-                 "load_checkpoint": f"checkpoint_{pkl}.pik",
+                 "checkpoint_freq":1000, # Save a checkpoint every #this many iterations#
+                 "load_checkpoint": None,
                  }
 
     if not os.path.isdir(sim_flags["checkpoint_dirname"]):
