@@ -21,7 +21,7 @@ eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
 q = 1.0 # [e]
 q_C = 1.602e-19 # [C]
 kB = 8.61773e-5  # [eV / K]
-STARTING_HMAX = 1 # [ns]
+STARTING_HMAX = 0.1 # [ns]
 MIN_HMAX = 1e-2 # [ns]
 RTOL = 1e-10
 ATOL = 1e-14
@@ -329,6 +329,7 @@ def run_iteration(p, simPar, iniPar, times, vals, hmax, sim_flags, verbose, logg
                 hmax[i] = max(MIN_HMAX, hmax[i] / 2)
                 logger.warning(f"{i}: Retrying hmax={hmax}")
             else:
+                break
                 hmax[i] = max(MIN_HMAX, hmax[i] / 2)
                 if verbose:
                     logger.info(f"{i}: Verifying convergence with hmax={hmax}...")

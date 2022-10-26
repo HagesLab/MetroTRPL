@@ -35,10 +35,9 @@ else:
     #init_fname = "mocktrts_cdte_800nm_input.csv"
     #exp_fname = "mocktrts_cdte_800nm.csv"
     #exp_fname = "abrupt_p0.csv"
-    init_fname = "2A1FS_input.csv"
-    exp_fname = "2A1FS.csv"
-    out_fname = "2A1FS"
-
+    init_fname = "2A1FSGS_input.csv"
+    exp_fname = "2A1FSGS.csv"
+    out_fname = "2A1FSGS"
 
 init_pathname = os.path.join(init_dir, init_fname)
 experimental_data_pathname = os.path.join(init_dir, exp_fname)
@@ -106,7 +105,7 @@ if __name__ == "__main__":
     # Set space and time grid options
     #Length = [311,2000,311,2000, 311, 2000]
     Length  = 3000                            # Length (nm)
-    L   = 300                                # Spatial points
+    L   = 128                                # Spatial points
     plT = 1                                  # Set PL interval (dt)
     pT  = (0,1,3,10,30,100)                   # Set plot intervals (%)
     tol = 7                                   # Convergence tolerance
@@ -188,7 +187,7 @@ if __name__ == "__main__":
                      "eps":0,
                      "m":0}
 
-    initial_variance = 1e-2
+    initial_variance = 1e-1
 
     param_info = {"names":param_names,
                   "active":active_params,
@@ -200,7 +199,7 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 10000,
+    sim_flags = {"num_iters": 25000,
                  "anneal_mode": None, # None, "exp", "log"
                  "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=; minT]
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
@@ -216,7 +215,7 @@ if __name__ == "__main__":
                  "one_param_at_a_time":False,
                  "LAP_params":(1,0.8,0.234),
                  "checkpoint_dirname": os.path.join(out_pathname, "Checkpoints"),
-                 "checkpoint_freq":1000, # Save a checkpoint every #this many iterations#
+                 "checkpoint_freq":2500, # Save a checkpoint every #this many iterations#
                  "load_checkpoint": None,
                  }
 
