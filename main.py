@@ -37,7 +37,7 @@ else:
     #exp_fname = "abrupt_p0.csv"
     init_fname = "2A1FSGS_input.csv"
     exp_fname = "2A1FSGS.csv"
-    out_fname = "2A1FSGS"
+    out_fname = "YESNUMBA"
 
 init_pathname = os.path.join(init_dir, init_fname)
 experimental_data_pathname = os.path.join(init_dir, exp_fname)
@@ -57,7 +57,7 @@ else:
     try:
         jobid = int(sys.argv[2])
     except IndexError:
-        jobid = 15
+        jobid = 0
         
 out_pathname = os.path.join(out_pathname, f"{jobid}")
 
@@ -199,7 +199,8 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 25000,
+    sim_flags = {"num_iters": 30,
+                 "use_numba": True,
                  "anneal_mode": None, # None, "exp", "log"
                  "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=; minT]
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
