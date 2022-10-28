@@ -53,6 +53,7 @@ else:
                   2:"YESNUMBA_NOPROFILE_LESSTOL",
                   3:"YESNUMBA_YESPROFILE_LESSTOL"}
     out_fname = out_fnames[jobid]
+    out_fname = "DEBUG"
 
 init_pathname = os.path.join(init_dir, init_fname)
 experimental_data_pathname = os.path.join(init_dir, exp_fname)
@@ -204,8 +205,9 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 100,
-                 "use_numba": (jobid == 2 or jobid == 3),
+    sim_flags = {"num_iters": 10,
+                 "use_numba": True,
+                 "use_multi_cpus":True,
                  "rtol":1e-10,
                  "atol":1e-14,
                  "hmax":4,
