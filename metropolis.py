@@ -57,7 +57,7 @@ def LI_tau_eff(B, p0, tau_n, Sf, Sb, CP, thickness, mu):
     q = 1
     
     D = mu * kb / q # [nm^2/ns]
-   if Sf+Sb == 0 or D == 0:
+    if Sf+Sb == 0 or D == 0:
         tau_surf = np.inf
     else:
         tau_surf = (thickness / ((Sf+Sb))) + (thickness**2 / (np.pi ** 2 * D))
@@ -256,8 +256,8 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, use_numba=True, rtol=1e
     #det_hmax(g, p)
     g.tSteps = times
     
-    sol, next_init_condition = model(iniPar, g, p, use_numba=use_numba, rtol=rtol, atol=atol)
-    return sol, times, next_init_condition
+    sol, next_init_condition = model(iniPar, g, p, use_numba=use_numba, RTOL=rtol, ATOL=atol)
+    return sol
     
 def roll_acceptance(logratio):
     accepted = False
@@ -309,71 +309,86 @@ def almost_equal(x, x0, threshold=1e-10):
 
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
-def run_iteration(p, simPar, iniPar, times, vals, hmax, sim_flags, verbose, logger, prev_p=None, t=0):
-    # Calculates likelihood of a new proposed parameter set
+def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
+    i, iniPar, times, vals = args
     STARTING_HMAX = sim_flags["hmax"]
     RTOL = sim_flags["rtol"]
     ATOL = sim_flags["atol"]
+    thickness, nx = unpack_simpar(simPar, i)
+    hmax[i] = min(STARTING_HMAX, hmax[i] * 2) # Always attempt a slightly larger hmax than what worked at previous proposal
+    
+    while hmax[i] > MIN_HMAX:
+        sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], use_numba=sim_flags["use_numba"], rtol=RTOL, atol=ATOL)
+        
+        #if verbose: 
+        logger.info("{}: Simulation complete hmax={}; final t {}".format(i, hmax, times[len(sol)-1]))
+        
+        sol, fail = detect_sim_fail(sol, vals)
+        if fail:
+            logger.warning(f"{i}: Simulation terminated early!")
+
+        sol, fail = detect_sim_depleted(sol)
+        if fail:
+            logger.warning(f"{i}: Carriers depleted!")
+            hmax[i] = max(MIN_HMAX, hmax[i] / 2)
+            logger.warning(f"{i}: Retrying hmax={hmax}")
+        else:
+            break
+            # hmax[i] = max(MIN_HMAX, hmax[i] / 2)
+            # if verbose:
+            #     logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
+            # sol2 = do_simulation(p, thickness, nx, next_init_condition, times, hmax[i], use_numba=sim_flags["use_numba"], rtol=RTOL, atol=ATOL)
+            # if almost_equal(sol, sol2, threshold=RTOL):
+            #     logger.info("Success!")
+            #     break
+            # else:
+            #     if verbose:
+            #         logger.info(f"{i}: Fail - not converged")
+            #         if hmax[i] <= MIN_HMAX:
+            #             logger.warning(f"{i}: MIN_HMAX reached")
+    try:
+        if sim_flags.get("self_normalize", False):
+            sol /= np.nanmax(sol)
+        # TODO: accomodate multiple experiments, just like bayes
+        # skip_time_interpolation = almost_equal(sim_times, times)
+
+        # if logger is not None: 
+        #     if skip_time_interpolation:
+        #         logger.info("Experiment {}: No time interpolation needed; bypassing".format(0))
+
+        #     else:
+        #         logger.info("Experiment {}: time interpolating".format(0))
+
+        # if skip_time_interpolation:
+        #     sol_int = sol
+        # else:
+        #     sol_int = griddata(sim_times, sol, times)
+
+        likelihood = -np.sum((np.log10(sol) - vals)**2)
+
+        # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
+        if np.isnan(likelihood): raise ValueError(f"{i}: Simulation failed!")
+    except ValueError as e:
+        logger.warning(e)
+        likelihood = -np.inf
+    return likelihood
+        
+
+def run_iteration(p, simPar, iniPar, times, vals, hmax, sim_flags, verbose, logger, prev_p=None, t=0):
+    # Calculates likelihood of a new proposed parameter set
     accepted = True
     logratio = 0 # acceptance ratio = 1
     p.likelihood = np.zeros(len(iniPar))
-    for i in range(len(iniPar)):
-        thickness, nx = unpack_simpar(simPar, i)
-        next_init_condition = iniPar[i]
-        hmax[i] = min(STARTING_HMAX, hmax[i] * 2) # Always attempt a slightly larger hmax than what worked at previous proposal
-        while hmax[i] > MIN_HMAX:
-            sol, sim_times, n_i_c = do_simulation(p, thickness, nx, next_init_condition, times[i], hmax[i], use_numba=sim_flags["use_numba"], rtol=RTOL, atol=ATOL)
-        
-            if verbose: 
-                logger.info("{}: Simulation complete hmax={}; final t {}".format(i, hmax, times[i][len(sol)-1]))
-            
-            sol, fail = detect_sim_fail(sol, vals[i])
-            if fail:
-                logger.warning(f"{i}: Simulation terminated early!")
-
-            sol, fail = detect_sim_depleted(sol)
-            if fail:
-                logger.warning(f"{i}: Carriers depleted!")
-                hmax[i] = max(MIN_HMAX, hmax[i] / 2)
-                logger.warning(f"{i}: Retrying hmax={hmax}")
-            else:
-                break
-                hmax[i] = max(MIN_HMAX, hmax[i] / 2)
-                if verbose:
-                    logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
-                sol2, sim_times2, n_i_c2 = do_simulation(p, thickness, nx, next_init_condition, times[i], hmax[i], use_numba=sim_flags["use_numba"], rtol=RTOL, atol=ATOL)
-                if almost_equal(sol, sol2, threshold=RTOL):
-                    logger.info("Success!")
-                    break
-                else:
-                    if verbose:
-                        logger.info(f"{i}: Fail - not converged")
-                        if hmax[i] <= MIN_HMAX:
-                            logger.warning(f"{i}: MIN_HMAX reached")
-        try:
-            if sim_flags.get("self_normalize", False):
-                sol /= np.nanmax(sol)
-            # TODO: accomodate multiple experiments, just like bayes
-            skip_time_interpolation = almost_equal(sim_times, times[i])
-
-            if logger is not None: 
-                if skip_time_interpolation:
-                    logger.info("Experiment {}: No time interpolation needed; bypassing".format(0))
-
-                else:
-                    logger.info("Experiment {}: time interpolating".format(0))
-
-            if skip_time_interpolation:
-                sol_int = sol
-            else:
-                sol_int = griddata(sim_times, sol, times[i])
-
-            p.likelihood[i] -= np.sum((np.log10(sol_int) - vals[i])**2)
-            # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
-            if np.isnan(p.likelihood[i]): raise ValueError(f"{i}: Simulation failed!")
-        except ValueError as e:
-            logger.warning(e)
-            p.likelihood[i] = -np.inf
+    
+    if sim_flags.get("use_multi_cpus", False):
+        raise NotImplementedError
+        #with Pool(sim_flags["num_cpus"]) as pool:
+        #    likelihoods = pool.map(partial(one_sim_likelihood, p, simPar, hmax, sim_flags, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
+        #    p.likelihood = np.array(likelihoods)
+                
+    else:
+        for i in range(len(iniPar)):
+            p.likelihood[i] = one_sim_likelihood(p, simPar, hmax, sim_flags, logger, (i, iniPar[i], times[i], vals[i]))
             
     if prev_p is not None:
         T = anneal(t, sim_flags["anneal_mode"], sim_flags["anneal_params"])
@@ -426,6 +441,11 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     checkpoint_freq = sim_flags["checkpoint_freq"]
     load_checkpoint = sim_flags["load_checkpoint"]
     STARTING_HMAX = sim_flags["hmax"]
+    
+    if sim_flags.get("use_multi_cpus", False):
+        sim_flags["num_cpus"] = min(os.cpu_count(), len(iniPar))
+        logger.info("Taking {} cpus".format(sim_flags["num_cpus"]))
+    
     times, vals, uncs = e_data
     # As init temperature we take cN, where c is specified in main and N is number of observations
     sim_flags["anneal_params"][0] *= sum([len(time)-1 for time in times])
