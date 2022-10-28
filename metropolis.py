@@ -381,9 +381,10 @@ def run_iteration(p, simPar, iniPar, times, vals, hmax, sim_flags, verbose, logg
     p.likelihood = np.zeros(len(iniPar))
     
     if sim_flags.get("use_multi_cpus", False):
-        with Pool(sim_flags["num_cpus"]) as pool:
-            likelihoods = pool.map(partial(one_sim_likelihood, p, simPar, hmax, sim_flags, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
-            p.likelihood = np.array(likelihoods)
+        raise NotImplementedError
+        #with Pool(sim_flags["num_cpus"]) as pool:
+        #    likelihoods = pool.map(partial(one_sim_likelihood, p, simPar, hmax, sim_flags, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
+        #    p.likelihood = np.array(likelihoods)
                 
     else:
         for i in range(len(iniPar)):

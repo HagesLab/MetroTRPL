@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 # cProfile files
-.pstats
+*.pstats
 
 # Bash scripts
-.sh
+*.sh
