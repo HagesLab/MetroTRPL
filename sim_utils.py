@@ -8,6 +8,7 @@ import numpy as np
 from scipy.integrate import trapz
 import os
 import pickle
+from numba import njit
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
 q_C = 1.602e-19 # [C per carrier]
@@ -162,7 +163,7 @@ class Solution():
         return
 
     def calculate_PL(self, g, p):
-        rr = p.ks * (self.N * self.P - p.n0*p.p0)
+        rr = calculate_RR(self.N, self.P, p.ks, p.n0, p.p0)
         
         self.PL = trapz(rr, dx=g.dx, axis=1)
         self.PL += rr[:, 0] * g.dx / 2
@@ -173,3 +174,8 @@ class Solution():
         self.trts = trapz(trts, dx=g.dx, axis=1)
         self.trts += trts[:, 0] * g.dx / 2
         self.trts += trts[:, -1] * g.dx / 2
+
+@njit(cache=True)
+def calculate_RR(N, P, ks, n0, p0):
+    return ks * (N * P - n0 * p0)
+
