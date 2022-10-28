@@ -21,10 +21,7 @@ eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
 q = 1.0 # [e]
 q_C = 1.602e-19 # [C]
 kB = 8.61773e-5  # [eV / K]
-STARTING_HMAX = 0.1 # [ns]
 MIN_HMAX = 1e-2 # [ns]
-RTOL = 1e-10
-ATOL = 1e-14
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
         E = corner_E + q_C / (PA.eps * eps0) * dx * np.cumsum(((P - PA.p0) - (N - PA.n0)))
@@ -60,7 +57,7 @@ def LI_tau_eff(B, p0, tau_n, Sf, Sb, CP, thickness, mu):
     q = 1
     
     D = mu * kb / q # [nm^2/ns]
-    if Sf+Sb == 0 or D == 0:
+   if Sf+Sb == 0 or D == 0:
         tau_surf = np.inf
     else:
         tau_surf = (thickness / ((Sf+Sb))) + (thickness**2 / (np.pi ** 2 * D))
@@ -68,7 +65,7 @@ def LI_tau_eff(B, p0, tau_n, Sf, Sb, CP, thickness, mu):
     t_aug = t_auger(CP, p0)
     return (t_r**-1 + t_aug**-1 + tau_surf**-1 + tau_n**-1)**-1
 
-def model(init_dN, g, p, use_numba=True):
+def model(init_dN, g, p, use_numba=True, RTOL=1e-10, ATOL=1e-14):
     N = init_dN + p.n0
     P = init_dN + p.p0
     E_f = E_field(N, P, p, g.dx)
@@ -87,11 +84,11 @@ def model(init_dN, g, p, use_numba=True):
 
     s = Solution()
     s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
-    #s.calculate_PL(g, p)
-    s.calculate_TRTS(g,p)
+    s.calculate_PL(g, p)
+    #s.calculate_TRTS(g,p)
     
-    #return s.PL, (s.N[-1]-p.n0)
-    return s.trts, (s.N[-1] - p.n0)
+    return s.PL, (s.N[-1]-p.n0)
+    #return s.trts, (s.N[-1] - p.n0)
 
 def draw_initial_guesses(initial_guesses, num_initial_guesses):
     initial_guess_list = []
@@ -244,7 +241,7 @@ def det_hmax(g, p):
         
     return
 
-def do_simulation(p, thickness, nx, iniPar, times, hmax, use_numba=True):
+def do_simulation(p, thickness, nx, iniPar, times, hmax, use_numba=True, rtol=1e-10, atol=1e-14):
     g = Grid()
     g.thickness = thickness
     g.nx = nx
@@ -259,7 +256,7 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, use_numba=True):
     #det_hmax(g, p)
     g.tSteps = times
     
-    sol, next_init_condition = model(iniPar, g, p, use_numba=use_numba)
+    sol, next_init_condition = model(iniPar, g, p, use_numba=use_numba, rtol=rtol, atol=atol)
     return sol, times, next_init_condition
     
 def roll_acceptance(logratio):
@@ -312,9 +309,11 @@ def almost_equal(x, x0, threshold=1e-10):
 
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
-
 def run_iteration(p, simPar, iniPar, times, vals, hmax, sim_flags, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
+    STARTING_HMAX = sim_flags["hmax"]
+    RTOL = sim_flags["rtol"]
+    ATOL = sim_flags["atol"]
     accepted = True
     logratio = 0 # acceptance ratio = 1
     p.likelihood = np.zeros(len(iniPar))
@@ -323,7 +322,7 @@ def run_iteration(p, simPar, iniPar, times, vals, hmax, sim_flags, verbose, logg
         next_init_condition = iniPar[i]
         hmax[i] = min(STARTING_HMAX, hmax[i] * 2) # Always attempt a slightly larger hmax than what worked at previous proposal
         while hmax[i] > MIN_HMAX:
-            sol, sim_times, n_i_c = do_simulation(p, thickness, nx, next_init_condition, times[i], hmax[i], use_numba=sim_flags["use_numba"])
+            sol, sim_times, n_i_c = do_simulation(p, thickness, nx, next_init_condition, times[i], hmax[i], use_numba=sim_flags["use_numba"], rtol=RTOL, atol=ATOL)
         
             if verbose: 
                 logger.info("{}: Simulation complete hmax={}; final t {}".format(i, hmax, times[i][len(sol)-1]))
@@ -342,7 +341,7 @@ def run_iteration(p, simPar, iniPar, times, vals, hmax, sim_flags, verbose, logg
                 hmax[i] = max(MIN_HMAX, hmax[i] / 2)
                 if verbose:
                     logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
-                sol2, sim_times2, n_i_c2 = do_simulation(p, thickness, nx, next_init_condition, times[i], hmax[i], use_numba=sim_flags["use_numba"])
+                sol2, sim_times2, n_i_c2 = do_simulation(p, thickness, nx, next_init_condition, times[i], hmax[i], use_numba=sim_flags["use_numba"], rtol=RTOL, atol=ATOL)
                 if almost_equal(sol, sol2, threshold=RTOL):
                     logger.info("Success!")
                     break
@@ -415,7 +414,7 @@ def all_signal_handler(func):
         except (ValueError, OSError):
             continue
     return
-        
+
 def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbose, logger, initial_guess):
     # Setup
     #np.random.seed(42)
@@ -426,7 +425,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     DA_mode = sim_flags.get("delayed_acceptance", "off")
     checkpoint_freq = sim_flags["checkpoint_freq"]
     load_checkpoint = sim_flags["load_checkpoint"]
-
+    STARTING_HMAX = sim_flags["hmax"]
     times, vals, uncs = e_data
     # As init temperature we take cN, where c is specified in main and N is number of observations
     sim_flags["anneal_params"][0] *= sum([len(time)-1 for time in times])

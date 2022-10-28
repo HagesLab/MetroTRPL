@@ -21,6 +21,17 @@ except ValueError:
     sys.exit(1)
 
 if on_hpg:
+    jobid = os.getenv('SLURM_ARRAY_TASK_ID')
+    assert jobid is not None, "Error: use a job array script"
+    jobid = int(jobid)
+    
+else:
+    try:
+        jobid = int(sys.argv[2])
+    except IndexError:
+        jobid = 0
+
+if on_hpg:
     init_dir = r"/blue/c.hages/cfai2304/Metro_in"
     out_dir = r"/blue/c.hages/cfai2304/Metro_out"
 
@@ -37,7 +48,11 @@ else:
     #exp_fname = "abrupt_p0.csv"
     init_fname = "2A1FSGS_input.csv"
     exp_fname = "2A1FSGS.csv"
-    out_fname = "YESNUMBA"
+    out_fnames = {0:"NONUMBA_NOPROFILE_LESSTOL",
+                  1:"NONUMBA_YESPROFILE_LESSTOL",
+                  2:"YESNUMBA_NOPROFILE_LESSTOL",
+                  3:"YESNUMBA_YESPROFILE_LESSTOL"}
+    out_fname = out_fnames[jobid]
 
 init_pathname = os.path.join(init_dir, init_fname)
 experimental_data_pathname = os.path.join(init_dir, exp_fname)
@@ -48,16 +63,6 @@ if not os.path.isdir(out_pathname):
     except FileExistsError:
         print(f"{out_pathname} already exists")
 
-if on_hpg:
-    jobid = os.getenv('SLURM_ARRAY_TASK_ID')
-    assert jobid is not None, "Error: use a job array script"
-    jobid = int(jobid)
-    
-else:
-    try:
-        jobid = int(sys.argv[2])
-    except IndexError:
-        jobid = 0
         
 out_pathname = os.path.join(out_pathname, f"{jobid}")
 
@@ -199,8 +204,11 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 30,
-                 "use_numba": True,
+    sim_flags = {"num_iters": 100,
+                 "use_numba": (jobid == 2 or jobid == 3),
+                 "rtol":1e-10,
+                 "atol":1e-14,
+                 "hmax":4,
                  "anneal_mode": None, # None, "exp", "log"
                  "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=; minT]
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
@@ -234,7 +242,7 @@ if __name__ == "__main__":
         logger.info(f"Not array job, using ID={jobid}")
 
 
-    np.random.seed(jobid)
+    np.random.seed(0)
     #param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
     #for param in initial_guesses:
     #    if param_is_iterable[param]:
