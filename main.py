@@ -48,12 +48,9 @@ else:
     #exp_fname = "abrupt_p0.csv"
     init_fname = "2A1FSGS_input.csv"
     exp_fname = "2A1FSGS.csv"
-    out_fnames = {0:"NONUMBA_NOPROFILE_LESSTOL",
-                  1:"NONUMBA_YESPROFILE_LESSTOL",
-                  2:"YESNUMBA_NOPROFILE_LESSTOL",
-                  3:"YESNUMBA_YESPROFILE_LESSTOL"}
+    out_fnames = {2:"ODEINT",
+                  3:"SOLVEIVP"}
     out_fname = out_fnames[jobid]
-    out_fname = "DEBUG"
 
 init_pathname = os.path.join(init_dir, init_fname)
 experimental_data_pathname = os.path.join(init_dir, exp_fname)
@@ -205,26 +202,27 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"num_iters": 10,
+    sim_flags = {"num_iters": 100,
                  "use_numba": True,
-                 "use_multi_cpus":True,
+                 "solver":("odeint" if jobid==2 else "solveivp"),
+                 "use_multi_cpus":False,
                  "rtol":1e-10,
                  "atol":1e-14,
                  "hmax":4,
                  "anneal_mode": None, # None, "exp", "log"
                  "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=; minT]
                  "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
-                 "DA time subdivisions": 1,
+                 #"DA time subdivisions": 1,
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
                  "self_normalize":True,
-                 "num_initial_guesses":4,
+                 #"num_initial_guesses":4,
                  "proposal_function":"box", # box or gauss; anything else disables new proposals
-                 "adaptive_covariance":"None", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
-                 "AM_activation_time":0,
+                 #"adaptive_covariance":"None", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
+                 #"AM_activation_time":0,
                  "one_param_at_a_time":False,
-                 "LAP_params":(1,0.8,0.234),
+                 #"LAP_params":(1,0.8,0.234),
                  "checkpoint_dirname": os.path.join(out_pathname, "Checkpoints"),
                  "checkpoint_freq":2500, # Save a checkpoint every #this many iterations#
                  "load_checkpoint": None,

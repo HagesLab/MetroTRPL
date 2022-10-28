@@ -5,7 +5,7 @@ Created on Mon Jan 31 22:13:26 2022
 @author: cfai2
 """
 import numpy as np
-from scipy.integrate import solve_ivp
+from scipy.integrate import solve_ivp, odeint
 from multiprocessing import Pool
 import os
 import sys
@@ -65,22 +65,25 @@ def LI_tau_eff(B, p0, tau_n, Sf, Sb, CP, thickness, mu):
     t_aug = t_auger(CP, p0)
     return (t_r**-1 + t_aug**-1 + tau_surf**-1 + tau_n**-1)**-1
 
-def model(init_dN, g, p, use_numba=True, RTOL=1e-10, ATOL=1e-14):
+def model(init_dN, g, p, solver="solveivp", RTOL=1e-10, ATOL=1e-14):
     N = init_dN + p.n0
     P = init_dN + p.p0
     E_f = E_field(N, P, p, g.dx)
     
     init_condition = np.concatenate([N, P, E_f], axis=None)
     
-    if use_numba:
+    if solver=="solveivp":
         args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
         sol = solve_ivp(dydt_numba, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='LSODA', max_step=g.hmax, rtol=RTOL, atol=ATOL)
-        
+        data = sol.y.T
+    elif solver=="odeint":
+        args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
+        data = odeint(dydt_numba, init_condition, g.tSteps, args=args, hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
     else:
-        args = (g,p)
-        sol = solve_ivp(dydt, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='LSODA', max_step=g.hmax, rtol=RTOL, atol=ATOL)
-
-    data = sol.y.T
+        raise NotImplementedError
+    #args = (g,p)
+    #sol = solve_ivp(dydt, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='LSODA', max_step=g.hmax, rtol=RTOL, atol=ATOL)
+    #data = sol.y.T
 
     s = Solution()
     s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
@@ -241,7 +244,7 @@ def det_hmax(g, p):
         
     return
 
-def do_simulation(p, thickness, nx, iniPar, times, hmax, use_numba=True, rtol=1e-10, atol=1e-14):
+def do_simulation(p, thickness, nx, iniPar, times, hmax, solver="solveivp", rtol=1e-10, atol=1e-14):
     g = Grid()
     g.thickness = thickness
     g.nx = nx
@@ -256,7 +259,7 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, use_numba=True, rtol=1e
     #det_hmax(g, p)
     g.tSteps = times
     
-    sol, next_init_condition = model(iniPar, g, p, use_numba=use_numba, RTOL=rtol, ATOL=atol)
+    sol, next_init_condition = model(iniPar, g, p, solver=solver, RTOL=rtol, ATOL=atol)
     return sol
     
 def roll_acceptance(logratio):
@@ -318,7 +321,7 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
     hmax[i] = min(STARTING_HMAX, hmax[i] * 2) # Always attempt a slightly larger hmax than what worked at previous proposal
     
     while hmax[i] > MIN_HMAX:
-        sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], use_numba=sim_flags["use_numba"], rtol=RTOL, atol=ATOL)
+        sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], solver=sim_flags["solver"], rtol=RTOL, atol=ATOL)
         
         #if verbose: 
         logger.info("{}: Simulation complete hmax={}; final t {}".format(i, hmax, times[len(sol)-1]))
@@ -337,7 +340,7 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
             # hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             # if verbose:
             #     logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
-            # sol2 = do_simulation(p, thickness, nx, next_init_condition, times, hmax[i], use_numba=sim_flags["use_numba"], rtol=RTOL, atol=ATOL)
+            # sol2 = do_simulation(p, thickness, nx, next_init_condition, times, hmax[i], solver=sim_flags["solver"], rtol=RTOL, atol=ATOL)
             # if almost_equal(sol, sol2, threshold=RTOL):
             #     logger.info("Success!")
             #     break
