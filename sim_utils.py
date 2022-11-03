@@ -14,7 +14,10 @@ eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
 q_C = 1.602e-19 # [C per carrier]
 
 class MetroState():
-    
+    """ Overall management of the metropolis random walker: its current state,
+        the states it's been to, and the trial move function used to get the
+        next state.
+    """
     def __init__(self, param_info, initial_guess, initial_variance, num_iters):
         self.p = Parameters(param_info, initial_guess)
         self.p.apply_unit_conversions(param_info)
@@ -32,11 +35,16 @@ class MetroState():
         return
     
     def checkpoint(self, fname):
+        """ Save the current state as a pickle object. """
         with open(fname, "wb+") as ofstream:
             pickle.dump(self, ofstream)
         return
 
 class Parameters():
+    """ Collection of parameters defining where the metropolis walker is right
+        now. For the OneLayer (single isolated absorber) carrier dynamics model,
+        these parameters are:
+    """
     Sf : float      # Front surface recombination velocity
     Sb : float      # Back surface recombination velocity
     mu_n : float    # Electron mobility
@@ -57,25 +65,36 @@ class Parameters():
         for param in self.param_names:
             if hasattr(self, param): raise KeyError(f"Param with name {param} already exists")
             setattr(self, param, initial_guesses[param])
-        self.Tm = 300
         return
     
     def apply_unit_conversions(self, param_info=None):
+        """ Multiply the currently stored parameters according to a provided
+            unit conversion dictionary.
+        """
         for param in self.param_names:
             val = getattr(self, param)
             setattr(self, param, val * param_info["unit_conversions"].get(param, 1))
         
     def make_log(self, param_info=None):
+        """ Convert currently stored parameters to log space. 
+            This is nearly always recommended for TRPL, as TRPL decay can span
+            many orders of magnitude.
+        """
         for param in self.param_names:
             if param_info["do_log"].get(param, 0) and hasattr(self, param):
                 val = getattr(self, param)
                 setattr(self, param, np.log10(val))
                 
     def to_array(self, param_info=None):
+        """ Compress the currently stored parameters into a 1D array. Some
+            operations are easier with matrix operations while others are more
+            intuitive when params are callable by name.
+        """
         arr = np.array([getattr(self, param) for param in self.param_names], dtype=float)
         return arr
     
 class Covariance():
+    """ The covariance matrix used to select the next trial move. """
     
     def __init__(self, param_info):
         self.names = param_info["names"]
@@ -85,6 +104,10 @@ class Covariance():
         return
         
     def set_variance(self, param, var):
+        """ Update the variance of one parameter, telling the trial move
+            function at most how far away the next state should wander
+            from the current state.
+        """
         i = self.names.index(param)
         
         if isinstance(var, (int, float)):
@@ -97,6 +120,14 @@ class Covariance():
         return np.diag(self.cov)
     
     def apply_values(self, initial_variance):
+        """ Initialize the covariance matrix for active paramters. Inactive
+            parameters are assigned a variance of zero, preventing the walk from
+            ever moving in their direction.
+            
+            The little-sigma big-sigma decomposition is needed for some
+            adaptive covariance MC algorithms and also preserves the original
+            cov after mask_covariance().
+        """
         for param in self.names:
             if self.actives[param]:
                 self.set_variance(param, initial_variance)
@@ -113,11 +144,28 @@ class Covariance():
                 
         self.little_sigma = np.ones(len(self.cov)) * iv_arr
         self.big_sigma = self.cov * iv_arr**-1
+        
+    def mask_covariance(self, picked_param):
+        """ Induce a univariate gaussian if doing one-param-at-a-time """
+        if picked_param is None:
+            self.cov = self.little_sigma * self.big_sigma
+        else:
+            i = picked_param[1]
+            self.cov = np.zeros_like(self.cov)
+            self.cov[i,i] = self.little_sigma[i] * self.big_sigma[i,i]
                         
 class History():
+    """ Record of past states the walk has been to. """
     
     def __init__(self, num_iters, param_info):
-        
+        """ param referring to all proposed trial moves, including rejects,
+            and mean_param referring to the state after each iteration.
+            
+            If a lot of moves get rejected, mean_param will record the same
+            value for a while while param will record all the rejected moves.
+            
+            We need a better name for this.
+        """
         for param in param_info["names"]:
             setattr(self, param, np.zeros(num_iters))
             setattr(self, f"mean_{param}", np.zeros(num_iters))

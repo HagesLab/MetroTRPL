@@ -207,14 +207,7 @@ def select_next_params(p, means, variances, param_info, logger=None):
 
     return
 
-def update_covariance(variances, picked_param):
-    # Induce a univariate gaussian if doing one-param-at-a-time
-    if picked_param is None:
-        variances.cov = variances.little_sigma * variances.big_sigma
-    else:
-        i = picked_param[1]
-        variances.cov = np.zeros_like(variances.cov)
-        variances.cov[i,i] = variances.little_sigma[i] * variances.big_sigma[i,i]
+
 
 def update_means(p, means, param_info):
     for param in param_info['names']:
@@ -486,7 +479,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             # Select next sample from distribution
             
             if sim_flags.get("adaptive_covariance", "None") == "None":
-                update_covariance(MS.variances, picked_param)
+                MS.variances.mask_covariance(picked_param)
 
             if sim_flags["proposal_function"] == "gauss":
                 select_next_params(MS.p, MS.means, MS.variances, param_info, logger)
