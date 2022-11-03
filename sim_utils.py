@@ -190,6 +190,7 @@ class History():
         np.save(os.path.join(out_pathname, "final_cov"), self.final_cov)
         
     def truncate(self, k, param_info):
+        """ Cut off any incomplete iterations should the walk be terminated early"""
         for param in param_info["names"]:
             val = getattr(self, param)
             setattr(self, param, val[:k])
@@ -211,6 +212,7 @@ class Solution():
         return
 
     def calculate_PL(self, g, p):
+        """ Time-resolved photoluminescence """
         rr = calculate_RR(self.N, self.P, p.ks, p.n0, p.p0)
         
         self.PL = trapz(rr, dx=g.dx, axis=1)
@@ -218,6 +220,7 @@ class Solution():
         self.PL += rr[:, -1] * g.dx / 2
 
     def calculate_TRTS(self, g, p):
+        """ Transient terahertz decay """
         trts = p.mu_n * (self.N - p.n0) + p.mu_p * (self.P - p.p0)
         self.trts = trapz(trts, dx=g.dx, axis=1)
         self.trts += trts[:, 0] * g.dx / 2
