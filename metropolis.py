@@ -144,17 +144,8 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
                 setattr(p, param, new_p[i])
     return
 
-
-def update_history(H, k, p, means, param_info):
-    for param in param_info['names']:
-        h = getattr(H, param)
-        h[k] = getattr(p, param)
-        h_mean = getattr(H, f"mean_{param}")
-        h_mean[k] = getattr(means, param)
-    return
-
-
 def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", solver="solveivp", rtol=1e-10, atol=1e-14):
+    """ Set up one simulation. """
     g = Grid()
     g.thickness = thickness
     g.nx = nx
@@ -363,7 +354,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
         # Calculate likelihood of initial guess
         MS.running_hmax = [STARTING_HMAX] * len(iniPar)
         accept = run_iteration(MS.prev_p, simPar, iniPar, times, vals, MS.running_hmax, sim_flags, verbose, logger)
-        update_history(MS.H, 0, MS.prev_p, MS.means, param_info)
+        MS.H.update(0, MS.prev_p, MS.means, param_info)
 
     for k in range(starting_iter, num_iters):
         try:
@@ -399,7 +390,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                 MS.H.accept[k] = 1
                 #MS.H.ratio[k] = 10 ** logratio
                 
-            update_history(MS.H, k, MS.p, MS.means, param_info)
+            MS.H.update(k, MS.p, MS.means, param_info)
         except KeyboardInterrupt:
             logger.info("Terminating with k={} iters completed:".format(k-1))
             MS.H.truncate(k, param_info)

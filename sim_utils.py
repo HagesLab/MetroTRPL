@@ -191,6 +191,14 @@ class History():
         
         self.accept = np.zeros(num_iters)
         self.ratio = np.zeros(num_iters)
+        
+    def update(self, k, p, means, param_info):
+        for param in param_info['names']:
+            h = getattr(self, param)
+            h[k] = getattr(p, param)
+            h_mean = getattr(self, f"mean_{param}")
+            h_mean[k] = getattr(means, param)
+
     
     def apply_unit_conversions(self, param_info):
         for param in param_info["names"]:
@@ -199,6 +207,7 @@ class History():
             
             val = getattr(self, f"mean_{param}")
             setattr(self, f"mean_{param}", val / param_info["unit_conversions"].get(param, 1))
+            
             
     def export(self, param_info, out_pathname):
         for param in param_info["names"]:
