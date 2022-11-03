@@ -6,7 +6,7 @@ Created on Fri Feb 18 13:53:02 2022
 """
 import numpy as np
 import os
-from secondary_parameters import mu_eff, LI_tau_eff, HI_tau_eff
+from secondary_parameters import mu_eff, LI_tau_eff, HI_tau_eff, LI_tau_srh
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
 importr('coda')
@@ -16,7 +16,10 @@ def recommend_logscale(which_param, do_log):
     if which_param == "Sf+Sb":
         recommend = (do_log["Sf"] or do_log["Sb"])
         
-    elif which_param == "tau_eff":
+    elif which_param == "Cn+Cp":
+        recommend = (do_log["Cn"] or do_log["Cp"])
+        
+    elif which_param == "tau_eff" or which_param == "tau_srh":
         recommend = (do_log["tauN"] or (do_log["Sf"] or do_log["Sb"]))
         
     elif which_param == "HI_tau_eff":
@@ -93,9 +96,7 @@ def ASJD(means, window):
     diffs = np.mean(diffs, axis=1) # [chain]
     return diffs
 
-def ESS(means, window, do_log, verbose=True):
-    means = means[:, window[0]:window[1]]
-    
+def ESS(means, do_log, verbose=True):
     if do_log:
         means = np.log10(means)
         
@@ -127,13 +128,19 @@ def fetch(path, which_param):
         params = ["Sf", "Sb"]
         
     elif which_param == "tau_eff":
-        params = ["Sf", "Sb", "tauN", "mu_n", "mu_p", "ks", "p0"]
+        params = ["Sf", "Sb", "tauN", "mu_n", "mu_p", "ks", "p0", "Cp"]
+        
+    elif which_param == "tau_srh":
+        params = ["Sf", "Sb", "tauN", "mu_n", "mu_p"]
         
     elif which_param == "HI_tau_eff":
         params = ["Sf", "Sb", "tauN", "tauP", "mu_n", "mu_p", "ks", "p0"]
         
     elif which_param == "mu_eff":
         params = ["mu_n", "mu_p"]
+        
+    elif which_param == "Cn+Cp":
+        params = ["Cn", "Cp"]
         
     else:
         raise KeyError
@@ -149,6 +156,10 @@ def fetch_param(raw_fetched, mean_fetched, which_param, **kwargs):
         proposed = raw_fetched["Sf"] + raw_fetched["Sb"]
         accepted = mean_fetched["Sf"] + mean_fetched["Sb"]
         
+    elif which_param == "Cn+Cp":
+        proposed = raw_fetched["Cn"] + raw_fetched["Cp"]
+        accepted = mean_fetched["Cn"] + mean_fetched["Cp"]
+        
     elif which_param == "tau_eff":
         mu_a = mu_eff(raw_fetched["mu_n"], raw_fetched["mu_p"])
         mean_mu_a = mu_eff(mean_fetched["mu_n"], mean_fetched["mu_p"])
@@ -156,9 +167,24 @@ def fetch_param(raw_fetched, mean_fetched, which_param, **kwargs):
         thickness = kwargs.get("thickness", 2000)
         
         proposed = LI_tau_eff(raw_fetched["ks"], raw_fetched["p0"], raw_fetched["tauN"], 
-                              raw_fetched["Sf"], raw_fetched["Sb"], thickness, mu_a)
+                              raw_fetched["Sf"], raw_fetched["Sb"], raw_fetched["Cp"], 
+                              thickness, mu_a)
         accepted = LI_tau_eff(mean_fetched["ks"], mean_fetched["p0"], mean_fetched["tauN"], 
-                              mean_fetched["Sf"], mean_fetched["Sb"], thickness, mean_mu_a)
+                              mean_fetched["Sf"], mean_fetched["Sb"], raw_fetched["Cp"],
+                              thickness, mean_mu_a)
+        
+    elif which_param == "tau_srh":
+        mu_a = mu_eff(raw_fetched["mu_n"], raw_fetched["mu_p"])
+        mean_mu_a = mu_eff(mean_fetched["mu_n"], mean_fetched["mu_p"])
+        
+        thickness = kwargs.get("thickness", 2000)
+        
+        proposed = LI_tau_srh(raw_fetched["tauN"], 
+                              raw_fetched["Sf"], raw_fetched["Sb"], 
+                              thickness, mu_a)
+        accepted = LI_tau_srh(mean_fetched["tauN"], 
+                              mean_fetched["Sf"], mean_fetched["Sb"],
+                              thickness, mean_mu_a)
         
     elif which_param == "mu_eff":
         proposed = mu_eff(raw_fetched["mu_n"], raw_fetched["mu_p"])
@@ -177,11 +203,19 @@ def fetch_param(raw_fetched, mean_fetched, which_param, **kwargs):
         
     return proposed, accepted
 
-def calc_contours(x_accepted, y_accepted, clevels, which_params, size=1000, do_logx=False, do_logy=False):
-    minx = min(x_accepted.flatten())
-    miny = min(y_accepted.flatten())
-    maxx = max(x_accepted.flatten())
-    maxy = max(y_accepted.flatten())
+def calc_contours(x_accepted, y_accepted, clevels, which_params, size=1000, do_logx=False, do_logy=False,xrange=None,yrange=None):
+    if xrange is not None:
+        minx = min(xrange)
+        maxx = max(xrange)
+    else:
+        minx = min(x_accepted.flatten())
+        maxx = max(x_accepted.flatten())
+    if yrange is not None:
+        miny = min(yrange)
+        maxy = max(yrange)
+    else:
+        miny = min(y_accepted.flatten())
+        maxy = max(y_accepted.flatten())
     if do_logx:
         cx = np.geomspace(minx, maxx, size)
     else:
@@ -201,6 +235,14 @@ def calc_contours(x_accepted, y_accepted, clevels, which_params, size=1000, do_l
     elif "mu_n" in which_params and "mu_p" in which_params:
         cZ = mu_eff(cx, cy)
         
+    elif "Sf+Sb" in which_params and "tauN" in which_params:
+        kb = 0.0257 #[ev]
+        q = 1
+        
+        D = 20 * kb / q * 10**14 / 10**9
+        tau_surf = (2000 / ((cx)*0.01)) + (2000**2 / (np.pi ** 2 * D))
+
+        cZ = (tau_surf**-1 + cy**-1)**-1
     else:
         raise NotImplementedError
         
