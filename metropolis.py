@@ -94,7 +94,8 @@ def check_approved_param(new_p, param_info):
     else:
         checks["tn_tp_close"] = True
 
-    return all(checks.values())
+    approved = all(checks.values()) if len(checks) > 0 else True
+    return approved
 
 def select_from_box(p, means, variances, param_info, logger=None):
     is_active = param_info["active"]
