@@ -22,6 +22,8 @@ q = 1.0 # [e]
 q_C = 1.602e-19 # [C]
 kB = 8.61773e-5  # [eV / K]
 MIN_HMAX = 1e-2 # [ns]
+MAX_TRIAL_ATTEMPTS = 100
+
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
         E = corner_E + q_C / (PA.eps * eps0) * dx * np.cumsum(((P - PA.p0) - (N - PA.n0)))
@@ -129,7 +131,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
                 
         approved = check_approved_param(new_p, param_info)
         attempts += 1
-        if attempts > 100: break
+        if attempts > MAX_TRIAL_ATTEMPTS: break
     
     if logger is not None:
         logger.info(f"Found suitable parameters in {attempts} attempts")
