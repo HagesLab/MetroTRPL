@@ -337,18 +337,6 @@ def run_iteration(p, simPar, iniPar, times, vals, hmax, sim_flags, verbose, logg
 def kill_from_cl(signal_n, frame):
     raise KeyboardInterrupt("Terminate from command line")
 
-# def start_metro_controller(simPar, iniPar, e_data, sim_flags, param_info, initial_guess_list, initial_variance, logger):
-#     #num_cpus = 2
-#     num_cpus = min(os.cpu_count(), sim_flags["num_initial_guesses"])
-#     logger.info(f"{num_cpus} CPUs marshalled")
-#     logger.info(f"{len(initial_guess_list)} MC chains needed")
-#     with Pool(num_cpus) as pool:
-#         histories = pool.map(partial(metro, simPar, iniPar, e_data, sim_flags, param_info, initial_variance, False, logger), initial_guess_list)
-        
-#     history_list = HistoryList(histories, param_info)
-    
-#     return history_list
-
 def all_signal_handler(func):
     for s in signal.Signals:
         try:
