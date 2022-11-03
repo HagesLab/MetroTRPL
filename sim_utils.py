@@ -32,6 +32,17 @@ class MetroState():
         
         self.variances = Covariance(param_info)
         self.variances.apply_values(initial_variance)
+        
+        self.param_info = param_info
+        return
+    
+    def print_status(self, logger):
+        is_active = self.param_info['active']
+        ucs = self.param_info["unit_conversions"]
+        for param in self.param_info['names']:
+            if is_active.get(param, 0):
+                logger.info("Next {}: {:.3e} from mean {:.3e}".format(param, getattr(self.p, param) / ucs.get(param, 1), getattr(self.means, param) / ucs.get(param, 1)))
+                
         return
     
     def checkpoint(self, fname):
@@ -93,7 +104,7 @@ class Parameters():
         arr = np.array([getattr(self, param) for param in self.param_names], dtype=float)
         return arr
     
-    def transfer_from(self, sender):
+    def transfer_from(self, sender, param_info):
         """ Update this Parameters() stored parameters with values from another
             Parameters(). """
         for param in self.param_info['names']:

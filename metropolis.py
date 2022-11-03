@@ -145,15 +145,6 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
     return
 
 
-def print_status(p, means, param_info, logger):
-    is_active = param_info['active']
-    ucs = param_info["unit_conversions"]
-    for param in param_info['names']:
-        if is_active.get(param, 0):
-            logger.info("Next {}: {:.3e} from mean {:.3e}".format(param, getattr(p, param) / ucs.get(param, 1), getattr(means, param) / ucs.get(param, 1)))
-            
-    return
-
 def update_history(H, k, p, means, param_info):
     for param in param_info['names']:
         h = getattr(H, param)
@@ -390,10 +381,9 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             if sim_flags.get("adaptive_covariance", "None") == "None":
                 MS.variances.mask_covariance(picked_param)
 
-            select_next_params(MS.p, MS.means, MS.variances, param_info, sim_flags["proposal_function"], logger)
+            select_next_params(MS.p, MS.means, MS.variances, MS.param_info, sim_flags["proposal_function"], logger)
             
-            if verbose: print_status(MS.p, MS.means, param_info, logger)
-            # Calculate new likelihood?
+            if verbose: MS.print_status(logger)
                     
             if DA_mode == "off":
                 accepted = run_iteration(MS.p, simPar, iniPar, times, vals, MS.running_hmax, sim_flags, verbose, logger, prev_p=MS.prev_p, t=k)
@@ -405,7 +395,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                 logger.info("Rejected!")
                 
             if accepted:
-                MS.means.transfer_from(MS.p)
+                MS.means.transfer_from(MS.p, param_info)
                 MS.H.accept[k] = 1
                 #MS.H.ratio[k] = 10 ** logratio
                 
