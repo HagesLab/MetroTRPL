@@ -33,6 +33,7 @@ def E_field(N, P, PA, dx, corner_E=0):
     return E
 
 def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=1e-10, ATOL=1e-14):
+    """ Calculate one simulation. """
     N = init_dN + p.n0
     P = init_dN + p.p0
     E_f = E_field(N, P, p, g.dx)
@@ -48,9 +49,6 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=1e-10, ATOL=1e-14)
         data = odeint(dydt_numba, init_condition, g.tSteps, args=args, hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
     else:
         raise NotImplementedError
-    #args = (g,p)
-    #sol = solve_ivp(dydt, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='LSODA', max_step=g.hmax, rtol=RTOL, atol=ATOL)
-    #data = sol.y.T
 
     s = Solution()
     s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
@@ -62,21 +60,6 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=1e-10, ATOL=1e-14)
         return s.trts, (s.N[-1] - p.n0)
     else:
         raise NotImplementedError("TRTS or TRPL only")
-
-def draw_initial_guesses(initial_guesses, num_initial_guesses):
-    initial_guess_list = []
-    param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
-    
-    for ig in range(num_initial_guesses):
-        initial_guess = {}
-        for param in initial_guesses:
-            if param_is_iterable[param]:
-                initial_guess[param] = initial_guesses[param][ig]
-            else:
-                initial_guess[param] = initial_guesses[param]
-                        
-        initial_guess_list.append(initial_guess)
-    return initial_guess_list
 
 def check_approved_param(new_p, param_info):
     #return True
