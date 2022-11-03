@@ -30,7 +30,7 @@ def dydt(t, y, g, p):
     N = y[0:g.nx]
     P = y[g.nx:2*(g.nx)]
     E_field = y[2*(g.nx):]
-    N_edges = (N[:-1] + np.roll(N, -1)[:-1]) / 2 # Excluding the boundaries; see the following FIXME
+    N_edges = (N[:-1] + np.roll(N, -1)[:-1]) / 2
     P_edges = (P[:-1] + np.roll(P, -1)[:-1]) / 2
     
     ## Do boundary conditions of Jn, Jp
@@ -42,12 +42,10 @@ def dydt(t, y, g, p):
     Jp[g.nx] = Sbt
 
     ## Calculate Jn, Jp [nm^-2 ns^-1] over the space dimension, 
-    # Jn(t) ~ N(t) * E_field(t) + (dN/dt)
     # np.roll(y,m) shifts the values of array y by m places, allowing for quick approximation of dy/dx ~ (y[m+1] - y[m-1] / 2*dx) over entire array y
     Jn[1:-1] = ( p.mu_n * N_edges * q * E_field[1:-1] +
                 (p.mu_n*kB*p.Tm) * (np.roll(N,-1)[:-1] - N[:-1]) / g.dx  )
 
-    ## Changed sign
     Jp[1:-1] = ( p.mu_p * (P_edges) * q * E_field[1:-1] 
                 -(p.mu_p*kB*p.Tm) * (np.roll(P, -1)[:-1] - P[:-1]) / g.dx  )
 
@@ -63,15 +61,11 @@ def dydt(t, y, g, p):
     ## Calculate dJn/dx
     dJz = (np.roll(Jn, -1)[:-1] - Jn[:-1]) / (g.dx)
 
-    ## N(t) = N(t-1) + dt * (dN/dt)
-    #N_new = np.maximum(N_previous + dt * ((1/q) * dJz - rad_rec - non_rad_rec + G_array), 0)
     dNdt = ((1/q) * dJz - rad_rec - non_rad_rec - auger_rec)
 
     ## Calculate dJp/dx
     dJz = (np.roll(Jp, -1)[:-1] - Jp[:-1]) / (g.dx)
 
-    ## P(t) = P(t-1) + dt * (dP/dt)
-    #P_new = np.maximum(P_previous + dt * ((1/q) * dJz - rad_rec - non_rad_rec + G_array), 0)
     dPdt = ((1/q) * -dJz - rad_rec - non_rad_rec - auger_rec)
 
 
@@ -81,6 +75,7 @@ def dydt(t, y, g, p):
 
 @njit(cache=True)
 def dydt_numba(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL, tauN, tauP, Lambda, Tm, kB=8.61773e-5):
+    """ Numba translation of dydt() """
     Jn = np.zeros((L+1))
     Jp = np.zeros((L+1))
     dydt = np.zeros(3*L+1)
@@ -94,7 +89,6 @@ def dydt_numba(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL, tauN, t
     Sft = sr0 * NP[0] / (N[0] + P[0])
     Sbt = srL * NP[-1] / (N[-1] + P[-1])
     
-    ## To invert the E field: switch these ##
     Jn[0] = Sft
     Jn[L] = -Sbt
     Jp[0] = -Sft
@@ -105,6 +99,7 @@ def dydt_numba(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL, tauN, t
         Jn[i] = mu_n*((N[i-1] + N[i]) / 2 * E_field[i]) + mu_n*kB*Tm*((N[i] - N[i-1]) / dx)
         Jp[i] = mu_p*((P[i-1] + P[i]) / 2 * E_field[i]) - mu_p*kB*Tm*((P[i] - P[i-1]) / dx)
     
+    # Lambda = q / (eps * eps0)
     for i in range(len(Jn)):
         dydt[2*L+i] = -(Jn[i] + Jp[i]) * Lambda
     
@@ -114,6 +109,6 @@ def dydt_numba(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL, tauN, t
     for i in range(len(Jn) - 1):
         dydt[i] =   ( (Jn[i+1] - Jn[i]) / dx - recomb[i])
         dydt[L+i] = (-(Jp[i+1] - Jp[i]) / dx - recomb[i])
-    #print(t)
+
         
     return dydt
