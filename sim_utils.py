@@ -93,6 +93,14 @@ class Parameters():
         arr = np.array([getattr(self, param) for param in self.param_names], dtype=float)
         return arr
     
+    def transfer_from(self, sender):
+        """ Update this Parameters() stored parameters with values from another
+            Parameters(). """
+        for param in self.param_info['names']:
+            setattr(self, param, getattr(sender, param))
+        return
+
+    
 class Covariance():
     """ The covariance matrix used to select the next trial move. """
     

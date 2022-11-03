@@ -145,11 +145,6 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
     return
 
 
-def update_means(p, means, param_info):
-    for param in param_info['names']:
-        setattr(means, param, getattr(p, param))
-    return
-
 def print_status(p, means, param_info, logger):
     is_active = param_info['active']
     ucs = param_info["unit_conversions"]
@@ -410,7 +405,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
                 logger.info("Rejected!")
                 
             if accepted:
-                update_means(MS.p, MS.means, param_info)
+                MS.means.transfer_from(MS.p)
                 MS.H.accept[k] = 1
                 #MS.H.ratio[k] = 10 ** logratio
                 
