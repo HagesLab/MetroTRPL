@@ -62,38 +62,39 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=1e-10, ATOL=1e-14)
         raise NotImplementedError("TRTS or TRPL only")
 
 def check_approved_param(new_p, param_info):
-    #return True
+    """ Screen out non-physical or unrealistic proposed trial moves. """
     order = param_info['names']
     ucs = param_info.get('unit_conversions', {})
+    checks = {}
     # mu_n and mu_p between 1e-1 and 1e6; a reasonable range for most materials
     if 'mu_n' in order:
-        mu_n_size = (new_p[order.index('mu_n')] - np.log10(ucs.get('mu_n', 1)) < 6) and (new_p[order.index('mu_n')] - np.log10(ucs.get('mu_n', 1)) > -1)
+        checks["mu_n_size"] = (new_p[order.index('mu_n')] - np.log10(ucs.get('mu_n', 1)) < 6) and (new_p[order.index('mu_n')] - np.log10(ucs.get('mu_n', 1)) > -1)
     else:
-        mu_n_size = True
+        checks["mu_n_size"] = True
 
     if 'mu_p' in order:
-        mu_p_size = (new_p[order.index('mu_p')] - np.log10(ucs.get('mu_p', 1)) < 6) and (new_p[order.index('mu_p')] - np.log10(ucs.get('mu_p', 1)) > -1)
+        checks["mu_p_size"] = (new_p[order.index('mu_p')] - np.log10(ucs.get('mu_p', 1)) < 6) and (new_p[order.index('mu_p')] - np.log10(ucs.get('mu_p', 1)) > -1)
 
     else:
-        mu_p_size = True
+        checks["mu_p_size"] = True
 
     if 'Sf' in order:
-        sf_size = (np.abs(new_p[order.index('Sf')] - np.log10(ucs.get('Sf', 1))) < 7)
+        checks["sf_size"] = (np.abs(new_p[order.index('Sf')] - np.log10(ucs.get('Sf', 1))) < 7)
     else:
-        sf_size = True
+        checks["sf_size"] = True
 
     if 'Sb' in order:
-        sb_size = (np.abs(new_p[order.index('Sb')] - np.log10(ucs.get('Sb', 1))) < 7)
+        checks["sb_size"] = (np.abs(new_p[order.index('Sb')] - np.log10(ucs.get('Sb', 1))) < 7)
     else:
-        sb_size = True
+        checks["sb_size"] = True
 
     # tau_n and tau_p must be *close* (within 3 OM) for a reasonable midgap SRH
     if 'tauN' in order and 'tauP' in order:
-        tn_tp_constraint = (np.abs(new_p[order.index('tauN')] - new_p[order.index('tauP')]) <= 3)
+        checks["tn_tp_close"] = (np.abs(new_p[order.index('tauN')] - new_p[order.index('tauP')]) <= 3)
     else:
-        tn_tp_constraint = True
+        checks["tn_tp_close"] = True
 
-    return tn_tp_constraint and mu_n_size and mu_p_size and sf_size and sb_size
+    return all(checks.values())
 
 def select_from_box(p, means, variances, param_info, logger=None):
     is_active = param_info["active"]
