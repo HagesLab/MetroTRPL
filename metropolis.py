@@ -31,39 +31,6 @@ def E_field(N, P, PA, dx, corner_E=0):
         num_tsteps = len(N)
         E = np.concatenate((np.ones(shape=(num_tsteps,1))*corner_E, E), axis=1)
     return E
-def t_rad(B, p0):
-    # B [nm^3 / ns]
-    # p0 [nm^-3]
-    if B == 0 or p0 == 0:
-        return np.inf
-    
-    else:
-        return 1 / (B*p0)
-
-def t_auger(CP, p0):
-    if CP == 0 or p0 == 0:
-        return np.inf
-    
-    else:
-        return 1 / (CP*p0**2)
-
-def LI_tau_eff(B, p0, tau_n, Sf, Sb, CP, thickness, mu):
-    # S [nm/ns]
-    # B [nm^3 / ns]
-    # p0 [nm^-3]
-    # tau_n [ns]
-    # thickness [nm]
-    kb = 0.0257 #[ev]
-    q = 1
-    
-    D = mu * kb / q # [nm^2/ns]
-    if Sf+Sb == 0 or D == 0:
-        tau_surf = np.inf
-    else:
-        tau_surf = (thickness / ((Sf+Sb))) + (thickness**2 / (np.pi ** 2 * D))
-    t_r = t_rad(B, p0)
-    t_aug = t_auger(CP, p0)
-    return (t_r**-1 + t_aug**-1 + tau_surf**-1 + tau_n**-1)**-1
 
 def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=1e-10, ATOL=1e-14):
     N = init_dN + p.n0
@@ -231,14 +198,6 @@ def update_history(H, k, p, means, param_info):
         h_mean[k] = getattr(means, param)
     return
 
-def det_hmax(g, p):
-    teff = LI_tau_eff(p.ks, p.p0, p.tauN, p.Sf, p.Sb, p.Cp, g.thickness, p.mu_n)
-    if teff < g.time / 100 or teff < 1:
-        g.hmax = g.nt
-    else:
-    	g.hmax = 4
-        
-    return
 
 def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", solver="solveivp", rtol=1e-10, atol=1e-14):
     g = Grid()
@@ -250,9 +209,7 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", solver="so
     g.time = times[-1]
     g.start_time = times[0]
     g.nt = len(times) - 1
-    #g.dt = g.time / g.nt
     g.hmax = hmax
-    #det_hmax(g, p)
     g.tSteps = times
     
     sol, next_init_condition = model(iniPar, g, p, meas=meas, solver=solver, RTOL=rtol, ATOL=atol)
