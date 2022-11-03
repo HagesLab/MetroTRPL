@@ -235,21 +235,22 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
             logger.warning(f"{i}: Carriers depleted!")
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.warning(f"{i}: Retrying hmax={hmax}")
+            
+        elif sim_flags.get("verify_hmax", False):
+            hmax[i] = max(MIN_HMAX, hmax[i] / 2)
+            logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
+            sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=sim_flags["measurement"],
+                                  solver=sim_flags["solver"], rtol=RTOL, atol=ATOL)
+            if almost_equal(sol, sol2, threshold=RTOL):
+                logger.info("Success!")
+                break
+            else:
+                logger.info(f"{i}: Fail - not converged")
+                if hmax[i] <= MIN_HMAX:
+                    logger.warning(f"{i}: MIN_HMAX reached")
+                    
         else:
             break
-            # hmax[i] = max(MIN_HMAX, hmax[i] / 2)
-            # if verbose:
-            #     logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
-            # sol2 = do_simulation(p, thickness, nx, next_init_condition, times, hmax[i], meas=sim_flags["measurement"],
-            #                      solver=sim_flags["solver"], rtol=RTOL, atol=ATOL)
-            # if almost_equal(sol, sol2, threshold=RTOL):
-            #     logger.info("Success!")
-            #     break
-            # else:
-            #     if verbose:
-            #         logger.info(f"{i}: Fail - not converged")
-            #         if hmax[i] <= MIN_HMAX:
-            #             logger.warning(f"{i}: MIN_HMAX reached")
     try:
         if sim_flags.get("self_normalize", False):
             sol /= np.nanmax(sol)
