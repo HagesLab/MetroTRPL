@@ -97,7 +97,10 @@ def check_approved_param(new_p, param_info):
     approved = all(checks.values()) if len(checks) > 0 else True
     return approved
 
-def select_from_box(p, means, variances, param_info, logger=None):
+def select_next_params(p, means, variances, param_info, trial_function="box", logger=None):
+    """ Trial move function: 
+        box: uniform rectangle centered about current state. 
+        gauss: gaussian centered about current state."""
     is_active = param_info["active"]
     do_log = param_info["do_log"]
     names = param_info["names"]
@@ -110,10 +113,20 @@ def select_from_box(p, means, variances, param_info, logger=None):
     approved = False
     attempts = 0
     while not approved:
-        new_p = np.zeros_like(mean)
-        for i, param in enumerate(names):
-            new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
         
+        if trial_function == "box":
+            new_p = np.zeros_like(mean)
+            for i, param in enumerate(names):
+                new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
+        elif trial_function == "gauss":
+            try:
+                assert np.all(cov >= 0)
+                new_p = np.random.multivariate_normal(mean, cov)
+            except Exception:
+                if logger is not None:
+                    logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
+                new_p = mean
+                
         approved = check_approved_param(new_p, param_info)
         attempts += 1
         if attempts > 100: break
@@ -128,37 +141,6 @@ def select_from_box(p, means, variances, param_info, logger=None):
             else:
                 setattr(p, param, new_p[i])
     return
-    
-
-
-def select_next_params(p, means, variances, param_info, logger=None):
-    is_active = param_info["active"]
-    do_log = param_info["do_log"]
-    names = param_info["names"]
-    mean = means.to_array(param_info)
-    for i, param in enumerate(names):        
-        if do_log[param]:
-            mean[i] = np.log10(mean[i])
-            
-    cov = variances.cov
-
-    try:
-        assert np.all(cov >= 0)
-        new_p = np.random.multivariate_normal(mean, cov)
-    except Exception:
-        if logger is not None:
-            logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
-        new_p = mean
-
-    for i, param in enumerate(names):
-        if is_active[param]:
-            if do_log[param]:
-                setattr(p, param, 10 ** new_p[i])
-            else:
-                setattr(p, param, new_p[i])
-
-    return
-
 
 
 def update_means(p, means, param_info):
@@ -423,11 +405,8 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             if sim_flags.get("adaptive_covariance", "None") == "None":
                 MS.variances.mask_covariance(picked_param)
 
-            if sim_flags["proposal_function"] == "gauss":
-                select_next_params(MS.p, MS.means, MS.variances, param_info, logger)
-            elif sim_flags["proposal_function"] == "box":
-                select_from_box(MS.p, MS.means, MS.variances, param_info, logger)
-
+            select_next_params(MS.p, MS.means, MS.variances, param_info, sim_flags["proposal_function"], logger)
+            
             if verbose: print_status(MS.p, MS.means, param_info, logger)
             # Calculate new likelihood?
                     
