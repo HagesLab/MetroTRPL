@@ -71,7 +71,8 @@ class Parameters():
     Tm : float      # Temperature
     def __init__(self, param_info, initial_guesses):
         self.param_names = param_info["names"]
-        self.actives = [(param, index) for index, param in enumerate(self.param_names) if param_info["active"][param]]
+        self.actives = [(param, index) for index, param in enumerate(self.param_names) 
+                        if param_info["active"].get(param, False)]
         
         for param in self.param_names:
             if hasattr(self, param): raise KeyError(f"Param with name {param} already exists")
@@ -107,7 +108,7 @@ class Parameters():
     def transfer_from(self, sender, param_info):
         """ Update this Parameters() stored parameters with values from another
             Parameters(). """
-        for param in self.param_info['names']:
+        for param in param_info['names']:
             setattr(self, param, getattr(sender, param))
         return
 
