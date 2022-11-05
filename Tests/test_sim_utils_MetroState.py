@@ -1,10 +1,14 @@
 import unittest
-import numpy as np
+import logging
 import sys
 sys.path.append("..")
-from sim_utils import Parameters, Solution, Grid, Covariance, MetroState
+from sim_utils import Parameters,Covariance, MetroState
 
 class TestUtils(unittest.TestCase):       
+    
+    def setUp(self):
+        self.logger = logging.getLogger()
+        pass
     
     def test_MetroState(self):
         # Will only look for these
@@ -32,19 +36,8 @@ class TestUtils(unittest.TestCase):
         self.assertIsInstance(ms.means, Parameters)
         self.assertIsInstance(ms.variances, Covariance)
         
-        # Covariance scales; Should be 1D and match dummy_inital_variance
-        # Note that this follows the order of dummy_names
-        np.testing.assert_equal(ms.variances.little_sigma, [1,2,1,2])
-        
-        # Descaled Covariance matrix
-        np.testing.assert_equal(ms.variances.big_sigma, np.eye(4))
-        
-        # Testing with samey initial variance
-        samey_variance = 26
-        ms = MetroState(dummy_param_info, dummy_initial_guesses, samey_variance,
-                        num_iters)
-        
-        np.testing.assert_equal(ms.variances.little_sigma, [26,26,26,26])
-        
-        # Descaled Covariance matrix
-        np.testing.assert_equal(ms.variances.big_sigma, np.eye(4))
+        with self.assertLogs() as captured:
+            ms.print_status(logger=self.logger)
+            
+        # One message per active param
+        self.assertEqual(len(captured.records), sum(dummy_active.values()))
