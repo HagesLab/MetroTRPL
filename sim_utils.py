@@ -166,7 +166,9 @@ class Covariance():
         self.big_sigma = self.cov * iv_arr**-1
         
     def mask_covariance(self, picked_param):
-        """ Induce a univariate gaussian if doing one-param-at-a-time """
+        """ Induce a univariate gaussian if doing one-param-at-a-time 
+            picked_param = tuple(param_name, its index)
+        """
         if picked_param is None:
             self.cov = self.little_sigma * self.big_sigma
         else:
