@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import sys
 sys.path.append("..")
-from sim_utils import Parameters, History, Solution, Grid, Covariance, MetroState
+from sim_utils import Parameters
 
 class TestUtils(unittest.TestCase):
     
