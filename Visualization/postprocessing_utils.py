@@ -16,6 +16,9 @@ def recommend_logscale(which_param, do_log):
     if which_param == "Sf+Sb":
         recommend = (do_log["Sf"] or do_log["Sb"])
         
+    elif which_param == "tauN+tauP":
+        recommend = (do_log["tauN"] or do_log["tauP"])
+        
     elif which_param == "Cn+Cp":
         recommend = (do_log["Cn"] or do_log["Cp"])
         
@@ -128,6 +131,9 @@ def fetch(path, which_param):
     if which_param == "Sf+Sb":
         params = ["Sf", "Sb"]
         
+    elif which_param == "tauN+tauP":
+        params = ["tauN", "tauP"]
+        
     elif which_param == "tau_eff":
         params = ["Sf", "Sb", "tauN", "mu_n", "mu_p", "ks", "p0", "Cp"]
         
@@ -156,6 +162,10 @@ def fetch_param(raw_fetched, mean_fetched, which_param, **kwargs):
     if which_param == "Sf+Sb":
         proposed = raw_fetched["Sf"] + raw_fetched["Sb"]
         accepted = mean_fetched["Sf"] + mean_fetched["Sb"]
+        
+    elif which_param == "tauN+tauP":
+        proposed = raw_fetched["tauN"] + raw_fetched["tauP"]
+        accepted = mean_fetched["tauN"] + mean_fetched["tauP"]
         
     elif which_param == "Cn+Cp":
         proposed = raw_fetched["Cn"] + raw_fetched["Cp"]
@@ -242,6 +252,15 @@ def calc_contours(x_accepted, y_accepted, clevels, which_params, size=1000, do_l
         
         D = 20 * kb / q * 10**14 / 10**9
         tau_surf = (2000 / ((cx)*0.01)) + (2000**2 / (np.pi ** 2 * D))
+
+        cZ = (tau_surf**-1 + cy**-1)**-1
+        
+    elif "Sf+Sb" in which_params and "tauN+tauP" in which_params:
+        kb = 0.0257 #[ev]
+        q = 1
+        
+        D = 20 * kb / q * 10**14 / 10**9
+        tau_surf = 2*(311 / ((cx)*0.01)) + (311**2 / (np.pi ** 2 * D))
 
         cZ = (tau_surf**-1 + cy**-1)**-1
     else:
