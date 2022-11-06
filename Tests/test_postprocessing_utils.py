@@ -2,6 +2,8 @@ import unittest
 import numpy as np
 import os
 import shutil
+import sys
+sys.path.append(os.path.join("Visualization"))
 
 from postprocessing_utils import recommend_logscale, calc_contours, fetch_param, fetch
 from postprocessing_utils import ASJD, ESS, binned_stderr
@@ -121,7 +123,7 @@ class TestUtils(unittest.TestCase):
     def test_fetch(self):
         tests = {"Test3":(["mu_n", "mu_p"], "mu_eff"),
                  "Test4":(["Sf", "Sb"], "Sf+Sb"),
-                 "Test5":(["Sf", "Sb", "tauN", "mu_n", "mu_p", "ks", "p0"], "tau_eff")}
+                 "Test5":(["Sf", "Sb", "tauN", "mu_n", "mu_p", "ks", "p0", "Cp"], "tau_eff")}
         # Sf+Sb
         for testname, testitems in tests.items():
             if not os.path.exists(testname):
@@ -179,19 +181,22 @@ class TestUtils(unittest.TestCase):
         raw = {"Sf":np.zeros(10), "Sb":np.ones(10),
                "mu_n":np.ones(10), "mu_p":np.ones(10),
                "ks": np.ones(10), "p0":np.ones(10),
-               "tauN":np.ones(10)}
+               "tauN":np.ones(10), "Cp":np.ones(10)}
         mean = {"Sf":np.geomspace(0.1,10,31), "Sb":np.geomspace(0.1,10,31),
                "mu_n":np.geomspace(0.1,100,31), "mu_p":np.geomspace(0.1,100,31),
                "ks": np.geomspace(0.1,100,31), "p0":np.geomspace(0.1,100,31),
-               "tauN":np.geomspace(0.1,1000,31)}
+               "tauN":np.geomspace(0.1,1000,31), "Cp":np.geomspace(0.1,100,31)}
         thickness = 1e3
         
         expected_raw_mu = 2 / (raw["mu_n"]**-1 + raw["mu_p"]**-1)
         expected_mean_mu = 2 / (mean["mu_n"]**-1 + mean["mu_p"]**-1)
         
-        expected_proposed = LI_tau_eff(raw["ks"], raw["p0"], raw["tauN"], raw["Sf"], raw["Sb"], thickness, expected_raw_mu)
-        expected_accepted = LI_tau_eff(mean["ks"], mean["p0"], mean["tauN"], mean["Sf"], mean["Sb"], thickness, expected_mean_mu)
+        expected_proposed = LI_tau_eff(raw["ks"], raw["p0"], raw["tauN"], raw["Sf"], raw["Sb"], raw["Cp"], thickness, expected_raw_mu)
+        expected_accepted = LI_tau_eff(mean["ks"], mean["p0"], mean["tauN"], mean["Sf"], mean["Sb"], mean["Cp"], thickness, expected_mean_mu)
         output_proposed, output_accepted = fetch_param(raw, mean, "tau_eff", thickness=thickness)
+        self.assertTrue(np.array_equal(expected_proposed, output_proposed))
+        self.assertTrue(np.array_equal(expected_accepted, output_accepted))
+        
         return
     
     def test_ASJD(self):
@@ -212,9 +217,9 @@ class TestUtils(unittest.TestCase):
         test1 = np.expand_dims(np.arange(100), 0)
         test2 = np.expand_dims(np.sin(np.arange(100)), 0)
         
-        avg_ess = ESS(test1, [None, None], do_log=False, verbose=False)
+        avg_ess = ESS(test1, False, verbose=False)
         self.assertTrue(math.isnan(avg_ess))
-        avg_ess = ESS(test2, [None, None], do_log=False, verbose=False)
+        avg_ess = ESS(test2, False, verbose=False)
         self.assertAlmostEqual(avg_ess, 3494.367866841)
         
     def test_binned_stderr(self):
@@ -224,8 +229,8 @@ class TestUtils(unittest.TestCase):
         
         expected_out_submeans = [4.5,14.5,24.5,34.5,44.5,54.5,64.5,74.5,84.5,94.5]
         
-        # There should be 10 subgroups - hence sqrt(10)
-        expected_out_stderr = np.std(expected_out_submeans, ddof=1) / np.sqrt(10)
+
+        expected_out_stderr = np.std(expected_out_submeans, ddof=1)
         
         out_subs, out_stderr = binned_stderr(test_chain, bins)
         np.testing.assert_equal(out_subs, expected_out_submeans)

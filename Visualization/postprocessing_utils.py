@@ -6,7 +6,7 @@ Created on Fri Feb 18 13:53:02 2022
 """
 import numpy as np
 import os
-from secondary_parameters import mu_eff, LI_tau_eff, HI_tau_eff, LI_tau_srh
+from secondary_parameters import mu_eff, LI_tau_eff, HI_tau_srh, LI_tau_srh
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
 importr('coda')
@@ -22,7 +22,7 @@ def recommend_logscale(which_param, do_log):
     elif which_param == "tau_eff" or which_param == "tau_srh":
         recommend = (do_log["tauN"] or (do_log["Sf"] or do_log["Sb"]))
         
-    elif which_param == "HI_tau_eff":
+    elif which_param == "HI_tau_srh":
         recommend = (do_log["tauN"] or do_log["tauP"] or (do_log["Sf"] or do_log["Sb"]))
         
     elif which_param == "mu_eff":
@@ -69,7 +69,8 @@ def binned_stderr(vals, bins):
     sub_means : 1D array
         List of means from each subdivided portion of vals[].
     stderr : float
-        Standard error computed by sqrt(var(sub_means) / N).
+        Standard error computed by sqrt(var(sub_means)). This should be divided
+        by sqrt(ESS) to get a sample stderr.
 
     """
     
@@ -133,8 +134,8 @@ def fetch(path, which_param):
     elif which_param == "tau_srh":
         params = ["Sf", "Sb", "tauN", "mu_n", "mu_p"]
         
-    elif which_param == "HI_tau_eff":
-        params = ["Sf", "Sb", "tauN", "tauP", "mu_n", "mu_p", "ks", "p0"]
+    elif which_param == "HI_tau_srh":
+        params = ["Sf", "Sb", "tauN", "tauP", "mu_n", "mu_p"]
         
     elif which_param == "mu_eff":
         params = ["mu_n", "mu_p"]
@@ -170,7 +171,7 @@ def fetch_param(raw_fetched, mean_fetched, which_param, **kwargs):
                               raw_fetched["Sf"], raw_fetched["Sb"], raw_fetched["Cp"], 
                               thickness, mu_a)
         accepted = LI_tau_eff(mean_fetched["ks"], mean_fetched["p0"], mean_fetched["tauN"], 
-                              mean_fetched["Sf"], mean_fetched["Sb"], raw_fetched["Cp"],
+                              mean_fetched["Sf"], mean_fetched["Sb"], mean_fetched["Cp"],
                               thickness, mean_mu_a)
         
     elif which_param == "tau_srh":
@@ -190,14 +191,14 @@ def fetch_param(raw_fetched, mean_fetched, which_param, **kwargs):
         proposed = mu_eff(raw_fetched["mu_n"], raw_fetched["mu_p"])
         accepted = mu_eff(mean_fetched["mu_n"], mean_fetched["mu_p"])
         
-    elif which_param == "HI_tau_eff":
+    elif which_param == "HI_tau_srh":
         mu_a = mu_eff(raw_fetched["mu_n"], raw_fetched["mu_p"])
         mean_mu_a = mu_eff(mean_fetched["mu_n"], mean_fetched["mu_p"])
         
         thickness = kwargs.get("thickness", 2000)
-        proposed = HI_tau_eff(raw_fetched["ks"], raw_fetched["p0"], raw_fetched["tauN"], raw_fetched["tauP"],
+        proposed = HI_tau_srh(raw_fetched["tauN"], raw_fetched["tauP"],
                               raw_fetched["Sf"], raw_fetched["Sb"], thickness, mu_a)
-        accepted = HI_tau_eff(mean_fetched["ks"], mean_fetched["p0"], mean_fetched["tauN"], mean_fetched["tauP"],
+        accepted = HI_tau_srh(mean_fetched["tauN"], mean_fetched["tauP"],
                               mean_fetched["Sf"], mean_fetched["Sb"], thickness, mean_mu_a)
         
         
