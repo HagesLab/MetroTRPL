@@ -21,7 +21,7 @@ from postprocessing_utils import load_all_accepted, ASJD, ESS, binned_stderr
 stylized_names = {"p0":r"$p_0$", "ks":r"$k^*$", "mu_n":r"$\mu_n$","mu_p":r"$\mu_p$", "mu_eff":r"$\mu\prime$",
                   "Sf+Sb":r"$S_F+S_B$", "Sf":r"$S_F$", "Sb":r"$S_B$",
                   "tauN":r"$\tau_n$", "tauP":r"$\tau_p$", "tau_srh":r"$\tau_{SRH}$",
-                  "Cn+Cp":r"$C_n+C_p$"}
+                  "Cn+Cp":r"$C_n+C_p$", "tauN+tauP":r"$\tau_n+\tau_p$"}
 
 true_vals = {"mu_n":320,
               "mu_p":80,
@@ -36,7 +36,7 @@ true_vals = {"mu_n":320,
               "tauN":511,
               "tauP":871,
               "tau_eff": 454,
-              "HI_tau_eff": 1382,
+              "HI_tau_srh": 1290,
               "Sf+Sb":20}
 true_vals = {}
 
@@ -48,8 +48,8 @@ do = {"1D_trackers":0,
       "ESS":0,
       "binning":1}
 
-axis_overrides_2D = {"mu_n":(1e-1,1e4),
-                  "mu_p":(1e-1,1e4),
+axis_overrides_2D = {"mu_n":(1e0,1e2),
+                  "mu_p":(1e0,1e2),
                   "mu_eff":(1e-4,1e4),
                   "p0":(2e14, 3e16),
                   "ks":(1e-11, 3e-10),
@@ -58,31 +58,32 @@ axis_overrides_2D = {"mu_n":(1e-1,1e4),
                   "tauN":(1e2, 1e4),
                   "tauP":(1e-4, 1e4),
                   "tau_eff":(1e-4, 1e4),
-                  "Sf+Sb":(1e1, 1e3)}
-
+                  "Sf+Sb":(1e1, 1e3),
+                  "tauN+tauP":(1e2,1e4)}
+thickness = 3000 #[nm]
 axis_overrides_1D = None
 
 window = [0,1282]
-window = [2500, 25000]
+window = [20000, 50000]
 adds = {}
 pairs = [('p0', 'ks')]
-pairs = [('mu_n', 'mu_p', 100)]
+pairs = [('mu_n', 'mu_p', 20)]
 #pairs = [("Sf+Sb", "tauN"), ]#('p0', 'B'), ('p0', 'tauN'), ('p0', 'Sf'), ('p0', 'Sb'), ('p0', 'tau_eff')]
 #adds = {"mu_eff":None}
-# adds = {"Sf+Sb":20, "tau_srh":485, "Cn+Cp":8.8e-29}
-adds = {"HI_tau_eff":None, "Cn+Cp":None, "mu_eff":None}
-# pairs = [("Sf+Sb", "tauN", 454)]
-# pairs = [("Sf", "Sb", 20)]
+adds = {"tau_srh":None}
+#adds = {"HI_tau_srh":None, "Cn+Cp":None, "mu_eff":None}
+pairs = [("Sf+Sb", "tauN", 485)]
+pairs = [("Sf", "Sb", 20)]
 
 
 if __name__ == "__main__":
     #path = "1T_step_all_0/1T_step_all_0-0
-    path = os.path.join("3B1FSGS_TRPL", str(1))
-    path = os.path.join("real_staub_with_auger2", str(3))
+    path = os.path.join("2A1FSGS_TRPL", str(0))
+    #path = os.path.join("2T_auger_definitive_withauger", str(2))
 
     #path = "DEBUG/DEBUG-0"
     
-    path = os.path.join("bay_outputs", path)
+    path = os.path.join("..", "bay_outputs", path)
     with open(os.path.join(path, "param_info.pik"), "rb") as ifstream:
         param_info = pickle.load(ifstream)
         
@@ -159,7 +160,7 @@ if __name__ == "__main__":
             for p in raw_fetched:
                 raw_fetched[p] = raw_fetched[p][window[0]:window[1]]
                 mean_fetched[p] = mean_fetched[p][window[0]:window[1]]
-            proposed, accepted = fetch_param(raw_fetched, mean_fetched, add_param, thickness=2000)
+            proposed, accepted = fetch_param(raw_fetched, mean_fetched, add_param, thickness=thickness)
             
             recommended_log = recommend_logscale(add_param, do_log)
             
@@ -204,7 +205,7 @@ if __name__ == "__main__":
             for p in raw_fetched:
                 raw_fetched[p] = raw_fetched[p][window[0]:window[1]]
                 mean_fetched[p] = mean_fetched[p][window[0]:window[1]]
-            proposed, accepted = fetch_param(raw_fetched, mean_fetched, add_param, thickness=2000)
+            proposed, accepted = fetch_param(raw_fetched, mean_fetched, add_param, thickness=thickness)
             # if did_multicore:
             #     accepted = accepted[:, window[0]:window[1]]
             # else:
@@ -235,7 +236,7 @@ if __name__ == "__main__":
                 for p in raw_fetched:
                     raw_fetched[p] = raw_fetched[p][window[0]:window[1]]
                     mean_fetched[p] = mean_fetched[p][window[0]:window[1]]
-                proposed, x_accepted = fetch_param(raw_fetched, mean_fetched, paramx, thickness=2000)
+                proposed, x_accepted = fetch_param(raw_fetched, mean_fetched, paramx, thickness=thickness)
                 do_log[paramx] = recommend_logscale(paramx, do_log)
                 
             else:
@@ -249,7 +250,7 @@ if __name__ == "__main__":
                 for p in raw_fetched:
                     raw_fetched[p] = raw_fetched[p][window[0]:window[1]]
                     mean_fetched[p] = mean_fetched[p][window[0]:window[1]]
-                proposed, y_accepted = fetch_param(raw_fetched, mean_fetched, paramy, thickness=2000)
+                proposed, y_accepted = fetch_param(raw_fetched, mean_fetched, paramy, thickness=thickness)
             else:
                 y_accepted = np.load(os.path.join(path, f"mean_{paramy}.npy"))
                 y_accepted = y_accepted[window[0]:window[1]]
@@ -312,7 +313,7 @@ if __name__ == "__main__":
             for p in raw_fetched:
                 raw_fetched[p] = raw_fetched[p][window[0]:window[1]]
                 mean_fetched[p] = mean_fetched[p][window[0]:window[1]]
-            proposed, accepted = fetch_param(raw_fetched, mean_fetched, add_param, thickness=2000)
+            proposed, accepted = fetch_param(raw_fetched, mean_fetched, add_param, thickness=thickness)
             
             avg_ess = ESS(accepted, recommend_logscale(add_param, do_log))
             print("Average ESS: {}".format(avg_ess))
