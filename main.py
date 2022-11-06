@@ -29,7 +29,7 @@ else:
     try:
         jobid = int(sys.argv[2])
     except IndexError:
-        jobid = 0
+        jobid = 3
 
 if on_hpg:
     init_dir = r"/blue/c.hages/cfai2304/Metro_in"
@@ -115,7 +115,7 @@ def stop(logger, handler, err=0):
     return
 
 from bayes_io import get_data, get_initpoints
-from metropolis import metro, draw_initial_guesses
+from metropolis import metro
 from time import perf_counter
 
 if __name__ == "__main__":
