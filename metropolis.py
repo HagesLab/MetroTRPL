@@ -6,13 +6,12 @@ Created on Mon Jan 31 22:13:26 2022
 """
 import numpy as np
 from scipy.integrate import solve_ivp, odeint
-from multiprocessing import Pool
+#from multiprocessing import Pool
 import os
 import sys
 import signal
-from functools import partial
 
-from forward_solver import dydt, dydt_numba
+from forward_solver import dydt_numba
 from sim_utils import MetroState, Grid, Solution
 import pickle
 
@@ -296,7 +295,7 @@ def run_iteration(p, simPar, iniPar, times, vals, hmax, sim_flags, verbose, logg
             p.likelihood[i] = one_sim_likelihood(p, simPar, hmax, sim_flags, logger, (i, iniPar[i], times[i], vals[i]))
             
     if prev_p is not None:
-        T = anneal(t, sim_flags["anneal_mode"], sim_flags["anneal_params"])
+        T = anneal(t, sim_flags.get("anneal_mode", None), sim_flags["anneal_params"])
         logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood)) / T
         if verbose and logger is not None: 
             logger.debug(f"Temperature: {T}")
@@ -354,7 +353,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
     
         # Calculate likelihood of initial guess
         MS.running_hmax = [STARTING_HMAX] * len(iniPar)
-        accept = run_iteration(MS.prev_p, simPar, iniPar, times, vals, MS.running_hmax, sim_flags, verbose, logger)
+        run_iteration(MS.prev_p, simPar, iniPar, times, vals, MS.running_hmax, sim_flags, verbose, logger)
         MS.H.update(0, MS.prev_p, MS.means, param_info)
 
     for k in range(starting_iter, num_iters):
@@ -389,8 +388,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             if accepted:
                 MS.means.transfer_from(MS.p, param_info)
                 MS.H.accept[k] = 1
-                #MS.H.ratio[k] = 10 ** logratio
-                
+
             MS.H.update(k, MS.p, MS.means, param_info)
         except KeyboardInterrupt:
             logger.info("Terminating with k={} iters completed:".format(k-1))

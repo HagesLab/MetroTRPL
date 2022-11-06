@@ -6,15 +6,17 @@ import sys
 from metropolis import all_signal_handler
 from metropolis import E_field, model, select_next_params
 from metropolis import do_simulation, roll_acceptance, unpack_simpar
-from metropolis import detect_sim_fail, detect_sim_depleted
+from metropolis import detect_sim_fail, detect_sim_depleted, almost_equal
 from metropolis import check_approved_param, anneal
-from metropolis import run_iteration
-from sim_utils import Parameters, Grid, History, Covariance
+from metropolis import run_iteration, one_sim_likelihood
+from sim_utils import Parameters, Grid, Covariance
 from scipy.integrate import trapz
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
 q = 1.0 # [e]
 q_C = 1.602e-19 # [C]
 kB = 8.61773e-5  # [eV / K]
+
+MIN_HMAX = 0.01
 
 class TestUtils(unittest.TestCase):
     
@@ -120,11 +122,48 @@ class TestUtils(unittest.TestCase):
         pa.apply_unit_conversions(param_info)
         init_dN = 1e20 * np.ones(g.nx) * 1e-21 # [cm^-3] to [nm^-3]
         
-        test_PL, out_dN = model(init_dN, g, pa)
+        # with solveivp
+        test_PL, out_dN = model(init_dN, g, pa, meas="TRPL", solver="solveivp",
+                                RTOL=1e-10,ATOL=1e-14)
         rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
         self.assertAlmostEqual(test_PL[-1], trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2)
+        
+        # with odeint
+        test_PL, out_DN = model(init_dN, g, pa, meas="TRPL", solver="odeint",
+                                RTOL=1e-10,ATOL=1e-14)
+        rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
+        self.assertAlmostEqual(test_PL[-1], trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2, places=6)
+        
+        # try a trts
+        
+        vals = {'n0':0,
+                'p0':0,
+                'mu_n':10,
+                'mu_p':10,
+                "ks":1e-11,
+                "Cn":0, "Cp":0,
+                'tauN':1e99,
+                'tauP':1e99,
+                'Sf':0,
+                'Sb':0,
+                "Tm":300,
+                'eps':1}
+        pa = Parameters(param_info, vals)
+        pa.apply_unit_conversions(param_info)
+        
+        test_TRTS, out_dN = model(init_dN, g, pa, meas="TRTS", solver="solveivp")
+        trts = pa.mu_n * out_dN + pa.mu_p * out_dN
+        self.assertAlmostEqual(test_TRTS[-1], trapz(trts, dx=g.dx) + trts[0]*g.dx/2 + trts[-1]*g.dx/2)
+        
+        # try an undefined measurement
+        with self.assertRaises(NotImplementedError):
+            model(init_dN, g, pa, meas="something else")
+            
+        # try an undefined solver
+        with self.assertRaises(NotImplementedError):
+            model(init_dN, g, pa, meas="TRPL", solver="somethign else")
+        
         return
-
 
     
     def test_approve_param(self):
@@ -164,7 +203,6 @@ class TestUtils(unittest.TestCase):
         param_names = ["a", "b", "c", "d"]
 
         do_log = {"a":0, "b":1,"c":0,"d":0}
-        unit_conversions = {'a':1,'b':1,'c':1,'d':1}
 
         initial_guesses = {"a":0, 
                             "b":100, 
@@ -230,7 +268,6 @@ class TestUtils(unittest.TestCase):
         
         return
     
-    
     def test_do_simulation(self):
         # Just verify this realistic simulation converges
         unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
@@ -279,6 +316,21 @@ class TestUtils(unittest.TestCase):
         sim_output = np.ones(10) * -1
         sim_output, fail = detect_sim_depleted(sim_output)
         np.testing.assert_equal(sim_output, [1 + sys.float_info.min] * 10)
+        
+    def test_almost_equal(self):
+        threshold = 1e-7
+        
+        # One element just too large
+        a = np.array([1.0,1.0])
+        b = np.array([1.0,1.0+threshold])
+        self.assertFalse(almost_equal(b, a, threshold=threshold))
+        
+        # All elements just close enough
+        b = np.array([1.0, 1.0+0.999*threshold])
+        self.assertTrue(almost_equal(b, a, threshold=threshold))
+        
+        wrong_shape = np.array([1.0,1.0,1.0])
+        self.assertFalse(almost_equal(a, wrong_shape))
     
     def test_roll_acceptance(self):
         np.random.seed(1)
@@ -353,9 +405,7 @@ class TestUtils(unittest.TestCase):
         simPar = [Length, -1, L, -1, plT, pT, tol, MAX]
         
         iniPar = [1e15 * np.ones(L) * 1e-21, 1e16 * np.ones(L) * 1e-21]
-        DA_time_subs = 2
-        num_time_subs = 2
-        
+
         param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
                        "Sf", "Sb", "tauN", "tauP", "eps", "m"]
         unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
@@ -411,7 +461,74 @@ class TestUtils(unittest.TestCase):
         # Accept should overwrite p2 (new) into p (old)
         np.testing.assert_equal(p.likelihood, p2.likelihood)
         
+    def test_one_sim_ll_errata(self):
+        # TODO: The next time odeint fails to do a simulation, upload it into this
+        # test case
+        return
+        # np.random.seed(42)
+        # Length  = 2000                            # Length (nm)
+        # L   = 2 ** 7                                # Spatial points
+        # plT = 1                                  # Set PL interval (dt)
+        # pT  = (0,1,3,10,30,100)                   # Set plot intervals (%)
+        # tol = 7                                   # Convergence tolerance
+        # MAX = 10000                                  # Max iterations
+        
+        # simPar = [Length, -1, L, -1, plT, pT, tol, MAX]
+        
+        # iniPar = [np.logspace(20,1,L) * 1e-21, 1e16 * np.ones(L) * 1e-21]
+
+        # param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
+        #                "Sf", "Sb", "tauN", "tauP", "eps", "m"]
+        # unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
+        #                     "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
+        #                     "ks":((1e7) ** 3) / (1e9), "Sf":1e-2, "Sb":1e-2}
+        
+        # # Iterations should proceed independent of which params are actively iterated,
+        # # as all params are presumably needed to complete the simulation
+        # param_info = {"names":param_names,
+        #               "unit_conversions":unit_conversions, 
+        #               "active":{name:0 for name in param_names}}
+        # initial_guess = {"n0":1e8, 
+        #                  "p0":1e12, 
+        #                  "mu_n":2, 
+        #                  "mu_p":2, 
+        #                  "ks":1e-11, 
+        #                  "Sf":1000, 
+        #                  "Sb":1e4, 
+        #                  "Cn":0,
+        #                  "Cp":0,
+        #                  "Tm":300,
+        #                  "tauN":10, 
+        #                  "tauP":10, 
+        #                  "eps":10, 
+        #                  "m":0}
+        
+        # sim_flags = {"hmax":MIN_HMAX * 4, "rtol":1e-10, "atol":1e-10,
+        #              "measurement":"TRPL",
+        #              "solver":"odeint"}
+        
+        # nt = 100
+        # i = 0
+        # times = [np.linspace(0, 10, nt+1), np.linspace(0, 10, nt+1)]
+        # vals = [np.zeros(nt+1), np.zeros(nt+1)]
+        
+        # running_hmax = [sim_flags["hmax"]] * len(iniPar)
+        # p = Parameters(param_info, initial_guess)
+        # p.apply_unit_conversions(param_info)
+        
+        # with self.assertLogs() as captured:
+        #     one_sim_likelihood(p, simPar, running_hmax, sim_flags, self.logger,
+        #                        (i, iniPar[i], times[i], vals[i]))
+            
+        # # We can force a simulation failure by using odeint + rapid recombination
+        # self.assertEqual(len(captured.records), 8) 
+        # self.assertEqual(captured.records[1].getMessage(), 
+        #                  f"{i}: Carriers depleted!")
+        # self.assertEqual(captured.records[2].getMessage(),
+        #                  f"{i}: Retrying hmax={MIN_HMAX * 2}") 
+
         
 if __name__ == "__main__":
     t = TestUtils()
-    t.test_select_next_params()
+    t.setUp()
+    t.test_one_sim_ll_errata()
