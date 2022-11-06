@@ -29,7 +29,7 @@ else:
     try:
         jobid = int(sys.argv[2])
     except IndexError:
-        jobid = 0
+        jobid = 3
 
 if on_hpg:
     init_dir = r"/blue/c.hages/cfai2304/Metro_in"
@@ -115,7 +115,7 @@ def stop(logger, handler, err=0):
     return
 
 from bayes_io import get_data, get_initpoints
-from metropolis import metro, draw_initial_guesses
+from metropolis import metro
 from time import perf_counter
 
 if __name__ == "__main__":
@@ -135,14 +135,14 @@ if __name__ == "__main__":
     # matPar = [N0, P0, DN, DP, rate, Cn, Cp, sr0, srL, tauN, tauP, Lambda, mag_offset]
     # Set the parameter ranges/sample space
     param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp",
-                   "Sf", "Sb", "tauN", "tauP", "eps", "m"]
+                   "Sf", "Sb", "tauN", "tauP", "eps", "Tm", "m"]
     unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
                         "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
                         "ks":((1e7) ** 3) / (1e9), 
                         "Cn":((1e7) ** 6) / (1e9), "Cp":((1e7) ** 6) / (1e9),
-                        "Sf":1e-2, "Sb":1e-2}
+                        "Sf":1e-2, "Sb":1e-2, "Tm":1}
     do_log = {"n0":1, "p0":1,"mu_n":1,"mu_p":1,"ks":1, "Cn":1, "Cp":1,
-              "Sf":1,"Sb":1,"tauN":1,"tauP":1,"eps":1,
+              "Sf":1,"Sb":1,"tauN":1,"tauP":1,"eps":1,"Tm":0,
               "m":0}
 
     initial_guesses = {"n0":1e8,
@@ -157,13 +157,8 @@ if __name__ == "__main__":
                         "tauN": 511,
                         "tauP": 871,
                         "eps":10,
+                        "Tm":300,
                         "m":0}
-    #mods = [{"p0":3e14}, {"p0":3e16}, {"ks":4.8e-12}, {"ks":4.8e-10},
-    #        {"mu_n":2}, {"mu_n":200}, {"mu_p":2}, {"mu_p":200},
-    #        {"Sf":1}, {"Sf":100}, {"Sb":1}, {"Sb":100},
-    #        {"tauN":51.1}, {"tauN":5110}, {"tauP":87.1}, {"tauP":8710}]
-    #for p, v in mods[jobid].items():
-    #    initial_guesses[p] = v
 
     active_params = {"n0":0,
                      "p0":1,
@@ -177,19 +172,9 @@ if __name__ == "__main__":
                      "tauN":1,
                      "tauP":1,
                      "eps":0,
+                     "Tm":0,
                      "m":0}
 
-    #initial_guesses = {"n0":1e8,
-    #                 "p0":[1e10,1e12,1e14,1e16],
-    #                 "mu_n":20,
-    #                 "mu_p":20,
-    #                 "ks":1.585e-12,
-    #                 "Sf":1.585e-1,
-    #                 "Sb":1e-1,
-    #                 "tauN":1e4,
-    #                 "tauP":3.415,
-    #                 "eps":10,
-    #                 "m":0}
     # Other options
     initial_variance = {"n0":0,
                      "p0":1,
@@ -203,6 +188,7 @@ if __name__ == "__main__":
                      "tauN":1,
                      "tauP":1,
                      "eps":0,
+                     "Tm":0,
                      "m":0}
 
     initial_variance = 1e-2
@@ -224,20 +210,14 @@ if __name__ == "__main__":
                  "rtol":1e-7,
                  "atol":1e-10,
                  "hmax":4,
-                 "anneal_mode": None, # None, "exp", "log"
-                 "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Initial T; time constant (exp decreases by 63% when t=, log decreases by 50% when 2t=; minT]
-                 "delayed_acceptance": 'off', # "off", "on", "cumulative", "DEBUG"
-                 #"DA time subdivisions": 1,
+                 "verify_hmax":False,
+                 "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Unused, unused, initial_T]
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
                  "self_normalize":False,
-                 #"num_initial_guesses":4,
                  "proposal_function":"box", # box or gauss; anything else disables new proposals
-                 #"adaptive_covariance":"None", #AM for Harrio Adaptive, LAP for Shaby Log-Adaptive
-                 #"AM_activation_time":0,
                  "one_param_at_a_time":False,
-                 #"LAP_params":(1,0.8,0.234),
                  "checkpoint_dirname": os.path.join(out_pathname, "Checkpoints"),
                  "checkpoint_freq":25000, # Save a checkpoint every #this many iterations#
                  "load_checkpoint": None,
@@ -258,16 +238,6 @@ if __name__ == "__main__":
 
 
     np.random.seed(0)
-    #param_is_iterable = {param:isinstance(initial_guesses[param], (list, tuple, np.ndarray)) for param in initial_guesses}
-    #for param in initial_guesses:
-    #    if param_is_iterable[param]:
-    #        np.random.shuffle(initial_guesses[param])
-
-    #if not sim_flags.get("do_multicore", False) and any(param_is_iterable.values()):
-    #    logger.warning("Multiple initial guesses detected without do_multicore - doing only first guess"
-    #                    "- did you mean to enable do_multicore?")
-
-    #initial_guess_list = draw_initial_guesses(initial_guesses, sim_flags["num_initial_guesses"])
 
     if not os.path.isdir(out_pathname):
         os.makedirs(out_pathname, exist_ok=True)
