@@ -44,19 +44,14 @@ def LI_tau_srh(tau_n, Sf, Sb, thickness, mu):
     tau_surf = (thickness / ((Sf+Sb)*0.01)) + (thickness**2 / (np.pi ** 2 * D))
     return (tau_surf**-1 + tau_n**-1)**-1
 
-def HI_tau_eff(B, p0, tau_n, tau_p, Sf, Sb, thickness, mu):
-    # S [cm/s] -> [nm/ns]
-    # B [cm^3 / s]
-    # p0 [cm^-3]
-    # tau_n [ns]
-    # thickness [nm]
+def HI_tau_srh(tau_n, tau_p, Sf, Sb, thickness, mu):
     kb = 0.0257 #[ev]
     q = 1
     
     D = mu * kb / q * 10**14 / 10**9# [cm^2 / V s] * [eV] / [eV/V] = [cm^2/s] -> [nm^2/ns]
     tau_surf = 2*(thickness / ((Sf+Sb)*0.01)) + (thickness**2 / (np.pi ** 2 * D))
-    t_r = t_rad(B, p0)
-    return (t_r**-1 + tau_surf**-1 + (tau_n+tau_p)**-1)**-1
+    
+    return (tau_surf**-1 + (tau_n+tau_p)**-1)**-1
 
 def s_eff(sf, sb):
     return sf+sb
