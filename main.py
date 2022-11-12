@@ -40,31 +40,31 @@ if on_hpg:
     out_fname = sys.argv[2]
 
 else:
-    #init_dir = r"trts_inputs"
-    #out_dir = r"trts_outputs"
-    init_dir = r"bay_inputs"
-    out_dir = r"bay_outputs"
-    #init_fname = "mocktrts_cdte_800nm_input.csv"
-    #exp_fname = "mocktrts_cdte_800nm.csv"
+    init_dir = r"trts_inputs"
+    out_dir = r"trts_outputs"
+    #init_dir = r"bay_inputs"
+    #out_dir = r"bay_outputs"
+    init_fname = "mocktrts_cdte_800nm_input.csv"
+    exp_fname = "mocktrts_cdte_800nm.csv"
     #exp_fname = "abrupt_p0.csv"
     #init_fname = "2A1FSGS_input.csv"
     #exp_fname = "2A1FSGS.csv"
-    init_fnames = {0:"2A1FSGS_TRPL_input.csv",
-                   1:"3B1FSGS_TRPL_input.csv",
-                   2:"staub_MAPI_threepower_twothick_input.csv",
-                   3:"staub_MAPI_power_input.csv"}
-    init_fname = init_fnames[jobid]
+    #init_fnames = {0:"2A1FSGS_TRPL_input.csv",
+    #               1:"3B1FSGS_TRPL_input.csv",
+    #               2:"staub_MAPI_threepower_twothick_input.csv",
+    #               3:"staub_MAPI_power_input.csv"}
+    #init_fname = init_fnames[jobid]
 
-    exp_fnames = {0:"2A1FSGS_TRPL.csv",
-                  1:"3B1FSGS_TRPL.csv",
-                  2:"staub_MAPI_threepower_twothick_withauger.csv",
-                  3:"real_staub_aug_corr.csv"}
-    exp_fname = exp_fnames[jobid]
+    #exp_fnames = {0:"2A1FSGS_TRPL.csv",
+    #              1:"3B1FSGS_TRPL.csv",
+    #              2:"staub_MAPI_threepower_twothick_withauger.csv",
+    #              3:"real_staub_aug_corr.csv"}
+    #exp_fname = exp_fnames[jobid]
 
-    out_fnames = {0:"2A1FSGS_TRPL",
-                  1:"3B1FSGS_TRPL",
-                  2:"FINAL_2T",
-                  3:"FINAL_REAL"}
+    out_fnames = {0:"THEORY_TAUONLY",
+                  1:"THEORY_KP0",
+                  2:"THEORY_MUONLY",
+                  3:"THEORY_SONLY"}
     out_fname = out_fnames[jobid]
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -122,8 +122,8 @@ if __name__ == "__main__":
     logger, handler = start_logging(log_dir=os.path.join(out_pathname))
     # Set space and time grid options
     #Length = [311,2000,311,2000, 311, 2000]
-    Length  = 311                           # Length (nm)
-    L   = 128                                # Spatial points
+    Length  = 3000                           # Length (nm)
+    L   = 300                                # Spatial points
     plT = 1                                  # Set PL interval (dt)
     pT  = (0,1,3,10,30,100)                   # Set plot intervals (%)
     tol = 7                                   # Convergence tolerance
@@ -146,31 +146,31 @@ if __name__ == "__main__":
               "m":0}
 
     initial_guesses = {"n0":1e8,
-                        "p0": 1e15,
-                        "mu_n": 20,
-                        "mu_p": 20,
-                        "ks": 4.8e-11,
-                        "Cn": 8e-29,
-                        "Cp": 8e-29,
-                        "Sf":10,
-                        "Sb": 10,
-                        "tauN": 511,
-                        "tauP": 871,
-                        "eps":10,
+                        "p0": 1e14 if jobid == 1 else 1e13,
+                        "mu_n": 100 if jobid == 2 else 320,
+                        "mu_p": 100 if jobid == 2 else 40,
+                        "ks": 4.8e-11 if jobid == 1 else 2e-10,
+                        "Cn": 1e-99,
+                        "Cp": 1e-99,
+                        "Sf":1000 if jobid == 3 else 100,
+                        "Sb": 100 if jobid == 3 else 1e4,
+                        "tauN": 10 if jobid == 0 else 1,
+                        "tauP": 10 if jobid == 0 else 1,
+                        "eps":9.4,
                         "Tm":300,
                         "m":0}
 
     active_params = {"n0":0,
-                     "p0":1,
-                     "mu_n":0,
-                     "mu_p":0,
-                     "ks":1,
-                     "Cn":1,
-                     "Cp":1,
-                     "Sf":1,
-                     "Sb":1,
-                     "tauN":1,
-                     "tauP":1,
+                     "p0":1 if jobid == 1 else 0,
+                     "mu_n":1 if jobid == 2 else 0,
+                     "mu_p":1 if jobid == 2 else 0,
+                     "ks":1 if jobid == 1 else 0,
+                     "Cn":0,
+                     "Cp":0,
+                     "Sf":1 if jobid == 3 else 0,
+                     "Sb":1 if jobid == 3 else 0,
+                     "tauN":1 if jobid == 0 else 0,
+                     "tauP":1 if jobid == 0 else 0,
                      "eps":0,
                      "Tm":0,
                      "m":0}
@@ -191,7 +191,7 @@ if __name__ == "__main__":
                      "Tm":0,
                      "m":0}
 
-    initial_variance = 1e-2
+    initial_variance = 1e-1
 
     param_info = {"names":param_names,
                   "active":active_params,
@@ -203,13 +203,13 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"measurement":"TRPL",
-                 "num_iters": 100000,
+    sim_flags = {"measurement":"TRTS",
+                 "num_iters": 50000,
                  "solver": "solveivp",
                  "use_multi_cpus":False,
                  "rtol":1e-7,
                  "atol":1e-10,
-                 "hmax":4,
+                 "hmax":0.1,
                  "verify_hmax":False,
                  "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Unused, unused, initial_T]
                  "override_equal_mu":False,
@@ -219,7 +219,7 @@ if __name__ == "__main__":
                  "proposal_function":"box", # box or gauss; anything else disables new proposals
                  "one_param_at_a_time":False,
                  "checkpoint_dirname": os.path.join(out_pathname, "Checkpoints"),
-                 "checkpoint_freq":25000, # Save a checkpoint every #this many iterations#
+                 "checkpoint_freq":10000, # Save a checkpoint every #this many iterations#
                  "load_checkpoint": None,
                  }
 
@@ -259,6 +259,12 @@ if __name__ == "__main__":
 
     # Get observations and initial condition
     iniPar = get_initpoints(init_pathname, ic_flags)
+    if sim_flags["measurement"] == "TRPL":
+        scale_f = 1e-23
+    elif sim_flags["measurement"] == "TRTS":
+        scale_f = 1e-9
+    else:
+        raise NotImplementedError("No scale_f for measurements other than TRPL and TRTS")
     e_data = get_data(experimental_data_pathname, ic_flags, sim_flags, scale_f=1e-23)
     clock0 = perf_counter()
 
