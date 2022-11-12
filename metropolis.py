@@ -271,7 +271,7 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
         likelihood = -np.sum((np.log10(sol) - vals)**2)
 
         # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
-        if np.isnan(likelihood): raise ValueError(f"{i}: Simulation failed!")
+        if fail or np.isnan(likelihood): raise ValueError(f"{i}: Simulation failed!")
     except ValueError as e:
         logger.warning(e)
         likelihood = -np.inf
