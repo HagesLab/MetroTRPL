@@ -265,7 +265,7 @@ if __name__ == "__main__":
         scale_f = 1e-9
     else:
         raise NotImplementedError("No scale_f for measurements other than TRPL and TRTS")
-    e_data = get_data(experimental_data_pathname, ic_flags, sim_flags, scale_f=1e-23)
+    e_data = get_data(experimental_data_pathname, ic_flags, sim_flags, scale_f=scale_f)
     clock0 = perf_counter()
 
     logger.info("Initial guess: {}".format(initial_guesses))
