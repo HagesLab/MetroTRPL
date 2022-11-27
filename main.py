@@ -42,13 +42,15 @@ if on_hpg:
 else:
     init_dir = r"trts_inputs"
     out_dir = r"trts_outputs"
-    #init_dir = r"bay_inputs"
-    #out_dir = r"bay_outputs"
-    init_fname = "mocktrts_cdte_800nm_input.csv"
-    exp_fname = "mocktrts_cdte_800nm.csv"
+    init_dir = r"bay_inputs"
+    out_dir = r"bay_outputs"
+    #init_fname = "mocktrts_cdte_800nm_input.csv"
+    #exp_fname = "mocktrts_cdte_800nm.csv"
     #exp_fname = "abrupt_p0.csv"
-    #init_fname = "2A1FSGS_input.csv"
-    #exp_fname = "2A1FSGS.csv"
+    #init_fname = "3B1FSGS_TRPL_input.csv"
+    #exp_fname = "3B1FSGS_TRPL.csv"
+    init_fname = "staub_MAPI_power_thick_input.csv"
+    exp_fname = "staub_MAPI_power_thick_withauger.csv"
     #init_fnames = {0:"2A1FSGS_TRPL_input.csv",
     #               1:"3B1FSGS_TRPL_input.csv",
     #               2:"staub_MAPI_threepower_twothick_input.csv",
@@ -61,10 +63,14 @@ else:
     #              3:"real_staub_aug_corr.csv"}
     #exp_fname = exp_fnames[jobid]
 
-    out_fnames = {0:"THEORY_TAUONLY",
-                  1:"THEORY_KP0",
-                  2:"THEORY_MUONLY",
-                  3:"THEORY_SONLY"}
+    #out_fnames = {0:"THEORY_TAUONLY",
+    #              1:"THEORY_KP0",
+    #              2:"THEORY_MUONLY",
+    #              3:"THEORY_SONLY"}
+    out_fnames = {0:"3B1FSGS_TRPL_(0,1)",
+                  1:"3B1FSGS_TRPL_(2,3)",
+                  2:"3B1FSGS_TRPL_(0,3)",
+                  3:"THEORY_PSCAN_NORM"}
     out_fname = out_fnames[jobid]
 
 init_pathname = os.path.join(init_dir, init_fname)
@@ -75,9 +81,6 @@ if not os.path.isdir(out_pathname):
         os.makedirs(out_pathname, exist_ok=True)
     except FileExistsError:
         print(f"{out_pathname} already exists")
-
-        
-out_pathname = os.path.join(out_pathname, f"{jobid}")
 
 def start_logging(log_dir="Logs"):
 
@@ -122,8 +125,8 @@ if __name__ == "__main__":
     logger, handler = start_logging(log_dir=os.path.join(out_pathname))
     # Set space and time grid options
     #Length = [311,2000,311,2000, 311, 2000]
-    Length  = 3000                           # Length (nm)
-    L   = 300                                # Spatial points
+    Length  = 2000                           # Length (nm)
+    L   = 128                                # Spatial points
     plT = 1                                  # Set PL interval (dt)
     pT  = (0,1,3,10,30,100)                   # Set plot intervals (%)
     tol = 7                                   # Convergence tolerance
@@ -146,31 +149,46 @@ if __name__ == "__main__":
               "m":0}
 
     initial_guesses = {"n0":1e8,
-                        "p0": 1e14 if jobid == 1 else 1e13,
-                        "mu_n": 100 if jobid == 2 else 320,
-                        "mu_p": 100 if jobid == 2 else 40,
-                        "ks": 4.8e-11 if jobid == 1 else 2e-10,
+                        "p0": 5.911e11,
+                        "mu_n": 9.075e1,
+                        "mu_p": 4.270e1,
+                        "ks": 5.958e-11,
                         "Cn": 1e-99,
                         "Cp": 1e-99,
-                        "Sf":1000 if jobid == 3 else 100,
-                        "Sb": 100 if jobid == 3 else 1e4,
-                        "tauN": 10 if jobid == 0 else 1,
-                        "tauP": 10 if jobid == 0 else 1,
+                        "Sf":2.1e6,
+                        "Sb": 2.665e2,
+                        "tauN": 4.708e2,
+                        "tauP": 1.961e2,
                         "eps":9.4,
                         "Tm":300,
                         "m":0}
 
+    initial_guesses = {"n0":1e8,
+                        "p0": 1e14,
+                        "mu_n": 20,
+                        "mu_p": 20,
+                        "ks": 5.958e-11,
+                        "Cn": 1e-29,
+                        "Cp": 1e-29,
+                        "Sf":2.1e2,
+                        "Sb": 2.665e2,
+                        "tauN": 4.708e2,
+                        "tauP": 1.961e2,
+                        "eps":10,
+                        "Tm":300,
+                        "m":0}
+
     active_params = {"n0":0,
-                     "p0":1 if jobid == 1 else 0,
-                     "mu_n":1 if jobid == 2 else 0,
-                     "mu_p":1 if jobid == 2 else 0,
-                     "ks":1 if jobid == 1 else 0,
-                     "Cn":0,
-                     "Cp":0,
-                     "Sf":1 if jobid == 3 else 0,
-                     "Sb":1 if jobid == 3 else 0,
-                     "tauN":1 if jobid == 0 else 0,
-                     "tauP":1 if jobid == 0 else 0,
+                     "p0":1,
+                     "mu_n":0,
+                     "mu_p":0,
+                     "ks":1,
+                     "Cn":1,
+                     "Cp":1,
+                     "Sf":1,
+                     "Sb":1,
+                     "tauN":1,
+                     "tauP":1,
                      "eps":0,
                      "Tm":0,
                      "m":0}
@@ -203,19 +221,19 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # TODO: Validation
-    sim_flags = {"measurement":"TRTS",
+    sim_flags = {"measurement":"TRPL",
                  "num_iters": 50000,
                  "solver": "solveivp",
                  "use_multi_cpus":False,
                  "rtol":1e-7,
                  "atol":1e-10,
-                 "hmax":0.1,
+                 "hmax":4,
                  "verify_hmax":False,
                  "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Unused, unused, initial_T]
                  "override_equal_mu":False,
                  "override_equal_s":False,
                  "log_pl":True,
-                 "self_normalize":False,
+                 "self_normalize":True,
                  "proposal_function":"box", # box or gauss; anything else disables new proposals
                  "one_param_at_a_time":False,
                  "checkpoint_dirname": os.path.join(out_pathname, "Checkpoints"),
@@ -281,4 +299,4 @@ if __name__ == "__main__":
     history.export(param_info, out_pathname)
 
     stop(logger, handler, 0)
-    print(f"{jobid} Finished")
+    print(f"{jobid} Finished - {out_pathname}")
