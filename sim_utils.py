@@ -193,9 +193,11 @@ class History():
             setattr(self, f"mean_{param}", np.zeros(num_iters))
         
         self.accept = np.zeros(num_iters)
-        self.ratio = np.zeros(num_iters)
+        self.loglikelihood = np.zeros(num_iters)
         
     def update(self, k, p, means, param_info):
+        self.loglikelihood[k] = np.sum(p.likelihood)
+        
         for param in param_info['names']:
             h = getattr(self, param)
             h[k] = getattr(p, param)
@@ -218,7 +220,8 @@ class History():
             np.save(os.path.join(out_pathname, f"mean_{param}"), getattr(self, f"mean_{param}"))
                     
         np.save(os.path.join(out_pathname, "accept"), self.accept)
-        np.save(os.path.join(out_pathname, "final_cov"), self.final_cov)
+        np.save(os.path.join(out_pathname, "loglikelihood"), self.loglikelihood)
+        #np.save(os.path.join(out_pathname, "final_cov"), self.final_cov)
         
     def truncate(self, k, param_info):
         """ Cut off any incomplete iterations should the walk be terminated early"""
@@ -230,7 +233,7 @@ class History():
             setattr(self, f"mean_{param}", val[:k])
             
         self.accept = self.accept[:k]
-        self.ratio = self.ratio[:k]
+        self.loglikelihood = self.loglikelihood[:k]
         return
     
              

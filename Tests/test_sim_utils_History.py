@@ -26,9 +26,9 @@ class TestUtils(unittest.TestCase):
     def test_initialization(self):
         # Test init
         self.assertEqual(sum(self.tasth.accept), 0)
-        self.assertEqual(sum(self.tasth.ratio), 0)
+        self.assertEqual(sum(self.tasth.loglikelihood), 0)
         self.assertEqual(len(self.tasth.accept), self.num_iters)
-        self.assertEqual(len(self.tasth.ratio), self.num_iters)
+        self.assertEqual(len(self.tasth.loglikelihood), self.num_iters)
         
         for param in self.dummy_names:
             self.assertEqual(sum(getattr(self.tasth, param)), 0)
@@ -70,7 +70,7 @@ class TestUtils(unittest.TestCase):
             np.testing.assert_equal(getattr(self.tasth, f"mean_{param}"), np.arange(truncate_at) + 10)
             
         self.assertEqual(len(self.tasth.accept), truncate_at)
-        self.assertEqual(len(self.tasth.ratio), truncate_at)
+        self.assertEqual(len(self.tasth.loglikelihood), truncate_at)
         
     def test_update(self):
         self.tasth = History(self.num_iters, self.dummy_param_info)
@@ -87,6 +87,7 @@ class TestUtils(unittest.TestCase):
             
         p = DummyParameters()
         p.c = 5
+        p.likelihood = [1,1,1]
         means = DummyParameters()
         means.c = 50
         
@@ -96,3 +97,7 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(self.tasth.mean_c[k], means.c)
         self.assertEqual(sum(self.tasth.c), p.c)
         self.assertEqual(sum(self.tasth.mean_c), means.c)
+        
+        expected_loglikelihood = np.zeros(self.num_iters)
+        expected_loglikelihood[k] = np.sum(p.likelihood)
+        np.testing.assert_equal(self.tasth.loglikelihood, expected_loglikelihood)
