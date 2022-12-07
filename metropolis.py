@@ -152,7 +152,7 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", solver="so
     g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
     
     g.time = times[-1]
-    g.start_time = times[0]
+    g.start_time = 0
     g.nt = len(times) - 1
     g.hmax = hmax
     g.tSteps = times
@@ -223,7 +223,7 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
                             solver=sim_flags["solver"], rtol=RTOL, atol=ATOL)
         
         #if verbose: 
-        logger.info("{}: Simulation complete hmax={}; final t {}".format(i, hmax, times[len(sol)-1]))
+        logger.info("{}: Simulation complete hmax={}; t {}-{}".format(i, hmax, times[0], times[len(sol)-1]))
         
         sol, fail = detect_sim_fail(sol, vals)
         if fail:
