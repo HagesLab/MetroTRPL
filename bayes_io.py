@@ -11,7 +11,7 @@ import os
 import numpy as np
 
 def get_data(exp_file, ic_flags, sim_flags, scale_f=1e-23, verbose=False):
-    EARLY_CUT = ic_flags['time_cutoff']
+    TIME_RANGE = ic_flags['time_cutoff']
     SELECT = ic_flags['select_obs_sets']
     NOISE_LEVEL = ic_flags['noise_level']
 
@@ -44,12 +44,14 @@ def get_data(exp_file, ic_flags, sim_flags, scale_f=1e-23, verbose=False):
         y_list.append(y[cutoff_indices[i]:cutoff_indices[i+1]])
         u_list.append(uncertainty[cutoff_indices[i]:cutoff_indices[i+1]])
         
-    if EARLY_CUT is not None:
+    if TIME_RANGE is not None:
+        t_low, t_high = TIME_RANGE[0], TIME_RANGE[1]
         for i in range(len(t_list)):
-            keep = np.searchsorted(t_list[i], EARLY_CUT, side='right')
-            t_list[i] = t_list[i][:keep]
-            y_list[i] = y_list[i][:keep]
-            u_list[i] = u_list[i][:keep]
+            keepL = np.searchsorted(t_list[i], t_low, side='left')
+            keepR = np.searchsorted(t_list[i], t_high, side='right')
+            t_list[i] = t_list[i][keepL:keepR]
+            y_list[i] = y_list[i][keepL:keepR]
+            u_list[i] = u_list[i][keepL:keepR]
             
     if NORMALIZE:
         for i in range(len(t_list)):

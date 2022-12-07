@@ -44,7 +44,7 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(vals, expected_vals)
         np.testing.assert_equal(uncs, expected_uncs)
         
-        ic_flags['time_cutoff'] = 1
+        ic_flags['time_cutoff'] = [-np.inf, 1]
         
         times, vals, uncs = get_data(where_inits, ic_flags, sim_flags, scale_f=1)
         expected_times = [np.array([0]), np.array([0,1]), np.array([0]), np.array([0]), np.array([0,1])]
@@ -91,3 +91,24 @@ class TestUtils(unittest.TestCase):
         np.random.seed(42)
         with np.errstate(divide='ignore', invalid='ignore'):
             times, vals, uncs = get_data(where_inits, ic_flags, sim_flags, scale_f=1, verbose=True)
+            
+        
+        ic_flags = {'time_cutoff':None,
+                    'select_obs_sets':None,
+                    'noise_level':None}
+        
+        sim_flags = {'log_pl':False,
+                     'self_normalize':False}
+        
+        ic_flags['select_obs_sets'] = [1]
+        
+        ic_flags['time_cutoff'] = [1, 3]
+        
+        times, vals, uncs = get_data(where_inits, ic_flags, sim_flags, scale_f=1)
+        expected_times = [np.array([1,2,3])]
+        expected_vals = [np.array([1,1,1])]
+        expected_uncs = [np.array([10, 10, 10])]
+        
+        np.testing.assert_equal(times, expected_times)
+        np.testing.assert_equal(vals, expected_vals)
+        np.testing.assert_equal(uncs, expected_uncs)
