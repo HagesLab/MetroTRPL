@@ -347,6 +347,8 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             MS = pickle.load(ifstream)
             np.random.set_state(MS.random_state)
             starting_iter = int(load_checkpoint[load_checkpoint.find("_")+1:load_checkpoint.rfind(".pik")])+1
+            MS.H.extend(num_iters, param_info)
+
     else:
         MS = MetroState(param_info, initial_guess, initial_variance, num_iters)
         starting_iter = 1

@@ -236,6 +236,24 @@ class History():
         self.loglikelihood = self.loglikelihood[:k]
         return
     
+    def extend(self, new_num_iters, param_info):
+        """ Enlarge an existing MC chain to length new_num_iters, if needed """
+        current_num_iters = len(self.accept)
+        if new_num_iters <= current_num_iters: # No extension needed
+            return
+        
+        addtl_iters = new_num_iters - current_num_iters
+        self.accept = np.concatenate((self.accept, np.zeros(addtl_iters)), axis=0)
+        self.loglikelihood = np.concatenate((self.loglikelihood, np.zeros(addtl_iters)), axis=0)
+        
+        for param in param_info["names"]:
+            val = getattr(self, param)
+            setattr(self, param, np.concatenate((val, np.zeros(addtl_iters)), axis=0))
+            
+            val = getattr(self, f"mean_{param}")
+            setattr(self, f"mean_{param}", np.concatenate((val, np.zeros(addtl_iters)), axis=0))
+        return
+    
              
 class Grid():
     def __init__(self):
