@@ -268,7 +268,7 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
         # else:
         #     sol_int = griddata(sim_times, sol, times)
 
-        likelihood = -np.sum((np.log10(sol) - vals)**2)
+        likelihood = -np.sum((np.log10(sol) + p.m - vals)**2)
 
         # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
         if fail or np.isnan(likelihood): raise ValueError(f"{i}: Simulation failed!")
@@ -347,6 +347,8 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             MS = pickle.load(ifstream)
             np.random.set_state(MS.random_state)
             starting_iter = int(load_checkpoint[load_checkpoint.find("_")+1:load_checkpoint.rfind(".pik")])+1
+            MS.H.extend(num_iters, param_info)
+
     else:
         MS = MetroState(param_info, initial_guess, initial_variance, num_iters)
         starting_iter = 1
