@@ -405,4 +405,4 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
         
     MS.H.apply_unit_conversions(param_info)
     MS.H.final_cov = MS.variances.cov
-    return MS.H
+    return MS
