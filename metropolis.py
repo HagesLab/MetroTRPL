@@ -348,9 +348,10 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             np.random.set_state(MS.random_state)
             starting_iter = int(load_checkpoint[load_checkpoint.find("_")+1:load_checkpoint.rfind(".pik")])+1
             MS.H.extend(num_iters, param_info)
+            MS.sim_flags = dict(sim_flags)
 
     else:
-        MS = MetroState(param_info, initial_guess, initial_variance, num_iters)
+        MS = MetroState(param_info, sim_flags, initial_guess, initial_variance, num_iters)
         starting_iter = 1
     
         # Calculate likelihood of initial guess
@@ -398,7 +399,8 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             break
         
         if checkpoint_freq is not None and k % checkpoint_freq == 0:
-            chpt_fname = os.path.join(sim_flags["checkpoint_dirname"], f"checkpoint_{k}.pik")
+            chpt_header = sim_flags["checkpoint_header"]
+            chpt_fname = os.path.join(sim_flags["checkpoint_dirname"], f"checkpoint{chpt_header}_{k}.pik")
             logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
             MS.random_state = np.random.get_state()
             MS.checkpoint(chpt_fname)

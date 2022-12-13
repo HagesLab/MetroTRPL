@@ -18,7 +18,7 @@ class MetroState():
         the states it's been to, and the trial move function used to get the
         next state.
     """
-    def __init__(self, param_info, initial_guess, initial_variance, num_iters):
+    def __init__(self, param_info, sim_flags, initial_guess, initial_variance, num_iters):
         self.p = Parameters(param_info, initial_guess)
         self.p.apply_unit_conversions(param_info)
         
@@ -34,6 +34,7 @@ class MetroState():
         self.variances.apply_values(initial_variance)
         
         self.param_info = param_info
+        self.sim_flags = sim_flags
         return
     
     def print_status(self, logger):
