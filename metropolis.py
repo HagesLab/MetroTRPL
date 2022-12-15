@@ -105,6 +105,9 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
     is_active = param_info["active"]
     do_log = param_info["do_log"]
     names = param_info["names"]
+
+    secret_mu = param_info.get("secret_mu", False)
+
     mean = means.to_array(param_info)
     for i, param in enumerate(names):        
         if do_log[param]:
@@ -119,6 +122,10 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
             new_p = np.zeros_like(mean)
             for i, param in enumerate(names):
                 new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
+                if secret_mu and param == "mu_p":
+                    new_muambi = np.random.normal(20, 0.3) * param_info["unit_conversions"]["mu_n"]
+                    new_p[i] = np.log10((2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
+
         elif trial_function == "gauss":
             try:
                 assert np.all(cov >= 0)
