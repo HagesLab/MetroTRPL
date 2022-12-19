@@ -64,6 +64,7 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=1e-10, ATOL=1e-14)
 
 def check_approved_param(new_p, param_info):
     """ Screen out non-physical or unrealistic proposed trial moves. """
+    #FIXME: This should check whether larams are log
     order = param_info['names']
     ucs = param_info.get('unit_conversions', {})
     checks = {}
@@ -89,6 +90,16 @@ def check_approved_param(new_p, param_info):
     else:
         checks["sb_size"] = True
 
+    if 'tauN' in order:
+        checks["taun_size"] = (np.abs(new_p[order.index('tauN')] - np.log10(ucs.get('tauN', 1))) > -1)
+    else:
+        checks["taun_size"] = True
+
+    if 'tauP' in order:
+        checks["taup_size"] = (np.abs(new_p[order.index('tauP')] - np.log10(ucs.get('tauP', 1))) > -1)
+    else:
+        checks["taup_size"] = True
+
     # tau_n and tau_p must be *close* (within 3 OM) for a reasonable midgap SRH
     if 'tauN' in order and 'tauP' in order:
         checks["tn_tp_close"] = (np.abs(new_p[order.index('tauN')] - new_p[order.index('tauP')]) <= 3)
@@ -109,15 +120,15 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
     secret_mu = param_info.get("secret_mu", False)
 
     mean = means.to_array(param_info)
-    for i, param in enumerate(names):        
+    for i, param in enumerate(names):
         if do_log[param]:
             mean[i] = np.log10(mean[i])
-            
+
     cov = variances.cov
     approved = False
     attempts = 0
     while not approved:
-        
+
         if trial_function == "box":
             new_p = np.zeros_like(mean)
             for i, param in enumerate(names):
@@ -134,14 +145,14 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
                 if logger is not None:
                     logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
                 new_p = mean
-                
+
         approved = check_approved_param(new_p, param_info)
         attempts += 1
         if attempts > MAX_TRIAL_ATTEMPTS: break
-    
+
     if logger is not None:
         logger.info(f"Found suitable parameters in {attempts} attempts")
-        
+
     for i, param in enumerate(names):
         if is_active[param]:
             if do_log[param]:
