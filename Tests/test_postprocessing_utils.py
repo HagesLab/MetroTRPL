@@ -210,7 +210,7 @@ class TestUtils(unittest.TestCase):
         accepted[:,0] *= 0.5
         accepted[:,2] *= 2
         
-        diffs = ASJD(accepted, [None, None])
+        diffs = ASJD(accepted)
         np.testing.assert_equal(diffs, [1.25 * 0.5 ** 2, 1.25, 1.25 * 2**2])
         
     def test_ESS(self):
