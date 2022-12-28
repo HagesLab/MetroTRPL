@@ -218,7 +218,7 @@ class TestUtils(unittest.TestCase):
         test2 = np.expand_dims(np.sin(np.arange(100)), 0)
         
         avg_ess = ESS(test1, False, verbose=False)
-        self.assertTrue(math.isnan(avg_ess))
+        self.assertEqual(avg_ess, 0)
         avg_ess = ESS(test2, False, verbose=False)
         self.assertAlmostEqual(avg_ess, 3494.367866841)
         
@@ -227,7 +227,8 @@ class TestUtils(unittest.TestCase):
         binning = 10
         bins = np.arange(0, len(test_chain), int(binning))[1:]
         
-        expected_out_submeans = [4.5,14.5,24.5,34.5,44.5,54.5,64.5,74.5,84.5,94.5]
+        # Auto promotes 1D to 2D
+        expected_out_submeans = [[4.5,14.5,24.5,34.5,44.5,54.5,64.5,74.5,84.5,94.5]]
         
 
         expected_out_stderr = np.std(expected_out_submeans, ddof=1)
@@ -257,4 +258,4 @@ class TestUtils(unittest.TestCase):
         
 if __name__ == "__main__":
     t = TestUtils()
-    t.test_load_all_accepted()
+    t.test_ESS()

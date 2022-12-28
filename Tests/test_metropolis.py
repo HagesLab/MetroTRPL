@@ -169,13 +169,13 @@ class TestUtils(unittest.TestCase):
     def test_approve_param(self):
         info = {'names':['tauP', 'tauN', 'somethingelse'],
                  'unit_conversions':{'tauP':1, 'tauN':1, 'somethingelse':1}}
-        # taun, taup must be within 3 OM
+        # taun, taup must be within 2 OM
         # Accepts new_p as log10
         # [n0, p0, mu_n, mu_p, ks, sf, sb, taun, taup, eps, m]
-        new_p = np.log10([511, 511e3, 1])
+        new_p = np.log10([511, 511e2, 1])
         self.assertTrue(check_approved_param(new_p, info))
         
-        new_p = np.log10([511, 511e3+1,  1])
+        new_p = np.log10([511, 511e2+1,  1])
         self.assertFalse(check_approved_param(new_p, info))
         
         # Check mu_n, mu_p, Sf, and Sb size limits
@@ -430,7 +430,7 @@ class TestUtils(unittest.TestCase):
                          "tauN":1e99, 
                          "tauP":1e99, 
                          "eps":10, 
-                         "m":0}
+                         "m":1}
         
         sim_flags = {"anneal_mode": None, # None, "exp", "log"
                      "anneal_params": [0, 1/2500*100, 10], 
