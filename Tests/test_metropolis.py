@@ -192,6 +192,28 @@ class TestUtils(unittest.TestCase):
         new_p = np.log10([1e6-1, 1e6-1, 1e7-1, 1e7])
         self.assertFalse(check_approved_param(new_p, info))
         
+        # Check ks, Cn, Cp size limits
+        info = {"names":["ks", "Cn", "Cp"]}
+        new_p = np.log10([1e-7*0.9, 1e-21*0.9, 1e-21*0.9])
+        self.assertTrue(check_approved_param(new_p, info))
+        
+        new_p = np.log10([1e-7, 1e-21*0.9, 1e-21*0.9])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.log10([1e-7*0.9, 1e-21, 1e-21*0.9])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.log10([1e-7*0.9, 1e-21*0.9, 1e-21])
+        self.assertFalse(check_approved_param(new_p, info))
+        
+        # Check p0, which has a size limit and must also be larger than n0
+        info = {"names":["n0", "p0"]}
+        new_p = np.log10([1e19 * 0.8, 1e19 * 0.9])
+        self.assertTrue(check_approved_param(new_p, info))
+        
+        new_p = np.log10([1e19 * 0.8, 1e19])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.log10([1e19, 1e19 * 0.9])
+        self.assertFalse(check_approved_param(new_p, info))
+        
         info_without_taus = {'names':['tauQ', 'somethingelse']}
         # Always true if criteria do not cover params
         new_p = np.log10([1,1e10])

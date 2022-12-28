@@ -268,40 +268,7 @@ def gelman(means, do_log):
            autoburnin=True,multivariate=True)
     return g
 
-def fetch(path, which_param):
-    raw_fetched = {}
-    mean_fetched = {}
-    if which_param == "Sf+Sb":
-        params = ["Sf", "Sb"]
-        
-    elif which_param == "tauN+tauP":
-        params = ["tauN", "tauP"]
-        
-    elif which_param == "tau_eff":
-        params = ["Sf", "Sb", "tauN", "mu_n", "mu_p", "ks", "p0", "Cp"]
-        
-    elif which_param == "tau_srh":
-        params = ["Sf", "Sb", "tauN", "mu_n", "mu_p"]
-        
-    elif which_param == "HI_tau_srh":
-        params = ["Sf", "Sb", "tauN", "tauP", "mu_n", "mu_p"]
-        
-    elif which_param == "mu_eff":
-        params = ["mu_n", "mu_p"]
-        
-    elif which_param == "Cn+Cp":
-        params = ["Cn", "Cp"]
-        
-    else:
-        raise KeyError
-        
-    for param in params:
-        raw_fetched[param] = np.load(os.path.join(path, f"{param}.npy"))
-        mean_fetched[param] = np.load(os.path.join(path, f"mean_{param}.npy"))
-
-    return raw_fetched, mean_fetched
-
-def fetch_param_new(MS, which_param, **kwargs):
+def fetch_param(MS, which_param, **kwargs):
     """
     Calculate a new param from directly sampled params
 
@@ -372,63 +339,6 @@ def fetch_param_new(MS, which_param, **kwargs):
                               MS.H.Sf, MS.H.Sb, thickness, mu_a)
         accepted = HI_tau_srh(MS.H.mean_tauN, MS.H.mean_tauP,
                               MS.H.mean_Sf, MS.H.mean_Sb, thickness, mean_mu_a)
-        
-        
-    return proposed, accepted
-
-# Deprecated
-def fetch_param(raw_fetched, mean_fetched, which_param, **kwargs):
-    if which_param == "Sf+Sb":
-        proposed = raw_fetched["Sf"] + raw_fetched["Sb"]
-        accepted = mean_fetched["Sf"] + mean_fetched["Sb"]
-        
-    elif which_param == "tauN+tauP":
-        proposed = raw_fetched["tauN"] + raw_fetched["tauP"]
-        accepted = mean_fetched["tauN"] + mean_fetched["tauP"]
-        
-    elif which_param == "Cn+Cp":
-        proposed = raw_fetched["Cn"] + raw_fetched["Cp"]
-        accepted = mean_fetched["Cn"] + mean_fetched["Cp"]
-        
-    elif which_param == "tau_eff":
-        mu_a = mu_eff(raw_fetched["mu_n"], raw_fetched["mu_p"])
-        mean_mu_a = mu_eff(mean_fetched["mu_n"], mean_fetched["mu_p"])
-        
-        thickness = kwargs.get("thickness", 2000)
-        
-        proposed = LI_tau_eff(raw_fetched["ks"], raw_fetched["p0"], raw_fetched["tauN"], 
-                              raw_fetched["Sf"], raw_fetched["Sb"], raw_fetched["Cp"], 
-                              thickness, mu_a)
-        accepted = LI_tau_eff(mean_fetched["ks"], mean_fetched["p0"], mean_fetched["tauN"], 
-                              mean_fetched["Sf"], mean_fetched["Sb"], mean_fetched["Cp"],
-                              thickness, mean_mu_a)
-        
-    elif which_param == "tau_srh":
-        mu_a = mu_eff(raw_fetched["mu_n"], raw_fetched["mu_p"])
-        mean_mu_a = mu_eff(mean_fetched["mu_n"], mean_fetched["mu_p"])
-        
-        thickness = kwargs.get("thickness", 2000)
-        
-        proposed = LI_tau_srh(raw_fetched["tauN"], 
-                              raw_fetched["Sf"], raw_fetched["Sb"], 
-                              thickness, mu_a)
-        accepted = LI_tau_srh(mean_fetched["tauN"], 
-                              mean_fetched["Sf"], mean_fetched["Sb"],
-                              thickness, mean_mu_a)
-        
-    elif which_param == "mu_eff":
-        proposed = mu_eff(raw_fetched["mu_n"], raw_fetched["mu_p"])
-        accepted = mu_eff(mean_fetched["mu_n"], mean_fetched["mu_p"])
-        
-    elif which_param == "HI_tau_srh":
-        mu_a = mu_eff(raw_fetched["mu_n"], raw_fetched["mu_p"])
-        mean_mu_a = mu_eff(mean_fetched["mu_n"], mean_fetched["mu_p"])
-        
-        thickness = kwargs.get("thickness", 2000)
-        proposed = HI_tau_srh(raw_fetched["tauN"], raw_fetched["tauP"],
-                              raw_fetched["Sf"], raw_fetched["Sb"], thickness, mu_a)
-        accepted = HI_tau_srh(mean_fetched["tauN"], mean_fetched["tauP"],
-                              mean_fetched["Sf"], mean_fetched["Sb"], thickness, mean_mu_a)
         
         
     return proposed, accepted

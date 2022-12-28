@@ -1,15 +1,13 @@
 import unittest
 import numpy as np
 import os
-import shutil
 import sys
 sys.path.append(os.path.join("Visualization"))
 
-from postprocessing_utils import recommend_logscale, calc_contours, fetch_param, fetch
+from postprocessing_utils import recommend_logscale, calc_contours, fetch_param
 from postprocessing_utils import ASJD, ESS, binned_stderr
-from postprocessing_utils import load_all_accepted
-from secondary_parameters import LI_tau_eff
-import math
+from postprocessing_utils import load_all_accepted, package_all_accepted
+from secondary_parameters import LI_tau_eff, LI_tau_srh, HI_tau_srh
 
 class TestUtils(unittest.TestCase):
     
@@ -66,6 +64,51 @@ class TestUtils(unittest.TestCase):
         
         do_log = {"tauN":0,"Sf":0,"Sb":0}
         self.assertEqual(recommend_logscale("tau_eff", do_log),0) 
+        
+        # Preference testing HI_tau_eff relationships
+        do_log = {"tauN":1, "tauP":0, "Sf":1,"Sb":1}
+        self.assertEqual(recommend_logscale("HI_tau_srh", do_log),1) 
+        
+        do_log = {"tauN":1, "tauP":1, "Sf":1,"Sb":1}
+        self.assertEqual(recommend_logscale("HI_tau_srh", do_log),1) 
+        
+        do_log = {"tauN":1, "tauP":0, "Sf":0,"Sb":0}
+        self.assertEqual(recommend_logscale("HI_tau_srh", do_log),1) 
+        
+        do_log = {"tauN":0, "tauP":0, "Sf":1,"Sb":1}
+        self.assertEqual(recommend_logscale("HI_tau_srh", do_log),1) 
+        
+        do_log = {"tauN":0, "tauP":1, "Sf":1,"Sb":1}
+        self.assertEqual(recommend_logscale("HI_tau_srh", do_log),1) 
+        
+        do_log = {"tauN":0, "tauP":0, "Sf":0,"Sb":0}
+        self.assertEqual(recommend_logscale("HI_tau_srh", do_log),0) 
+        
+        # PReference testing tn/tp
+        do_log = {"tauN":1,"tauP":1}
+        self.assertEqual(recommend_logscale("tauN+tauP", do_log),1) 
+        
+        do_log = {"tauN":0,"tauP":1}
+        self.assertEqual(recommend_logscale("tauN+tauP", do_log),1) 
+        
+        do_log = {"tauN":1,"tauP":0}
+        self.assertEqual(recommend_logscale("tauN+tauP", do_log),1) 
+        
+        do_log = {"tauN":0,"tauP":0}
+        self.assertEqual(recommend_logscale("tauN+tauP", do_log),0) 
+        
+        # Preference testing Cn/Cp
+        do_log = {"Cn":1,"Cp":1}
+        self.assertEqual(recommend_logscale("Cn+Cp", do_log),1) 
+
+        do_log = {"Cn":0,"Cp":1}
+        self.assertEqual(recommend_logscale("Cn+Cp", do_log),1) 
+        
+        do_log = {"Cn":1,"Cp":0}
+        self.assertEqual(recommend_logscale("Cn+Cp", do_log),1) 
+        
+        do_log = {"Cn":0,"Cp":0}
+        self.assertEqual(recommend_logscale("Cn+Cp", do_log),0) 
         return
     
     def test_calc_contours(self):
@@ -120,83 +163,149 @@ class TestUtils(unittest.TestCase):
         
         return
     
-    def test_fetch(self):
-        tests = {"Test3":(["mu_n", "mu_p"], "mu_eff"),
-                 "Test4":(["Sf", "Sb"], "Sf+Sb"),
-                 "Test5":(["Sf", "Sb", "tauN", "mu_n", "mu_p", "ks", "p0", "Cp"], "tau_eff")}
-        # Sf+Sb
-        for testname, testitems in tests.items():
-            if not os.path.exists(testname):
-                os.mkdir(testname)
-            
-            path = testname
-            params = testitems[0]
-            expected_raw = {}
-            expected_mean = {}
-            for param in params:
-                np.save(os.path.join(path, f"{param}.npy"), np.zeros(10))
-                np.save(os.path.join(path, f"mean_{param}.npy"), np.linspace(0,10,11))
-                expected_raw[param] = np.zeros(10)
-                expected_mean[param] = np.linspace(0,10,11)
-    
-            which_param = testitems[1]
-            
-            output_raw, output_mean = fetch(path, which_param)
-            
-            shutil.rmtree(path)
-            
-            for param in expected_raw:
-                self.assertTrue(np.array_equal(expected_raw[param], output_raw[param]), msg=param)
-                self.assertTrue(np.array_equal(expected_mean[param], output_mean[param]), msg=param)
-        
-        with self.assertRaises(KeyError):
-            fetch("any path whatsoever", "not an add_param")
-        
-        return
     
     def test_fetch_param(self):
-        # Test Sf+Sb
-        raw = {"Sf":np.zeros(10), "Sb":np.ones(10)}
-        mean = {"Sf":np.linspace(0,10,11), "Sb":np.linspace(0,10,11)}
+        class dummy_MS():
+            def __init__(self):
+                return
+            
+        class dummy_H():
+            def __init__(self):
+                return
+            
+        MS = dummy_MS()
+        MS.H = dummy_H()
         
-        expected_proposed = raw["Sf"] + raw["Sb"]
-        expected_accepted = mean["Sf"] + mean["Sb"]
-        output_proposed, output_accepted = fetch_param(raw, mean, "Sf+Sb")
+        # Test Sf+Sb
+        MS.H.Sf = np.zeros(10)
+        MS.H.Sb = np.ones(10)
+        MS.H.mean_Sf = np.linspace(0,10,11)
+        MS.H.mean_Sb = np.linspace(0,10,11)
+        
+        expected_proposed = MS.H.Sf + MS.H.Sb
+        expected_accepted = MS.H.mean_Sf + MS.H.mean_Sb
+        output_proposed, output_accepted = fetch_param(MS, "Sf+Sb")
+        
+        self.assertTrue(np.array_equal(expected_proposed, output_proposed))
+        self.assertTrue(np.array_equal(expected_accepted, output_accepted))
+        
+        # Test tn+tp
+        MS.H.tauN = np.zeros(10)
+        MS.H.tauP = np.ones(10)
+        MS.H.mean_tauN = np.linspace(0,10,11)
+        MS.H.mean_tauP = np.linspace(0,10,11)
+        
+        expected_proposed = MS.H.tauN + MS.H.tauP
+        expected_accepted = MS.H.mean_tauN + MS.H.mean_tauP
+        output_proposed, output_accepted = fetch_param(MS, "tauN+tauP")
+        
+        self.assertTrue(np.array_equal(expected_proposed, output_proposed))
+        self.assertTrue(np.array_equal(expected_accepted, output_accepted))
+        
+        # Test Cn+Cp
+        MS.H.Cn = np.zeros(10)
+        MS.H.Cp = np.ones(10)
+        MS.H.mean_Cn = np.linspace(0,10,11)
+        MS.H.mean_Cp = np.linspace(0,10,11)
+        
+        expected_proposed = MS.H.Cn + MS.H.Cp
+        expected_accepted = MS.H.mean_Cn + MS.H.mean_Cp
+        output_proposed, output_accepted = fetch_param(MS, "Cn+Cp")
         
         self.assertTrue(np.array_equal(expected_proposed, output_proposed))
         self.assertTrue(np.array_equal(expected_accepted, output_accepted))
         
         # Test mu_eff
-        raw = {"mu_n":np.ones(10), "mu_p":np.ones(10)}
-        mean = {"mu_n":np.geomspace(0.1,100,31), "mu_p":np.geomspace(0.1,100,31)}
+        MS = dummy_MS()
+        MS.H = dummy_H()
+        MS.H.mu_n = np.ones(10)
+        MS.H.mu_p = np.ones(10)
+        MS.H.mean_mu_n = np.geomspace(0.1,100,31) 
+        MS.H.mean_mu_p = np.geomspace(0.1,100,31)
         
-        expected_proposed = 2 / (raw["mu_n"]**-1 + raw["mu_p"]**-1)
-        expected_accepted = 2 / (mean["mu_n"]**-1 + mean["mu_p"]**-1)
-        output_proposed, output_accepted = fetch_param(raw, mean, "mu_eff")
+        expected_proposed = 2 / (MS.H.mu_n**-1 + MS.H.mu_p**-1)
+        expected_accepted = 2 / (MS.H.mean_mu_n**-1 + MS.H.mean_mu_p**-1)
+        output_proposed, output_accepted = fetch_param(MS, "mu_eff")
         
         self.assertTrue(np.array_equal(expected_proposed, output_proposed))
         self.assertTrue(np.array_equal(expected_accepted, output_accepted))
         
         # Test tau_eff
-        raw = {"Sf":np.zeros(10), "Sb":np.ones(10),
-               "mu_n":np.ones(10), "mu_p":np.ones(10),
-               "ks": np.ones(10), "p0":np.ones(10),
-               "tauN":np.ones(10), "Cp":np.ones(10)}
-        mean = {"Sf":np.geomspace(0.1,10,31), "Sb":np.geomspace(0.1,10,31),
-               "mu_n":np.geomspace(0.1,100,31), "mu_p":np.geomspace(0.1,100,31),
-               "ks": np.geomspace(0.1,100,31), "p0":np.geomspace(0.1,100,31),
-               "tauN":np.geomspace(0.1,1000,31), "Cp":np.geomspace(0.1,100,31)}
+        MS.H.Sf = np.zeros(10)
+        MS.H.Sb = np.ones(10)
+        MS.H.mu_n = np.ones(10)
+        MS.H.mu_p = np.ones(10)
+        MS.H.ks = np.ones(10)
+        MS.H.p0 = np.ones(10)
+        MS.H.tauN = np.ones(10)
+        MS.H.Cp = np.ones(10)
+        
+        MS.H.mean_Sf = np.geomspace(0.1,10,31)
+        MS.H.mean_Sb = np.geomspace(0.1,10,31)
+        MS.H.mean_mu_n = np.geomspace(0.1,100,31)
+        MS.H.mean_mu_p = np.geomspace(0.1,100,31)
+        MS.H.mean_ks =  np.geomspace(0.1,100,31)
+        MS.H.mean_p0 = np.geomspace(0.1,100,31)
+        MS.H.mean_tauN = np.geomspace(0.1,1000,31)
+        MS.H.mean_Cp = np.geomspace(0.1,100,31)
         thickness = 1e3
         
-        expected_raw_mu = 2 / (raw["mu_n"]**-1 + raw["mu_p"]**-1)
-        expected_mean_mu = 2 / (mean["mu_n"]**-1 + mean["mu_p"]**-1)
+        expected_raw_mu = 2 / (MS.H.mu_n**-1 + MS.H.mu_p**-1)
+        expected_mean_mu = 2 / (MS.H.mean_mu_n**-1 + MS.H.mean_mu_p**-1)
         
-        expected_proposed = LI_tau_eff(raw["ks"], raw["p0"], raw["tauN"], raw["Sf"], raw["Sb"], raw["Cp"], thickness, expected_raw_mu)
-        expected_accepted = LI_tau_eff(mean["ks"], mean["p0"], mean["tauN"], mean["Sf"], mean["Sb"], mean["Cp"], thickness, expected_mean_mu)
-        output_proposed, output_accepted = fetch_param(raw, mean, "tau_eff", thickness=thickness)
+        expected_proposed = LI_tau_eff(MS.H.ks, MS.H.p0, MS.H.tauN, MS.H.Sf, MS.H.Sb, MS.H.Cp, thickness, expected_raw_mu)
+        expected_accepted = LI_tau_eff(MS.H.mean_ks, MS.H.mean_p0, MS.H.mean_tauN, MS.H.mean_Sf, MS.H.mean_Sb, MS.H.mean_Cp, thickness, expected_mean_mu)
+        output_proposed, output_accepted = fetch_param(MS, "tau_eff", thickness=thickness)
         self.assertTrue(np.array_equal(expected_proposed, output_proposed))
         self.assertTrue(np.array_equal(expected_accepted, output_accepted))
         
+        # Test tau_srh
+        MS.H.Sf = np.zeros(10)
+        MS.H.Sb = np.ones(10)
+        MS.H.mu_n = np.ones(10)
+        MS.H.mu_p = np.ones(10)
+        MS.H.tauN = np.ones(10)
+        
+        MS.H.mean_Sf = np.geomspace(0.1,10,31)
+        MS.H.mean_Sb = np.geomspace(0.1,10,31)
+        MS.H.mean_mu_n = np.geomspace(0.1,100,31)
+        MS.H.mean_mu_p = np.geomspace(0.1,100,31)
+        MS.H.mean_tauN = np.geomspace(0.1,1000,31)
+        thickness = 1e3
+        
+        expected_raw_mu = 2 / (MS.H.mu_n**-1 + MS.H.mu_p**-1)
+        expected_mean_mu = 2 / (MS.H.mean_mu_n**-1 + MS.H.mean_mu_p**-1)
+        
+        expected_proposed = LI_tau_srh(MS.H.tauN, MS.H.Sf, MS.H.Sb, thickness, expected_raw_mu)
+        expected_accepted = LI_tau_srh(MS.H.mean_tauN, MS.H.mean_Sf, MS.H.mean_Sb, thickness, expected_mean_mu)
+        output_proposed, output_accepted = fetch_param(MS, "tau_srh", thickness=thickness)
+        self.assertTrue(np.array_equal(expected_proposed, output_proposed))
+        self.assertTrue(np.array_equal(expected_accepted, output_accepted))
+        
+        # Test HI_tau_srh
+        MS.H.Sf = np.zeros(10)
+        MS.H.Sb = np.ones(10)
+        MS.H.mu_n = np.ones(10)
+        MS.H.mu_p = np.ones(10)
+        MS.H.tauN = np.ones(10)
+        MS.H.tauP = np.ones(10)
+        
+        MS.H.mean_Sf = np.geomspace(0.1,10,31)
+        MS.H.mean_Sb = np.geomspace(0.1,10,31)
+        MS.H.mean_mu_n = np.geomspace(0.1,100,31)
+        MS.H.mean_mu_p = np.geomspace(0.1,100,31)
+        MS.H.mean_tauN = np.geomspace(0.1,1000,31)
+        MS.H.mean_tauP = np.geomspace(0.1,1000,31)
+        thickness = 1e3
+        
+        expected_raw_mu = 2 / (MS.H.mu_n**-1 + MS.H.mu_p**-1)
+        expected_mean_mu = 2 / (MS.H.mean_mu_n**-1 + MS.H.mean_mu_p**-1)
+        
+        expected_proposed = HI_tau_srh(MS.H.tauN, MS.H.tauP, MS.H.Sf, MS.H.Sb, thickness, expected_raw_mu)
+        expected_accepted = HI_tau_srh(MS.H.mean_tauN, MS.H.mean_tauP, MS.H.mean_Sf, MS.H.mean_Sb, thickness, expected_mean_mu)
+        output_proposed, output_accepted = fetch_param(MS, "HI_tau_srh", thickness=thickness)
+        self.assertTrue(np.array_equal(expected_proposed, output_proposed))
+        self.assertTrue(np.array_equal(expected_accepted, output_accepted))
         return
     
     def test_ASJD(self):
@@ -243,8 +352,36 @@ class TestUtils(unittest.TestCase):
         with self.assertRaises(ValueError):
             binned_stderr(test_chain, bins)
         
+    def test_package_all_accepted(self):
+        class dummy_MS():
+            def __init__(self):
+                return
+            
+        class dummy_H():
+            def __init__(self):
+                return
+            
+        MS = dummy_MS()
+        MS.H = dummy_H()
+        names = ["mu_n", "p0", "tauN"]
+        is_active = {"mu_n":1, "p0":1, "tauN":0}
+        do_log = {"mu_n":0, "p0":1, "tauN":0}
+        
+        mu_n = [1,2,3,4,5]
+        p0 = [1e12, 1e13, 1e14, 1e15, 1e16]
+        tauN = [511, 511, 511, 511, 511]
+        
+        MS.H.mean_mu_n = mu_n
+        MS.H.mean_p0 = p0
+        MS.H.mean_tauN = tauN
+        
+        expected_out = [mu_n, np.log10(p0)]
+        
+        out = package_all_accepted(MS, names, is_active, do_log)
+        np.testing.assert_equal(out, expected_out)
         
     def test_load_all_accepted(self):
+        # Deprecated
         path = os.path.join("Tests", "testfiles")
         names = ["mu_n", "p0", "tauN"]
         is_active = {"mu_n":1, "p0":1, "tauN":0}
