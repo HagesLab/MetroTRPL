@@ -14,33 +14,33 @@ def make_1D_tracker(x, all_accepted, **kwargs):
     size = kwargs.get("size", (3.5,2.7))
     ylabel = kwargs.get("ylabel", "")
     xlabel = kwargs.get("xlabel", "Sample #")
+    ylim = kwargs.get("ylim", None)
     do_log = kwargs.get("do_log", 0)
     show_legend = kwargs.get("show_legend", 0)
-    did_multicore = kwargs.get("did_multicore", (x.ndim == 2))
+    colors = kwargs.get("colors", None)
+    lw = kwargs.get("linewidth", 1)
     
     fig = kwargs.get("fig", None)
     ax = kwargs.get("ax", None)
     
     if fig is None or ax is None:
         fig, ax = plt.subplots(1,1,dpi=200, figsize=size)
-    if did_multicore:
-        for i in range(len(x)):
-            if i == 0:
-                labelp = "Proposed"
-                labela = "Accepted"
-            else:
-                labelp = None
-                labela = None
-            
-            #ax.plot(all_proposed[i], label=labelp, color='steelblue', zorder=1)
-            ax.plot(x[i], label=labela, color='orange', zorder=2)
-    
-    else:
+        
+    if all_accepted.ndim == 1:
+        all_accepted = np.expand_dims(all_accepted, axis=0)
+        
+    if isinstance(colors, str) or colors is None:
+        colors = [colors] * len(all_accepted)
+        
+
+    for i in range(len(all_accepted)):
         #ax.plot(all_proposed, label="Proposed samples", color='steelblue', zorder=1)
-        ax.plot(x, all_accepted, label="Accepted samples", color='orange', zorder=2)
+        ax.plot(x, all_accepted[i], color=colors[i], linewidth=lw, zorder=2)
     if mark_value is not None:
-        ax.axhline(mark_value, color='r', linestyle='dashed', label="Actual value", zorder=3)
+        ax.axhline(mark_value, linewidth=0.6,color='r', linestyle='dashed', label="Actual value", zorder=3)
     
+    if ylim is not None:
+        ax.set_ylim(ylim)
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
     if do_log: ax.set_yscale('log')
@@ -52,10 +52,12 @@ def make_1D_histo(accepted, **kwargs):
     mark_value = kwargs.get("mark_value", None)
     size = kwargs.get("size", (2.5,2.5))
     xlabel = kwargs.get("xlabel", "")
+    ylabel = kwargs.get("ylabel", "")
     do_log = kwargs.get("do_log", 0)
     bin_count = kwargs.get("bin_count", 96)
-    did_multicore = kwargs.get("did_multicore", (accepted.ndim == 2))
     axis_overrides = kwargs.get("axis_overrides", None)
+    fig = kwargs.get("fig", None)
+    ax = kwargs.get("ax", None)
     
     minx = min(accepted.flatten())
     maxx = max(accepted.flatten())
@@ -66,17 +68,21 @@ def make_1D_histo(accepted, **kwargs):
         maxx = np.log10(maxx)
         if mark_value is not None:
             mark_value = np.log10(mark_value)
+            
+        if axis_overrides is not None:
+            axis_overrides = (np.log10(axis_overrides[0]), np.log10(axis_overrides[1]))
     
     bins_x = np.arange(bin_count+1)
 
     bins_x   = minx + (maxx-minx)*(bins_x)/bin_count
     h = np.histogram(accepted.flatten(), bins=bins_x, density=True)
     
-    fig, ax = plt.subplots(1,1,dpi=200, figsize=size)
+    if fig is None or ax is None:
+        fig, ax = plt.subplots(1,1,dpi=200, figsize=size)
     ax.bar(bins_x[:-1], h[0], width=np.diff(bins_x), align='edge')
     
     if mark_value is not None: 
-        ax.axvline(mark_value, color='r',linewidth=1)
+        ax.axvline(mark_value, color='r',linewidth=0.2)
     
     
     if do_log:
@@ -88,10 +94,10 @@ def make_1D_histo(accepted, **kwargs):
         ax.set_xlim((decades[0], decades[-1]))
         ax.set_xticklabels([r"$10^{{{}}}$".format(d) for d in decades])
     
-    ax.set_ylabel(f"P({xlabel})")
+    ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
     if axis_overrides is not None:
-        ax.set_xlim(*axis_overrides[xlabel])
+        ax.set_xlim(axis_overrides)
     
     fig.tight_layout()
     
@@ -120,19 +126,25 @@ def make_2D_histo(x_accepted, y_accepted, **kwargs):
         cZ = contour_info[2]
         clevels = contour_info[3]
     
+    else:
+        cx = None
+        cy = None
+        cZ = None
+        clevels = None
+    
     if logx:
         x_accepted = np.log10(x_accepted)
         minx = np.log10(minx)
         maxx = np.log10(maxx)
-        markx = np.log10(markx)
-        cx = np.log10(cx)
+        if markx is not None: markx = np.log10(markx)
+        if cx is not None: cx = np.log10(cx)
         
     if logy:
         y_accepted = np.log10(y_accepted)
         miny = np.log10(miny)
         maxy = np.log10(maxy)
-        marky = np.log10(marky)
-        cy = np.log10(cy)
+        if marky is not None: marky = np.log10(marky)
+        if cy is not None: cy = np.log10(cy)
         
     bins_x = np.arange(bin_count+1)
     bins_x   = minx + (maxx-minx)*(bins_x)/bin_count
@@ -143,7 +155,7 @@ def make_2D_histo(x_accepted, y_accepted, **kwargs):
     h2d = np.histogram2d(x_accepted.flatten(), y_accepted.flatten(), bins=[bins_x,bins_y], density=True)
     
     
-    fig, ax2d = plt.subplots(1,1,figsize=(3.5,3.5), dpi=120)
+    fig, ax2d = plt.subplots(1,1,figsize=(2,2), dpi=120)
     ax2d.pcolormesh(grid_y, grid_x, h2d[0].T, cmap='Blues')
     if markx is not None and marky is not None:
         ax2d.scatter(markx, marky, c='r', marker='s')
@@ -170,8 +182,7 @@ def make_2D_histo(x_accepted, y_accepted, **kwargs):
     ax2d.set_xlabel(xlabel)
     ax2d.set_ylabel(ylabel)
     fig.tight_layout()
-    
-        
+           
 def make_2D_tracker(x_accepted, y_accepted, **kwargs):
     assert x_accepted.shape == y_accepted.shape
     
@@ -180,35 +191,40 @@ def make_2D_tracker(x_accepted, y_accepted, **kwargs):
         assert len(contour_info) == 4 # (x, y, Z(x,y), levels)
     xlabel = kwargs.get("xlabel", "")
     ylabel = kwargs.get("ylabel", "")
+    colors = kwargs.get("colors", None)
     logx = kwargs.get("do_logx", 0)
     logy = kwargs.get("do_logy", 0)
     markx = kwargs.get("markx", None)
     marky = kwargs.get("marky", None)
     did_multicore = kwargs.get("did_multicore", (x_accepted.ndim == 2))
     axis_overrides = kwargs.get("axis_overrides", None)
+    lw = kwargs.get("linewidth", 1)
     
     fig = kwargs.get("fig", None)
     ax2d = kwargs.get("ax", None)
+    size = kwargs.get("size", (2,2))
     first = kwargs.get('first', True)
     
     if fig is None or ax2d is None:
-        fig, ax2d = plt.subplots(1,1,figsize=(3.5*1.1,3.5), dpi=120)
+        fig, ax2d = plt.subplots(1,1,figsize=size, dpi=200)
     
-    if did_multicore:
+    if x_accepted.ndim == 1 and y_accepted.ndim == 1:
+        x_accepted = np.expand_dims(x_accepted, axis=0)
+        y_accepted = np.expand_dims(y_accepted, axis=0)
         
-        for i in range(len(x_accepted)):
-            color_grad = np.linspace(0, 1, len(x_accepted[i]))
-            ax2d.plot(x_accepted[i], y_accepted[i], c=color_grad)
-    else:
-        color_grad = np.linspace(0, 1, len(x_accepted))
-        ax2d.plot(x_accepted, y_accepted, zorder=1, color='orange')
-        ax2d.scatter(x_accepted[0], y_accepted[0], c='purple', zorder=99)
-        ax2d.scatter(x_accepted[-1], y_accepted[-1], c='red', marker='s', zorder=99)
+    if isinstance(colors, str) or colors is None:
+        colors = [colors] * len(x_accepted)
+        
+    for i in range(len(x_accepted)):
+        ax2d.plot(x_accepted[i], y_accepted[i], color=colors[i], linewidth=lw)
+        # ax2d.scatter(x_accepted[0], y_accepted[0], c='purple', zorder=99)
+        # ax2d.scatter(x_accepted[-1], y_accepted[-1], c='red', marker='s', zorder=99)
         
     # if first:
+    #     import os
     #     def fmt(s):
     #         return r"$10^{{{:.0f}}}$".format(s)
-    #     xyz = np.load("tempx.npy")
+    #     xyz = np.load(os.path.join("..", "bay_outputs", "kp0grid.npy"))
     #     Y_corr, X_corr, marP = xyz
     #     im_corr = ax2d.contour(10 ** Y_corr, 10 ** X_corr, marP, levels=np.arange(0,7,1), colors='k', zorder=0)
     #     #ax2d.clabel(im_corr, im_corr.levels, inline=False, fmt=fmt,fontsize=10, zorder=0)
@@ -229,6 +245,7 @@ def make_2D_tracker(x_accepted, y_accepted, **kwargs):
     ax2d.set_ylabel(ylabel)
     if logy:
         ax2d.set_yscale('log')
+        
     if logx:
         ax2d.set_xscale('log')
         
@@ -240,17 +257,50 @@ def make_2D_tracker(x_accepted, y_accepted, **kwargs):
     #     cbar = fig.colorbar(ScalarMappable(), ax=ax2d, ticks=[0,1])
     #     cbar.ax.set_yticklabels(["Initial", "Final"])
     fig.tight_layout()
-    fig.savefig(f"sfsb.png", transparent=True)
     
 def plot_history(x, y, **kwargs):
-    """ Plot a simple 1D curve with data (x,y) """
+    """ Plot a collection of simple 1D curves with data (x,y).
+        y is 2D - one list per curve. If 1D, promotes to 2D.
+        x is 1D - shared over curves
+        kwargs as needed for matplotlib customization.
+    """
     title = kwargs.get("title", "")
     xlabel = kwargs.get("xlabel", "")
     ylabel = kwargs.get("ylabel", "")
+    xlim = kwargs.get("xlim", None)
+    ylim = kwargs.get("ylim", None)
+    do_log = kwargs.get("do_log", False)
+    fig = kwargs.get("fig", None)
+    ax = kwargs.get("ax", None)
+    labels = kwargs.get("labels", "")
+    marker = kwargs.get("marker", None)
+    colors = kwargs.get("colors", None)
+    lw = kwargs.get("linewidth", 1)
     
-    fig, ax = plt.subplots(1,1,figsize=(4,3), dpi=120)
-    ax.plot(x,y)
+    if fig is None or ax is None:
+        fig, ax = plt.subplots(1,1,figsize=(4,3), dpi=120)
+        
+    if y.ndim == 1:
+        y = np.expand_dims(y, axis=0)
+        
+    if isinstance(labels, str):
+        labels = [labels] * len(y)
+        
+    if isinstance(colors, str) or colors is None:
+        colors = [colors] * len(y)
+        
+    for i, yy in enumerate(y):
+        ax.plot(x,yy, marker=marker, label=labels[i], color=colors[i], linewidth=lw)
+
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+    if do_log:
+        ax.set_yscale("symlog")
+        ax.set_yticks(ax.get_yticks(), minor=True)
+        
+    if ylim is not None:
+        ax.set_ylim(ylim)
+        
+    if xlim is not None:
+        ax.set_xlim(xlim)
     ax.set_title(title)
-    
