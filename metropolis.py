@@ -79,19 +79,54 @@ def check_approved_param(new_p, param_info):
     else:
         checks["mu_p_size"] = True
 
+    if 'ks' in order:
+        checks["ks_size"] = ((new_p[order.index('ks')] - np.log10(ucs.get('ks', 1))) < -7)
+    else:
+        checks["ks_size"] = True
+
+    if 'p0' in order:
+        checks["p0_size"] = ((new_p[order.index('p0')] - np.log10(ucs.get('p0', 1))) < 19)
+    else:
+        checks["p0_size"] = True
+
+    if 'p0' in order and 'n0' in order:
+        checks["p0_greater"] = (new_p[order.index('p0')] > new_p[order.index('n0')])
+    else:
+        checks["p0_greater"] = True
+
     if 'Sf' in order:
-        checks["sf_size"] = (np.abs(new_p[order.index('Sf')] - np.log10(ucs.get('Sf', 1))) < 7)
+        checks["sf_size"] = ((new_p[order.index('Sf')] - np.log10(ucs.get('Sf', 1))) < 7)
     else:
         checks["sf_size"] = True
 
     if 'Sb' in order:
-        checks["sb_size"] = (np.abs(new_p[order.index('Sb')] - np.log10(ucs.get('Sb', 1))) < 7)
+        checks["sb_size"] = ((new_p[order.index('Sb')] - np.log10(ucs.get('Sb', 1))) < 7)
     else:
         checks["sb_size"] = True
 
-    # tau_n and tau_p must be *close* (within 3 OM) for a reasonable midgap SRH
+    if 'Cn' in order:
+        checks["cn_size"] = ((new_p[order.index('Cn')] - np.log10(ucs.get('Cn', 1))) < -21)
+    else:
+        checks["cn_size"] = True
+
+    if 'Cp' in order:
+        checks["cp_size"] = ((new_p[order.index('Cp')] - np.log10(ucs.get('Cp', 1))) < -21)
+    else:
+        checks["cp_size"] = True
+
+    if 'tauN' in order:
+        checks["tn_size"] = ((new_p[order.index('tauN')] - np.log10(ucs.get('tauN', 1))) > -1)
+    else:
+        checks["tn_size"] = True
+
+    if 'tauP' in order:
+        checks["tp_size"] = ((new_p[order.index('tauP')] - np.log10(ucs.get('tauP', 1))) > -1)
+    else:
+        checks["tp_size"] = True
+
+    # tau_n and tau_p must be *close* (within 2 OM) for a reasonable midgap SRH
     if 'tauN' in order and 'tauP' in order:
-        checks["tn_tp_close"] = (np.abs(new_p[order.index('tauN')] - new_p[order.index('tauP')]) <= 3)
+        checks["tn_tp_close"] = (np.abs(new_p[order.index('tauN')] - new_p[order.index('tauP')]) <= 2)
     else:
         checks["tn_tp_close"] = True
 
@@ -274,8 +309,7 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
         #     sol_int = sol
         # else:
         #     sol_int = griddata(sim_times, sol, times)
-
-        likelihood = -np.sum((np.log10(sol) + p.m - vals)**2)
+        likelihood = -np.sum((np.log10(sol) + np.log10(p.m) - vals)**2)
 
         # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
         if fail or np.isnan(likelihood): raise ValueError(f"{i}: Simulation failed!")
