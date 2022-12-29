@@ -67,26 +67,48 @@ def check_approved_param(new_p, param_info):
     #FIXME: This should check whether larams are log
     order = param_info['names']
     ucs = param_info.get('unit_conversions', {})
+    do_log = param_info["do_log"]
     checks = {}
     # mu_n and mu_p between 1e-1 and 1e6; a reasonable range for most materials
     if 'mu_n' in order:
-        checks["mu_n_size"] = (new_p[order.index('mu_n')] - np.log10(ucs.get('mu_n', 1)) < 6) and (new_p[order.index('mu_n')] - np.log10(ucs.get('mu_n', 1)) > -1)
+        if do_log['mu_n']: # Briefly exit logspace if needed
+            diff = 10 ** new_p[order.index('mu_n')]
+        else:
+            diff = new_p[order.index('mu_n')]
+            
+        # Use unit_conversions to do checks in cm / V / s unit system
+        diff /= ucs.get('mu_n', 1)
+        checks["mu_n_size"] = (diff < 1e6) and (diff > 1e-1)
     else:
         checks["mu_n_size"] = True
 
     if 'mu_p' in order:
-        checks["mu_p_size"] = (new_p[order.index('mu_p')] - np.log10(ucs.get('mu_p', 1)) < 6) and (new_p[order.index('mu_p')] - np.log10(ucs.get('mu_p', 1)) > -1)
-
+        if do_log['mu_p']:
+            diff = 10 ** new_p[order.index('mu_p')]
+        else:
+            diff = new_p[order.index('mu_p')]
+        diff /= ucs.get('mu_p', 1)
+        checks["mu_p_size"] = (diff < 1e6) and (diff > 1e-1)
     else:
         checks["mu_p_size"] = True
 
     if 'ks' in order:
-        checks["ks_size"] = ((new_p[order.index('ks')] - np.log10(ucs.get('ks', 1))) < -7)
+        if do_log["ks"]:
+            diff = 10 ** new_p[order.index('ks')]
+        else:
+            diff = new_p[order.index('ks')] 
+        diff /= ucs.get('ks', 1)
+        checks["ks_size"] = (diff < 1e-7)
     else:
         checks["ks_size"] = True
 
     if 'p0' in order:
-        checks["p0_size"] = ((new_p[order.index('p0')] - np.log10(ucs.get('p0', 1))) < 19)
+        if do_log['p0']:
+            diff = 10 ** new_p[order.index('p0')]
+        else:
+            diff = new_p[order.index('p0')] 
+        diff /= ucs.get('p0', 1)
+        checks["p0_size"] = (diff < 1e19)
     else:
         checks["p0_size"] = True
 
@@ -96,38 +118,81 @@ def check_approved_param(new_p, param_info):
         checks["p0_greater"] = True
 
     if 'Sf' in order:
-        checks["sf_size"] = ((new_p[order.index('Sf')] - np.log10(ucs.get('Sf', 1))) < 7)
+        if do_log['Sf']:
+            diff = 10 ** new_p[order.index('Sf')]
+        else:
+            diff = new_p[order.index('Sf')] 
+        diff /= ucs.get('Sf', 1)
+        checks["sf_size"] = (diff < 1e7)
     else:
         checks["sf_size"] = True
 
     if 'Sb' in order:
-        checks["sb_size"] = ((new_p[order.index('Sb')] - np.log10(ucs.get('Sb', 1))) < 7)
+        if do_log['Sb']:
+            diff = 10 ** new_p[order.index('Sb')]
+        else:
+            diff = new_p[order.index('Sb')] 
+        diff /= ucs.get('Sb', 1)
+        checks["sb_size"] = (diff < 1e7)
     else:
         checks["sb_size"] = True
 
     if 'Cn' in order:
-        checks["cn_size"] = ((new_p[order.index('Cn')] - np.log10(ucs.get('Cn', 1))) < -21)
+        if do_log["Cn"]:
+            diff = 10 ** new_p[order.index('Cn')]
+        else:
+            diff = new_p[order.index('Cn')] 
+        diff /= ucs.get('Cn', 1)
+        checks["cn_size"] = (diff < 1e-21)
     else:
         checks["cn_size"] = True
 
     if 'Cp' in order:
-        checks["cp_size"] = ((new_p[order.index('Cp')] - np.log10(ucs.get('Cp', 1))) < -21)
+        if do_log["Cp"]:
+            diff = 10 ** new_p[order.index('Cp')]
+        else:
+            diff = new_p[order.index('Cp')] 
+        diff /= ucs.get('Cp', 1)
+        checks["cp_size"] = (diff < 1e-21)
     else:
         checks["cp_size"] = True
 
     if 'tauN' in order:
-        checks["tn_size"] = ((new_p[order.index('tauN')] - np.log10(ucs.get('tauN', 1))) > -1)
+        if do_log["tauN"]:
+            diff = 10 ** new_p[order.index('tauN')]
+        else:
+            diff = new_p[order.index('tauN')] 
+        diff /= ucs.get('tauN', 1)
+        checks["tn_size"] = (diff > 1e-1)
     else:
         checks["tn_size"] = True
 
     if 'tauP' in order:
-        checks["tp_size"] = ((new_p[order.index('tauP')] - np.log10(ucs.get('tauP', 1))) > -1)
+        if do_log["tauP"]:
+            diff = 10 ** new_p[order.index('tauP')]
+        else:
+            diff = new_p[order.index('tauP')] 
+        diff /= ucs.get('tauP', 1)
+        checks["tp_size"] = (diff > 1e-1)
     else:
         checks["tp_size"] = True
 
     # tau_n and tau_p must be *close* (within 2 OM) for a reasonable midgap SRH
     if 'tauN' in order and 'tauP' in order:
-        checks["tn_tp_close"] = (np.abs(new_p[order.index('tauN')] - new_p[order.index('tauP')]) <= 2)
+        # Compel logscale for this one - makes for easier check
+        logtn = new_p[order.index('tauN')]
+        if not do_log["tauN"]:
+            logtn = np.log10(logtn)
+        logtn -= np.log10(ucs.get('tauN', 1))
+        
+        logtp = new_p[order.index('tauP')]
+        if not do_log["tauP"]:
+            logtp = np.log10(logtp)
+        logtp -= np.log10(ucs.get('tauP', 1))
+        
+        diff = np.abs(logtn - logtp)
+        checks["tn_tp_close"] = (diff <= 2)
+            
     else:
         checks["tn_tp_close"] = True
 
