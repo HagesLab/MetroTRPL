@@ -459,19 +459,15 @@ class TestUtils(unittest.TestCase):
         #Length = [311,2000,311,2000, 311, 2000]
         Length  = 2000                            # Length (nm)
         L   = 2 ** 7                                # Spatial points
-        plT = 1                                  # Set PL interval (dt)
-        pT  = (0,1,3,10,30,100)                   # Set plot intervals (%)
-        tol = 7                                   # Convergence tolerance
-        MAX = 10000                                  # Max iterations
-        
-        simPar = [Length, -1, L, -1, plT, pT, tol, MAX]
+
+        simPar = [Length, L]
         
         thickness, nx = unpack_simpar(simPar, 99)
         self.assertEqual(Length, thickness)
         self.assertEqual(L, nx)
         
         Length = [311,2000,311,2000, 311, 2000]
-        simPar = [Length, -1, L, -1, plT, pT, tol, MAX]
+        simPar = [Length, L]
         thickness, nx = unpack_simpar(simPar, 2)
         self.assertEqual(Length[2], thickness)
         self.assertEqual(L, nx)
@@ -636,4 +632,4 @@ class TestUtils(unittest.TestCase):
 if __name__ == "__main__":
     t = TestUtils()
     t.setUp()
-    t.test_approve_param()
+    t.test_unpack_simpar()

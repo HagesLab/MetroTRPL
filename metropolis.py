@@ -283,7 +283,7 @@ def roll_acceptance(logratio):
 
 def unpack_simpar(simPar, i):
     thickness = simPar[0][i] if isinstance(simPar[0], list) else simPar[0]
-    nx = simPar[2]
+    nx = simPar[1]
     return thickness, nx
 
 def anneal(t, anneal_mode, anneal_params):
