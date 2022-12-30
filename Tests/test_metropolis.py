@@ -457,16 +457,26 @@ class TestUtils(unittest.TestCase):
 
     def test_unpack_simpar(self):
         #Length = [311,2000,311,2000, 311, 2000]
+        Length  = [2000]                            # Length (nm)
+        L   = 2 ** 7                                # Spatial points
+
+        simPar = [Length, L]
+        
+        thickness, nx = unpack_simpar(simPar, 0)
+        self.assertEqual(Length[0], thickness)
+        self.assertEqual(L, nx)
+        
+        # SIngle lengths promoted to list
         Length  = 2000                            # Length (nm)
         L   = 2 ** 7                                # Spatial points
 
         simPar = [Length, L]
         
-        thickness, nx = unpack_simpar(simPar, 99)
+        thickness, nx = unpack_simpar(simPar, 0)
         self.assertEqual(Length, thickness)
         self.assertEqual(L, nx)
         
-        Length = [311,2000,311,2000, 311, 2000]
+        Length = np.array([311,2000,311,2000, 311, 2000])
         simPar = [Length, L]
         thickness, nx = unpack_simpar(simPar, 2)
         self.assertEqual(Length[2], thickness)
