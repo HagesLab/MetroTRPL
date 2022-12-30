@@ -168,18 +168,59 @@ class TestUtils(unittest.TestCase):
     
     def test_approve_param(self):
         info = {'names':['tauP', 'tauN', 'somethingelse'],
-                 'unit_conversions':{'tauP':1, 'tauN':1, 'somethingelse':1}}
-        # taun, taup must be within 3 OM
+                 'unit_conversions':{'tauP':1, 'tauN':1, 'somethingelse':1},
+                 'do_log':{'tauP':1, 'tauN':1, 'somethingelse':1}}
+        # taun, taup must be within 2 OM
         # Accepts new_p as log10
         # [n0, p0, mu_n, mu_p, ks, sf, sb, taun, taup, eps, m]
-        new_p = np.log10([511, 511e3, 1])
+        new_p = np.log10([511, 511e2, 1])
         self.assertTrue(check_approved_param(new_p, info))
+        new_p = np.log10([511, 511e2+1,  1])
+        self.assertFalse(check_approved_param(new_p, info))
         
-        new_p = np.log10([511, 511e3+1,  1])
+        # tn, tp size limit
+        new_p = np.log10([0.11, 0.11, 1])
+        self.assertTrue(check_approved_param(new_p, info))
+        new_p = np.log10([0.1, 0.11, 1])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.log10([0.11, 0.1, 1])
+        self.assertFalse(check_approved_param(new_p, info))
+        
+        # These should still work if p is not logscaled
+        info = {'names':['tauP', 'tauN', 'somethingelse'],
+                 'unit_conversions':{'tauP':1, 'tauN':1, 'somethingelse':1},
+                 'do_log':{'tauP':0, 'tauN':0, 'somethingelse':1}}
+        new_p = np.array([511, 511e2, 1])
+        self.assertTrue(check_approved_param(new_p, info))
+        new_p = np.array([511, 511e2+1,  1])
+        self.assertFalse(check_approved_param(new_p, info))
+        
+        new_p = np.array([0.11, 0.11, 1])
+        self.assertTrue(check_approved_param(new_p, info))
+        new_p = np.array([0.1, 0.11, 1])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.array([0.11, 0.1, 1])
+        self.assertFalse(check_approved_param(new_p, info))
+        
+        # These should also still work if new_p's unit system is different
+        info = {'names':['tauP', 'tauN', 'somethingelse'],
+                 'unit_conversions':{'tauP':0.1, 'tauN':0.01, 'somethingelse':0.1},
+                 'do_log':{'tauP':0, 'tauN':0, 'somethingelse':1}}
+        new_p = np.array([511 * 0.1, 511e2 * 0.01, 1 * 0.1])
+        self.assertTrue(check_approved_param(new_p, info))
+        new_p = np.array([511 * 0.1, (511e2+1) * 0.01,  1 * 0.1])
+        self.assertFalse(check_approved_param(new_p, info))
+        
+        new_p = np.array([0.11 * 0.1, 0.11 * 0.01, 1 * 0.1])
+        self.assertTrue(check_approved_param(new_p, info))
+        new_p = np.array([0.09 * 0.1, 0.11 * 0.01, 1 * 0.1])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.array([0.11 * 0.1, 0.09 * 0.01, 1 * 0.1])
         self.assertFalse(check_approved_param(new_p, info))
         
         # Check mu_n, mu_p, Sf, and Sb size limits
-        info = {"names":["mu_n", "mu_p", "Sf", "Sb"]}
+        info = {"names":["mu_n", "mu_p", "Sf", "Sb"],
+                'do_log':{"mu_n":1, "mu_p":1, "Sf":1, "Sb":1}}
         new_p = np.log10([1e6-1, 1e6-1, 1e7-1, 1e7-1])
         self.assertTrue(check_approved_param(new_p, info))
         
@@ -192,7 +233,71 @@ class TestUtils(unittest.TestCase):
         new_p = np.log10([1e6-1, 1e6-1, 1e7-1, 1e7])
         self.assertFalse(check_approved_param(new_p, info))
         
-        info_without_taus = {'names':['tauQ', 'somethingelse']}
+        # These should still work if p is not logscaled
+        info = {"names":["mu_n", "mu_p", "Sf", "Sb"],
+                'do_log':{"mu_n":0, "mu_p":0, "Sf":0, "Sb":0}}
+        new_p = np.array([1e6-1, 1e6-1, 1e7-1, 1e7-1])
+        self.assertTrue(check_approved_param(new_p, info))
+        
+        new_p = np.array([1e6, 1e6-1, 1e7-1, 1e7-1])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.array([1e6-1, 1e6, 1e7-1, 1e7-1])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.array([1e6-1, 1e6-1, 1e7, 1e7-1])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.array([1e6-1, 1e6-1, 1e7-1, 1e7])
+        self.assertFalse(check_approved_param(new_p, info))
+        
+        # Check ks, Cn, Cp size limits
+        info = {"names":["ks", "Cn", "Cp"],
+                "do_log":{"ks":1, "Cn":1, "Cp":1}}
+        new_p = np.log10([1e-7*0.9, 1e-21*0.9, 1e-21*0.9])
+        self.assertTrue(check_approved_param(new_p, info))
+        
+        new_p = np.log10([1e-7, 1e-21*0.9, 1e-21*0.9])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.log10([1e-7*0.9, 1e-21, 1e-21*0.9])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.log10([1e-7*0.9, 1e-21*0.9, 1e-21])
+        self.assertFalse(check_approved_param(new_p, info))
+        
+        # Should work without log
+        info = {"names":["ks", "Cn", "Cp"],
+                "do_log":{"ks":0, "Cn":0, "Cp":0}}
+        new_p = np.array([1e-7*0.9, 1e-21*0.9, 1e-21*0.9])
+        self.assertTrue(check_approved_param(new_p, info))
+        
+        new_p = np.array([1e-7, 1e-21*0.9, 1e-21*0.9])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.array([1e-7*0.9, 1e-21, 1e-21*0.9])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.array([1e-7*0.9, 1e-21*0.9, 1e-21])
+        self.assertFalse(check_approved_param(new_p, info))
+        
+        # Check p0, which has a size limit and must also be larger than n0
+        info = {"names":["n0", "p0"],
+                "do_log":{"n0":1, "p0":1}}
+        new_p = np.log10([1e19 * 0.8, 1e19 * 0.9])
+        self.assertTrue(check_approved_param(new_p, info))
+        
+        new_p = np.log10([1e19 * 0.8, 1e19])
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.log10([1e19, 1e19 * 0.9])
+        self.assertFalse(check_approved_param(new_p, info))
+        
+        # Should work without log
+        info = {"names":["n0", "p0"],
+                "do_log":{"n0":0, "p0":0}}
+        new_p = np.array([1e19 * 0.8, 1e19 * 0.9])
+        self.assertTrue(check_approved_param(new_p, info))
+        
+        new_p = np.array([1e19 * 0.8, 1e19]) # p0 too large
+        self.assertFalse(check_approved_param(new_p, info))
+        new_p = np.array([1e19, 1e19 * 0.9]) # p0 smaller than n0
+        self.assertFalse(check_approved_param(new_p, info))
+        
+        info_without_taus = {'names':['tauQ', 'somethingelse'],
+                             "do_log":{'tauQ':1, 'somethingelse':1}}
         # Always true if criteria do not cover params
         new_p = np.log10([1,1e10])
         self.assertTrue(check_approved_param(new_p, info_without_taus))
@@ -430,7 +535,7 @@ class TestUtils(unittest.TestCase):
                          "tauN":1e99, 
                          "tauP":1e99, 
                          "eps":10, 
-                         "m":0}
+                         "m":1}
         
         sim_flags = {"anneal_mode": None, # None, "exp", "log"
                      "anneal_params": [0, 1/2500*100, 10], 
@@ -531,4 +636,4 @@ class TestUtils(unittest.TestCase):
 if __name__ == "__main__":
     t = TestUtils()
     t.setUp()
-    t.test_one_sim_ll_errata()
+    t.test_approve_param()

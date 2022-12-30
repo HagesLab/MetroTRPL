@@ -64,34 +64,135 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=1e-10, ATOL=1e-14)
 
 def check_approved_param(new_p, param_info):
     """ Screen out non-physical or unrealistic proposed trial moves. """
+    #FIXME: This should check whether larams are log
     order = param_info['names']
     ucs = param_info.get('unit_conversions', {})
+    do_log = param_info["do_log"]
     checks = {}
     # mu_n and mu_p between 1e-1 and 1e6; a reasonable range for most materials
     if 'mu_n' in order:
-        checks["mu_n_size"] = (new_p[order.index('mu_n')] - np.log10(ucs.get('mu_n', 1)) < 6) and (new_p[order.index('mu_n')] - np.log10(ucs.get('mu_n', 1)) > -1)
+        if do_log['mu_n']: # Briefly exit logspace if needed
+            diff = 10 ** new_p[order.index('mu_n')]
+        else:
+            diff = new_p[order.index('mu_n')]
+            
+        # Use unit_conversions to do checks in cm / V / s unit system
+        diff /= ucs.get('mu_n', 1)
+        checks["mu_n_size"] = (diff < 1e6) and (diff > 1e-1)
     else:
         checks["mu_n_size"] = True
 
     if 'mu_p' in order:
-        checks["mu_p_size"] = (new_p[order.index('mu_p')] - np.log10(ucs.get('mu_p', 1)) < 6) and (new_p[order.index('mu_p')] - np.log10(ucs.get('mu_p', 1)) > -1)
-
+        if do_log['mu_p']:
+            diff = 10 ** new_p[order.index('mu_p')]
+        else:
+            diff = new_p[order.index('mu_p')]
+        diff /= ucs.get('mu_p', 1)
+        checks["mu_p_size"] = (diff < 1e6) and (diff > 1e-1)
     else:
         checks["mu_p_size"] = True
 
+    if 'ks' in order:
+        if do_log["ks"]:
+            diff = 10 ** new_p[order.index('ks')]
+        else:
+            diff = new_p[order.index('ks')] 
+        diff /= ucs.get('ks', 1)
+        checks["ks_size"] = (diff < 1e-7)
+    else:
+        checks["ks_size"] = True
+
+    if 'p0' in order:
+        if do_log['p0']:
+            diff = 10 ** new_p[order.index('p0')]
+        else:
+            diff = new_p[order.index('p0')] 
+        diff /= ucs.get('p0', 1)
+        checks["p0_size"] = (diff < 1e19)
+    else:
+        checks["p0_size"] = True
+
+    if 'p0' in order and 'n0' in order:
+        checks["p0_greater"] = (new_p[order.index('p0')] > new_p[order.index('n0')])
+    else:
+        checks["p0_greater"] = True
+
     if 'Sf' in order:
-        checks["sf_size"] = (np.abs(new_p[order.index('Sf')] - np.log10(ucs.get('Sf', 1))) < 7)
+        if do_log['Sf']:
+            diff = 10 ** new_p[order.index('Sf')]
+        else:
+            diff = new_p[order.index('Sf')] 
+        diff /= ucs.get('Sf', 1)
+        checks["sf_size"] = (diff < 1e7)
     else:
         checks["sf_size"] = True
 
     if 'Sb' in order:
-        checks["sb_size"] = (np.abs(new_p[order.index('Sb')] - np.log10(ucs.get('Sb', 1))) < 7)
+        if do_log['Sb']:
+            diff = 10 ** new_p[order.index('Sb')]
+        else:
+            diff = new_p[order.index('Sb')] 
+        diff /= ucs.get('Sb', 1)
+        checks["sb_size"] = (diff < 1e7)
     else:
         checks["sb_size"] = True
 
-    # tau_n and tau_p must be *close* (within 3 OM) for a reasonable midgap SRH
+    if 'Cn' in order:
+        if do_log["Cn"]:
+            diff = 10 ** new_p[order.index('Cn')]
+        else:
+            diff = new_p[order.index('Cn')] 
+        diff /= ucs.get('Cn', 1)
+        checks["cn_size"] = (diff < 1e-21)
+    else:
+        checks["cn_size"] = True
+
+    if 'Cp' in order:
+        if do_log["Cp"]:
+            diff = 10 ** new_p[order.index('Cp')]
+        else:
+            diff = new_p[order.index('Cp')] 
+        diff /= ucs.get('Cp', 1)
+        checks["cp_size"] = (diff < 1e-21)
+    else:
+        checks["cp_size"] = True
+
+    if 'tauN' in order:
+        if do_log["tauN"]:
+            diff = 10 ** new_p[order.index('tauN')]
+        else:
+            diff = new_p[order.index('tauN')] 
+        diff /= ucs.get('tauN', 1)
+        checks["tn_size"] = (diff > 1e-1)
+    else:
+        checks["tn_size"] = True
+
+    if 'tauP' in order:
+        if do_log["tauP"]:
+            diff = 10 ** new_p[order.index('tauP')]
+        else:
+            diff = new_p[order.index('tauP')] 
+        diff /= ucs.get('tauP', 1)
+        checks["tp_size"] = (diff > 1e-1)
+    else:
+        checks["tp_size"] = True
+
+    # tau_n and tau_p must be *close* (within 2 OM) for a reasonable midgap SRH
     if 'tauN' in order and 'tauP' in order:
-        checks["tn_tp_close"] = (np.abs(new_p[order.index('tauN')] - new_p[order.index('tauP')]) <= 3)
+        # Compel logscale for this one - makes for easier check
+        logtn = new_p[order.index('tauN')]
+        if not do_log["tauN"]:
+            logtn = np.log10(logtn)
+        logtn -= np.log10(ucs.get('tauN', 1))
+        
+        logtp = new_p[order.index('tauP')]
+        if not do_log["tauP"]:
+            logtp = np.log10(logtp)
+        logtp -= np.log10(ucs.get('tauP', 1))
+        
+        diff = np.abs(logtn - logtp)
+        checks["tn_tp_close"] = (diff <= 2)
+            
     else:
         checks["tn_tp_close"] = True
 
@@ -105,20 +206,27 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
     is_active = param_info["active"]
     do_log = param_info["do_log"]
     names = param_info["names"]
+
+    secret_mu = param_info.get("secret_mu", False)
+
     mean = means.to_array(param_info)
-    for i, param in enumerate(names):        
+    for i, param in enumerate(names):
         if do_log[param]:
             mean[i] = np.log10(mean[i])
-            
+
     cov = variances.cov
     approved = False
     attempts = 0
     while not approved:
-        
+
         if trial_function == "box":
             new_p = np.zeros_like(mean)
             for i, param in enumerate(names):
                 new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
+                if secret_mu and param == "mu_p":
+                    new_muambi = np.random.normal(20, 0.3) * param_info["unit_conversions"]["mu_n"]
+                    new_p[i] = np.log10((2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
+
         elif trial_function == "gauss":
             try:
                 assert np.all(cov >= 0)
@@ -127,14 +235,14 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
                 if logger is not None:
                     logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
                 new_p = mean
-                
+
         approved = check_approved_param(new_p, param_info)
         attempts += 1
         if attempts > MAX_TRIAL_ATTEMPTS: break
-    
+
     if logger is not None:
         logger.info(f"Found suitable parameters in {attempts} attempts")
-        
+
     for i, param in enumerate(names):
         if is_active[param]:
             if do_log[param]:
@@ -267,8 +375,7 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
         #     sol_int = sol
         # else:
         #     sol_int = griddata(sim_times, sol, times)
-
-        likelihood = -np.sum((np.log10(sol) + p.m - vals)**2)
+        likelihood = -np.sum((np.log10(sol) + np.log10(p.m) - vals)**2)
 
         # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
         if fail or np.isnan(likelihood): raise ValueError(f"{i}: Simulation failed!")
@@ -348,9 +455,10 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             np.random.set_state(MS.random_state)
             starting_iter = int(load_checkpoint[load_checkpoint.find("_")+1:load_checkpoint.rfind(".pik")])+1
             MS.H.extend(num_iters, param_info)
+            MS.sim_flags = dict(sim_flags)
 
     else:
-        MS = MetroState(param_info, initial_guess, initial_variance, num_iters)
+        MS = MetroState(param_info, sim_flags, initial_guess, initial_variance, num_iters)
         starting_iter = 1
     
         # Calculate likelihood of initial guess
@@ -398,11 +506,12 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             break
         
         if checkpoint_freq is not None and k % checkpoint_freq == 0:
-            chpt_fname = os.path.join(sim_flags["checkpoint_dirname"], f"checkpoint_{k}.pik")
+            chpt_header = sim_flags["checkpoint_header"]
+            chpt_fname = os.path.join(sim_flags["checkpoint_dirname"], f"checkpoint{chpt_header}_{k}.pik")
             logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
             MS.random_state = np.random.get_state()
             MS.checkpoint(chpt_fname)
         
     MS.H.apply_unit_conversions(param_info)
     MS.H.final_cov = MS.variances.cov
-    return MS.H
+    return MS
