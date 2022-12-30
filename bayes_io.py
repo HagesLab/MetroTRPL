@@ -9,6 +9,22 @@ import sys
 import csv
 import os
 import numpy as np
+import datetime
+
+# Eventually use io_utils for this
+def get_split_and_clean_line(line: str):
+    """Split line by colon symbol ':' and
+    remove preceding and trailing spaces."""
+    split_line = line.split(':')
+    split_line = [i.strip() for i in split_line]
+    return split_line
+
+def extract_values(string, delimiter):
+    """Converts a string with deliimiters into a list of float values"""
+	# E.g. "100,200,300" with "," delimiter becomes [100,200,300]
+    values = string.split(delimiter)
+    values = np.array(values, dtype=float)
+    return values
 
 def get_data(exp_file, ic_flags, sim_flags, scale_f=1e-23, verbose=False):
     TIME_RANGE = ic_flags['time_cutoff']
@@ -94,3 +110,63 @@ def get_initpoints(init_file, ic_flags, scale_f=1e-21):
     if SELECT is not None:
         initpoints = np.array(initpoints)[SELECT]
     return np.array(initpoints, dtype=float) * scale_f
+
+def read_config_file(path):
+    with open(path, 'r') as ifstream:
+        grid = [-1, -1]
+
+        initFlag = 0
+        
+        if not ("$$ MCMC CONFIG CREATED") in next(ifstream):
+            raise OSError("Error: this file is not a valid MCMC config file")
+        
+        # system_class = next(ifstream).strip('\n')
+        # system_class = system_class[system_class.find(' ') + 1:]
+        # if not system_class == self.module.system_ID:
+        #     raise ValueError("Error: selected file is not a {}".format(self.module.system_ID))
+                        
+        # Extract parameters, ICs
+        for line in ifstream:
+            line = line.strip('\n')
+            line_split = get_split_and_clean_line(line)
+
+            if ("#" in line) or not line:
+                continue
+
+            # There are three "$" markers in an IC file: "Space Grid", "System Parameters" and "System Flags"
+            # each corresponding to a different section of the file
+
+            if "p$ Space Grid" in line:
+                initFlag = 'g'
+                continue
+
+            if len(line_split) > 1:
+                
+                if (initFlag == 'g'):
+                    if line.startswith("Length"):
+                        grid[0] = extract_values(line_split[1], delimiter='\t')
+                        
+                    elif line.startswith("nx"):
+                        grid[1] = int(line_split[1])
+                    
+    return grid
+
+
+def generate_config_file(path, simPar, param_info, verbose=False):
+    if isinstance(simPar[0], (float, int)):
+        simPar[0] = [simPar[0]]
+    
+    with open(path, "w+") as ofstream:
+        ofstream.write("$$ MCMC CONFIG CREATED {} AT {}\n".format(datetime.datetime.now().date(),
+                                                                  datetime.datetime.now().time()))
+        ofstream.write("p$ Space Grid:\n")
+        ofstream.write(f"Length(s): {simPar[0][0]}")
+        for value in simPar[0][1:]:
+            ofstream.write(f"\t{value}")
+        ofstream.write('\n')
+        ofstream.write(f"nx: {simPar[1]}\n")
+    return
+        
+if __name__ == "__main__":
+    out = read_config_file("mcmc.txt")
+    print(out)
