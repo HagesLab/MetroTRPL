@@ -112,6 +112,15 @@ def get_initpoints(init_file, ic_flags, scale_f=1e-21):
         initpoints = np.array(initpoints)[SELECT]
     return np.array(initpoints, dtype=float) * scale_f
 
+def put_into_param_info(param_info, vals, new_key):
+    if "names" not in param_info:
+        raise KeyError("Entry \"Param names\" not found in MCMC config file.\n"
+                       "Check whether this entry is present and FIRST in\n"
+                       "the Param Info subsection.")
+    param_info[new_key] = {param_info["names"][i]:vals[i] 
+                           for i in range(len(param_info["names"]))}
+    return
+
 def read_config_file(path):
     with open(path, 'r') as ifstream:
         grid = [-1, -1, -1]
@@ -160,7 +169,19 @@ def read_config_file(path):
                 if (init_flag == 'p'):
                     if line.startswith("Param Names"):
                         param_info["names"] = extract_values(line_split[1], delimiter='\t', dtype=str)
-                    
+                        
+                    elif line.startswith("Unit conversions"):
+                        vals = extract_values(line_split[1], delimiter='\t', dtype=float)
+                        put_into_param_info(param_info, vals, "unit_conversions")
+                        
+                    elif line.startswith("Do logscale"):
+                        vals = extract_values(line_split[1], delimiter='\t', dtype=int)
+                        put_into_param_info(param_info, vals, "do_log")
+                         
+                    elif line.startswith("Active"):
+                        vals = extract_values(line_split[1], delimiter='\t', dtype=int)
+                        put_into_param_info(param_info, vals, "active")
+                        
     return grid, param_info
 
 
@@ -181,12 +202,30 @@ def generate_config_file(path, simPar, param_info, verbose=False):
         for value in simPar[2][1:]:
             ofstream.write(f"\t{value}")
         ofstream.write('\n')
-        
+        #######################################################################
         ofstream.write("p$ Param Info:\n")
         param_names = param_info["names"]
         ofstream.write(f"Param Names: {param_names[0]}")
         for value in param_names[1:]:
             ofstream.write(f"\t{value}")
+        ofstream.write('\n')
+        
+        ucs = param_info["unit_conversions"]
+        ofstream.write(f"Unit conversions: {ucs.get(param_names[0], 1)}")
+        for name in param_names[1:]:
+            ofstream.write(f"\t{ucs.get(name, 1)}")
+        ofstream.write('\n')
+        
+        do_log = param_info["do_log"]
+        ofstream.write(f"Do logscale: {do_log.get(param_names[0], 0)}")
+        for name in param_names[1:]:
+            ofstream.write(f"\t{do_log.get(name, 0)}")
+        ofstream.write('\n')
+        
+        active_params = param_info["active"]
+        ofstream.write(f"Active: {active_params.get(param_names[0], 0)}")
+        for name in param_names[1:]:
+            ofstream.write(f"\t{active_params.get(name, 0)}")
         ofstream.write('\n')
     return
         
