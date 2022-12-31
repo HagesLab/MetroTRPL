@@ -182,6 +182,14 @@ def read_config_file(path):
                         vals = extract_values(line_split[1], delimiter='\t', dtype=int)
                         put_into_param_info(param_info, vals, "active")
                         
+                    elif line.startswith("Initial guess"):
+                        vals = extract_values(line_split[1], delimiter='\t', dtype=float)
+                        put_into_param_info(param_info, vals, "init_guess")
+                        
+                    elif line.startswith("Initial variance"):
+                        vals = extract_values(line_split[1], delimiter='\t', dtype=float)
+                        put_into_param_info(param_info, vals, "init_variance")
+                        
     return grid, param_info
 
 
@@ -226,6 +234,18 @@ def generate_config_file(path, simPar, param_info, verbose=False):
         ofstream.write(f"Active: {active_params.get(param_names[0], 0)}")
         for name in param_names[1:]:
             ofstream.write(f"\t{active_params.get(name, 0)}")
+        ofstream.write('\n')
+        
+        init_guess = param_info["init_guess"]
+        ofstream.write(f"Initial guess: {init_guess.get(param_names[0], 0)}")
+        for name in param_names[1:]:
+            ofstream.write(f"\t{init_guess.get(name, 0)}")
+        ofstream.write('\n')
+        
+        init_variance = param_info["init_variance"]
+        ofstream.write(f"Initial variance: {init_variance.get(param_names[0], 0)}")
+        for name in param_names[1:]:
+            ofstream.write(f"\t{init_variance.get(name, 0)}")
         ofstream.write('\n')
     return
         

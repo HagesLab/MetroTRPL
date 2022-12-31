@@ -30,12 +30,14 @@ class TestUtils(unittest.TestCase):
         
     def test_E_field(self):
         # Test 1D
-        param_info = {"names":["n0", "p0", "eps"],
-                      "active":{"n0":1, "p0":1, "eps":1}}
         vals = {'n0':0,
                 'p0':0,
                 'eps':1}
-        pa = Parameters(param_info, vals)
+        param_info = {"names":["n0", "p0", "eps"],
+                      "active":{"n0":1, "p0":1, "eps":1},
+                      "init_guess":vals}
+        
+        pa = Parameters(param_info)
         nx = 10
         dx = 1
         # Test N=P
@@ -74,7 +76,8 @@ class TestUtils(unittest.TestCase):
         vals = {'n0':1,
                 'p0':1,
                 'eps':1}
-        pa = Parameters(param_info, vals)
+        param_info["init_guess"] = vals
+        pa = Parameters(param_info)
         N = np.ones((nx, nx+1))
         P = np.ones((nx, nx+1))
         E = E_field(N, P, pa, dx, corner_E=corner_E)
@@ -118,7 +121,9 @@ class TestUtils(unittest.TestCase):
                 'Sb':0,
                 "Tm":300,
                 'eps':1}
-        pa = Parameters(param_info, vals)
+        
+        param_info["init_guess"] = vals
+        pa = Parameters(param_info)
         pa.apply_unit_conversions(param_info)
         init_dN = 1e20 * np.ones(g.nx) * 1e-21 # [cm^-3] to [nm^-3]
         
@@ -148,7 +153,8 @@ class TestUtils(unittest.TestCase):
                 'Sb':0,
                 "Tm":300,
                 'eps':1}
-        pa = Parameters(param_info, vals)
+        param_info["init_guess"] = vals
+        pa = Parameters(param_info)
         pa.apply_unit_conversions(param_info)
         
         test_TRTS, out_dN = model(init_dN, g, pa, meas="TRTS", solver="solveivp")
@@ -321,11 +327,12 @@ class TestUtils(unittest.TestCase):
         
         param_info = {"active":active_params,
                       "do_log":do_log,
-                      "names":param_names,}
+                      "names":param_names,
+                      "init_guess":initial_guesses}
         
         
-        pa = Parameters(param_info, initial_guesses)
-        means = Parameters(param_info, initial_guesses)
+        pa = Parameters(param_info)
+        means = Parameters(param_info)
         variances = Covariance(param_info)
         variances.set_variance('a', 10)
         variances.set_variance('b', 0.1)
@@ -399,7 +406,9 @@ class TestUtils(unittest.TestCase):
                 'Sb':20,
                 'eps':1,
                 "Tm":300}
-        pa = Parameters(param_info, vals)
+        
+        param_info["init_guess"] = vals
+        pa = Parameters(param_info)
         pa.apply_unit_conversions(param_info)
         
         thickness = 1000
@@ -506,14 +515,10 @@ class TestUtils(unittest.TestCase):
     def test_run_iter(self):
         # Will basically need to set up a full simulation for this
         np.random.seed(42)
-        Length  = 2000                            # Length (nm)
-        L   = 2 ** 7                                # Spatial points
-        plT = 1                                  # Set PL interval (dt)
-        pT  = (0,1,3,10,30,100)                   # Set plot intervals (%)
-        tol = 7                                   # Convergence tolerance
-        MAX = 10000                                  # Max iterations
-        
-        simPar = [Length, -1, L, -1, plT, pT, tol, MAX]
+        Length  = [2000, 2000]                            # Length (nm)
+        L   = 2 ** 7                                # Spatial point
+        mtype = ["TRPL", "TRPL"]
+        simPar = [Length, L, mtype]
         
         iniPar = [1e15 * np.ones(L) * 1e-21, 1e16 * np.ones(L) * 1e-21]
 
@@ -543,15 +548,17 @@ class TestUtils(unittest.TestCase):
                          "eps":10, 
                          "m":1}
         
+        param_info["init_guess"] = initial_guess
+        
         sim_flags = {"anneal_mode": None, # None, "exp", "log"
                      "anneal_params": [0, 1/2500*100, 10], 
                      "hmax":4, "rtol":1e-5, "atol":1e-8,
                      "measurement":"TRPL",
-                     "solver":"solveivp"}
+                     "solver":"solveivp",}
         
-        p = Parameters(param_info, initial_guess)
+        p = Parameters(param_info)
         p.apply_unit_conversions(param_info)
-        p2 = Parameters(param_info, initial_guess)
+        p2 = Parameters(param_info)
         p2.apply_unit_conversions(param_info)
         
         nt = 1000
@@ -642,4 +649,4 @@ class TestUtils(unittest.TestCase):
 if __name__ == "__main__":
     t = TestUtils()
     t.setUp()
-    t.test_unpack_simpar()
+    t.test_run_iter()

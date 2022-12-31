@@ -70,7 +70,8 @@ class TestUtils(unittest.TestCase):
                         "Tm":300,
                         "m":0}
         
-        p = Parameters(self.param_info, initial_guess)
+        self.param_info["init_guess"] = initial_guess
+        p = Parameters(self.param_info)
 
         p.apply_unit_conversions(self.param_info)
         
@@ -119,7 +120,8 @@ class TestUtils(unittest.TestCase):
                         "Tm":300,
                         "m":0}
         
-        p = Parameters(self.param_info, initial_guess)
+        self.param_info["init_guess"] = initial_guess
+        p = Parameters(self.param_info)
         p.apply_unit_conversions(self.param_info)
         
         init_dN = np.logspace(14, 8, self.g.nx) * self.unit_conversions["n0"]
@@ -169,7 +171,8 @@ class TestUtils(unittest.TestCase):
                         "Tm":300,
                         "m":0}
         
-        p = Parameters(self.param_info, initial_guess)
+        self.param_info["init_guess"] = initial_guess
+        p = Parameters(self.param_info)
         p.apply_unit_conversions(self.param_info)
         
         init_dN = 1e10 * np.ones(self.g.nx) * self.unit_conversions["n0"]
@@ -216,7 +219,8 @@ class TestUtils(unittest.TestCase):
                         "Tm":300,
                         "m":0}
         
-        p = Parameters(self.param_info, initial_guess)
+        self.param_info["init_guess"] = initial_guess
+        p = Parameters(self.param_info)
         p.apply_unit_conversions(self.param_info)
         
         init_dN = 1e10 * np.ones(self.g.nx) * self.unit_conversions["n0"]
@@ -256,7 +260,8 @@ class TestUtils(unittest.TestCase):
                         "Tm":300,
                         "m":0}
         
-        p = Parameters(self.param_info, initial_guess)
+        self.param_info["init_guess"] = initial_guess
+        p = Parameters(self.param_info)
         p.apply_unit_conversions(self.param_info)
         
         init_dN = 1e10 * np.ones(self.g.nx) * self.unit_conversions["n0"]
@@ -297,7 +302,8 @@ class TestUtils(unittest.TestCase):
                         "Tm":300,
                         "m":0}
         
-        p = Parameters(self.param_info, initial_guess)
+        self.param_info["init_guess"] = initial_guess
+        p = Parameters(self.param_info)
         p.apply_unit_conversions(self.param_info)
         
         init_dN = 1e10 * np.ones(self.g.nx) * self.unit_conversions["n0"]

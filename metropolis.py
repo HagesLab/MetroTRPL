@@ -432,7 +432,7 @@ def all_signal_handler(func):
             continue
     return
 
-def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbose, logger, initial_guess):
+def metro(simPar, iniPar, e_data, sim_flags, param_info, verbose, logger):
     # Setup
     logger.info("PID: {}".format(os.getpid()))
     all_signal_handler(kill_from_cl)
@@ -461,7 +461,7 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             MS.sim_flags = dict(sim_flags)
 
     else:
-        MS = MetroState(param_info, sim_flags, initial_guess, initial_variance, num_iters)
+        MS = MetroState(param_info, sim_flags, num_iters)
         starting_iter = 1
     
         # Calculate likelihood of initial guess

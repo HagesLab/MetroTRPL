@@ -18,20 +18,20 @@ class MetroState():
         the states it's been to, and the trial move function used to get the
         next state.
     """
-    def __init__(self, param_info, sim_flags, initial_guess, initial_variance, num_iters):
-        self.p = Parameters(param_info, initial_guess)
+    def __init__(self, param_info, sim_flags, num_iters):
+        self.p = Parameters(param_info)
         self.p.apply_unit_conversions(param_info)
         
         self.H = History(num_iters, param_info)
         
-        self.prev_p = Parameters(param_info, initial_guess)
+        self.prev_p = Parameters(param_info)
         self.prev_p.apply_unit_conversions(param_info)
         
-        self.means = Parameters(param_info, initial_guess)
+        self.means = Parameters(param_info)
         self.means.apply_unit_conversions(param_info)
         
         self.variances = Covariance(param_info)
-        self.variances.apply_values(initial_variance)
+        self.variances.apply_values(param_info["init_variance"])
         
         self.param_info = param_info
         self.sim_flags = sim_flags
@@ -70,14 +70,14 @@ class Parameters():
     tauP : float    # Hole bulk nonradiative decayl lifetime
     eps : float     # Relative dielectric cofficient
     Tm : float      # Temperature
-    def __init__(self, param_info, initial_guesses):
+    def __init__(self, param_info):
         self.param_names = param_info["names"]
         self.actives = [(param, index) for index, param in enumerate(self.param_names) 
                         if param_info["active"].get(param, False)]
         
         for param in self.param_names:
             if hasattr(self, param): raise KeyError(f"Param with name {param} already exists")
-            setattr(self, param, initial_guesses[param])
+            setattr(self, param, param_info["init_guess"][param])
         return
     
     def apply_unit_conversions(self, param_info=None):
