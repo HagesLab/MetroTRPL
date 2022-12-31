@@ -19,11 +19,12 @@ def get_split_and_clean_line(line: str):
     split_line = [i.strip() for i in split_line]
     return split_line
 
-def extract_values(string, delimiter):
-    """Converts a string with deliimiters into a list of float values"""
-	# E.g. "100,200,300" with "," delimiter becomes [100,200,300]
+def extract_values(string, delimiter, dtype=float):
+    """Converts a string with deliimiters into a list of [dtype] values"""
+	# E.g. "100,200,300" with "," delimiter becomes [100,200,300] with dtype=float,
+    # becomes ["100", "200", "300"] with dtype=str
     values = string.split(delimiter)
-    values = np.array(values, dtype=float)
+    values = np.array(values, dtype=dtype)
     return values
 
 def get_data(exp_file, ic_flags, sim_flags, scale_f=1e-23, verbose=False):
@@ -113,9 +114,10 @@ def get_initpoints(init_file, ic_flags, scale_f=1e-21):
 
 def read_config_file(path):
     with open(path, 'r') as ifstream:
-        grid = [-1, -1]
+        grid = [-1, -1, -1]
+        param_info = {}
 
-        initFlag = 0
+        init_flag = 0
         
         if not ("$$ MCMC CONFIG CREATED") in next(ifstream):
             raise OSError("Error: this file is not a valid MCMC config file")
@@ -137,19 +139,29 @@ def read_config_file(path):
             # each corresponding to a different section of the file
 
             if "p$ Space Grid" in line:
-                initFlag = 'g'
+                init_flag = 'g'
                 continue
+            
+            if "p$ Param Info" in line:
+                init_flag = 'p'
 
             if len(line_split) > 1:
-                
-                if (initFlag == 'g'):
-                    if line.startswith("Length"):
+
+                if (init_flag == 'g'):
+                    if line.startswith("Length(s)"):
                         grid[0] = extract_values(line_split[1], delimiter='\t')
                         
                     elif line.startswith("nx"):
                         grid[1] = int(line_split[1])
+                        
+                    elif line.startswith("Measurement(s)"):
+                        grid[2] = extract_values(line_split[1], delimiter='\t', dtype=str)
+                        
+                if (init_flag == 'p'):
+                    if line.startswith("Param Names"):
+                        param_info["names"] = extract_values(line_split[1], delimiter='\t', dtype=str)
                     
-    return grid
+    return grid, param_info
 
 
 def generate_config_file(path, simPar, param_info, verbose=False):
@@ -165,8 +177,20 @@ def generate_config_file(path, simPar, param_info, verbose=False):
             ofstream.write(f"\t{value}")
         ofstream.write('\n')
         ofstream.write(f"nx: {simPar[1]}\n")
+        ofstream.write(f"Measurement(s): {simPar[2][0]}")
+        for value in simPar[2][1:]:
+            ofstream.write(f"\t{value}")
+        ofstream.write('\n')
+        
+        ofstream.write("p$ Param Info:\n")
+        param_names = param_info["names"]
+        ofstream.write(f"Param Names: {param_names[0]}")
+        for value in param_names[1:]:
+            ofstream.write(f"\t{value}")
+        ofstream.write('\n')
     return
         
 if __name__ == "__main__":
-    out = read_config_file("mcmc.txt")
-    print(out)
+    grid, param_info = read_config_file("mcmc.txt")
+    print(grid)
+    print(param_info)
