@@ -125,6 +125,7 @@ def read_config_file(path):
     with open(path, 'r') as ifstream:
         grid = [-1, -1, -1]
         param_info = {}
+        meas_flags = {}
 
         init_flag = 0
         
@@ -153,6 +154,9 @@ def read_config_file(path):
             
             if "p$ Param Info" in line:
                 init_flag = 'p'
+                
+            if "p$ Measurement handling flags" in line:
+                init_flag = 'm'
 
             if len(line_split) > 1:
 
@@ -163,7 +167,7 @@ def read_config_file(path):
                     elif line.startswith("nx"):
                         grid[1] = int(line_split[1])
                         
-                    elif line.startswith("Measurement(s)"):
+                    elif line.startswith("Measurement type(s)"):
                         grid[2] = extract_values(line_split[1], delimiter='\t', dtype=str)
                         
                 if (init_flag == 'p'):
@@ -190,10 +194,29 @@ def read_config_file(path):
                         vals = extract_values(line_split[1], delimiter='\t', dtype=float)
                         put_into_param_info(param_info, vals, "init_variance")
                         
-    return grid, param_info
+                if (init_flag == 'm'):
+                    if line.startswith("Time cutoffs"):
+                        vals = extract_values(line_split[1], delimiter='\t', dtype=float)
+                        meas_flags["time_cutoff"] = vals
+                        
+                    elif line.startswith("Select measurement"):
+                        if line_split[1] == "None":
+                            meas_flags["select_obs_sets"] = None
+                        else:
+                            meas_flags["select_obs_sets"] = extract_values(line_split[1],
+                                                                           delimiter='\t',
+                                                                           dtype=int)
+                        
+                    elif line.startswith("Added noise level"):
+                        if line_split[1] == "None":
+                            meas_flags["noise_level"] = None
+                        else:
+                            meas_flags["noise_level"] = float(line_split[1])
+                        
+    return grid, param_info, meas_flags
 
 
-def generate_config_file(path, simPar, param_info, verbose=False):
+def generate_config_file(path, simPar, param_info, measurement_flags, verbose=False):
     if isinstance(simPar[0], (float, int)):
         simPar[0] = [simPar[0]]
     
@@ -206,7 +229,7 @@ def generate_config_file(path, simPar, param_info, verbose=False):
             ofstream.write(f"\t{value}")
         ofstream.write('\n')
         ofstream.write(f"nx: {simPar[1]}\n")
-        ofstream.write(f"Measurement(s): {simPar[2][0]}")
+        ofstream.write(f"Measurement type(s): {simPar[2][0]}")
         for value in simPar[2][1:]:
             ofstream.write(f"\t{value}")
         ofstream.write('\n')
@@ -247,9 +270,25 @@ def generate_config_file(path, simPar, param_info, verbose=False):
         for name in param_names[1:]:
             ofstream.write(f"\t{init_variance.get(name, 0)}")
         ofstream.write('\n')
+        #######################################################################
+        ofstream.write("p$ Measurement handling flags:\n")
+        tc = measurement_flags["time_cutoff"]
+        ofstream.write(f"Time cutoffs: {tc[0]}\t{tc[1]}\n")
+        select = measurement_flags["select_obs_sets"]
+        if select is None:
+            ofstream.write(f"Select measurement: {select}\n")
+        else:
+            ofstream.write(f"Select measurement: {select[0]}")
+            for s in select[1:]:
+                ofstream.write(f"\t{s}")
+            ofstream.write("\n")
+        noise_level = measurement_flags["noise_level"]
+        ofstream.write(f"Added noise level: {noise_level}\n")
+        
     return
         
 if __name__ == "__main__":
-    grid, param_info = read_config_file("mcmc.txt")
+    grid, param_info, meas_flags = read_config_file("mcmc.txt")
     print(grid)
     print(param_info)
+    print(meas_flags)
