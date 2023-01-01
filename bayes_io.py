@@ -295,30 +295,38 @@ def generate_config_file(path, simPar, param_info, measurement_flags, sim_flags,
             ofstream.write(f"\t{value}")
         ofstream.write('\n')
         
+        if verbose: ofstream.write("# Conversion from units params are entered in to units used by model\n")
         ucs = param_info["unit_conversions"]
         ofstream.write(f"Unit conversions: {ucs.get(param_names[0], 1)}")
         for name in param_names[1:]:
             ofstream.write(f"\t{ucs.get(name, 1)}")
         ofstream.write('\n')
         
+        if verbose: ofstream.write("# Whether the MCMC should work with the log of each param. "
+                                   "The answer should be YES for most models. \n")
         do_log = param_info["do_log"]
         ofstream.write(f"Do logscale: {do_log.get(param_names[0], 0)}")
         for name in param_names[1:]:
             ofstream.write(f"\t{do_log.get(name, 0)}")
         ofstream.write('\n')
         
+        if verbose: ofstream.write("# Whether the MCMC should propose new moves for this parameter. "
+                                   "Setting this to 0 or False fixes the parameter at its initial value.\n")
         active_params = param_info["active"]
         ofstream.write(f"Active: {active_params.get(param_names[0], 0)}")
         for name in param_names[1:]:
             ofstream.write(f"\t{active_params.get(name, 0)}")
         ofstream.write('\n')
         
+        if verbose: ofstream.write("# Initial values for each parameter.\n")
         init_guess = param_info["init_guess"]
         ofstream.write(f"Initial guess: {init_guess.get(param_names[0], 0)}")
         for name in param_names[1:]:
             ofstream.write(f"\t{init_guess.get(name, 0)}")
         ofstream.write('\n')
         
+        if verbose: ofstream.write("# Initial proposal variance for each parameter. "
+                                   "I.e. how far from the current parameters new proposals will go.\n")
         init_variance = param_info["init_variance"]
         ofstream.write(f"Initial variance: {init_variance.get(param_names[0], 0)}")
         for name in param_names[1:]:
@@ -327,8 +335,16 @@ def generate_config_file(path, simPar, param_info, measurement_flags, sim_flags,
         #######################################################################
         ofstream.write("##\n")
         ofstream.write("p$ Measurement handling flags:\n")
+        
+        if verbose: ofstream.write("# Truncate measurements to only those within this time range. "
+                                   "Inf values indicate an unbounded range. \n")
         tc = measurement_flags["time_cutoff"]
         ofstream.write(f"Time cutoffs: {tc[0]}\t{tc[1]}\n")
+        
+        if verbose: ofstream.write("# Which measurements in a sequence to keep for MCMC. "
+                                   "A list such as [0,2] means to keep only the first and third "
+                                   "measurements,\n# while omitting the second and others. None means "
+                                   "ALL measurements are kept. \n")
         select = measurement_flags["select_obs_sets"]
         if select is None:
             ofstream.write(f"Select measurement: {select}\n")
@@ -337,43 +353,77 @@ def generate_config_file(path, simPar, param_info, measurement_flags, sim_flags,
             for s in select[1:]:
                 ofstream.write(f"\t{s}")
             ofstream.write("\n")
+            
+        if verbose: ofstream.write("# Whether to add Gaussian noise of the indicated magnitude to "
+                                   "the measurement.\n# This should be None (zero noise) unless testing "
+                                   "with simulated data.\n")
         noise_level = measurement_flags["noise_level"]
         ofstream.write(f"Added noise level: {noise_level}\n")
         #######################################################################
         ofstream.write("##\n")
         ofstream.write("p$ MCMC Control flags:\n")
+        if verbose: ofstream.write("# How many samples to propose.\n")
         num_iters = sim_flags["num_iters"]
         ofstream.write(f"Num iters: {num_iters}\n")
+        if verbose: ofstream.write("# Which solver engine to use - solveivp (more robust) or odeint (sometimes faster).\n")
         solver = sim_flags["solver"]
         ofstream.write(f"Solver name: {solver}\n")
+        if verbose: ofstream.write("# Solver engine relative tolerance.\n")
         rtol = sim_flags["rtol"]
         ofstream.write(f"Solver rtol: {rtol}\n")
+        if verbose: ofstream.write("# Solver engine absolute tolerance.\n")
         atol = sim_flags["atol"]
         ofstream.write(f"Solver atol: {atol}\n")
+        if verbose: ofstream.write("# Solver engine maximum adaptive time stepsize.\n")
         hmax = sim_flags["hmax"]
         ofstream.write(f"Solver hmax: {hmax}\n")
+        if verbose: ofstream.write("# (Experimental) If 1 or True, MCMC will repeat simulations "
+                                   "with progressively smaller hmax until the results converge.\n")
         verify_hmax = sim_flags["verify_hmax"]
         ofstream.write(f"Repeat hmax: {verify_hmax}\n")
+        if verbose: ofstream.write("# Control coefficients for the likelihood sigma / annealing temperature.\n")
         anneal = sim_flags["anneal_params"]
         ofstream.write(f"Anneal coefs: {anneal[0]}\t{anneal[1]}\t{anneal[2]}\n")
+        if verbose: ofstream.write("# Force parameters mu_n and mu_p to be equal.\n")
         emu = sim_flags["override_equal_mu"]
         ofstream.write(f"Force equal mu: {emu}\n")
+        if verbose: ofstream.write("# Force parameters Sf and Sb to be equal.\n")
         es = sim_flags["override_equal_s"]
         ofstream.write(f"Force equal S: {es}\n")
+        if verbose: ofstream.write("# Compare log of measurements and simulations for "
+                                   "purpose of likelihood evaluation. Recommended to be 1 or True. \n")
         logpl = sim_flags["log_pl"]
         ofstream.write(f"Use log of measurements: {logpl}\n")
+        if verbose: ofstream.write("# Normalize all individual measurements and simulations "
+                                   "to maximum of 1 before likelihood evaluation. "
+                                   "\n# A global scaling coefficient named 'm' may optionally be defined in param_info. "
+                                   "\n# If the absolute units or efficiency of the measurement is unknown, "
+                                   "\n# it is recommended to try fitting 'm' instead of relying on normalization. \n")
         norm = sim_flags["self_normalize"]
         ofstream.write(f"Normalize all meas and sims: {norm}\n")
+        
+        if verbose: ofstream.write("# Proposal function used to generate new states. "
+                                   "Box for joint uniform box and Gauss for multivariate Gaussian. \n")
         prop_f = sim_flags["proposal_function"]
         ofstream.write(f"Proposal function: {prop_f}\n")
+        
+        if verbose: ofstream.write("# Whether a proposed move should change in one param or all params at once.\n")
         gibbs = sim_flags["one_param_at_a_time"]
         ofstream.write(f"Propose params one-at-a-time: {gibbs}\n")
+        
+        if verbose: ofstream.write("# Directory checkpoint files stored in.\n")
         chpt_d = sim_flags["checkpoint_dirname"]
         ofstream.write(f"Checkpoint dir: {chpt_d}\n")
+        
+        if verbose: ofstream.write("# An optional tag to append to the filename of each checkpoint.\n")
         chpt_h = sim_flags["checkpoint_header"]
         ofstream.write(f"Checkpoint fileheader: {chpt_h}\n")
+        
+        if verbose: ofstream.write("# Checkpoint saved every 'this many' samples.\n")
         chpt_f = sim_flags["checkpoint_freq"]
         ofstream.write(f"Checkpoint freq: {chpt_f}\n")
+        
+        if verbose: ofstream.write("# Name of a checkpoint file to resume an MCMC from.\n")
         load_chpt = sim_flags["load_checkpoint"]
         ofstream.write(f"Load checkpoint: {load_chpt}\n")
         
