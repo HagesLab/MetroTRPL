@@ -284,10 +284,14 @@ def roll_acceptance(logratio):
 def unpack_simpar(simPar, i):
     if isinstance(simPar[0], (float, int)):
         simPar[0] = [simPar[0]]
+        
+    if isinstance(simPar[2], (str,)):
+        simPar[2] = [simPar[2]]
     
     thickness = simPar[0][i]
     nx = simPar[1]
-    return thickness, nx
+    meas_type = simPar[2][i]
+    return thickness, nx, meas_type
 
 def anneal(t, anneal_mode, anneal_params):
     if anneal_mode is None or anneal_mode == "None":
@@ -326,11 +330,11 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
     STARTING_HMAX = sim_flags["hmax"]
     RTOL = sim_flags["rtol"]
     ATOL = sim_flags["atol"]
-    thickness, nx = unpack_simpar(simPar, i)
+    thickness, nx, meas_type = unpack_simpar(simPar, i)
     hmax[i] = min(STARTING_HMAX, hmax[i] * 2) # Always attempt a slightly larger hmax than what worked at previous proposal
     
     while hmax[i] > MIN_HMAX:
-        sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=sim_flags["measurement"], 
+        sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=meas_type, 
                             solver=sim_flags["solver"], rtol=RTOL, atol=ATOL)
         
         #if verbose: 
@@ -349,7 +353,7 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
         elif sim_flags.get("verify_hmax", False):
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
-            sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=sim_flags["measurement"],
+            sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=meas_type,
                                   solver=sim_flags["solver"], rtol=RTOL, atol=ATOL)
             if almost_equal(sol, sol2, threshold=RTOL):
                 logger.info("Success!")

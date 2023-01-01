@@ -34,7 +34,7 @@ def get_data(exp_file, ic_flags, sim_flags, scale_f=1e-23, verbose=False):
 
     LOG_PL = sim_flags['log_pl']
     NORMALIZE = sim_flags["self_normalize"]
-    
+        
     bval_cutoff = sys.float_info.min
     
     data = np.loadtxt(exp_file, delimiter=",")
@@ -44,12 +44,12 @@ def get_data(exp_file, ic_flags, sim_flags, scale_f=1e-23, verbose=False):
     uncertainty = data[:,2]
     
     if NOISE_LEVEL is not None:
-        y = (np.array(y) + NOISE_LEVEL*np.random.normal(0, 1, len(y))) * scale_f
+        y = (np.array(y) + NOISE_LEVEL*np.random.normal(0, 1, len(y)))
 
     else:
-        y = np.array(y) * scale_f
+        y = np.array(y)
 
-    uncertainty = np.array(uncertainty) * scale_f
+    uncertainty = np.array(uncertainty)
     
     t_list = []
     y_list = []
@@ -73,6 +73,13 @@ def get_data(exp_file, ic_flags, sim_flags, scale_f=1e-23, verbose=False):
     if NORMALIZE:
         for i in range(len(t_list)):
             y_list[i] /= np.nanmax(y_list[i])
+            
+    if isinstance(scale_f, (float, int)):
+        scale_f = [scale_f] * len(t_list)
+        
+    for i in range(len(t_list)):
+        y_list[i] *= scale_f[i]
+        u_list[i] *= scale_f[i]
             
     if LOG_PL:
 

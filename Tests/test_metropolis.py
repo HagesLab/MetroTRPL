@@ -468,28 +468,35 @@ class TestUtils(unittest.TestCase):
         #Length = [311,2000,311,2000, 311, 2000]
         Length  = [2000]                            # Length (nm)
         L   = 2 ** 7                                # Spatial points
+        meas_type = ["TRPL"]                          # measurement type
 
-        simPar = [Length, L]
+        simPar = [Length, L, meas_type]
         
-        thickness, nx = unpack_simpar(simPar, 0)
+        thickness, nx, mtype = unpack_simpar(simPar, 0)
         self.assertEqual(Length[0], thickness)
         self.assertEqual(L, nx)
+        self.assertEqual(meas_type[0], mtype)
         
         # SIngle lengths promoted to list
         Length  = 2000                            # Length (nm)
         L   = 2 ** 7                                # Spatial points
+        meas_type = "TRPL"
 
-        simPar = [Length, L]
+        simPar = [Length, L, meas_type]
         
-        thickness, nx = unpack_simpar(simPar, 0)
+        thickness, nx, mtype = unpack_simpar(simPar, 0)
         self.assertEqual(Length, thickness)
         self.assertEqual(L, nx)
+        self.assertEqual(meas_type, mtype)
         
         Length = np.array([311,2000,311,2000, 311, 2000])
-        simPar = [Length, L]
-        thickness, nx = unpack_simpar(simPar, 2)
+        meas_type = ["TRPL", "TRTS", "TRPL"]
+        simPar = [Length, L, meas_type]
+        
+        thickness, nx, mtype = unpack_simpar(simPar, 2)
         self.assertEqual(Length[2], thickness)
         self.assertEqual(L, nx)
+        self.assertEqual(meas_type[2], mtype)
         return
         
     def test_anneal(self):
