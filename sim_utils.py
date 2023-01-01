@@ -129,7 +129,8 @@ class Covariance():
             function at most how far away the next state should wander
             from the current state.
         """
-        i = self.names.index(param)
+        # Type safety - names could be an ndarray which lacks the .index mtd
+        i = list(self.names).index(param)
         
         if isinstance(var, (int, float)):
             self.cov[i,i] = var

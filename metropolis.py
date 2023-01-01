@@ -64,8 +64,7 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=1e-10, ATOL=1e-14)
 
 def check_approved_param(new_p, param_info):
     """ Screen out non-physical or unrealistic proposed trial moves. """
-    #FIXME: This should check whether larams are log
-    order = param_info['names']
+    order = list(param_info['names'])
     ucs = param_info.get('unit_conversions', {})
     do_log = param_info["do_log"]
     checks = {}

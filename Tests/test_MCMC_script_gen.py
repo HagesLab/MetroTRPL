@@ -109,6 +109,7 @@ class TestUtils(unittest.TestCase):
         return
     
     def test_create_script(self):
+        # Verify that we read out what we originally write in
         where_script = os.path.join("Tests", "testfiles", "testmcmc.txt")
         generate_config_script_file(where_script, self.simPar, self.param_info, 
                                     self.measurement_fields, self.MCMC_fields, verbose=True)
