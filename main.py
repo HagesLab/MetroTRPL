@@ -7,48 +7,11 @@ Created on Mon Jan 31 22:03:46 2022
 import numpy as np
 import os
 import sys
-import logging
-from datetime import datetime
+from time import perf_counter
 
-
-def start_logging(log_dir="Logs"):
-
-    if not os.path.isdir(log_dir):
-        try:
-            os.makedirs(log_dir, exist_ok=True)
-        except FileExistsError:
-            pass
-
-    tstamp = str(datetime.now()).replace(":", "-")
-    #logging.basicConfig(filename=os.path.join(log_dir, f"{tstamp}.log"), filemode='a', level=logging.DEBUG)
-    logger = logging.getLogger("Metro Logger Main")
-    logger.setLevel(logging.DEBUG)
-
-    handler = logging.FileHandler(os.path.join(log_dir, f"{tstamp}.log"))
-    handler.setLevel(logging.DEBUG)
-
-    formatter = logging.Formatter(
-            fmt='%(asctime)s %(levelname)s: %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-            )
-
-    handler.setFormatter(formatter)
-
-    logger.addHandler(handler)
-    return logger, handler
-
-def stop(logger, handler, err=0):
-    if err:
-        logger.error(f"Termining with error code {err}")
-
-    # Spyder needs explicit handler handling for some reason
-    logger.removeHandler(handler)
-    logging.shutdown()
-    return
-
+from mcmc_logging import start_logging, stop_logging
 from bayes_io import get_data, get_initpoints, read_config_script_file
 from metropolis import metro
-from time import perf_counter
 
 if __name__ == "__main__":
     # Some HiperGator specific stuff
@@ -108,6 +71,6 @@ if __name__ == "__main__":
     logger.info("Exporting to {}".format(sim_flags["output_path"]))
     MS.checkpoint(os.path.join(sim_flags["output_path"], f"CPU{jobid}-final.pik"))
 
-    stop(logger, handler, 0)
+    stop_logging(logger, handler, 0)
     output_path = sim_flags["output_path"]
     print(f"{jobid} Finished - {output_path}")
