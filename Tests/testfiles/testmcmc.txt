@@ -1,0 +1,78 @@
+$$ MCMC CONFIG CREATED 2023-01-01 AT 15:30:27.715578
+##
+p$ Space Grid:
+# List of material/system thicknesses - one per measurement
+Length(s): 2000	2000	2000
+# Number of space nodes used by solver discretization
+nx: 128
+# Model to use to simulate each measurement
+Measurement type(s): TRPL	TRPL	TRPL
+##
+p$ Param Info:
+# List of names of parameters used in the model
+Param Names: n0	p0	mu_n	mu_p	ks	Cn	Cp	Sf	Sb	tauN	tauP	eps	Tm	m
+# Conversion from units params are entered in to units used by model
+Unit conversions: 1e-21	1e-21	100000.0	100000.0	1000000000000.0	1.0000000000000001e+33	1.0000000000000001e+33	0.01	0.01	1	1	1	1	1
+# Whether the MCMC should work with the log of each param. The answer should be YES for most models. 
+Do logscale: 1	1	1	1	1	1	1	1	1	1	1	1	1	1
+# Whether the MCMC should propose new moves for this parameter. Setting this to 0 or False fixes the parameter at its initial value.
+Active: 0	1	0	0	1	1	1	1	1	1	1	0	0	0
+# Initial values for each parameter.
+Initial guess: 100000000.0	100000000000000.0	20	20	5.958e-11	1e-29	1e-29	210.0	266.5	470.8	196.1	10	300	1
+# Initial proposal variance for each parameter. I.e. how far from the current parameters new proposals will go.
+Initial variance: 0.01	0.01	0.01	0.01	0.01	0.01	0.01	0.01	0.01	0.01	0.01	0.01	0.01	0.01
+##
+p$ Measurement handling flags:
+# Truncate measurements to only those within this time range. Inf values indicate an unbounded range. 
+Time cutoffs: 0	inf
+# Which measurements in a sequence to keep for MCMC. A list such as [0,2] means to keep only the first and third measurements,
+# while omitting the second and others. None means ALL measurements are kept. 
+Select measurement: 0	1	2
+# Whether to add Gaussian noise of the indicated magnitude to the measurement.
+# This should be None (zero noise) unless testing with simulated data.
+Added noise level: None
+##
+p$ MCMC Control flags:
+# How many samples to propose.
+Num iters: 25000
+# Which solver engine to use - solveivp (more robust) or odeint (sometimes faster).
+Solver name: solveivp
+# Solver engine relative tolerance.
+Solver rtol: 1e-07
+# Solver engine absolute tolerance.
+Solver atol: 1e-10
+# Solver engine maximum adaptive time stepsize.
+Solver hmax: 4
+# (Experimental) If 1 or True, MCMC will repeat simulations with progressively smaller hmax until the results converge.
+Repeat hmax: 0
+# Control coefficients for the likelihood sigma / annealing temperature.
+Anneal coefs: 0.04	1000.0	4e-05
+# Force parameters mu_n and mu_p to be equal.
+Force equal mu: 0
+# Force parameters Sf and Sb to be equal.
+Force equal S: 0
+# Compare log of measurements and simulations for purpose of likelihood evaluation. Recommended to be 1 or True. 
+Use log of measurements: 1
+# Normalize all individual measurements and simulations to maximum of 1 before likelihood evaluation. 
+# A global scaling coefficient named 'm' may optionally be defined in param_info. 
+# If the absolute units or efficiency of the measurement is unknown, 
+# it is recommended to try fitting 'm' instead of relying on normalization. 
+Normalize all meas and sims: 0
+# Proposal function used to generate new states. Box for joint uniform box and Gauss for multivariate Gaussian. 
+Proposal function: box
+# Whether a proposed move should change in one param or all params at once.
+Propose params one-at-a-time: 0
+# Directory checkpoint files stored in.
+Checkpoint dir: MCMC\Example_output_path\Checkpoints
+# An optional tag to append to the filename of each checkpoint.
+Checkpoint fileheader: CPU0
+# Checkpoint saved every 'this many' samples.
+Checkpoint freq: 12000
+# Name of a checkpoint file to resume an MCMC from.
+Load checkpoint: None
+# Path from which to read initial condition arrays. 
+Initial condition path: MCMC\Example_IC_path
+# Path from which to read measurement data arrays. 
+Measurement path: MCMC\Example_meas_path
+# Path from which to save output MCMC objects. 
+Output path: MCMC\Example_output_path

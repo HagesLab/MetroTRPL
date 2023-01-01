@@ -126,7 +126,7 @@ def put_into_param_info(param_info, vals, new_key):
                            for i in range(len(param_info["names"]))}
     return
 
-def read_config_file(path):
+def read_config_script_file(path):
     with open(path, 'r') as ifstream:
         grid = [-1, -1, -1]
         param_info = {}
@@ -234,21 +234,21 @@ def read_config_file(path):
                     elif line.startswith("Solver hmax"):
                         sim_flags["hmax"] = float(line_split[1])
                     elif line.startswith("Repeat hmax"):
-                        sim_flags["verify_hmax"] = bool(line_split[1])
+                        sim_flags["verify_hmax"] = int(line_split[1])
                     elif line.startswith("Anneal coefs"):
                         sim_flags["anneal_params"] = extract_values(line_split[1], '\t')
                     elif line.startswith("Force equal mu"):
-                        sim_flags["override_equal_mu"] = bool(line_split[1])
+                        sim_flags["override_equal_mu"] = int(line_split[1])
                     elif line.startswith("Force equal S"):
-                        sim_flags["override_equal_s"] = bool(line_split[1])
+                        sim_flags["override_equal_s"] = int(line_split[1])
                     elif line.startswith("Use log of measurements"):
-                        sim_flags["log_pl"] = bool(line_split[1])
+                        sim_flags["log_pl"] = int(line_split[1])
                     elif line.startswith("Normalize all meas and sims"):
-                        sim_flags["self_normalize"] = bool(line_split[1])
+                        sim_flags["self_normalize"] = int(line_split[1])
                     elif line.startswith("Proposal function"):
                         sim_flags["proposal_function"] = line_split[1]
                     elif line.startswith("Propose params one-at-a-time"):
-                        sim_flags["one_param_at_a_time"] = bool(line_split[1])
+                        sim_flags["one_param_at_a_time"] = int(line_split[1])
                     elif line.startswith("Checkpoint dir"):
                         sim_flags["checkpoint_dirname"] = os.path.join(line_split[1])
                     elif line.startswith("Checkpoint fileheader"):
@@ -260,11 +260,17 @@ def read_config_file(path):
                             sim_flags["load_checkpoint"] = None
                         else:
                             sim_flags["checkpoint_dirname"] = line_split[1]
+                    elif line.startswith("Initial condition path"):
+                        sim_flags["init_cond_path"] = os.path.join(line_split[1])
+                    elif line.startswith("Measurement path"):
+                        sim_flags["measurement_path"] = os.path.join(line_split[1])
+                    elif line.startswith("Output path"):
+                        sim_flags["output_path"] = os.path.join(line_split[1])
                         
     return grid, param_info, meas_flags, sim_flags
 
 
-def generate_config_file(path, simPar, param_info, measurement_flags, sim_flags, verbose=False):
+def generate_config_script_file(path, simPar, param_info, measurement_flags, sim_flags, verbose=False):
     if isinstance(simPar[0], (float, int)):
         simPar[0] = [simPar[0]]
     
@@ -427,12 +433,23 @@ def generate_config_file(path, simPar, param_info, measurement_flags, sim_flags,
         load_chpt = sim_flags["load_checkpoint"]
         ofstream.write(f"Load checkpoint: {load_chpt}\n")
         
+        if verbose: ofstream.write("# Path from which to read initial condition arrays. \n")
+        ic = sim_flags["init_cond_path"]
+        ofstream.write(f"Initial condition path: {ic}\n")
+        
+        if verbose: ofstream.write("# Path from which to read measurement data arrays. \n")
+        mc = sim_flags["measurement_path"]
+        ofstream.write(f"Measurement path: {mc}\n")
+        
+        if verbose: ofstream.write("# Path from which to save output MCMC objects. \n")
+        oc = sim_flags["output_path"]
+        ofstream.write(f"Output path: {oc}\n")
+        
     return
         
 if __name__ == "__main__":
-    grid, param_info, meas_flags, sim_flags = read_config_file("mcmc.txt")
+    grid, param_info, meas_flags, sim_flags = read_config_script_file("mcmc.txt")
     print(grid)
     print(param_info)
     print(meas_flags)
     print(sim_flags)
-    print(os.listdir(sim_flags["checkpoint_dirname"]))
