@@ -1,4 +1,4 @@
-$$ MCMC CONFIG CREATED 2023-01-01 AT 15:30:27.715578
+$$ MCMC CONFIG CREATED 2023-01-01 AT 19:45:52.791530
 ##
 p$ Space Grid:
 # List of material/system thicknesses - one per measurement
@@ -7,6 +7,7 @@ Length(s): 2000	2000	2000
 nx: 128
 # Model to use to simulate each measurement
 Measurement type(s): TRPL	TRPL	TRPL
+Number of measurements: 3
 ##
 p$ Param Info:
 # List of names of parameters used in the model

@@ -38,11 +38,15 @@ if __name__ == "__main__":
     script_path = f"mcmc{jobid}.txt"
     
     # Info for each measurement's corresponding simulation
+    num_measurements = 3
     Length = [311,2000,311,2000, 311, 2000]
     Length  = [2000, 2000, 2000]             # Length (nm)
     L   = 128                                # Spatial points
     measurement_types = ["TRPL", "TRPL", "TRPL"]
-    simPar = [Length, L, measurement_types]
+    simPar = {"lengths": Length, 
+              "nx": L,
+              "meas_types": measurement_types,
+              "num_meas": num_measurements}
 
     # Info regarding the parameters
     # Here the global scale factor 'm' is also defined,
@@ -142,3 +146,5 @@ if __name__ == "__main__":
                  }
     
     generate_config_script_file(script_path, simPar, param_info, ic_flags, sim_flags, verbose=False)
+    from bayes_io import read_config_script_file
+    read_config_script_file(script_path)

@@ -128,7 +128,7 @@ def put_into_param_info(param_info, vals, new_key):
 
 def read_config_script_file(path):
     with open(path, 'r') as ifstream:
-        grid = [-1, -1, -1]
+        grid = {}
         param_info = {}
         meas_flags = {}
         sim_flags = {}
@@ -171,13 +171,16 @@ def read_config_script_file(path):
 
                 if (init_flag == 'g'):
                     if line.startswith("Length(s)"):
-                        grid[0] = extract_values(line_split[1], delimiter='\t')
+                        grid["lengths"] = extract_values(line_split[1], delimiter='\t')
                         
                     elif line.startswith("nx"):
-                        grid[1] = int(line_split[1])
+                        grid["nx"] = int(line_split[1])
                         
                     elif line.startswith("Measurement type(s)"):
-                        grid[2] = extract_values(line_split[1], delimiter='\t', dtype=str)
+                        grid["meas_types"] = extract_values(line_split[1], delimiter='\t', dtype=str)
+                        
+                    elif line.startswith("Number of measurements"):
+                        grid["num_meas"] = int(line_split[1])
                         
                 if (init_flag == 'p'):
                     if line.startswith("Param Names"):
@@ -266,31 +269,34 @@ def read_config_script_file(path):
                         sim_flags["measurement_path"] = os.path.join(line_split[1])
                     elif line.startswith("Output path"):
                         sim_flags["output_path"] = os.path.join(line_split[1])
-                        
+               
+    validate_grid(grid)
+    
     return grid, param_info, meas_flags, sim_flags
 
-
 def generate_config_script_file(path, simPar, param_info, measurement_flags, sim_flags, verbose=False):
-    if isinstance(simPar[0], (float, int)):
-        simPar[0] = [simPar[0]]
-    
     with open(path, "w+") as ofstream:
         ofstream.write("$$ MCMC CONFIG CREATED {} AT {}\n".format(datetime.datetime.now().date(),
                                                                   datetime.datetime.now().time()))
         ofstream.write("##\n")
         ofstream.write("p$ Space Grid:\n")
         if verbose: ofstream.write("# List of material/system thicknesses - one per measurement\n")
-        ofstream.write(f"Length(s): {simPar[0][0]}")
-        for value in simPar[0][1:]:
+        lengths = simPar["lengths"]
+        ofstream.write(f"Length(s): {lengths[0]}")
+        for value in lengths[1:]:
             ofstream.write(f"\t{value}")
         ofstream.write('\n')
         if verbose: ofstream.write("# Number of space nodes used by solver discretization\n")
-        ofstream.write(f"nx: {simPar[1]}\n")
+        nx = simPar["nx"]
+        ofstream.write(f"nx: {nx}\n")
         if verbose: ofstream.write("# Model to use to simulate each measurement\n")
-        ofstream.write(f"Measurement type(s): {simPar[2][0]}")
-        for value in simPar[2][1:]:
+        meas_types = simPar["meas_types"]
+        ofstream.write(f"Measurement type(s): {meas_types[0]}")
+        for value in meas_types[1:]:
             ofstream.write(f"\t{value}")
         ofstream.write('\n')
+        num_meas = simPar["num_meas"]
+        ofstream.write(f"Number of measurements: {num_meas}\n")
         #######################################################################
         ofstream.write("##\n")
         ofstream.write("p$ Param Info:\n")
@@ -447,8 +453,32 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags, sim
         
     return
         
+def validate_grid(grid : dict):
+    if not isinstance(grid, dict):
+        raise TypeError("MCMC simPar must be type 'list'")
+        
+    if len(grid) != 4:
+        raise ValueError("MCMC simPar incorrect format")
+        
+    declared_num_measurements = grid["num_meas"]
+    if declared_num_measurements <= 0:
+        raise ValueError("Invalid number of measurements")
+    
+    if (isinstance(grid["lengths"], (list, np.ndarray)) and 
+        len(grid["lengths"]) == declared_num_measurements and
+        all(grid["lengths"] > 0)):
+        pass
+    else:
+        raise ValueError("MCMC simPar entry 'Length' must be a list with "
+                         "one positive length value per measurement")
+        
+    if grid["nx"] <= 0:
+        raise ValueError("MCMC simPar entry 'num_nodes' must be positive")
+        
+        
+
 if __name__ == "__main__":
-    grid, param_info, meas_flags, sim_flags = read_config_script_file("mcmc.txt")
+    grid, param_info, meas_flags, sim_flags = read_config_script_file("mcmc0.txt")
     print(grid)
     print(param_info)
     print(meas_flags)

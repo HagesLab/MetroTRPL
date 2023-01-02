@@ -281,15 +281,9 @@ def roll_acceptance(logratio):
     return accepted
 
 def unpack_simpar(simPar, i):
-    if isinstance(simPar[0], (float, int)):
-        simPar[0] = [simPar[0]]
-        
-    if isinstance(simPar[2], (str,)):
-        simPar[2] = [simPar[2]]
-    
-    thickness = simPar[0][i]
-    nx = simPar[1]
-    meas_type = simPar[2][i]
+    thickness = simPar["lengths"][i]
+    nx = simPar["nx"]
+    meas_type = simPar["meas_types"][i]
     return thickness, nx, meas_type
 
 def anneal(t, anneal_mode, anneal_params):

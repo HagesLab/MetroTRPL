@@ -470,28 +470,23 @@ class TestUtils(unittest.TestCase):
         L   = 2 ** 7                                # Spatial points
         meas_type = ["TRPL"]                          # measurement type
 
-        simPar = [Length, L, meas_type]
+        simPar = {"lengths":Length, 
+                  "nx":L, 
+                  "meas_types":meas_type,
+                  "num_meas":1}
         
         thickness, nx, mtype = unpack_simpar(simPar, 0)
         self.assertEqual(Length[0], thickness)
         self.assertEqual(L, nx)
         self.assertEqual(meas_type[0], mtype)
         
-        # SIngle lengths promoted to list
-        Length  = 2000                            # Length (nm)
-        L   = 2 ** 7                                # Spatial points
-        meas_type = "TRPL"
-
-        simPar = [Length, L, meas_type]
-        
-        thickness, nx, mtype = unpack_simpar(simPar, 0)
-        self.assertEqual(Length, thickness)
-        self.assertEqual(L, nx)
-        self.assertEqual(meas_type, mtype)
         
         Length = np.array([311,2000,311,2000, 311, 2000])
-        meas_type = ["TRPL", "TRTS", "TRPL"]
-        simPar = [Length, L, meas_type]
+        meas_type = ["TRPL", "TRTS", "TRPL", "TRPL", "TRTS", "TRPL"]
+        simPar = {"lengths":Length, 
+                  "nx":L, 
+                  "meas_types":meas_type,
+                  "num_meas":6}
         
         thickness, nx, mtype = unpack_simpar(simPar, 2)
         self.assertEqual(Length[2], thickness)
@@ -525,7 +520,10 @@ class TestUtils(unittest.TestCase):
         Length  = [2000, 2000]                            # Length (nm)
         L   = 2 ** 7                                # Spatial point
         mtype = ["TRPL", "TRPL"]
-        simPar = [Length, L, mtype]
+        simPar = {"lengths":Length, 
+                  "nx":L, 
+                  "meas_types":mtype,
+                  "num_meas":2}
         
         iniPar = [1e15 * np.ones(L) * 1e-21, 1e16 * np.ones(L) * 1e-21]
 

@@ -11,10 +11,14 @@ kB = 8.61773e-5  # [eV / K]
 class TestUtils(unittest.TestCase):
     
     def setUp(self):
+        num_measurements = 3
         Length  = [2000, 2000, 2000]                           # Length (nm)
         L   = 128                                # Spatial points
         measurement_types = ["TRPL", "TRPL", "TRPL"]
-        self.simPar = [Length, L, measurement_types]
+        self.simPar = {"lengths":Length, 
+                       "nx":L, 
+                       "meas_types":measurement_types, 
+                       "num_meas":num_measurements}
 
         param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp",
                        "Sf", "Sb", "tauN", "tauP", "eps", "Tm", "m"]
@@ -116,8 +120,8 @@ class TestUtils(unittest.TestCase):
         
         simPar, param_info, measurement_fields, MCMC_fields = read_config_script_file(where_script)
         
-        for i in range(len(self.simPar)):
-            np.testing.assert_equal(simPar[i], self.simPar[i])
+        for k in self.simPar.keys():
+            np.testing.assert_equal(simPar[k], self.simPar[k])
             
         for k in self.param_info.keys():
             if isinstance(self.param_info[k], dict):

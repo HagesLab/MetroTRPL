@@ -11,6 +11,7 @@ from time import perf_counter
 
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import get_data, get_initpoints, read_config_script_file
+from bayes_io import validate_grid
 from metropolis import metro
 
 if __name__ == "__main__":
@@ -23,8 +24,15 @@ if __name__ == "__main__":
     
     script_path = "mcmc0.txt"
 
-    simPar, param_info, ic_flags, sim_flags = read_config_script_file(script_path)
+    
+    try:
+        simPar, param_info, ic_flags, sim_flags = read_config_script_file(script_path)
+    except Exception as e:
+        print(e)
+        sys.exit()
+        
     logger, handler = start_logging(log_dir=sim_flags["output_path"])
+    
     
     if not os.path.isdir(sim_flags["checkpoint_dirname"]):
         os.makedirs(sim_flags["checkpoint_dirname"], exist_ok=True)
@@ -44,10 +52,11 @@ if __name__ == "__main__":
     logger.info("Param infos: {}".format(param_info))
     logger.info("MCMC fields: {}".format(sim_flags))
     
+    
     # Get observations and initial condition
     iniPar = get_initpoints(sim_flags["init_cond_path"], ic_flags)
     
-    measurement_types = simPar[2]
+    measurement_types = simPar["meas_types"]
     scale_f = np.ones(len(measurement_types))
     for i, mt in enumerate(measurement_types):
         if mt == "TRPL":
@@ -57,7 +66,7 @@ if __name__ == "__main__":
         else:
             raise NotImplementedError("No scale_f for measurements other than TRPL and TRTS")
     e_data = get_data(sim_flags["measurement_path"], ic_flags, sim_flags, scale_f=scale_f)
-
+    
     clock0 = perf_counter()
 
     MS = metro(simPar, iniPar, e_data, sim_flags, param_info, True, logger)
