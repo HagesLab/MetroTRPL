@@ -269,12 +269,14 @@ def read_config_script_file(path):
                         sim_flags["measurement_path"] = os.path.join(line_split[1])
                     elif line.startswith("Output path"):
                         sim_flags["output_path"] = os.path.join(line_split[1])
-               
+                        
     validate_grid(grid)
-    
+              
     return grid, param_info, meas_flags, sim_flags
 
 def generate_config_script_file(path, simPar, param_info, measurement_flags, sim_flags, verbose=False):
+    validate_grid(simPar)
+    
     with open(path, "w+") as ofstream:
         ofstream.write("$$ MCMC CONFIG CREATED {} AT {}\n".format(datetime.datetime.now().date(),
                                                                   datetime.datetime.now().time()))
@@ -453,20 +455,25 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags, sim
         
     return
         
-def validate_grid(grid : dict):
+def validate_grid(grid : dict, supported_meas_types=("TRPL", "TRTS")):
     if not isinstance(grid, dict):
-        raise TypeError("MCMC simPar must be type 'list'")
+        raise TypeError("MCMC simPar must be type 'dict'")
         
-    if len(grid) != 4:
-        raise ValueError("MCMC simPar incorrect format")
+    required_keys = ("lengths", "nx", "meas_types", "num_meas")
+    for k in required_keys:
+        if k not in grid:
+            raise ValueError(f"MCMC simPar missing entry '{k}'")
         
     declared_num_measurements = grid["num_meas"]
-    if declared_num_measurements <= 0:
+    if (isinstance(declared_num_measurements, int) and 
+        declared_num_measurements > 0):
+        pass
+    else:
         raise ValueError("Invalid number of measurements")
     
     if (isinstance(grid["lengths"], (list, np.ndarray)) and 
         len(grid["lengths"]) == declared_num_measurements and
-        all(grid["lengths"] > 0)):
+        all(map(lambda x:x > 0, grid["lengths"]))):
         pass
     else:
         raise ValueError("MCMC simPar entry 'Length' must be a list with "
@@ -475,7 +482,14 @@ def validate_grid(grid : dict):
     if grid["nx"] <= 0:
         raise ValueError("MCMC simPar entry 'num_nodes' must be positive")
         
-        
+    if (isinstance(grid["meas_types"], (list, np.ndarray)) and 
+        len(grid["meas_types"]) == declared_num_measurements and
+        all(map(lambda x:x in supported_meas_types, grid["meas_types"]))):
+        pass
+    else:
+        raise ValueError("MCMC simPar entry 'meas_types' must be a list with "
+                         "one supported type per measurement.\n"
+                         f"Supported types are {supported_meas_types}")
 
 if __name__ == "__main__":
     grid, param_info, meas_flags, sim_flags = read_config_script_file("mcmc0.txt")

@@ -12,6 +12,7 @@ import numpy as np
 import os
 import sys
 from bayes_io import generate_config_script_file
+from bayes_io import validate_grid
 
 if __name__ == "__main__":
     # Just some HiperGator-specific stuff
@@ -146,5 +147,3 @@ if __name__ == "__main__":
                  }
     
     generate_config_script_file(script_path, simPar, param_info, ic_flags, sim_flags, verbose=False)
-    from bayes_io import read_config_script_file
-    read_config_script_file(script_path)
