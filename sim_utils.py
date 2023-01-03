@@ -78,6 +78,11 @@ class Parameters():
         for param in self.param_names:
             if hasattr(self, param): raise KeyError(f"Param with name {param} already exists")
             setattr(self, param, param_info["init_guess"][param])
+            
+        # Global scale factor is an optional fitting param - if not defined,
+        # default to x1
+        if "m" not in self.param_names:
+            setattr(self, "m", 1)
         return
     
     def apply_unit_conversions(self, param_info=None):

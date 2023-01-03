@@ -32,6 +32,9 @@ class TestUtils(unittest.TestCase):
         for param in self.dummy_names:
             self.assertEqual(getattr(self.testp, param), self.dummy_parameters[param])
             
+        # THere should also be the 'm' param defined by default
+        self.assertEqual(getattr(self.testp, 'm'), 1)
+            
     def test_as_array(self):
         # Test asarray
         arr = self.testp.to_array(self.dummy_param_info)
