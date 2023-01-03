@@ -272,12 +272,14 @@ def read_config_script_file(path):
                         
     validate_grid(grid)
     validate_param_info(param_info)
+    validate_meas_flags(meas_flags, grid["num_meas"])
               
     return grid, param_info, meas_flags, sim_flags
 
 def generate_config_script_file(path, simPar, param_info, measurement_flags, sim_flags, verbose=False):
     validate_grid(simPar)
     validate_param_info(param_info)
+    validate_meas_flags(measurement_flags, simPar["num_meas"])
     
     with open(path, "w+") as ofstream:
         ofstream.write("$$ MCMC CONFIG CREATED {} AT {}\n".format(datetime.datetime.now().date(),
@@ -554,6 +556,53 @@ def validate_param_info(param_info : dict):
             raise ValueError(f"init_variance param {k} invalid - must be non-negative")
             
     return
+
+def validate_meas_flags(meas_flags : dict, num_measurements):
+    if not isinstance(meas_flags, dict):
+        raise TypeError("MCMC meas_flags must be type 'dict'")
+        
+    required_keys = ("time_cutoff","select_obs_sets","noise_level")
+    for k in required_keys:
+        if k not in meas_flags:
+            raise ValueError(f"MCMC meas_flags missing entry '{k}'")
+            
+    time_cutoff = meas_flags["time_cutoff"]
+    if isinstance(time_cutoff, (list, np.ndarray)) and len(time_cutoff) == 2:
+        pass
+    else:
+        raise ValueError("meas_flags time_cutoff must be list with 2 cutoff values \n"
+                         "E.g. [0, np.inf] to allow all non-negative times.")
+        
+    if not isinstance(time_cutoff[0], (int, np.integer, float)):
+        raise ValueError("Invalid time_cutoff lower bound")
+        
+    if not isinstance(time_cutoff[1], (int, np.integer, float)):
+        raise ValueError("Invalid time_cutoff upper bound")
+        
+    if time_cutoff[1] < time_cutoff[0]:
+        raise ValueError("time_cutoff upper bound smaller than lower bound")
+        
+    select = meas_flags["select_obs_sets"]
+    if select is None or isinstance(select, (list, np.ndarray)):
+        pass
+    else:
+        raise TypeError("select_obs_sets must be None or a list type")
+        
+    if isinstance(select, (list, np.ndarray)):
+        if all(map(lambda x: x >= 0 and x < num_measurements, select)):
+            pass
+        else:
+            raise ValueError("Invalid select value - must be ints between 0 and"
+                             " num_measurements - 1")
+            
+    noise = meas_flags["noise_level"]
+    if noise is None or (isinstance(noise, (int, np.integer, float)) and noise >= 0):
+        pass
+    else:
+        raise TypeError("Noise must be numeric and postiive")
+        
+    return
+
 
 if __name__ == "__main__":
     grid, param_info, meas_flags, sim_flags = read_config_script_file("mcmc0.txt")
