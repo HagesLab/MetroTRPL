@@ -177,14 +177,14 @@ def read_config_script_file(path):
                         grid["nx"] = int(line_split[1])
                         
                     elif line.startswith("Measurement type(s)"):
-                        grid["meas_types"] = extract_values(line_split[1], delimiter='\t', dtype=str)
+                        grid["meas_types"] = line_split[1].split('\t')
                         
                     elif line.startswith("Number of measurements"):
                         grid["num_meas"] = int(line_split[1])
                         
                 if (init_flag == 'p'):
                     if line.startswith("Param Names"):
-                        param_info["names"] = extract_values(line_split[1], delimiter='\t', dtype=str)
+                        param_info["names"] = line_split[1].split('\t')
                         
                     elif line.startswith("Unit conversions"):
                         vals = extract_values(line_split[1], delimiter='\t', dtype=float)
@@ -271,11 +271,13 @@ def read_config_script_file(path):
                         sim_flags["output_path"] = os.path.join(line_split[1])
                         
     validate_grid(grid)
+    validate_param_info(param_info)
               
     return grid, param_info, meas_flags, sim_flags
 
 def generate_config_script_file(path, simPar, param_info, measurement_flags, sim_flags, verbose=False):
     validate_grid(simPar)
+    validate_param_info(param_info)
     
     with open(path, "w+") as ofstream:
         ofstream.write("$$ MCMC CONFIG CREATED {} AT {}\n".format(datetime.datetime.now().date(),
@@ -479,8 +481,8 @@ def validate_grid(grid : dict, supported_meas_types=("TRPL", "TRTS")):
         raise ValueError("MCMC simPar entry 'Length' must be a list with "
                          "one positive length value per measurement")
         
-    if grid["nx"] <= 0:
-        raise ValueError("MCMC simPar entry 'num_nodes' must be positive")
+    if not isinstance(grid['nx'], (int, np.integer)) or grid["nx"] <= 0:
+        raise ValueError("MCMC simPar entry 'num_nodes' must be positive integer")
         
     if (isinstance(grid["meas_types"], (list, np.ndarray)) and 
         len(grid["meas_types"]) == declared_num_measurements and
@@ -490,6 +492,68 @@ def validate_grid(grid : dict, supported_meas_types=("TRPL", "TRTS")):
         raise ValueError("MCMC simPar entry 'meas_types' must be a list with "
                          "one supported type per measurement.\n"
                          f"Supported types are {supported_meas_types}")
+
+def validate_param_info(param_info : dict):
+    if not isinstance(param_info, dict):
+        raise TypeError("MCMC param_info must be type 'dict'")
+        
+    required_keys = ("names","active","unit_conversions","do_log",
+                     "init_guess","init_variance")
+    for k in required_keys:
+        if k not in param_info:
+            raise ValueError(f"MCMC param_info missing entry '{k}'")
+        
+    names = param_info["names"]
+    if (isinstance(names, list) and len(names) > 0):
+        pass
+    else:
+        raise ValueError("Invalid number of param names in param_info")
+        
+    # No duplicate names allowed
+    if len(names) != len(set(names)):
+        raise ValueError("Duplicate param names not allowed")
+        
+    # Alphanumeric + underscore only
+    for k in names:
+        if not k.replace("_", "").isalnum():
+            raise ValueError(f"Param name {k} is invalid \n"
+                             " Names must be alphanumeric")
+    
+    # Unit conversions CAN be missing entries - these are defaulted to 1
+    for k, v in param_info["unit_conversions"].items():
+        if not isinstance(v, (int,float)):
+            raise ValueError(f"Invalid unit conversion {v} for param {k}")
+        
+    # Others must have ALL entries
+    for k in names:
+        if k not in param_info["do_log"]:
+            raise KeyError(f"do_log missing param {k}")
+        
+        if not (isinstance(param_info["do_log"][k], (int, np.integer)) and 
+                (param_info["do_log"][k] == 0 or param_info["do_log"][k] == 1)):
+            raise ValueError(f"do_log param {k} invalid - must be 0 or 1")
+
+        if k not in param_info["active"]:
+            raise KeyError(f"param_info's 'active' missing param {k}")
+        
+        if not (isinstance(param_info["active"][k], (int, np.integer)) and 
+                (param_info["active"][k] == 0 or param_info["active"][k] == 1)):
+            raise ValueError(f"param_info's 'active' param {k} invalid - must be 0 or 1")
+            
+        if k not in param_info["init_guess"]:
+            raise KeyError(f"init_guess missing param {k}")
+            
+        if not (isinstance(param_info["init_guess"][k], (int, np.integer, float))):
+            raise ValueError(f"init_variance param {k} invalid")
+
+        if k not in param_info["init_variance"]:
+            raise KeyError(f"init_variance missing param {k}")
+        
+        if not (isinstance(param_info["init_variance"][k], (int, np.int32, float)) and 
+                param_info["init_variance"][k] >= 0):
+            raise ValueError(f"init_variance param {k} invalid - must be non-negative")
+            
+    return
 
 if __name__ == "__main__":
     grid, param_info, meas_flags, sim_flags = read_config_script_file("mcmc0.txt")
