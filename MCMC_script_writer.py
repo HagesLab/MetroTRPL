@@ -12,7 +12,6 @@ import numpy as np
 import os
 import sys
 from bayes_io import generate_config_script_file
-from bayes_io import validate_grid
 
 if __name__ == "__main__":
     # Just some HiperGator-specific stuff
@@ -55,6 +54,7 @@ if __name__ == "__main__":
     # likelihood vs measurement
     param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp",
                    "Sf", "Sb", "tauN", "tauP", "eps", "Tm", "m"]
+    
     unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
                         "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
                         "ks":((1e7) ** 3) / (1e9), 
@@ -118,13 +118,13 @@ if __name__ == "__main__":
                   "init_variance":initial_variance}
 
     # Measurement preprocessing options
-    ic_flags = {"time_cutoff":[0,np.inf],
-                "select_obs_sets": [0,1,2],
+    meas_fields = {"time_cutoff":[0, np.inf],
+                "select_obs_sets": None, #[0,1,2],
                 "noise_level":None}
 
     # Other MCMC control potions
     output_path = os.path.join(out_dir, out_fname)
-    sim_flags = {"init_cond_path": os.path.join(init_dir, init_fname),
+    MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                  "measurement_path": os.path.join(init_dir, exp_fname),
                  "output_path": output_path,
                  "num_iters": 10,
@@ -146,4 +146,6 @@ if __name__ == "__main__":
                  "load_checkpoint": None,
                  }
     
-    generate_config_script_file(script_path, simPar, param_info, ic_flags, sim_flags, verbose=False)
+    generate_config_script_file(script_path, simPar, param_info, meas_fields, MCMC_fields, verbose=False)
+    from bayes_io import read_config_script_file
+    print(read_config_script_file("mcmc0.txt"))

@@ -318,17 +318,17 @@ def almost_equal(x, x0, threshold=1e-10):
 
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
-def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
+def one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, args):
     i, iniPar, times, vals = args
-    STARTING_HMAX = sim_flags["hmax"]
-    RTOL = sim_flags["rtol"]
-    ATOL = sim_flags["atol"]
+    STARTING_HMAX = MCMC_fields["hmax"]
+    RTOL = MCMC_fields["rtol"]
+    ATOL = MCMC_fields["atol"]
     thickness, nx, meas_type = unpack_simpar(simPar, i)
     hmax[i] = min(STARTING_HMAX, hmax[i] * 2) # Always attempt a slightly larger hmax than what worked at previous proposal
     
     while hmax[i] > MIN_HMAX:
         sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=meas_type, 
-                            solver=sim_flags["solver"], rtol=RTOL, atol=ATOL)
+                            solver=MCMC_fields["solver"], rtol=RTOL, atol=ATOL)
         
         #if verbose: 
         logger.info("{}: Simulation complete hmax={}; t {}-{}".format(i, hmax, times[0], times[len(sol)-1]))
@@ -343,11 +343,11 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.warning(f"{i}: Retrying hmax={hmax}")
             
-        elif sim_flags.get("verify_hmax", False):
+        elif MCMC_fields.get("verify_hmax", False):
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
             sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=meas_type,
-                                  solver=sim_flags["solver"], rtol=RTOL, atol=ATOL)
+                                  solver=MCMC_fields["solver"], rtol=RTOL, atol=ATOL)
             if almost_equal(sol, sol2, threshold=RTOL):
                 logger.info("Success!")
                 break
@@ -359,7 +359,7 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
         else:
             break
     try:
-        if sim_flags.get("self_normalize", False):
+        if MCMC_fields.get("self_normalize", False):
             sol /= np.nanmax(sol)
         # TODO: accomodate multiple experiments, just like bayes
         # skip_time_interpolation = almost_equal(sim_times, times)
@@ -385,24 +385,24 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
     return likelihood
         
 
-def run_iteration(p, simPar, iniPar, times, vals, hmax, sim_flags, verbose, logger, prev_p=None, t=0):
+def run_iteration(p, simPar, iniPar, times, vals, hmax, MCMC_fields, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
     accepted = True
     logratio = 0 # acceptance ratio = 1
     p.likelihood = np.zeros(len(iniPar))
     
-    if sim_flags.get("use_multi_cpus", False):
+    if MCMC_fields.get("use_multi_cpus", False):
         raise NotImplementedError
-        #with Pool(sim_flags["num_cpus"]) as pool:
-        #    likelihoods = pool.map(partial(one_sim_likelihood, p, simPar, hmax, sim_flags, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
+        #with Pool(MCMC_fields["num_cpus"]) as pool:
+        #    likelihoods = pool.map(partial(one_sim_likelihood, p, simPar, hmax, MCMC_fields, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
         #    p.likelihood = np.array(likelihoods)
                 
     else:
         for i in range(len(iniPar)):
-            p.likelihood[i] = one_sim_likelihood(p, simPar, hmax, sim_flags, logger, (i, iniPar[i], times[i], vals[i]))
+            p.likelihood[i] = one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, (i, iniPar[i], times[i], vals[i]))
             
     if prev_p is not None:
-        T = anneal(t, sim_flags.get("anneal_mode", None), sim_flags["anneal_params"])
+        T = anneal(t, MCMC_fields.get("anneal_mode", None), MCMC_fields["anneal_params"])
         logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood)) / T
         if verbose and logger is not None: 
             logger.debug(f"Temperature: {T}")
@@ -429,41 +429,41 @@ def all_signal_handler(func):
             continue
     return
 
-def metro(simPar, iniPar, e_data, sim_flags, param_info, verbose, logger):
+def metro(simPar, iniPar, e_data, MCMC_fields, param_info, verbose, logger):
     # Setup
     logger.info("PID: {}".format(os.getpid()))
     all_signal_handler(kill_from_cl)
 
-    num_iters = sim_flags["num_iters"]
-    DA_mode = sim_flags.get("delayed_acceptance", "off")
-    checkpoint_freq = sim_flags["checkpoint_freq"]
-    load_checkpoint = sim_flags["load_checkpoint"]
-    STARTING_HMAX = sim_flags["hmax"]
+    num_iters = MCMC_fields["num_iters"]
+    DA_mode = MCMC_fields.get("delayed_acceptance", "off")
+    checkpoint_freq = MCMC_fields["checkpoint_freq"]
+    load_checkpoint = MCMC_fields["load_checkpoint"]
+    STARTING_HMAX = MCMC_fields["hmax"]
     
-    if sim_flags.get("use_multi_cpus", False):
-        sim_flags["num_cpus"] = min(os.cpu_count(), len(iniPar))
-        logger.info("Taking {} cpus".format(sim_flags["num_cpus"]))
+    if MCMC_fields.get("use_multi_cpus", False):
+        MCMC_fields["num_cpus"] = min(os.cpu_count(), len(iniPar))
+        logger.info("Taking {} cpus".format(MCMC_fields["num_cpus"]))
     
     times, vals, uncs = e_data
     # As init temperature we take cN, where c is specified in main and N is number of observations
-    sim_flags["anneal_params"][0] *= sum([len(time)-1 for time in times])
-    sim_flags["anneal_params"][2] *= sum([len(time)-1 for time in times])
+    MCMC_fields["anneal_params"][0] *= sum([len(time)-1 for time in times])
+    MCMC_fields["anneal_params"][2] *= sum([len(time)-1 for time in times])
 
     if load_checkpoint is not None:
-        with open(os.path.join(sim_flags["checkpoint_dirname"], load_checkpoint), 'rb') as ifstream:
+        with open(os.path.join(MCMC_fields["checkpoint_dirname"], load_checkpoint), 'rb') as ifstream:
             MS = pickle.load(ifstream)
             np.random.set_state(MS.random_state)
             starting_iter = int(load_checkpoint[load_checkpoint.find("_")+1:load_checkpoint.rfind(".pik")])+1
             MS.H.extend(num_iters, param_info)
-            MS.sim_flags = dict(sim_flags)
+            MS.MCMC_fields = dict(MCMC_fields)
 
     else:
-        MS = MetroState(param_info, sim_flags, num_iters)
+        MS = MetroState(param_info, MCMC_fields, num_iters)
         starting_iter = 1
     
         # Calculate likelihood of initial guess
         MS.running_hmax = [STARTING_HMAX] * len(iniPar)
-        run_iteration(MS.prev_p, simPar, iniPar, times, vals, MS.running_hmax, sim_flags, verbose, logger)
+        run_iteration(MS.prev_p, simPar, iniPar, times, vals, MS.running_hmax, MCMC_fields, verbose, logger)
         MS.H.update(0, MS.prev_p, MS.means, param_info)
 
     for k in range(starting_iter, num_iters):
@@ -472,22 +472,22 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, verbose, logger):
             logger.info("Iter {}".format(k))
             logger.info("#####")
             # Identify which parameter to move
-            if sim_flags.get("one_param_at_a_time", 0):
+            if MCMC_fields.get("one_param_at_a_time", 0):
                 picked_param = MS.means.actives[k % len(MS.means.actives)]
             else:
                 picked_param = None
                 
             # Select next sample from distribution
             
-            if sim_flags.get("adaptive_covariance", "None") == "None":
+            if MCMC_fields.get("adaptive_covariance", "None") == "None":
                 MS.variances.mask_covariance(picked_param)
 
-            select_next_params(MS.p, MS.means, MS.variances, MS.param_info, sim_flags["proposal_function"], logger)
+            select_next_params(MS.p, MS.means, MS.variances, MS.param_info, MCMC_fields["proposal_function"], logger)
             
             if verbose: MS.print_status(logger)
                     
             if DA_mode == "off":
-                accepted = run_iteration(MS.p, simPar, iniPar, times, vals, MS.running_hmax, sim_flags, verbose, logger, prev_p=MS.prev_p, t=k)
+                accepted = run_iteration(MS.p, simPar, iniPar, times, vals, MS.running_hmax, MCMC_fields, verbose, logger, prev_p=MS.prev_p, t=k)
                 
             elif DA_mode == 'DEBUG':
                 accepted = False
@@ -506,8 +506,8 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, verbose, logger):
             break
         
         if checkpoint_freq is not None and k % checkpoint_freq == 0:
-            chpt_header = sim_flags["checkpoint_header"]
-            chpt_fname = os.path.join(sim_flags["checkpoint_dirname"], f"checkpoint{chpt_header}_{k}.pik")
+            chpt_header = MCMC_fields["checkpoint_header"]
+            chpt_fname = os.path.join(MCMC_fields["checkpoint_dirname"], f"checkpoint{chpt_header}_{k}.pik")
             logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
             MS.random_state = np.random.get_state()
             MS.checkpoint(chpt_fname)

@@ -26,37 +26,37 @@ if __name__ == "__main__":
 
     
     try:
-        simPar, param_info, ic_flags, sim_flags = read_config_script_file(script_path)
+        sim_info, param_info, meas_fields, MCMC_fields = read_config_script_file(script_path)
     except Exception as e:
         print(e)
         sys.exit()
         
-    logger, handler = start_logging(log_dir=sim_flags["output_path"])
+    logger, handler = start_logging(log_dir=MCMC_fields["output_path"])
     
     
-    if not os.path.isdir(sim_flags["checkpoint_dirname"]):
-        os.makedirs(sim_flags["checkpoint_dirname"], exist_ok=True)
+    if not os.path.isdir(MCMC_fields["checkpoint_dirname"]):
+        os.makedirs(MCMC_fields["checkpoint_dirname"], exist_ok=True)
 
     # Reset (clear) checkpoints
-    if sim_flags["load_checkpoint"] is None:
-        for chpt in os.listdir(sim_flags["checkpoint_dirname"]):
-            os.remove(os.path.join(sim_flags["checkpoint_dirname"], chpt))
+    if MCMC_fields["load_checkpoint"] is None:
+        for chpt in os.listdir(MCMC_fields["checkpoint_dirname"]):
+            os.remove(os.path.join(MCMC_fields["checkpoint_dirname"], chpt))
 
     np.random.seed(0)
 
-    if not os.path.isdir(sim_flags["output_path"]):
-        os.makedirs(sim_flags["output_path"], exist_ok=True)
+    if not os.path.isdir(MCMC_fields["output_path"]):
+        os.makedirs(MCMC_fields["output_path"], exist_ok=True)
 
-    logger.info("Sim info: {}".format(simPar))
-    logger.info("Measurement handling fields: {}".format(ic_flags))
+    logger.info("Sim info: {}".format(sim_info))
+    logger.info("Measurement handling fields: {}".format(meas_fields))
     logger.info("Param infos: {}".format(param_info))
-    logger.info("MCMC fields: {}".format(sim_flags))
+    logger.info("MCMC fields: {}".format(MCMC_fields))
     
     
     # Get observations and initial condition
-    iniPar = get_initpoints(sim_flags["init_cond_path"], ic_flags)
+    iniPar = get_initpoints(MCMC_fields["init_cond_path"], meas_fields)
     
-    measurement_types = simPar["meas_types"]
+    measurement_types = sim_info["meas_types"]
     scale_f = np.ones(len(measurement_types))
     for i, mt in enumerate(measurement_types):
         if mt == "TRPL":
@@ -65,21 +65,21 @@ if __name__ == "__main__":
             scale_f[i] = 1e-9
         else:
             raise NotImplementedError("No scale_f for measurements other than TRPL and TRTS")
-    e_data = get_data(sim_flags["measurement_path"], ic_flags, sim_flags, scale_f=scale_f)
+    e_data = get_data(MCMC_fields["measurement_path"], meas_fields, MCMC_fields, scale_f=scale_f)
     
     clock0 = perf_counter()
 
-    MS = metro(simPar, iniPar, e_data, sim_flags, param_info, True, logger)
+    MS = metro(sim_info, iniPar, e_data, MCMC_fields, param_info, True, logger)
 
     final_t = perf_counter() - clock0
 
     logger.info("Metro took {} s".format(final_t))
-    logger.info("Avg: {} s per iter".format(final_t / sim_flags["num_iters"]))
+    logger.info("Avg: {} s per iter".format(final_t / MCMC_fields["num_iters"]))
     logger.info("Acceptance rate: {}".format(np.sum(MS.H.accept) / len(MS.H.accept.flatten())))
 
-    logger.info("Exporting to {}".format(sim_flags["output_path"]))
-    MS.checkpoint(os.path.join(sim_flags["output_path"], f"CPU{jobid}-final.pik"))
+    logger.info("Exporting to {}".format(MCMC_fields["output_path"]))
+    MS.checkpoint(os.path.join(MCMC_fields["output_path"], f"CPU{jobid}-final.pik"))
 
     stop_logging(logger, handler, 0)
-    output_path = sim_flags["output_path"]
+    output_path = MCMC_fields["output_path"]
     print(f"{jobid} Finished - {output_path}")

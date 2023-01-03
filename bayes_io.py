@@ -38,13 +38,13 @@ def check_valid_filename(file_name):
 
     return True
 
-def get_data(exp_file, ic_flags, sim_flags, scale_f=1e-23, verbose=False):
+def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
     TIME_RANGE = ic_flags['time_cutoff']
     SELECT = ic_flags['select_obs_sets']
     NOISE_LEVEL = ic_flags['noise_level']
 
-    LOG_PL = sim_flags['log_pl']
-    NORMALIZE = sim_flags["self_normalize"]
+    LOG_PL = MCMC_fields['log_pl']
+    NORMALIZE = MCMC_fields["self_normalize"]
         
     bval_cutoff = sys.float_info.min
     
@@ -142,7 +142,7 @@ def read_config_script_file(path):
         grid = {}
         param_info = {}
         meas_flags = {}
-        sim_flags = {}
+        MCMC_fields = {}
 
         init_flag = 0
         
@@ -238,61 +238,61 @@ def read_config_script_file(path):
                             
                 if (init_flag == 's'):
                     if line.startswith("Num iters"):
-                        sim_flags["num_iters"] = int(line_split[1])
+                        MCMC_fields["num_iters"] = int(line_split[1])
                     elif line.startswith("Solver name"):
-                        sim_flags["solver"] = line_split[1]
+                        MCMC_fields["solver"] = line_split[1]
                     elif line.startswith("Solver rtol"):
-                        sim_flags["rtol"] = float(line_split[1])
+                        MCMC_fields["rtol"] = float(line_split[1])
                     elif line.startswith("Solver atol"):
-                        sim_flags["atol"] = float(line_split[1])
+                        MCMC_fields["atol"] = float(line_split[1])
                     elif line.startswith("Solver hmax"):
-                        sim_flags["hmax"] = float(line_split[1])
+                        MCMC_fields["hmax"] = float(line_split[1])
                     elif line.startswith("Repeat hmax"):
-                        sim_flags["verify_hmax"] = int(line_split[1])
+                        MCMC_fields["verify_hmax"] = int(line_split[1])
                     elif line.startswith("Anneal coefs"):
-                        sim_flags["anneal_params"] = extract_values(line_split[1], '\t')
+                        MCMC_fields["anneal_params"] = extract_values(line_split[1], '\t')
                     elif line.startswith("Force equal mu"):
-                        sim_flags["override_equal_mu"] = int(line_split[1])
+                        MCMC_fields["override_equal_mu"] = int(line_split[1])
                     elif line.startswith("Force equal S"):
-                        sim_flags["override_equal_s"] = int(line_split[1])
+                        MCMC_fields["override_equal_s"] = int(line_split[1])
                     elif line.startswith("Use log of measurements"):
-                        sim_flags["log_pl"] = int(line_split[1])
+                        MCMC_fields["log_pl"] = int(line_split[1])
                     elif line.startswith("Normalize all meas and sims"):
-                        sim_flags["self_normalize"] = int(line_split[1])
+                        MCMC_fields["self_normalize"] = int(line_split[1])
                     elif line.startswith("Proposal function"):
-                        sim_flags["proposal_function"] = line_split[1]
+                        MCMC_fields["proposal_function"] = line_split[1]
                     elif line.startswith("Propose params one-at-a-time"):
-                        sim_flags["one_param_at_a_time"] = int(line_split[1])
+                        MCMC_fields["one_param_at_a_time"] = int(line_split[1])
                     elif line.startswith("Checkpoint dir"):
-                        sim_flags["checkpoint_dirname"] = os.path.join(line_split[1])
+                        MCMC_fields["checkpoint_dirname"] = os.path.join(line_split[1])
                     elif line.startswith("Checkpoint fileheader"):
-                        sim_flags["checkpoint_header"] = line_split[1]
+                        MCMC_fields["checkpoint_header"] = line_split[1]
                     elif line.startswith("Checkpoint freq"):
-                        sim_flags["checkpoint_freq"] = int(line_split[1])
+                        MCMC_fields["checkpoint_freq"] = int(line_split[1])
                     elif line.startswith("Load checkpoint"):
                         if line_split[1] == "None":
-                            sim_flags["load_checkpoint"] = None
+                            MCMC_fields["load_checkpoint"] = None
                         else:
-                            sim_flags["load_checkpoint"] = line_split[1]
+                            MCMC_fields["load_checkpoint"] = line_split[1]
                     elif line.startswith("Initial condition path"):
-                        sim_flags["init_cond_path"] = os.path.join(line_split[1])
+                        MCMC_fields["init_cond_path"] = os.path.join(line_split[1])
                     elif line.startswith("Measurement path"):
-                        sim_flags["measurement_path"] = os.path.join(line_split[1])
+                        MCMC_fields["measurement_path"] = os.path.join(line_split[1])
                     elif line.startswith("Output path"):
-                        sim_flags["output_path"] = os.path.join(line_split[1])
+                        MCMC_fields["output_path"] = os.path.join(line_split[1])
                         
     validate_grid(grid)
     validate_param_info(param_info)
     validate_meas_flags(meas_flags, grid["num_meas"])
-    validate_MCMC_flags(sim_flags)
+    validate_MCMC_fields(MCMC_fields)
               
-    return grid, param_info, meas_flags, sim_flags
+    return grid, param_info, meas_flags, MCMC_fields
 
-def generate_config_script_file(path, simPar, param_info, measurement_flags, sim_flags, verbose=False):
+def generate_config_script_file(path, simPar, param_info, measurement_flags, MCMC_fields, verbose=False):
     validate_grid(simPar)
     validate_param_info(param_info)
     validate_meas_flags(measurement_flags, simPar["num_meas"])
-    validate_MCMC_flags(sim_flags)
+    validate_MCMC_fields(MCMC_fields)
     if not path.endswith(".txt"):
         path += ".txt"
     
@@ -396,80 +396,80 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags, sim
         ofstream.write("##\n")
         ofstream.write("p$ MCMC Control flags:\n")
         if verbose: ofstream.write("# How many samples to propose.\n")
-        num_iters = sim_flags["num_iters"]
+        num_iters = MCMC_fields["num_iters"]
         ofstream.write(f"Num iters: {num_iters}\n")
         if verbose: ofstream.write("# Which solver engine to use - solveivp (more robust) or odeint (sometimes faster).\n")
-        solver = sim_flags["solver"]
+        solver = MCMC_fields["solver"]
         ofstream.write(f"Solver name: {solver}\n")
         if verbose: ofstream.write("# Solver engine relative tolerance.\n")
-        rtol = sim_flags["rtol"]
+        rtol = MCMC_fields["rtol"]
         ofstream.write(f"Solver rtol: {rtol}\n")
         if verbose: ofstream.write("# Solver engine absolute tolerance.\n")
-        atol = sim_flags["atol"]
+        atol = MCMC_fields["atol"]
         ofstream.write(f"Solver atol: {atol}\n")
         if verbose: ofstream.write("# Solver engine maximum adaptive time stepsize.\n")
-        hmax = sim_flags["hmax"]
+        hmax = MCMC_fields["hmax"]
         ofstream.write(f"Solver hmax: {hmax}\n")
         if verbose: ofstream.write("# (Experimental) If 1 or True, MCMC will repeat simulations "
                                    "with progressively smaller hmax until the results converge.\n")
-        verify_hmax = sim_flags["verify_hmax"]
+        verify_hmax = MCMC_fields["verify_hmax"]
         ofstream.write(f"Repeat hmax: {verify_hmax}\n")
         if verbose: ofstream.write("# Control coefficients for the likelihood sigma / annealing temperature.\n")
-        anneal = sim_flags["anneal_params"]
+        anneal = MCMC_fields["anneal_params"]
         ofstream.write(f"Anneal coefs: {anneal[0]}\t{anneal[1]}\t{anneal[2]}\n")
         if verbose: ofstream.write("# Force parameters mu_n and mu_p to be equal.\n")
-        emu = sim_flags["override_equal_mu"]
+        emu = MCMC_fields["override_equal_mu"]
         ofstream.write(f"Force equal mu: {emu}\n")
         if verbose: ofstream.write("# Force parameters Sf and Sb to be equal.\n")
-        es = sim_flags["override_equal_s"]
+        es = MCMC_fields["override_equal_s"]
         ofstream.write(f"Force equal S: {es}\n")
         if verbose: ofstream.write("# Compare log of measurements and simulations for "
                                    "purpose of likelihood evaluation. Recommended to be 1 or True. \n")
-        logpl = sim_flags["log_pl"]
+        logpl = MCMC_fields["log_pl"]
         ofstream.write(f"Use log of measurements: {logpl}\n")
         if verbose: ofstream.write("# Normalize all individual measurements and simulations "
                                    "to maximum of 1 before likelihood evaluation. "
                                    "\n# A global scaling coefficient named 'm' may optionally be defined in param_info. "
                                    "\n# If the absolute units or efficiency of the measurement is unknown, "
                                    "\n# it is recommended to try fitting 'm' instead of relying on normalization. \n")
-        norm = sim_flags["self_normalize"]
+        norm = MCMC_fields["self_normalize"]
         ofstream.write(f"Normalize all meas and sims: {norm}\n")
         
         if verbose: ofstream.write("# Proposal function used to generate new states. "
                                    "Box for joint uniform box and Gauss for multivariate Gaussian. \n")
-        prop_f = sim_flags["proposal_function"]
+        prop_f = MCMC_fields["proposal_function"]
         ofstream.write(f"Proposal function: {prop_f}\n")
         
         if verbose: ofstream.write("# Whether a proposed move should change in one param or all params at once.\n")
-        gibbs = sim_flags["one_param_at_a_time"]
+        gibbs = MCMC_fields["one_param_at_a_time"]
         ofstream.write(f"Propose params one-at-a-time: {gibbs}\n")
         
         if verbose: ofstream.write("# Directory checkpoint files stored in.\n")
-        chpt_d = sim_flags["checkpoint_dirname"]
+        chpt_d = MCMC_fields["checkpoint_dirname"]
         ofstream.write(f"Checkpoint dir: {chpt_d}\n")
         
         if verbose: ofstream.write("# An optional tag to append to the filename of each checkpoint.\n")
-        chpt_h = sim_flags["checkpoint_header"]
+        chpt_h = MCMC_fields["checkpoint_header"]
         ofstream.write(f"Checkpoint fileheader: {chpt_h}\n")
         
         if verbose: ofstream.write("# Checkpoint saved every 'this many' samples.\n")
-        chpt_f = sim_flags["checkpoint_freq"]
+        chpt_f = MCMC_fields["checkpoint_freq"]
         ofstream.write(f"Checkpoint freq: {chpt_f}\n")
         
         if verbose: ofstream.write("# Name of a checkpoint file to resume an MCMC from.\n")
-        load_chpt = sim_flags["load_checkpoint"]
+        load_chpt = MCMC_fields["load_checkpoint"]
         ofstream.write(f"Load checkpoint: {load_chpt}\n")
         
         if verbose: ofstream.write("# Path from which to read initial condition arrays. \n")
-        ic = sim_flags["init_cond_path"]
+        ic = MCMC_fields["init_cond_path"]
         ofstream.write(f"Initial condition path: {ic}\n")
         
         if verbose: ofstream.write("# Path from which to read measurement data arrays. \n")
-        mc = sim_flags["measurement_path"]
+        mc = MCMC_fields["measurement_path"]
         ofstream.write(f"Measurement path: {mc}\n")
         
         if verbose: ofstream.write("# Path from which to save output MCMC objects. \n")
-        oc = sim_flags["output_path"]
+        oc = MCMC_fields["output_path"]
         ofstream.write(f"Output path: {oc}\n")
         
     return
@@ -618,9 +618,9 @@ def validate_meas_flags(meas_flags : dict, num_measurements):
         
     return
 
-def validate_MCMC_flags(MCMC_flags : dict, supported_solvers=("odeint", "solveivp"),
+def validate_MCMC_fields(MCMC_fields : dict, supported_solvers=("odeint", "solveivp"),
                         supported_prop_funcs=("box", "gauss", "None")):
-    if not isinstance(MCMC_flags, dict):
+    if not isinstance(MCMC_fields, dict):
         raise TypeError("MCMC control flags must be type 'dict'")
         
     required_keys = ("init_cond_path","measurement_path","output_path",
@@ -634,55 +634,55 @@ def validate_MCMC_flags(MCMC_flags : dict, supported_solvers=("odeint", "solveiv
                      "load_checkpoint",
                      )
     for k in required_keys:
-        if k not in MCMC_flags:
+        if k not in MCMC_fields:
             raise ValueError(f"MCMC control flags missing entry '{k}'")
             
-    if not isinstance(MCMC_flags["init_cond_path"], str):
+    if not isinstance(MCMC_fields["init_cond_path"], str):
         raise ValueError("init_cond_path must be a valid path")
         
-    if not isinstance(MCMC_flags["measurement_path"], str):
+    if not isinstance(MCMC_fields["measurement_path"], str):
         raise ValueError("measurement_path must be a valid path")
         
-    if not isinstance(MCMC_flags["output_path"], str):
+    if not isinstance(MCMC_fields["output_path"], str):
         raise ValueError("output_path must be a valid path")
         
-    if not check_valid_filename(MCMC_flags["output_path"]):
+    if not check_valid_filename(MCMC_fields["output_path"]):
         raise ValueError("Invalid char in output_path")
         
-    num_iters = MCMC_flags["num_iters"]
+    num_iters = MCMC_fields["num_iters"]
     if isinstance(num_iters, (int, np.integer)) and num_iters > 0:
         pass
     else:
         raise ValueError("Invalid number of iterations")
         
-    if MCMC_flags["solver"] not in supported_solvers:
+    if MCMC_fields["solver"] not in supported_solvers:
         raise ValueError("MCMC control 'solver' must be a supported solver.\n"
                          f"Supported solvers are {supported_solvers}")
         
-    rtol = MCMC_flags["rtol"]
+    rtol = MCMC_fields["rtol"]
     if isinstance(rtol, (int, np.integer, float)) and rtol > 0:
         pass
     else:
         raise ValueError("rtol must be a non-negative value")
         
-    atol = MCMC_flags["atol"]
+    atol = MCMC_fields["atol"]
     if isinstance(atol, (int, np.integer, float)) and atol > 0:
         pass
     else:
         raise ValueError("atol must be a non-negative value")
         
-    hmax = MCMC_flags["hmax"]
+    hmax = MCMC_fields["hmax"]
     if isinstance(hmax, (int, np.integer, float)) and hmax > 0:
         pass
     else:
         raise ValueError("hmax must be a non-negative value")
         
-    verify_hmax = MCMC_flags["verify_hmax"]
+    verify_hmax = MCMC_fields["verify_hmax"]
     if not (isinstance(verify_hmax, (int, np.integer)) and 
             (verify_hmax == 0 or verify_hmax == 1)):
         raise ValueError("verify_hmax invalid - must be 0 or 1")
         
-    anneal = MCMC_flags["anneal_params"]
+    anneal = MCMC_fields["anneal_params"]
     
     if isinstance(anneal, (list, np.ndarray)) and len(anneal) == 3:
         pass
@@ -692,50 +692,50 @@ def validate_MCMC_flags(MCMC_flags : dict, supported_solvers=("odeint", "solveiv
     if not all(map(lambda x: x > 0, anneal)):
         raise ValueError("anneal_params must all be positive")
         
-    mu = MCMC_flags["override_equal_mu"]
+    mu = MCMC_fields["override_equal_mu"]
     if not (isinstance(mu, (int, np.integer)) and 
             (mu == 0 or mu == 1)):
         raise ValueError("override equal_mu invalid - must be 0 or 1")
         
-    s = MCMC_flags["override_equal_s"]
+    s = MCMC_fields["override_equal_s"]
     if not (isinstance(s, (int, np.integer)) and 
             (s == 0 or s == 1)):
         raise ValueError("override equal_s invalid - must be 0 or 1")
         
-    logpl = MCMC_flags["log_pl"]
+    logpl = MCMC_fields["log_pl"]
     if not (isinstance(logpl, (int, np.integer)) and 
             (logpl == 0 or logpl == 1)):
         raise ValueError("logpl invalid - must be 0 or 1")
         
-    norm = MCMC_flags["self_normalize"]
+    norm = MCMC_fields["self_normalize"]
     if not (isinstance(norm, (int, np.integer)) and 
             (norm == 0 or norm == 1)):
         raise ValueError("self_normalize invalid - must be 0 or 1")
         
-    if MCMC_flags["proposal_function"] not in supported_prop_funcs:
+    if MCMC_fields["proposal_function"] not in supported_prop_funcs:
         raise ValueError("MCMC control 'proposal_function' must be a supported proposal function.\n"
                          f"Supported funcs are {supported_prop_funcs}")
         
-    oneaat = MCMC_flags["one_param_at_a_time"]
+    oneaat = MCMC_fields["one_param_at_a_time"]
     if not (isinstance(oneaat, (int, np.integer)) and 
             (oneaat == 0 or oneaat == 1)):
         raise ValueError("one_param_at_a_time invalid - must be 0 or 1")
         
-    chpt_d = MCMC_flags["checkpoint_dirname"]
+    chpt_d = MCMC_fields["checkpoint_dirname"]
     if not check_valid_filename(chpt_d):
         raise ValueError("Invalid char in checkpoint dirname")
         
-    chpt_h = MCMC_flags["checkpoint_header"]
+    chpt_h = MCMC_fields["checkpoint_header"]
     if not check_valid_filename(chpt_h):
         raise ValueError("Invalid char in checkpoint header")
         
-    chpt_f = MCMC_flags["checkpoint_freq"]
+    chpt_f = MCMC_fields["checkpoint_freq"]
     if isinstance(chpt_f, (int, np.integer)) and chpt_f > 0:
         pass
     else:
         raise ValueError("checkpoint_freq must be positive integer")
         
-    load = MCMC_flags["load_checkpoint"]
+    load = MCMC_fields["load_checkpoint"]
     if load is None or isinstance(load, str):
         pass
     else:
@@ -743,8 +743,8 @@ def validate_MCMC_flags(MCMC_flags : dict, supported_solvers=("odeint", "solveiv
     return
 
 if __name__ == "__main__":
-    grid, param_info, meas_flags, sim_flags = read_config_script_file("mcmc0.txt")
+    grid, param_info, meas_flags, MCMC_fields = read_config_script_file("mcmc0.txt")
     print(grid)
     print(param_info)
     print(meas_flags)
-    print(sim_flags)
+    print(MCMC_fields)  
