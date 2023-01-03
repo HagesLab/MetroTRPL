@@ -27,6 +27,17 @@ def extract_values(string, delimiter, dtype=float):
     values = np.array(values, dtype=dtype)
     return values
 
+def check_valid_filename(file_name):
+    """Screens file_name for prohibited characters
+        This one allows slashes
+    """
+    prohibited_characters = ["<",">","/","*","?",":","\"","|"]
+	# return !any(char in file_name for char in prohibited_characters)
+    if any(char in file_name for char in prohibited_characters):
+        return False
+
+    return True
+
 def get_data(exp_file, ic_flags, sim_flags, scale_f=1e-23, verbose=False):
     TIME_RANGE = ic_flags['time_cutoff']
     SELECT = ic_flags['select_obs_sets']
@@ -262,7 +273,7 @@ def read_config_script_file(path):
                         if line_split[1] == "None":
                             sim_flags["load_checkpoint"] = None
                         else:
-                            sim_flags["checkpoint_dirname"] = line_split[1]
+                            sim_flags["load_checkpoint"] = line_split[1]
                     elif line.startswith("Initial condition path"):
                         sim_flags["init_cond_path"] = os.path.join(line_split[1])
                     elif line.startswith("Measurement path"):
@@ -273,6 +284,7 @@ def read_config_script_file(path):
     validate_grid(grid)
     validate_param_info(param_info)
     validate_meas_flags(meas_flags, grid["num_meas"])
+    validate_MCMC_flags(sim_flags)
               
     return grid, param_info, meas_flags, sim_flags
 
@@ -280,6 +292,9 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags, sim
     validate_grid(simPar)
     validate_param_info(param_info)
     validate_meas_flags(measurement_flags, simPar["num_meas"])
+    validate_MCMC_flags(sim_flags)
+    if not path.endswith(".txt"):
+        path += ".txt"
     
     with open(path, "w+") as ofstream:
         ofstream.write("$$ MCMC CONFIG CREATED {} AT {}\n".format(datetime.datetime.now().date(),
@@ -603,6 +618,129 @@ def validate_meas_flags(meas_flags : dict, num_measurements):
         
     return
 
+def validate_MCMC_flags(MCMC_flags : dict, supported_solvers=("odeint", "solveivp"),
+                        supported_prop_funcs=("box", "gauss", "None")):
+    if not isinstance(MCMC_flags, dict):
+        raise TypeError("MCMC control flags must be type 'dict'")
+        
+    required_keys = ("init_cond_path","measurement_path","output_path",
+                     "num_iters","solver","rtol","atol","hmax",
+                     "verify_hmax","anneal_params",
+                     "override_equal_mu","override_equal_s",
+                     "log_pl","self_normalize",
+                     "proposal_function","one_param_at_a_time",
+                     "checkpoint_dirname","checkpoint_header",
+                     "checkpoint_freq",
+                     "load_checkpoint",
+                     )
+    for k in required_keys:
+        if k not in MCMC_flags:
+            raise ValueError(f"MCMC control flags missing entry '{k}'")
+            
+    if not isinstance(MCMC_flags["init_cond_path"], str):
+        raise ValueError("init_cond_path must be a valid path")
+        
+    if not isinstance(MCMC_flags["measurement_path"], str):
+        raise ValueError("measurement_path must be a valid path")
+        
+    if not isinstance(MCMC_flags["output_path"], str):
+        raise ValueError("output_path must be a valid path")
+        
+    if not check_valid_filename(MCMC_flags["output_path"]):
+        raise ValueError("Invalid char in output_path")
+        
+    num_iters = MCMC_flags["num_iters"]
+    if isinstance(num_iters, (int, np.integer)) and num_iters > 0:
+        pass
+    else:
+        raise ValueError("Invalid number of iterations")
+        
+    if MCMC_flags["solver"] not in supported_solvers:
+        raise ValueError("MCMC control 'solver' must be a supported solver.\n"
+                         f"Supported solvers are {supported_solvers}")
+        
+    rtol = MCMC_flags["rtol"]
+    if isinstance(rtol, (int, np.integer, float)) and rtol > 0:
+        pass
+    else:
+        raise ValueError("rtol must be a non-negative value")
+        
+    atol = MCMC_flags["atol"]
+    if isinstance(atol, (int, np.integer, float)) and atol > 0:
+        pass
+    else:
+        raise ValueError("atol must be a non-negative value")
+        
+    hmax = MCMC_flags["hmax"]
+    if isinstance(hmax, (int, np.integer, float)) and hmax > 0:
+        pass
+    else:
+        raise ValueError("hmax must be a non-negative value")
+        
+    verify_hmax = MCMC_flags["verify_hmax"]
+    if not (isinstance(verify_hmax, (int, np.integer)) and 
+            (verify_hmax == 0 or verify_hmax == 1)):
+        raise ValueError("verify_hmax invalid - must be 0 or 1")
+        
+    anneal = MCMC_flags["anneal_params"]
+    
+    if isinstance(anneal, (list, np.ndarray)) and len(anneal) == 3:
+        pass
+    else:
+        raise ValueError("anneal_params must be list with 3 elements")
+        
+    if not all(map(lambda x: x > 0, anneal)):
+        raise ValueError("anneal_params must all be positive")
+        
+    mu = MCMC_flags["override_equal_mu"]
+    if not (isinstance(mu, (int, np.integer)) and 
+            (mu == 0 or mu == 1)):
+        raise ValueError("override equal_mu invalid - must be 0 or 1")
+        
+    s = MCMC_flags["override_equal_s"]
+    if not (isinstance(s, (int, np.integer)) and 
+            (s == 0 or s == 1)):
+        raise ValueError("override equal_s invalid - must be 0 or 1")
+        
+    logpl = MCMC_flags["log_pl"]
+    if not (isinstance(logpl, (int, np.integer)) and 
+            (logpl == 0 or logpl == 1)):
+        raise ValueError("logpl invalid - must be 0 or 1")
+        
+    norm = MCMC_flags["self_normalize"]
+    if not (isinstance(norm, (int, np.integer)) and 
+            (norm == 0 or norm == 1)):
+        raise ValueError("self_normalize invalid - must be 0 or 1")
+        
+    if MCMC_flags["proposal_function"] not in supported_prop_funcs:
+        raise ValueError("MCMC control 'proposal_function' must be a supported proposal function.\n"
+                         f"Supported funcs are {supported_prop_funcs}")
+        
+    oneaat = MCMC_flags["one_param_at_a_time"]
+    if not (isinstance(oneaat, (int, np.integer)) and 
+            (oneaat == 0 or oneaat == 1)):
+        raise ValueError("one_param_at_a_time invalid - must be 0 or 1")
+        
+    chpt_d = MCMC_flags["checkpoint_dirname"]
+    if not check_valid_filename(chpt_d):
+        raise ValueError("Invalid char in checkpoint dirname")
+        
+    chpt_h = MCMC_flags["checkpoint_header"]
+    if not check_valid_filename(chpt_h):
+        raise ValueError("Invalid char in checkpoint header")
+        
+    chpt_f = MCMC_flags["checkpoint_freq"]
+    if isinstance(chpt_f, (int, np.integer)) and chpt_f > 0:
+        pass
+    else:
+        raise ValueError("checkpoint_freq must be positive integer")
+        
+    load = MCMC_flags["load_checkpoint"]
+    if load is None or isinstance(load, str):
+        pass
+    else:
+        raise ValueError("Invalid name of checkpoint to load")
+    return
 
 if __name__ == "__main__":
     grid, param_info, meas_flags, sim_flags = read_config_script_file("mcmc0.txt")
