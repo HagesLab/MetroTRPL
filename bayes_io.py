@@ -61,6 +61,8 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
 
     uncertainty = np.array(uncertainty)
     
+    
+    
     t_list = []
     y_list = []
     u_list = []
@@ -80,10 +82,6 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
             y_list[i] = y_list[i][keepL:keepR]
             u_list[i] = u_list[i][keepL:keepR]
             
-    if NORMALIZE:
-        for i in range(len(t_list)):
-            y_list[i] /= np.nanmax(y_list[i])
-            
     if isinstance(scale_f, (float, int)):
         scale_f = [scale_f] * len(t_list)
         
@@ -91,6 +89,12 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
         y_list[i] *= scale_f[i]
         u_list[i] *= scale_f[i]
             
+    if NORMALIZE:
+        for i in range(len(t_list)):
+            norm_f = np.nanmax(y_list[i])
+            y_list[i] /= norm_f
+            u_list[i] /= norm_f
+                    
     if LOG_PL:
         # Deal with noisy negative values before taking log
         for i in range(len(t_list)):
