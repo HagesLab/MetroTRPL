@@ -319,7 +319,7 @@ def almost_equal(x, x0, threshold=1e-10):
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
 def one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, args):
-    i, iniPar, times, vals = args
+    i, iniPar, times, vals, uncs = args
     STARTING_HMAX = MCMC_fields["hmax"]
     RTOL = MCMC_fields["rtol"]
     ATOL = MCMC_fields["atol"]
@@ -375,7 +375,7 @@ def one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, args):
         #     sol_int = sol
         # else:
         #     sol_int = griddata(sim_times, sol, times)
-        likelihood = -np.sum((np.log10(sol) + np.log10(p.m) - vals)**2)
+        likelihood = -np.sum((np.log10(sol) + np.log10(p.m) - vals)**2 / (MCMC_fields["model_unc"] + 2*uncs**2))
 
         # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
         if fail or np.isnan(likelihood): raise ValueError(f"{i}: Simulation failed!")
@@ -385,11 +385,13 @@ def one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, args):
     return likelihood
         
 
-def run_iteration(p, simPar, iniPar, times, vals, hmax, MCMC_fields, verbose, logger, prev_p=None, t=0):
+def run_iteration(p, simPar, iniPar, times, vals, uncs, hmax, MCMC_fields, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
     accepted = True
     logratio = 0 # acceptance ratio = 1
     p.likelihood = np.zeros(len(iniPar))
+    MCMC_fields["model_unc"] = anneal(t, MCMC_fields.get("anneal_mode", None), MCMC_fields["anneal_params"])
+    
     
     if MCMC_fields.get("use_multi_cpus", False):
         raise NotImplementedError
@@ -399,13 +401,12 @@ def run_iteration(p, simPar, iniPar, times, vals, hmax, MCMC_fields, verbose, lo
                 
     else:
         for i in range(len(iniPar)):
-            p.likelihood[i] = one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, (i, iniPar[i], times[i], vals[i]))
+            p.likelihood[i] = one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, (i, iniPar[i], times[i], vals[i], uncs[i]))
             
     if prev_p is not None:
-        T = anneal(t, MCMC_fields.get("anneal_mode", None), MCMC_fields["anneal_params"])
-        logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood)) / T
+        logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
         if verbose and logger is not None: 
-            logger.debug(f"Temperature: {T}")
+            logger.debug("Model unc: {}".format(MCMC_fields["model_unc"]))
         if np.isnan(logratio): logratio = -np.inf
         
         if verbose and logger is not None: 
@@ -463,7 +464,7 @@ def metro(simPar, iniPar, e_data, MCMC_fields, param_info, verbose, logger):
     
         # Calculate likelihood of initial guess
         MS.running_hmax = [STARTING_HMAX] * len(iniPar)
-        run_iteration(MS.prev_p, simPar, iniPar, times, vals, MS.running_hmax, MCMC_fields, verbose, logger)
+        run_iteration(MS.prev_p, simPar, iniPar, times, vals, uncs, MS.running_hmax, MCMC_fields, verbose, logger)
         MS.H.update(0, MS.prev_p, MS.means, param_info)
 
     for k in range(starting_iter, num_iters):
@@ -487,7 +488,7 @@ def metro(simPar, iniPar, e_data, MCMC_fields, param_info, verbose, logger):
             if verbose: MS.print_status(logger)
                     
             if DA_mode == "off":
-                accepted = run_iteration(MS.p, simPar, iniPar, times, vals, MS.running_hmax, MCMC_fields, verbose, logger, prev_p=MS.prev_p, t=k)
+                accepted = run_iteration(MS.p, simPar, iniPar, times, vals, uncs, MS.running_hmax, MCMC_fields, verbose, logger, prev_p=MS.prev_p, t=k)
                 
             elif DA_mode == 'DEBUG':
                 accepted = False
