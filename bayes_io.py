@@ -60,9 +60,7 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
         y = np.array(y)
 
     uncertainty = np.array(uncertainty)
-    
-    
-    
+
     t_list = []
     y_list = []
     u_list = []
