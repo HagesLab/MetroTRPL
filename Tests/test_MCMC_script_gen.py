@@ -98,7 +98,7 @@ class TestUtils(unittest.TestCase):
                              "atol":1e-10,
                              "hmax":4,
                              "verify_hmax":0,
-                             "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Unused, unused, initial_T]
+                             "model_uncertainty": 1/2500*0.1,
                              "override_equal_mu":0,
                              "override_equal_s":0,
                              "log_pl":1,

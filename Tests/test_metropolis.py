@@ -7,7 +7,7 @@ from metropolis import all_signal_handler
 from metropolis import E_field, model, select_next_params
 from metropolis import do_simulation, roll_acceptance, unpack_simpar
 from metropolis import detect_sim_fail, detect_sim_depleted, almost_equal
-from metropolis import check_approved_param, anneal
+from metropolis import check_approved_param
 from metropolis import run_iteration, one_sim_likelihood
 from sim_utils import Parameters, Grid, Covariance
 from scipy.integrate import trapz
@@ -490,25 +490,25 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(meas_type[2], mtype)
         return
         
-    def test_anneal(self):
-        anneal_mode = None # T = T_2
-        anneal_params = [0, 0, 1] #T_2
-        t = 9999
-        self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params[0])
+    # def test_anneal(self):
+    #     anneal_mode = None # T = T_2
+    #     anneal_params = [0, 0, 1] #T_2
+    #     t = 9999
+    #     self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params[0])
         
-        anneal_mode = "exp" # T = T_0 * exp(-t/T_1) + T_2
-        anneal_params = [10,1, 0]
-        t = 1
-        self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params / np.exp(1))
+    #     anneal_mode = "exp" # T = T_0 * exp(-t/T_1) + T_2
+    #     anneal_params = [10,1, 0]
+    #     t = 1
+    #     self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params / np.exp(1))
         
-        anneal_mode = "log" # T = (T_0 ln(2)) / (ln(2 + (t / T_1))) + T_2
-        t = 23523
-        anneal_params = [10, t / (np.exp(1) - 2), 0]
-        self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params[0] * np.log(2))
+    #     anneal_mode = "log" # T = (T_0 ln(2)) / (ln(2 + (t / T_1))) + T_2
+    #     t = 23523
+    #     anneal_params = [10, t / (np.exp(1) - 2), 0]
+    #     self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params[0] * np.log(2))
         
-        anneal_mode = "not a mode"
-        with self.assertRaises(ValueError):
-            anneal(t, anneal_mode, anneal_params)
+    #     anneal_mode = "not a mode"
+    #     with self.assertRaises(ValueError):
+    #         anneal(t, anneal_mode, anneal_params)
         
     def test_run_iter(self):
         # Will basically need to set up a full simulation for this
@@ -551,8 +551,7 @@ class TestUtils(unittest.TestCase):
         
         param_info["init_guess"] = initial_guess
         
-        sim_flags = {"anneal_mode": None, # None, "exp", "log"
-                     "anneal_params": [0, 1/2500*100, 1], 
+        sim_flags = {"model_uncertainty": 1, 
                      "hmax":4, "rtol":1e-5, "atol":1e-8,
                      "measurement":"TRPL",
                      "solver":"solveivp",}

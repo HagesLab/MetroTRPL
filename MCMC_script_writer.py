@@ -123,14 +123,13 @@ if __name__ == "__main__":
                    "noise_level":None}
 
     # Other MCMC control potions
-    # TODO: Decide what to do with these. Some unusued, some outdated. Should they be mandatory?
     output_path = os.path.join(out_dir, out_fname)
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
                    "num_iters": 10,
                    "solver": "solveivp",
-                   "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Unused, unused, initial_T]
+                   "model_uncertainty": 1/2500*0.1,
                    "log_pl":1,
                    "self_normalize":1,
                    "proposal_function":"box", # box or gauss; anything else disables new proposals

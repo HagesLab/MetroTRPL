@@ -11,7 +11,6 @@ from time import perf_counter
 
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import get_data, get_initpoints, read_config_script_file
-from bayes_io import validate_grid
 from metropolis import metro
 
 if __name__ == "__main__":

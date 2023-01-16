@@ -284,18 +284,18 @@ def unpack_simpar(simPar, i):
     meas_type = simPar["meas_types"][i]
     return thickness, nx, meas_type
 
-def anneal(t, anneal_mode, anneal_params):
-    if anneal_mode is None or anneal_mode == "None":
-        return anneal_params[2]
+# def anneal(t, anneal_mode, anneal_params):
+#     if anneal_mode is None or anneal_mode == "None":
+#         return anneal_params[2]
 
-    elif anneal_mode == "exp":
-        return anneal_params[0] * np.exp(-t / anneal_params[1]) + anneal_params[2]
+#     elif anneal_mode == "exp":
+#         return anneal_params[0] * np.exp(-t / anneal_params[1]) + anneal_params[2]
 
-    elif anneal_mode == "log":
-        return (anneal_params[0] * np.log(2)) / (np.log(t / anneal_params[1] + 2)) + anneal_params[2]
+#     elif anneal_mode == "log":
+#         return (anneal_params[0] * np.log(2)) / (np.log(t / anneal_params[1] + 2)) + anneal_params[2]
 
-    else:
-        raise ValueError("Invalid annealing type")
+#     else:
+#         raise ValueError("Invalid annealing type")
         
 def detect_sim_fail(sol, ref_vals):
     fail = len(sol) < len(ref_vals)
@@ -360,20 +360,8 @@ def one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, args):
         if MCMC_fields.get("self_normalize", False):
             sol /= np.nanmax(sol)
         # TODO: accomodate multiple experiments, just like bayes
-        # skip_time_interpolation = almost_equal(sim_times, times)
 
-        # if logger is not None: 
-        #     if skip_time_interpolation:
-        #         logger.info("Experiment {}: No time interpolation needed; bypassing".format(0))
-
-        #     else:
-        #         logger.info("Experiment {}: time interpolating".format(0))
-
-        # if skip_time_interpolation:
-        #     sol_int = sol
-        # else:
-        #     sol_int = griddata(sim_times, sol, times)
-        likelihood = -np.sum((np.log10(sol) + np.log10(p.m) - vals)**2 / (MCMC_fields["model_unc"] + 2*uncs**2))
+        likelihood = -np.sum((np.log10(sol) + np.log10(p.m) - vals)**2 / (MCMC_fields["model_uncertainty"] + 2*uncs**2))
 
         # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
         if fail or np.isnan(likelihood): raise ValueError(f"{i}: Simulation failed!")
@@ -388,8 +376,6 @@ def run_iteration(p, simPar, iniPar, times, vals, uncs, hmax, MCMC_fields, verbo
     accepted = True
     logratio = 0 # acceptance ratio = 1
     p.likelihood = np.zeros(len(iniPar))
-    MCMC_fields["model_unc"] = anneal(t, MCMC_fields.get("anneal_mode", None), MCMC_fields["anneal_params"])
-    
     
     if MCMC_fields.get("use_multi_cpus", False):
         raise NotImplementedError
@@ -404,7 +390,7 @@ def run_iteration(p, simPar, iniPar, times, vals, uncs, hmax, MCMC_fields, verbo
     if prev_p is not None:
         logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
         if verbose and logger is not None: 
-            logger.debug("Model unc: {}".format(MCMC_fields["model_unc"]))
+            logger.debug("Model unc: {}".format(MCMC_fields["model_uncertainty"]))
         if np.isnan(logratio): logratio = -np.inf
         
         if verbose and logger is not None: 
@@ -444,10 +430,9 @@ def metro(simPar, iniPar, e_data, MCMC_fields, param_info, verbose, logger):
         logger.info("Taking {} cpus".format(MCMC_fields["num_cpus"]))
     
     times, vals, uncs = e_data
-    # As init temperature we take cN, where c is specified in main and N is number of observations
-    MCMC_fields["anneal_params"][0] *= sum([len(time)-1 for time in times])
-    MCMC_fields["anneal_params"][2] *= sum([len(time)-1 for time in times])
-
+    # As model unc we take cN, where c is specified in main and N is number of observations
+    MCMC_fields["model_uncertainty"] *= sum([len(time)-1 for time in times])
+    
     if load_checkpoint is not None:
         with open(os.path.join(MCMC_fields["checkpoint_dirname"], load_checkpoint), 'rb') as ifstream:
             MS = pickle.load(ifstream)

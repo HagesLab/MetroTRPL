@@ -251,8 +251,8 @@ def read_config_script_file(path):
                         MCMC_fields["hmax"] = float(line_split[1])
                     elif line.startswith("Repeat hmax"):
                         MCMC_fields["verify_hmax"] = int(line_split[1])
-                    elif line.startswith("Anneal coefs"):
-                        MCMC_fields["anneal_params"] = extract_values(line_split[1], '\t')
+                    elif line.startswith("Model uncertainty"):
+                        MCMC_fields["model_uncertainty"] = float(line_split[1])
                     elif line.startswith("Force equal mu"):
                         MCMC_fields["override_equal_mu"] = int(line_split[1])
                     elif line.startswith("Force equal S"):
@@ -422,9 +422,10 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags, MCM
             verify_hmax = MCMC_fields["verify_hmax"]
             ofstream.write(f"Repeat hmax: {verify_hmax}\n")
             
-        if verbose: ofstream.write("# Control coefficients for the likelihood sigma / annealing temperature.\n")
-        anneal = MCMC_fields["anneal_params"]
-        ofstream.write(f"Anneal coefs: {anneal[0]}\t{anneal[1]}\t{anneal[2]}\n")
+        if verbose: ofstream.write("# Control coefficient for the likelihood model uncertainty.\n"
+                                   "# Model uncertainty will be taken as this times number of measurement points.\n")
+        anneal = MCMC_fields["model_uncertainty"]
+        ofstream.write(f"Model uncertainty: {anneal}\n")
         
         if "override_equal_mu" in MCMC_fields:
             if verbose: ofstream.write("# Force parameters mu_n and mu_p to be equal.\n")
@@ -637,7 +638,7 @@ def validate_MCMC_fields(MCMC_fields : dict, supported_solvers=("odeint", "solve
         
     required_keys = ("init_cond_path","measurement_path","output_path",
                      "num_iters","solver",
-                     "anneal_params",
+                     "model_uncertainty",
                      "log_pl","self_normalize",
                      "proposal_function","one_param_at_a_time",
                      "checkpoint_dirname","checkpoint_header",
@@ -697,15 +698,12 @@ def validate_MCMC_fields(MCMC_fields : dict, supported_solvers=("odeint", "solve
                 (verify_hmax == 0 or verify_hmax == 1)):
             raise ValueError("verify_hmax invalid - must be 0 or 1")
         
-    anneal = MCMC_fields["anneal_params"]
+    anneal = MCMC_fields["model_uncertainty"]
     
-    if isinstance(anneal, (list, np.ndarray)) and len(anneal) == 3:
+    if isinstance(anneal, (int, np.integer, float)) and anneal > 0:
         pass
     else:
-        raise ValueError("anneal_params must be list with 3 elements")
-        
-    if not all(map(lambda x: x > 0, anneal)):
-        raise ValueError("anneal_params must all be positive")
+        raise ValueError("model uncertainty must be a postiive value")
         
     if "override_equal_mu" in MCMC_fields:
         mu = MCMC_fields["override_equal_mu"]
