@@ -195,8 +195,9 @@ def check_approved_param(new_p, param_info):
     else:
         checks["tn_tp_close"] = True
 
-    approved = all(checks.values()) if len(checks) > 0 else True
-    return approved
+    failed_checks = [k for k in checks if not checks[k]]
+    
+    return failed_checks
 
 def select_next_params(p, means, variances, param_info, trial_function="box", logger=None):
     """ Trial move function: 
@@ -214,33 +215,27 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
             mean[i] = np.log10(mean[i])
 
     cov = variances.cov
-    approved = False
-    attempts = 0
-    while not approved:
 
-        if trial_function == "box":
-            new_p = np.zeros_like(mean)
-            for i, param in enumerate(names):
-                new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
-                if secret_mu and param == "mu_p":
-                    new_muambi = np.random.normal(20, 0.3) * param_info["unit_conversions"]["mu_n"]
-                    new_p[i] = np.log10((2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
+    if trial_function == "box":
+        new_p = np.zeros_like(mean)
+        for i, param in enumerate(names):
+            new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
+            if secret_mu and param == "mu_p":
+                new_muambi = np.random.normal(20, 0.3) * param_info["unit_conversions"]["mu_n"]
+                new_p[i] = np.log10((2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
 
-        elif trial_function == "gauss":
-            try:
-                assert np.all(cov >= 0)
-                new_p = np.random.multivariate_normal(mean, cov)
-            except Exception:
-                if logger is not None:
-                    logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
-                new_p = mean
+    elif trial_function == "gauss":
+        try:
+            assert np.all(cov >= 0)
+            new_p = np.random.multivariate_normal(mean, cov)
+        except Exception:
+            if logger is not None:
+                logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
+            new_p = mean
 
-        approved = check_approved_param(new_p, param_info)
-        attempts += 1
-        if attempts > MAX_TRIAL_ATTEMPTS: break
-
-    if logger is not None:
-        logger.info(f"Found suitable parameters in {attempts} attempts")
+    failed_checks = check_approved_param(new_p, param_info)
+    if logger is not None and len(failed_checks) > 0:
+        logger.warning("Failed checks: {}".format(failed_checks))
 
     for i, param in enumerate(names):
         if is_active[param]:

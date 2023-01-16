@@ -180,133 +180,133 @@ class TestUtils(unittest.TestCase):
         # Accepts new_p as log10
         # [n0, p0, mu_n, mu_p, ks, sf, sb, taun, taup, eps, m]
         new_p = np.log10([511, 511e2, 1])
-        self.assertTrue(check_approved_param(new_p, info))
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         new_p = np.log10([511, 511e2+1,  1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("tn_tp_close" in check_approved_param(new_p, info))
         
         # tn, tp size limit
         new_p = np.log10([0.11, 0.11, 1])
-        self.assertTrue(check_approved_param(new_p, info))
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         new_p = np.log10([0.1, 0.11, 1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("tp_size" in check_approved_param(new_p, info))
         new_p = np.log10([0.11, 0.1, 1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("tn_size" in check_approved_param(new_p, info))
         
         # These should still work if p is not logscaled
         info = {'names':['tauP', 'tauN', 'somethingelse'],
                  'unit_conversions':{'tauP':1, 'tauN':1, 'somethingelse':1},
                  'do_log':{'tauP':0, 'tauN':0, 'somethingelse':1}}
         new_p = np.array([511, 511e2, 1])
-        self.assertTrue(check_approved_param(new_p, info))
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         new_p = np.array([511, 511e2+1,  1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("tn_tp_close" in check_approved_param(new_p, info))
         
         new_p = np.array([0.11, 0.11, 1])
-        self.assertTrue(check_approved_param(new_p, info))
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         new_p = np.array([0.1, 0.11, 1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("tp_size" in check_approved_param(new_p, info))
         new_p = np.array([0.11, 0.1, 1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("tn_size" in check_approved_param(new_p, info))
         
         # These should also still work if new_p's unit system is different
         info = {'names':['tauP', 'tauN', 'somethingelse'],
                  'unit_conversions':{'tauP':0.1, 'tauN':0.01, 'somethingelse':0.1},
                  'do_log':{'tauP':0, 'tauN':0, 'somethingelse':1}}
         new_p = np.array([511 * 0.1, 511e2 * 0.01, 1 * 0.1])
-        self.assertTrue(check_approved_param(new_p, info))
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         new_p = np.array([511 * 0.1, (511e2+1) * 0.01,  1 * 0.1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("tn_tp_close" in check_approved_param(new_p, info))
         
         new_p = np.array([0.11 * 0.1, 0.11 * 0.01, 1 * 0.1])
-        self.assertTrue(check_approved_param(new_p, info))
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         new_p = np.array([0.09 * 0.1, 0.11 * 0.01, 1 * 0.1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("tp_size" in check_approved_param(new_p, info))
         new_p = np.array([0.11 * 0.1, 0.09 * 0.01, 1 * 0.1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("tn_size" in check_approved_param(new_p, info))
         
         # Check mu_n, mu_p, Sf, and Sb size limits
         info = {"names":["mu_n", "mu_p", "Sf", "Sb"],
                 'do_log':{"mu_n":1, "mu_p":1, "Sf":1, "Sb":1}}
         new_p = np.log10([1e6-1, 1e6-1, 1e7-1, 1e7-1])
-        self.assertTrue(check_approved_param(new_p, info))
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         
         new_p = np.log10([1e6, 1e6-1, 1e7-1, 1e7-1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("mu_n_size" in check_approved_param(new_p, info))
         new_p = np.log10([1e6-1, 1e6, 1e7-1, 1e7-1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("mu_p_size" in check_approved_param(new_p, info))
         new_p = np.log10([1e6-1, 1e6-1, 1e7, 1e7-1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("sf_size" in check_approved_param(new_p, info))
         new_p = np.log10([1e6-1, 1e6-1, 1e7-1, 1e7])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("sb_size" in check_approved_param(new_p, info))
         
         # These should still work if p is not logscaled
         info = {"names":["mu_n", "mu_p", "Sf", "Sb"],
                 'do_log':{"mu_n":0, "mu_p":0, "Sf":0, "Sb":0}}
         new_p = np.array([1e6-1, 1e6-1, 1e7-1, 1e7-1])
-        self.assertTrue(check_approved_param(new_p, info))
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         
         new_p = np.array([1e6, 1e6-1, 1e7-1, 1e7-1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("mu_n_size" in check_approved_param(new_p, info))
         new_p = np.array([1e6-1, 1e6, 1e7-1, 1e7-1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("mu_p_size" in check_approved_param(new_p, info))
         new_p = np.array([1e6-1, 1e6-1, 1e7, 1e7-1])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("sf_size" in check_approved_param(new_p, info))
         new_p = np.array([1e6-1, 1e6-1, 1e7-1, 1e7])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("sb_size" in check_approved_param(new_p, info))
         
         # Check ks, Cn, Cp size limits
         info = {"names":["ks", "Cn", "Cp"],
                 "do_log":{"ks":1, "Cn":1, "Cp":1}}
         new_p = np.log10([1e-7*0.9, 1e-21*0.9, 1e-21*0.9])
-        self.assertTrue(check_approved_param(new_p, info))
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         
         new_p = np.log10([1e-7, 1e-21*0.9, 1e-21*0.9])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("ks_size" in check_approved_param(new_p, info))
         new_p = np.log10([1e-7*0.9, 1e-21, 1e-21*0.9])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("cn_size" in check_approved_param(new_p, info))
         new_p = np.log10([1e-7*0.9, 1e-21*0.9, 1e-21])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("cp_size" in check_approved_param(new_p, info))
         
         # Should work without log
         info = {"names":["ks", "Cn", "Cp"],
                 "do_log":{"ks":0, "Cn":0, "Cp":0}}
         new_p = np.array([1e-7*0.9, 1e-21*0.9, 1e-21*0.9])
-        self.assertTrue(check_approved_param(new_p, info))
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         
         new_p = np.array([1e-7, 1e-21*0.9, 1e-21*0.9])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("ks_size" in check_approved_param(new_p, info))
         new_p = np.array([1e-7*0.9, 1e-21, 1e-21*0.9])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("cn_size" in check_approved_param(new_p, info))
         new_p = np.array([1e-7*0.9, 1e-21*0.9, 1e-21])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("cp_size" in check_approved_param(new_p, info))
         
         # Check p0, which has a size limit and must also be larger than n0
         info = {"names":["n0", "p0"],
                 "do_log":{"n0":1, "p0":1}}
         new_p = np.log10([1e19 * 0.8, 1e19 * 0.9])
-        self.assertTrue(check_approved_param(new_p, info))
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         
         new_p = np.log10([1e19 * 0.8, 1e19])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("p0_size" in check_approved_param(new_p, info))
         new_p = np.log10([1e19, 1e19 * 0.9])
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("p0_greater" in check_approved_param(new_p, info))
         
         # Should work without log
         info = {"names":["n0", "p0"],
                 "do_log":{"n0":0, "p0":0}}
         new_p = np.array([1e19 * 0.8, 1e19 * 0.9])
-        self.assertTrue(check_approved_param(new_p, info))
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         
         new_p = np.array([1e19 * 0.8, 1e19]) # p0 too large
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("p0_size" in check_approved_param(new_p, info))
         new_p = np.array([1e19, 1e19 * 0.9]) # p0 smaller than n0
-        self.assertFalse(check_approved_param(new_p, info))
+        self.assertTrue("p0_greater" in check_approved_param(new_p, info))
         
         info_without_taus = {'names':['tauQ', 'somethingelse'],
                              "do_log":{'tauQ':1, 'somethingelse':1}}
-        # Always true if criteria do not cover params
+        # No failures if criteria do not cover params
         new_p = np.log10([1,1e10])
-        self.assertTrue(check_approved_param(new_p, info_without_taus))
+        self.assertTrue(len(check_approved_param(new_p, info_without_taus)) == 0)
         
     def test_select_next_params(self):
         # This function assigns a set of randomly generated values
@@ -353,7 +353,7 @@ class TestUtils(unittest.TestCase):
         with self.assertLogs() as captured:
             select_next_params(pa, means, variances, param_info, trial_function="gauss", logger=self.logger)
                 
-        self.assertEqual(len(captured.records), 2) # One ordinary mssg and one error
+        self.assertEqual(len(captured.records), 1) # One error about the multivariate norm failing
         
         self.assertEqual(pa.a, initial_guesses['a'])
         self.assertAlmostEqual(pa.b, initial_guesses['b'])
@@ -362,11 +362,7 @@ class TestUtils(unittest.TestCase):
         
         
         # Try box selection
-        with self.assertLogs() as captured:
-            select_next_params(pa, means, variances, param_info, trial_function="box", logger=self.logger)
-
-        self.assertEqual(len(captured.records), 1) # check that there is only one log message
-        self.assertEqual(captured.records[0].getMessage(), "Found suitable parameters in 1 attempts") # and it is the proper one
+        select_next_params(pa, means, variances, param_info, trial_function="box", logger=self.logger)
 
         self.assertEqual(pa.a, initial_guesses['a']) #Inactive and shouldn't change
         self.assertEqual(pa.c, initial_guesses['c'])
@@ -556,7 +552,7 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"] = initial_guess
         
         sim_flags = {"anneal_mode": None, # None, "exp", "log"
-                     "anneal_params": [0, 1/2500*100, 10], 
+                     "anneal_params": [0, 1/2500*100, 1], 
                      "hmax":4, "rtol":1e-5, "atol":1e-8,
                      "measurement":"TRPL",
                      "solver":"solveivp",}
@@ -570,16 +566,19 @@ class TestUtils(unittest.TestCase):
         running_hmax = [4] * len(iniPar)
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.zeros(nt+1), np.zeros(nt+1)]
-        accepted = run_iteration(p, simPar, iniPar, 
-                                 times, vals, running_hmax, sim_flags, verbose=True, logger=self.logger, prev_p=None)
+        uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
+        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, 
+                                 running_hmax, sim_flags, verbose=True, 
+                                 logger=self.logger, prev_p=None)
         
         # First iter; auto-accept
         np.testing.assert_almost_equal(p.likelihood, [-59340.105083, -32560.139058], decimal=0) #rtol=1e-5
         self.assertTrue(accepted)
         
         # Second iter same as the first; auto-accept with likelihood ratio exactly 1
-        accepted = run_iteration(p2, simPar, iniPar, 
-                                 times, vals, running_hmax, sim_flags, verbose=True, logger=self.logger, prev_p=p)
+        accepted = run_iteration(p2, simPar, iniPar, times, vals, uncs, 
+                                 running_hmax, sim_flags, verbose=True, 
+                                 logger=self.logger, prev_p=p)
         self.assertTrue(accepted)
         # Accept should overwrite p2 (new) into p (old)
         np.testing.assert_equal(p.likelihood, p2.likelihood)
