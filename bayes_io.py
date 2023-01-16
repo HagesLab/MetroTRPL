@@ -415,10 +415,13 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags, MCM
             if verbose: ofstream.write("# Solver engine maximum adaptive time stepsize.\n")
             hmax = MCMC_fields["hmax"]
             ofstream.write(f"Solver hmax: {hmax}\n")
-        if verbose: ofstream.write("# (Experimental) If 1 or True, MCMC will repeat simulations "
-                                   "with progressively smaller hmax until the results converge.\n")
-        verify_hmax = MCMC_fields["verify_hmax"]
-        ofstream.write(f"Repeat hmax: {verify_hmax}\n")
+        
+        if "verify_hmax" in MCMC_fields:
+            if verbose: ofstream.write("# (Experimental) If 1 or True, MCMC will repeat simulations "
+                                       "with progressively smaller hmax until the results converge.\n")
+            verify_hmax = MCMC_fields["verify_hmax"]
+            ofstream.write(f"Repeat hmax: {verify_hmax}\n")
+            
         if verbose: ofstream.write("# Control coefficients for the likelihood sigma / annealing temperature.\n")
         anneal = MCMC_fields["anneal_params"]
         ofstream.write(f"Anneal coefs: {anneal[0]}\t{anneal[1]}\t{anneal[2]}\n")
@@ -630,7 +633,7 @@ def validate_MCMC_fields(MCMC_fields : dict, supported_solvers=("odeint", "solve
         
     required_keys = ("init_cond_path","measurement_path","output_path",
                      "num_iters","solver",
-                     "verify_hmax","anneal_params",
+                     "anneal_params",
                      "override_equal_mu","override_equal_s",
                      "log_pl","self_normalize",
                      "proposal_function","one_param_at_a_time",
@@ -685,10 +688,11 @@ def validate_MCMC_fields(MCMC_fields : dict, supported_solvers=("odeint", "solve
         else:
             raise ValueError("hmax must be a non-negative value")
         
-    verify_hmax = MCMC_fields["verify_hmax"]
-    if not (isinstance(verify_hmax, (int, np.integer)) and 
-            (verify_hmax == 0 or verify_hmax == 1)):
-        raise ValueError("verify_hmax invalid - must be 0 or 1")
+    if "verify_hmax" in MCMC_fields:
+        verify_hmax = MCMC_fields["verify_hmax"]
+        if not (isinstance(verify_hmax, (int, np.integer)) and 
+                (verify_hmax == 0 or verify_hmax == 1)):
+            raise ValueError("verify_hmax invalid - must be 0 or 1")
         
     anneal = MCMC_fields["anneal_params"]
     

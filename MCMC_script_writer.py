@@ -130,7 +130,6 @@ if __name__ == "__main__":
                  "output_path": output_path,
                  "num_iters": 10,
                  "solver": "solveivp",
-                 "verify_hmax":0,
                  "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Unused, unused, initial_T]
                  "override_equal_mu":0,
                  "override_equal_s":0,
