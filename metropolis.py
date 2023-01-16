@@ -21,7 +21,9 @@ q = 1.0 # [e]
 q_C = 1.602e-19 # [C]
 kB = 8.61773e-5  # [eV / K]
 MIN_HMAX = 1e-2 # [ns]
-MAX_TRIAL_ATTEMPTS = 100
+DEFAULT_RTOL = 1e-7
+DEFAULT_ATOL = 1e-10
+DEFAULT_HMAX = 4
 
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
@@ -33,7 +35,7 @@ def E_field(N, P, PA, dx, corner_E=0):
         E = np.concatenate((np.ones(shape=(num_tsteps,1))*corner_E, E), axis=1)
     return E
 
-def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=1e-10, ATOL=1e-14):
+def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
     """ Calculate one simulation. """
     N = init_dN + p.n0
     P = init_dN + p.p0
@@ -245,7 +247,8 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
                 setattr(p, param, new_p[i])
     return
 
-def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", solver="solveivp", rtol=1e-10, atol=1e-14):
+def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", 
+                  solver="solveivp", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
     """ Set up one simulation. """
     g = Grid()
     g.thickness = thickness
@@ -315,9 +318,9 @@ def almost_equal(x, x0, threshold=1e-10):
 
 def one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, args):
     i, iniPar, times, vals, uncs = args
-    STARTING_HMAX = MCMC_fields["hmax"]
-    RTOL = MCMC_fields["rtol"]
-    ATOL = MCMC_fields["atol"]
+    STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
+    RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
+    ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
     thickness, nx, meas_type = unpack_simpar(simPar, i)
     hmax[i] = min(STARTING_HMAX, hmax[i] * 2) # Always attempt a slightly larger hmax than what worked at previous proposal
     
@@ -434,7 +437,7 @@ def metro(simPar, iniPar, e_data, MCMC_fields, param_info, verbose, logger):
     DA_mode = MCMC_fields.get("delayed_acceptance", "off")
     checkpoint_freq = MCMC_fields["checkpoint_freq"]
     load_checkpoint = MCMC_fields["load_checkpoint"]
-    STARTING_HMAX = MCMC_fields["hmax"]
+    STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
     
     if MCMC_fields.get("use_multi_cpus", False):
         MCMC_fields["num_cpus"] = min(os.cpu_count(), len(iniPar))

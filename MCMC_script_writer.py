@@ -26,23 +26,23 @@ if __name__ == "__main__":
         out_dir = r"/blue/c.hages/cfai2304/Metro_out"
 
     else:
-        init_dir = r"bay_inputs"
-        out_dir = r"bay_outputs"
+        init_dir = r"trts_inputs"
+        out_dir = r"trts_outputs"
 
     # Filenames
-    init_fname = "staub_MAPI_power_thick_input.csv"
-    exp_fname = "staub_MAPI_power_thick_withauger.csv"
+    init_fname = "3B1FSGS_TRTS_input_new.csv"
+    exp_fname = "3B1FSGS_TRTS_NEW.csv"
     out_fname = "DEBUG"
 
     # Save this script to...
     script_path = f"mcmc{jobid}.txt"
     
     # Info for each measurement's corresponding simulation
-    num_measurements = 3
+    num_measurements = 4
     Length = [311,2000,311,2000, 311, 2000]
-    Length  = [2000, 2000, 2000]             # Length (nm)
+    Length  = [3000, 3000, 3000, 3000]             # Length (nm)
     L   = 128                                # Spatial points
-    measurement_types = ["TRPL", "TRPL", "TRPL"]
+    measurement_types = ["TRTS", "TRTS", "TRTS", "TRTS"]
     simPar = {"lengths": Length, 
               "nx": L,
               "meas_types": measurement_types,
@@ -123,21 +123,19 @@ if __name__ == "__main__":
                 "noise_level":None}
 
     # Other MCMC control potions
+    # TODO: Decide what to do with these. Some unusued, some outdated. Should they be mandatory?
     output_path = os.path.join(out_dir, out_fname)
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                  "measurement_path": os.path.join(init_dir, exp_fname),
                  "output_path": output_path,
                  "num_iters": 10,
                  "solver": "solveivp",
-                 "rtol":1e-7,
-                 "atol":1e-10,
-                 "hmax":4,
                  "verify_hmax":0,
                  "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Unused, unused, initial_T]
                  "override_equal_mu":0,
                  "override_equal_s":0,
                  "log_pl":1,
-                 "self_normalize":0,
+                 "self_normalize":1,
                  "proposal_function":"box", # box or gauss; anything else disables new proposals
                  "one_param_at_a_time":0,
                  "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),

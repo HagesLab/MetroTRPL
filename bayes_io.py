@@ -403,15 +403,18 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags, MCM
         if verbose: ofstream.write("# Which solver engine to use - solveivp (more robust) or odeint (sometimes faster).\n")
         solver = MCMC_fields["solver"]
         ofstream.write(f"Solver name: {solver}\n")
-        if verbose: ofstream.write("# Solver engine relative tolerance.\n")
-        rtol = MCMC_fields["rtol"]
-        ofstream.write(f"Solver rtol: {rtol}\n")
-        if verbose: ofstream.write("# Solver engine absolute tolerance.\n")
-        atol = MCMC_fields["atol"]
-        ofstream.write(f"Solver atol: {atol}\n")
-        if verbose: ofstream.write("# Solver engine maximum adaptive time stepsize.\n")
-        hmax = MCMC_fields["hmax"]
-        ofstream.write(f"Solver hmax: {hmax}\n")
+        if "rtol" in MCMC_fields:
+            if verbose: ofstream.write("# Solver engine relative tolerance.\n")
+            rtol = MCMC_fields["rtol"]
+            ofstream.write(f"Solver rtol: {rtol}\n")
+        if "atol" in MCMC_fields:
+            if verbose: ofstream.write("# Solver engine absolute tolerance.\n")
+            atol = MCMC_fields["atol"]
+            ofstream.write(f"Solver atol: {atol}\n")
+        if "hmax" in MCMC_fields:
+            if verbose: ofstream.write("# Solver engine maximum adaptive time stepsize.\n")
+            hmax = MCMC_fields["hmax"]
+            ofstream.write(f"Solver hmax: {hmax}\n")
         if verbose: ofstream.write("# (Experimental) If 1 or True, MCMC will repeat simulations "
                                    "with progressively smaller hmax until the results converge.\n")
         verify_hmax = MCMC_fields["verify_hmax"]
@@ -626,7 +629,7 @@ def validate_MCMC_fields(MCMC_fields : dict, supported_solvers=("odeint", "solve
         raise TypeError("MCMC control flags must be type 'dict'")
         
     required_keys = ("init_cond_path","measurement_path","output_path",
-                     "num_iters","solver","rtol","atol","hmax",
+                     "num_iters","solver",
                      "verify_hmax","anneal_params",
                      "override_equal_mu","override_equal_s",
                      "log_pl","self_normalize",
@@ -660,24 +663,27 @@ def validate_MCMC_fields(MCMC_fields : dict, supported_solvers=("odeint", "solve
     if MCMC_fields["solver"] not in supported_solvers:
         raise ValueError("MCMC control 'solver' must be a supported solver.\n"
                          f"Supported solvers are {supported_solvers}")
+      
+    if "rtol" in MCMC_fields:
+        rtol = MCMC_fields["rtol"]
+        if isinstance(rtol, (int, np.integer, float)) and rtol > 0:
+            pass
+        else:
+            raise ValueError("rtol must be a non-negative value")
         
-    rtol = MCMC_fields["rtol"]
-    if isinstance(rtol, (int, np.integer, float)) and rtol > 0:
-        pass
-    else:
-        raise ValueError("rtol must be a non-negative value")
+    if "atol" in MCMC_fields:
+        atol = MCMC_fields["atol"]
+        if isinstance(atol, (int, np.integer, float)) and atol > 0:
+            pass
+        else:
+            raise ValueError("atol must be a non-negative value")
         
-    atol = MCMC_fields["atol"]
-    if isinstance(atol, (int, np.integer, float)) and atol > 0:
-        pass
-    else:
-        raise ValueError("atol must be a non-negative value")
-        
-    hmax = MCMC_fields["hmax"]
-    if isinstance(hmax, (int, np.integer, float)) and hmax > 0:
-        pass
-    else:
-        raise ValueError("hmax must be a non-negative value")
+    if "hmax" in MCMC_fields:
+        hmax = MCMC_fields["hmax"]
+        if isinstance(hmax, (int, np.integer, float)) and hmax > 0:
+            pass
+        else:
+            raise ValueError("hmax must be a non-negative value")
         
     verify_hmax = MCMC_fields["verify_hmax"]
     if not (isinstance(verify_hmax, (int, np.integer)) and 
