@@ -65,19 +65,19 @@ if __name__ == "__main__":
               "m":1}
 
     initial_guesses = {"n0":1e8,
-                        "p0": 1e14,
-                        "mu_n": 20,
-                        "mu_p": 20,
-                        "ks": 5.958e-11,
-                        "Cn": 1e-29,
-                        "Cp": 1e-29,
-                        "Sf":2.1e2,
-                        "Sb": 2.665e2,
-                        "tauN": 4.708e2,
-                        "tauP": 1.961e2,
-                        "eps":10,
-                        "Tm":300,
-                        "m":1}
+                       "p0": 1e14,
+                       "mu_n": 20,
+                       "mu_p": 20,
+                       "ks": 5.958e-11,
+                       "Cn": 1e-29,
+                       "Cp": 1e-29,
+                       "Sf":2.1e2,
+                       "Sb": 2.665e2,
+                       "tauN": 4.708e2,
+                       "tauP": 1.961e2,
+                       "eps":10,
+                       "Tm":300,
+                       "m":1}
 
     active_params = {"n0":0,
                      "p0":1,
@@ -96,19 +96,19 @@ if __name__ == "__main__":
 
     # Proposal function search widths
     initial_variance = {"n0":1e-2,
-                     "p0":1e-2,
-                     "mu_n":1e-2,
-                     "mu_p":1e-2,
-                     "ks":1e-2,
-                     "Cn":1e-2,
-                     "Cp":1e-2,
-                     "Sf":1e-2,
-                     "Sb":1e-2,
-                     "tauN":1e-2,
-                     "tauP":1e-2,
-                     "eps":1e-2,
-                     "Tm":1e-2,
-                     "m":1e-2}
+                        "p0":1e-2,
+                        "mu_n":1e-2,
+                        "mu_p":1e-2,
+                        "ks":1e-2,
+                        "Cn":1e-2,
+                        "Cp":1e-2,
+                        "Sf":1e-2,
+                        "Sb":1e-2,
+                        "tauN":1e-2,
+                        "tauP":1e-2,
+                        "eps":1e-2,
+                        "Tm":1e-2,
+                        "m":1e-2}
 
     param_info = {"names":param_names,
                   "active":active_params,
@@ -119,29 +119,27 @@ if __name__ == "__main__":
 
     # Measurement preprocessing options
     meas_fields = {"time_cutoff":[0, np.inf],
-                "select_obs_sets": None, #[0,1,2],
-                "noise_level":None}
+                   "select_obs_sets": None, #[0,1,2],
+                   "noise_level":None}
 
     # Other MCMC control potions
     # TODO: Decide what to do with these. Some unusued, some outdated. Should they be mandatory?
     output_path = os.path.join(out_dir, out_fname)
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
-                 "measurement_path": os.path.join(init_dir, exp_fname),
-                 "output_path": output_path,
-                 "num_iters": 10,
-                 "solver": "solveivp",
-                 "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Unused, unused, initial_T]
-                 "override_equal_mu":0,
-                 "override_equal_s":0,
-                 "log_pl":1,
-                 "self_normalize":1,
-                 "proposal_function":"box", # box or gauss; anything else disables new proposals
-                 "one_param_at_a_time":0,
-                 "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
-                 "checkpoint_header": f"CPU{jobid}",
-                 "checkpoint_freq":5, # Save a checkpoint every #this many iterations#
-                 "load_checkpoint": None,
-                 }
+                   "measurement_path": os.path.join(init_dir, exp_fname),
+                   "output_path": output_path,
+                   "num_iters": 10,
+                   "solver": "solveivp",
+                   "anneal_params": [1/2500*100, 1e3, 1/2500*0.1], # [Unused, unused, initial_T]
+                   "log_pl":1,
+                   "self_normalize":1,
+                   "proposal_function":"box", # box or gauss; anything else disables new proposals
+                   "one_param_at_a_time":0,
+                   "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
+                   "checkpoint_header": f"CPU{jobid}",
+                   "checkpoint_freq":5, # Save a checkpoint every #this many iterations#
+                   "load_checkpoint": None,
+                   }
     
     generate_config_script_file(script_path, simPar, param_info, meas_fields, MCMC_fields, verbose=False)
     from bayes_io import read_config_script_file

@@ -425,12 +425,16 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags, MCM
         if verbose: ofstream.write("# Control coefficients for the likelihood sigma / annealing temperature.\n")
         anneal = MCMC_fields["anneal_params"]
         ofstream.write(f"Anneal coefs: {anneal[0]}\t{anneal[1]}\t{anneal[2]}\n")
-        if verbose: ofstream.write("# Force parameters mu_n and mu_p to be equal.\n")
-        emu = MCMC_fields["override_equal_mu"]
-        ofstream.write(f"Force equal mu: {emu}\n")
-        if verbose: ofstream.write("# Force parameters Sf and Sb to be equal.\n")
-        es = MCMC_fields["override_equal_s"]
-        ofstream.write(f"Force equal S: {es}\n")
+        
+        if "override_equal_mu" in MCMC_fields:
+            if verbose: ofstream.write("# Force parameters mu_n and mu_p to be equal.\n")
+            emu = MCMC_fields["override_equal_mu"]
+            ofstream.write(f"Force equal mu: {emu}\n")
+        if "override_equal_s" in MCMC_fields:
+            if verbose: ofstream.write("# Force parameters Sf and Sb to be equal.\n")
+            es = MCMC_fields["override_equal_s"]
+            ofstream.write(f"Force equal S: {es}\n")
+            
         if verbose: ofstream.write("# Compare log of measurements and simulations for "
                                    "purpose of likelihood evaluation. Recommended to be 1 or True. \n")
         logpl = MCMC_fields["log_pl"]
@@ -634,7 +638,6 @@ def validate_MCMC_fields(MCMC_fields : dict, supported_solvers=("odeint", "solve
     required_keys = ("init_cond_path","measurement_path","output_path",
                      "num_iters","solver",
                      "anneal_params",
-                     "override_equal_mu","override_equal_s",
                      "log_pl","self_normalize",
                      "proposal_function","one_param_at_a_time",
                      "checkpoint_dirname","checkpoint_header",
@@ -704,15 +707,17 @@ def validate_MCMC_fields(MCMC_fields : dict, supported_solvers=("odeint", "solve
     if not all(map(lambda x: x > 0, anneal)):
         raise ValueError("anneal_params must all be positive")
         
-    mu = MCMC_fields["override_equal_mu"]
-    if not (isinstance(mu, (int, np.integer)) and 
-            (mu == 0 or mu == 1)):
-        raise ValueError("override equal_mu invalid - must be 0 or 1")
+    if "override_equal_mu" in MCMC_fields:
+        mu = MCMC_fields["override_equal_mu"]
+        if not (isinstance(mu, (int, np.integer)) and 
+                (mu == 0 or mu == 1)):
+            raise ValueError("override equal_mu invalid - must be 0 or 1")
         
-    s = MCMC_fields["override_equal_s"]
-    if not (isinstance(s, (int, np.integer)) and 
-            (s == 0 or s == 1)):
-        raise ValueError("override equal_s invalid - must be 0 or 1")
+    if "override_equal_s" in MCMC_fields:
+        s = MCMC_fields["override_equal_s"]
+        if not (isinstance(s, (int, np.integer)) and 
+                (s == 0 or s == 1)):
+            raise ValueError("override equal_s invalid - must be 0 or 1")
         
     logpl = MCMC_fields["log_pl"]
     if not (isinstance(logpl, (int, np.integer)) and 
