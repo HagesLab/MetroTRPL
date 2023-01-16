@@ -31,7 +31,7 @@ def check_valid_filename(file_name):
     """Screens file_name for prohibited characters
         This one allows slashes
     """
-    prohibited_characters = ["<",">","/","*","?",":","\"","|"]
+    prohibited_characters = ["<",">","*","?",":","\"","|"]
 	# return !any(char in file_name for char in prohibited_characters)
     if any(char in file_name for char in prohibited_characters):
         return False

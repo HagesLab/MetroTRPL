@@ -15,11 +15,13 @@ from bayes_io import generate_config_script_file
 
 if __name__ == "__main__":
     # Just some HiperGator-specific stuff
-    on_hpg = 0
+    on_hpg = 1
     try:
         jobid = int(sys.argv[1])
+        script_head = sys.argv[2]
     except IndexError:
         jobid = 0
+        script_head = "mcmc"
 
     if on_hpg:
         init_dir = r"/blue/c.hages/cfai2304/Metro_in"
@@ -30,19 +32,21 @@ if __name__ == "__main__":
         out_dir = r"trts_outputs"
 
     # Filenames
-    init_fname = "3B1FSGS_TRTS_input_new.csv"
-    exp_fname = "3B1FSGS_TRTS_NEW.csv"
-    out_fname = "DEBUG"
+    init_fname = "staub_MAPI_power_input.csv"
+    exp_fname = "real_staub_aug_corr.csv"
+    out_fname = "TEST_REAL_STAUB"
 
     # Save this script to...
-    script_path = f"mcmc{jobid}.txt"
+    script_path = f"{script_head}{jobid}.txt"
+
+    np.random.seed(10000000*(jobid+1))
     
     # Info for each measurement's corresponding simulation
-    num_measurements = 4
+    num_measurements = 3
     Length = [311,2000,311,2000, 311, 2000]
-    Length  = [3000, 3000, 3000, 3000]             # Length (nm)
+    Length  = [311, 311, 311]             # Length (nm)
     L   = 128                                # Spatial points
-    measurement_types = ["TRTS", "TRTS", "TRTS", "TRTS"]
+    measurement_types = ["TRPL"]*3
     simPar = {"lengths": Length, 
               "nx": L,
               "meas_types": measurement_types,
@@ -65,24 +69,24 @@ if __name__ == "__main__":
               "m":1}
 
     initial_guesses = {"n0":1e8,
-                       "p0": 1e14,
-                       "mu_n": 20,
-                       "mu_p": 20,
-                       "ks": 5.958e-11,
-                       "Cn": 1e-29,
-                       "Cp": 1e-29,
-                       "Sf":2.1e2,
-                       "Sb": 2.665e2,
-                       "tauN": 4.708e2,
-                       "tauP": 1.961e2,
+                       "p0": 10 ** np.random.uniform(12, 16),
+                       "mu_n": 10 ** np.random.uniform(0, 2),
+                       "mu_p": 10 ** np.random.uniform(0, 2),
+                       "ks": 10 ** np.random.uniform(-14, -10),
+                       "Cn": 10 ** np.random.uniform(-29, -27),
+                       "Cp": 10 ** np.random.uniform(-29, -27),
+                       "Sf": 10 ** np.random.uniform(1, 4),
+                       "Sb": 10 ** np.random.uniform(1, 4),
+                       "tauN": 10 ** np.random.uniform(2, 4),
+                       "tauP": 10 ** np.random.uniform(2, 4),
                        "eps":10,
                        "Tm":300,
                        "m":1}
 
     active_params = {"n0":0,
                      "p0":1,
-                     "mu_n":0,
-                     "mu_p":0,
+                     "mu_n":1,
+                     "mu_p":1,
                      "ks":1,
                      "Cn":1,
                      "Cp":1,
@@ -118,7 +122,7 @@ if __name__ == "__main__":
                   "init_variance":initial_variance}
 
     # Measurement preprocessing options
-    meas_fields = {"time_cutoff":[0, np.inf],
+    meas_fields = {"time_cutoff":[0, 2000],
                    "select_obs_sets": None, #[0,1,2],
                    "noise_level":None}
 
@@ -127,19 +131,17 @@ if __name__ == "__main__":
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
-                   "num_iters": 10,
+                   "num_iters": 25000,
                    "solver": "solveivp",
                    "model_uncertainty": 1/2500*0.1,
                    "log_pl":1,
-                   "self_normalize":1,
+                   "self_normalize":0,
                    "proposal_function":"box", # box or gauss; anything else disables new proposals
                    "one_param_at_a_time":0,
                    "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
                    "checkpoint_header": f"CPU{jobid}",
-                   "checkpoint_freq":5, # Save a checkpoint every #this many iterations#
+                   "checkpoint_freq":12000, # Save a checkpoint every #this many iterations#
                    "load_checkpoint": None,
                    }
     
     generate_config_script_file(script_path, simPar, param_info, meas_fields, MCMC_fields, verbose=False)
-    from bayes_io import read_config_script_file
-    print(read_config_script_file("mcmc0.txt"))

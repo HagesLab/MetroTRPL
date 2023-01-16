@@ -8,7 +8,7 @@ import os
 import logging
 from datetime import datetime
 
-def start_logging(log_dir="Logs"):
+def start_logging(log_dir="Logs", name=""):
 
     if not os.path.isdir(log_dir):
         try:
@@ -17,11 +17,11 @@ def start_logging(log_dir="Logs"):
             pass
 
     tstamp = str(datetime.now()).replace(":", "-")
-    #logging.basicConfig(filename=os.path.join(log_dir, f"{tstamp}.log"), filemode='a', level=logging.DEBUG)
+    #logging.basicConfig(filename=os.path.join(log_dir, f"{name}-{tstamp}.log"), filemode='a', level=logging.DEBUG)
     logger = logging.getLogger("Metro Logger Main")
     logger.setLevel(logging.DEBUG)
 
-    handler = logging.FileHandler(os.path.join(log_dir, f"{tstamp}.log"))
+    handler = logging.FileHandler(os.path.join(log_dir, f"{name}-{tstamp}.log"))
     handler.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter(

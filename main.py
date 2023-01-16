@@ -15,13 +15,15 @@ from metropolis import metro
 
 if __name__ == "__main__":
     # Some HiperGator specific stuff
-    on_hpg = 0
-    try:
-        jobid = int(sys.argv[1])
-    except IndexError:
+    on_hpg = 1
+    if on_hpg:
+        jobid = int(os.getenv('SLURM_ARRAY_TASK_ID'))
+        script_head = sys.argv[1]
+    else:
         jobid = 0
-    
-    script_path = "mcmc0.txt"
+        script_head = "mcmc"
+        
+    script_path = f"{script_head}{jobid}.txt"
 
     
     try:
@@ -30,7 +32,7 @@ if __name__ == "__main__":
         print(e)
         sys.exit()
         
-    logger, handler = start_logging(log_dir=MCMC_fields["output_path"])
+    logger, handler = start_logging(log_dir=MCMC_fields["output_path"], name=f"CPU{jobid}")
     
     
     if not os.path.isdir(MCMC_fields["checkpoint_dirname"]):
@@ -41,7 +43,7 @@ if __name__ == "__main__":
         for chpt in os.listdir(MCMC_fields["checkpoint_dirname"]):
             os.remove(os.path.join(MCMC_fields["checkpoint_dirname"], chpt))
 
-    np.random.seed(0)
+    np.random.seed(jobid)
 
     if not os.path.isdir(MCMC_fields["output_path"]):
         os.makedirs(MCMC_fields["output_path"], exist_ok=True)
