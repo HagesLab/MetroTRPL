@@ -25,7 +25,8 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(expected, ic)
         return
     
-    def test_get_data(self):
+    def test_get_data_basic(self):
+        # Basic selection and cutting operations on dataset
         ic_flags = {'time_cutoff':None,
                     'select_obs_sets':None,
                     'noise_level':None}
@@ -65,34 +66,60 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(vals, expected_vals)
         np.testing.assert_equal(uncs, expected_uncs)
         
+    def test_get_data_transform(self):
+        # Normalization, scaling, and log operators
+        ic_flags = {'time_cutoff':None,
+                    'select_obs_sets':None,
+                    'noise_level':None}
+        
+        sim_flags = {'log_pl':False,
+                     'self_normalize':False}
+        
+        where_inits = os.path.join("Tests", "testfiles", "test_data.csv")
+        ic_flags['time_cutoff'] = [-np.inf, 1]
+        ic_flags['select_obs_sets'] = [0, 4]
+        
         sim_flags["self_normalize"] = True
         with np.errstate(divide='ignore', invalid='ignore'):
             times, vals, uncs = get_data(where_inits, ic_flags, sim_flags, scale_f=1)
         expected_times = [np.array([0]), np.array([0,1])]
+        # First curve is a single datapoint with val=0, so norm should fail
+        # Second curve orig vals is 4, so should be divided by 4
         expected_vals = [np.array([np.nan]), np.array([1,1])]
-        expected_uncs = [np.array([0]), np.array([40, 40])]
+        expected_uncs = [np.array([np.nan]), np.array([10, 10])]
         
         np.testing.assert_equal(times, expected_times)
         np.testing.assert_equal(vals, expected_vals)
         np.testing.assert_equal(uncs, expected_uncs)
         
+        # Scaling should apply before norm so final result is still normalized
+        random_scale_factor = 235125
+        with np.errstate(divide='ignore', invalid='ignore'):
+            times, vals, uncs = get_data(where_inits, ic_flags, sim_flags, 
+                                         scale_f=random_scale_factor)
+        expected_times = [np.array([0]), np.array([0,1])]
+        # First curve is a single datapoint with val=0, so norm should fail
+        # Second curve orig vals is 4, so should be divided by 4
+        expected_vals = [np.array([np.nan]), np.array([1,1])]
+        expected_uncs = [np.array([np.nan]), np.array([10, 10])]
+        
+        np.testing.assert_equal(times, expected_times)
+        np.testing.assert_equal(vals, expected_vals)
+        np.testing.assert_equal(uncs, expected_uncs)
+        
+        # Order of ops: should norm then log
         sim_flags["log_pl"] = True
         with np.errstate(divide='ignore', invalid='ignore'):
             times, vals, uncs = get_data(where_inits, ic_flags, sim_flags, scale_f=1)
         expected_times = [np.array([0]), np.array([0,1])]
+        
         expected_vals = [np.array([np.nan]), np.array([0,0])]
-        expected_uncs = [np.array([np.nan]), np.array([40, 40]) / np.log(10)]
+        expected_uncs = [np.array([np.nan]), np.array([10, 10]) / np.log(10)]
         
         np.testing.assert_equal(times, expected_times)
         np.testing.assert_equal(vals, expected_vals)
         np.testing.assert_equal(uncs, expected_uncs)
-        
-        ic_flags["noise_level"] = 1
-        np.random.seed(42)
-        with np.errstate(divide='ignore', invalid='ignore'):
-            times, vals, uncs = get_data(where_inits, ic_flags, sim_flags, scale_f=1, verbose=True)
-            
-        
+                
         ic_flags = {'time_cutoff':None,
                     'select_obs_sets':None,
                     'noise_level':None}

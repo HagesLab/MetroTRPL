@@ -21,7 +21,9 @@ q = 1.0 # [e]
 q_C = 1.602e-19 # [C]
 kB = 8.61773e-5  # [eV / K]
 MIN_HMAX = 1e-2 # [ns]
-MAX_TRIAL_ATTEMPTS = 100
+DEFAULT_RTOL = 1e-7
+DEFAULT_ATOL = 1e-10
+DEFAULT_HMAX = 4
 
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
@@ -33,7 +35,7 @@ def E_field(N, P, PA, dx, corner_E=0):
         E = np.concatenate((np.ones(shape=(num_tsteps,1))*corner_E, E), axis=1)
     return E
 
-def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=1e-10, ATOL=1e-14):
+def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
     """ Calculate one simulation. """
     N = init_dN + p.n0
     P = init_dN + p.p0
@@ -63,9 +65,8 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=1e-10, ATOL=1e-14)
         raise NotImplementedError("TRTS or TRPL only")
 
 def check_approved_param(new_p, param_info):
-    """ Screen out non-physical or unrealistic proposed trial moves. """
-    #FIXME: This should check whether larams are log
-    order = param_info['names']
+    """ Raise a warning for non-physical or unrealistic proposed trial moves. """
+    order = list(param_info['names'])
     ucs = param_info.get('unit_conversions', {})
     do_log = param_info["do_log"]
     checks = {}
@@ -196,8 +197,9 @@ def check_approved_param(new_p, param_info):
     else:
         checks["tn_tp_close"] = True
 
-    approved = all(checks.values()) if len(checks) > 0 else True
-    return approved
+    failed_checks = [k for k in checks if not checks[k]]
+    
+    return failed_checks
 
 def select_next_params(p, means, variances, param_info, trial_function="box", logger=None):
     """ Trial move function: 
@@ -215,33 +217,27 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
             mean[i] = np.log10(mean[i])
 
     cov = variances.cov
-    approved = False
-    attempts = 0
-    while not approved:
 
-        if trial_function == "box":
-            new_p = np.zeros_like(mean)
-            for i, param in enumerate(names):
-                new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
-                if secret_mu and param == "mu_p":
-                    new_muambi = np.random.normal(20, 0.3) * param_info["unit_conversions"]["mu_n"]
-                    new_p[i] = np.log10((2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
+    if trial_function == "box":
+        new_p = np.zeros_like(mean)
+        for i, param in enumerate(names):
+            new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
+            if secret_mu and param == "mu_p":
+                new_muambi = np.random.normal(20, 0.3) * param_info["unit_conversions"]["mu_n"]
+                new_p[i] = np.log10((2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
 
-        elif trial_function == "gauss":
-            try:
-                assert np.all(cov >= 0)
-                new_p = np.random.multivariate_normal(mean, cov)
-            except Exception:
-                if logger is not None:
-                    logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
-                new_p = mean
+    elif trial_function == "gauss":
+        try:
+            assert np.all(cov >= 0)
+            new_p = np.random.multivariate_normal(mean, cov)
+        except Exception:
+            if logger is not None:
+                logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
+            new_p = mean
 
-        approved = check_approved_param(new_p, param_info)
-        attempts += 1
-        if attempts > MAX_TRIAL_ATTEMPTS: break
-
-    if logger is not None:
-        logger.info(f"Found suitable parameters in {attempts} attempts")
+    failed_checks = check_approved_param(new_p, param_info)
+    if logger is not None and len(failed_checks) > 0:
+        logger.warning("Failed checks: {}".format(failed_checks))
 
     for i, param in enumerate(names):
         if is_active[param]:
@@ -251,7 +247,8 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
                 setattr(p, param, new_p[i])
     return
 
-def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", solver="solveivp", rtol=1e-10, atol=1e-14):
+def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", 
+                  solver="solveivp", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
     """ Set up one simulation. """
     g = Grid()
     g.thickness = thickness
@@ -282,22 +279,23 @@ def roll_acceptance(logratio):
     return accepted
 
 def unpack_simpar(simPar, i):
-    thickness = simPar[0][i] if isinstance(simPar[0], list) else simPar[0]
-    nx = simPar[2]
-    return thickness, nx
+    thickness = simPar["lengths"][i]
+    nx = simPar["nx"]
+    meas_type = simPar["meas_types"][i]
+    return thickness, nx, meas_type
 
-def anneal(t, anneal_mode, anneal_params):
-    if anneal_mode is None or anneal_mode == "None":
-        return anneal_params[2]
+# def anneal(t, anneal_mode, anneal_params):
+#     if anneal_mode is None or anneal_mode == "None":
+#         return anneal_params[2]
 
-    elif anneal_mode == "exp":
-        return anneal_params[0] * np.exp(-t / anneal_params[1]) + anneal_params[2]
+#     elif anneal_mode == "exp":
+#         return anneal_params[0] * np.exp(-t / anneal_params[1]) + anneal_params[2]
 
-    elif anneal_mode == "log":
-        return (anneal_params[0] * np.log(2)) / (np.log(t / anneal_params[1] + 2)) + anneal_params[2]
+#     elif anneal_mode == "log":
+#         return (anneal_params[0] * np.log(2)) / (np.log(t / anneal_params[1] + 2)) + anneal_params[2]
 
-    else:
-        raise ValueError("Invalid annealing type")
+#     else:
+#         raise ValueError("Invalid annealing type")
         
 def detect_sim_fail(sol, ref_vals):
     fail = len(sol) < len(ref_vals)
@@ -318,17 +316,17 @@ def almost_equal(x, x0, threshold=1e-10):
 
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
-def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
-    i, iniPar, times, vals = args
-    STARTING_HMAX = sim_flags["hmax"]
-    RTOL = sim_flags["rtol"]
-    ATOL = sim_flags["atol"]
-    thickness, nx = unpack_simpar(simPar, i)
+def one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, args):
+    i, iniPar, times, vals, uncs = args
+    STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
+    RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
+    ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
+    thickness, nx, meas_type = unpack_simpar(simPar, i)
     hmax[i] = min(STARTING_HMAX, hmax[i] * 2) # Always attempt a slightly larger hmax than what worked at previous proposal
     
     while hmax[i] > MIN_HMAX:
-        sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=sim_flags["measurement"], 
-                            solver=sim_flags["solver"], rtol=RTOL, atol=ATOL)
+        sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=meas_type, 
+                            solver=MCMC_fields["solver"], rtol=RTOL, atol=ATOL)
         
         #if verbose: 
         logger.info("{}: Simulation complete hmax={}; t {}-{}".format(i, hmax, times[0], times[len(sol)-1]))
@@ -343,11 +341,11 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.warning(f"{i}: Retrying hmax={hmax}")
             
-        elif sim_flags.get("verify_hmax", False):
+        elif MCMC_fields.get("verify_hmax", False):
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
-            sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=sim_flags["measurement"],
-                                  solver=sim_flags["solver"], rtol=RTOL, atol=ATOL)
+            sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=meas_type,
+                                  solver=MCMC_fields["solver"], rtol=RTOL, atol=ATOL)
             if almost_equal(sol, sol2, threshold=RTOL):
                 logger.info("Success!")
                 break
@@ -359,23 +357,11 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
         else:
             break
     try:
-        if sim_flags.get("self_normalize", False):
+        if MCMC_fields.get("self_normalize", False):
             sol /= np.nanmax(sol)
         # TODO: accomodate multiple experiments, just like bayes
-        # skip_time_interpolation = almost_equal(sim_times, times)
 
-        # if logger is not None: 
-        #     if skip_time_interpolation:
-        #         logger.info("Experiment {}: No time interpolation needed; bypassing".format(0))
-
-        #     else:
-        #         logger.info("Experiment {}: time interpolating".format(0))
-
-        # if skip_time_interpolation:
-        #     sol_int = sol
-        # else:
-        #     sol_int = griddata(sim_times, sol, times)
-        likelihood = -np.sum((np.log10(sol) + np.log10(p.m) - vals)**2)
+        likelihood = -np.sum((np.log10(sol) + np.log10(p.m) - vals)**2 / (MCMC_fields["model_uncertainty"] + 2*uncs**2))
 
         # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
         if fail or np.isnan(likelihood): raise ValueError(f"{i}: Simulation failed!")
@@ -385,27 +371,26 @@ def one_sim_likelihood(p, simPar, hmax, sim_flags, logger, args):
     return likelihood
         
 
-def run_iteration(p, simPar, iniPar, times, vals, hmax, sim_flags, verbose, logger, prev_p=None, t=0):
+def run_iteration(p, simPar, iniPar, times, vals, uncs, hmax, MCMC_fields, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
     accepted = True
     logratio = 0 # acceptance ratio = 1
     p.likelihood = np.zeros(len(iniPar))
     
-    if sim_flags.get("use_multi_cpus", False):
+    if MCMC_fields.get("use_multi_cpus", False):
         raise NotImplementedError
-        #with Pool(sim_flags["num_cpus"]) as pool:
-        #    likelihoods = pool.map(partial(one_sim_likelihood, p, simPar, hmax, sim_flags, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
+        #with Pool(MCMC_fields["num_cpus"]) as pool:
+        #    likelihoods = pool.map(partial(one_sim_likelihood, p, simPar, hmax, MCMC_fields, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
         #    p.likelihood = np.array(likelihoods)
                 
     else:
         for i in range(len(iniPar)):
-            p.likelihood[i] = one_sim_likelihood(p, simPar, hmax, sim_flags, logger, (i, iniPar[i], times[i], vals[i]))
+            p.likelihood[i] = one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, (i, iniPar[i], times[i], vals[i], uncs[i]))
             
     if prev_p is not None:
-        T = anneal(t, sim_flags.get("anneal_mode", None), sim_flags["anneal_params"])
-        logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood)) / T
+        logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
         if verbose and logger is not None: 
-            logger.debug(f"Temperature: {T}")
+            logger.debug("Model unc: {}".format(MCMC_fields["model_uncertainty"]))
         if np.isnan(logratio): logratio = -np.inf
         
         if verbose and logger is not None: 
@@ -429,41 +414,41 @@ def all_signal_handler(func):
             continue
     return
 
-def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbose, logger, initial_guess):
+def metro(simPar, iniPar, e_data, MCMC_fields, param_info, verbose, logger):
     # Setup
     logger.info("PID: {}".format(os.getpid()))
     all_signal_handler(kill_from_cl)
 
-    num_iters = sim_flags["num_iters"]
-    DA_mode = sim_flags.get("delayed_acceptance", "off")
-    checkpoint_freq = sim_flags["checkpoint_freq"]
-    load_checkpoint = sim_flags["load_checkpoint"]
-    STARTING_HMAX = sim_flags["hmax"]
+    num_iters = MCMC_fields["num_iters"]
+    DA_mode = MCMC_fields.get("delayed_acceptance", "off")
+    checkpoint_freq = MCMC_fields["checkpoint_freq"]
+    load_checkpoint = MCMC_fields["load_checkpoint"]
+    STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
     
-    if sim_flags.get("use_multi_cpus", False):
-        sim_flags["num_cpus"] = min(os.cpu_count(), len(iniPar))
-        logger.info("Taking {} cpus".format(sim_flags["num_cpus"]))
+    if MCMC_fields.get("use_multi_cpus", False):
+        MCMC_fields["num_cpus"] = min(os.cpu_count(), len(iniPar))
+        logger.info("Taking {} cpus".format(MCMC_fields["num_cpus"]))
     
     times, vals, uncs = e_data
-    # As init temperature we take cN, where c is specified in main and N is number of observations
-    sim_flags["anneal_params"][0] *= sum([len(time)-1 for time in times])
-    sim_flags["anneal_params"][2] *= sum([len(time)-1 for time in times])
-
+    # As model unc we take cN, where c is specified in main and N is number of observations
+    MCMC_fields["model_uncertainty"] *= sum([len(time)-1 for time in times])
+    
     if load_checkpoint is not None:
-        with open(os.path.join(sim_flags["checkpoint_dirname"], load_checkpoint), 'rb') as ifstream:
+        with open(os.path.join(MCMC_fields["checkpoint_dirname"], load_checkpoint), 'rb') as ifstream:
             MS = pickle.load(ifstream)
             np.random.set_state(MS.random_state)
             starting_iter = int(load_checkpoint[load_checkpoint.find("_")+1:load_checkpoint.rfind(".pik")])+1
             MS.H.extend(num_iters, param_info)
-            MS.sim_flags = dict(sim_flags)
+            MS.MCMC_fields = dict(MCMC_fields)
 
     else:
-        MS = MetroState(param_info, sim_flags, initial_guess, initial_variance, num_iters)
+        MS = MetroState(param_info, MCMC_fields, num_iters)
+
         starting_iter = 1
     
         # Calculate likelihood of initial guess
         MS.running_hmax = [STARTING_HMAX] * len(iniPar)
-        run_iteration(MS.prev_p, simPar, iniPar, times, vals, MS.running_hmax, sim_flags, verbose, logger)
+        run_iteration(MS.prev_p, simPar, iniPar, times, vals, uncs, MS.running_hmax, MCMC_fields, verbose, logger)
         MS.H.update(0, MS.prev_p, MS.means, param_info)
 
     for k in range(starting_iter, num_iters):
@@ -472,22 +457,22 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             logger.info("Iter {}".format(k))
             logger.info("#####")
             # Identify which parameter to move
-            if sim_flags.get("one_param_at_a_time", 0):
+            if MCMC_fields.get("one_param_at_a_time", 0):
                 picked_param = MS.means.actives[k % len(MS.means.actives)]
             else:
                 picked_param = None
                 
             # Select next sample from distribution
             
-            if sim_flags.get("adaptive_covariance", "None") == "None":
+            if MCMC_fields.get("adaptive_covariance", "None") == "None":
                 MS.variances.mask_covariance(picked_param)
 
-            select_next_params(MS.p, MS.means, MS.variances, MS.param_info, sim_flags["proposal_function"], logger)
+            select_next_params(MS.p, MS.means, MS.variances, MS.param_info, MCMC_fields["proposal_function"], logger)
             
             if verbose: MS.print_status(logger)
                     
             if DA_mode == "off":
-                accepted = run_iteration(MS.p, simPar, iniPar, times, vals, MS.running_hmax, sim_flags, verbose, logger, prev_p=MS.prev_p, t=k)
+                accepted = run_iteration(MS.p, simPar, iniPar, times, vals, uncs, MS.running_hmax, MCMC_fields, verbose, logger, prev_p=MS.prev_p, t=k)
                 
             elif DA_mode == 'DEBUG':
                 accepted = False
@@ -506,8 +491,8 @@ def metro(simPar, iniPar, e_data, sim_flags, param_info, initial_variance, verbo
             break
         
         if checkpoint_freq is not None and k % checkpoint_freq == 0:
-            chpt_header = sim_flags["checkpoint_header"]
-            chpt_fname = os.path.join(sim_flags["checkpoint_dirname"], f"checkpoint{chpt_header}_{k}.pik")
+            chpt_header = MCMC_fields["checkpoint_header"]
+            chpt_fname = os.path.join(MCMC_fields["checkpoint_dirname"], f"checkpoint{chpt_header}_{k}.pik")
             logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
             MS.random_state = np.random.get_state()
             MS.checkpoint(chpt_fname)

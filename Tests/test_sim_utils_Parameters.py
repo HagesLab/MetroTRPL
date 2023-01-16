@@ -21,15 +21,19 @@ class TestUtils(unittest.TestCase):
         self.dummy_param_info = {'names':self.dummy_names,
                             'unit_conversions':self.dummy_unitconversions,
                             'do_log':self.dummy_do_log,
-                            'active':self.dummy_active}
+                            'active':self.dummy_active,
+                            'init_guess':self.dummy_parameters}
         
         # Our working Parameters object example
-        self.testp = Parameters(self.dummy_param_info, self.dummy_parameters)
+        self.testp = Parameters(self.dummy_param_info)
     
     def test_initialization(self):
         # Test initialization
         for param in self.dummy_names:
             self.assertEqual(getattr(self.testp, param), self.dummy_parameters[param])
+            
+        # THere should also be the 'm' param defined by default
+        self.assertEqual(getattr(self.testp, 'm'), 1)
             
     def test_as_array(self):
         # Test asarray
@@ -41,17 +45,19 @@ class TestUtils(unittest.TestCase):
         # Test init with duplicate params
         duplicate_names = ['a', 'a']
         dup_info = {'names':duplicate_names,
-                    'unit_conversions':self.dummy_unitconversions}
+                    'unit_conversions':self.dummy_unitconversions,
+                    'init_guess':self.dummy_parameters}
         with self.assertRaises(KeyError):
-            Parameters(dup_info, self.dummy_parameters)
+            Parameters(dup_info)
             
     def test_missing_params(self):
         # Test init with missing param values
         bad_params = {}
-        dup_info = {'names':self.dummy_names}
+        dup_info = {'names':self.dummy_names,
+                    'init_guess':bad_params}
         
         with self.assertRaises(KeyError):
-            Parameters(dup_info, bad_params)
+            Parameters(dup_info)
             
     def test_unit_conversion(self):
         # Test unit conversion
@@ -63,7 +69,7 @@ class TestUtils(unittest.TestCase):
     def test_do_log(self):
         # Test make log
         # Regenerate original Parmaeters() first
-        self.testp = Parameters(self.dummy_param_info, self.dummy_parameters)
+        self.testp = Parameters(self.dummy_param_info)
         self.testp.make_log(self.dummy_param_info)
         expected_logged_values = {'a':0, 'b':2, 'c':3, 'mu_n':np.log10(4)}
         for param in self.dummy_names:
@@ -80,9 +86,10 @@ class TestUtils(unittest.TestCase):
         # Should (but not required) contain one for each name
 
         other_param_info = {"names":other_names,
-                            "active":{}}
-        other = Parameters(other_param_info, other_parameters)
-        self.testp = Parameters(self.dummy_param_info, self.dummy_parameters)
+                            "active":{},
+                            "init_guess":other_parameters}
+        other = Parameters(other_param_info)
+        self.testp = Parameters(self.dummy_param_info)
         
         self.testp.transfer_from(other, self.dummy_param_info)
         
