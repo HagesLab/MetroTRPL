@@ -548,7 +548,6 @@ class TestUtils(unittest.TestCase):
                          "tauP":1e99, 
                          "eps":10, 
                          "m":1}
-        
         param_info["init_guess"] = initial_guess
         
         sim_flags = {"model_uncertainty": 1, 

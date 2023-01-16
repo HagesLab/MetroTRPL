@@ -65,7 +65,7 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=DEFAULT_RTOL, ATOL
         raise NotImplementedError("TRTS or TRPL only")
 
 def check_approved_param(new_p, param_info):
-    """ Screen out non-physical or unrealistic proposed trial moves. """
+    """ Raise a warning for non-physical or unrealistic proposed trial moves. """
     order = list(param_info['names'])
     ucs = param_info.get('unit_conversions', {})
     do_log = param_info["do_log"]
@@ -443,6 +443,7 @@ def metro(simPar, iniPar, e_data, MCMC_fields, param_info, verbose, logger):
 
     else:
         MS = MetroState(param_info, MCMC_fields, num_iters)
+
         starting_iter = 1
     
         # Calculate likelihood of initial guess

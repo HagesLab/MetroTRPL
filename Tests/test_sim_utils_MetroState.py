@@ -27,8 +27,7 @@ class TestUtils(unittest.TestCase):
                             'active':dummy_active,
                             'init_guess':dummy_initial_guesses,
                             'init_variance':dummy_initial_variance}
-        
-        
+
         dummy_sim_flags = {} # Only so this gets exported as part of the pickle
         num_iters = 100
         ms = MetroState(dummy_param_info, dummy_sim_flags, num_iters)
