@@ -130,6 +130,15 @@ def get_initpoints(init_file, ic_flags, scale_f=1e-21):
         initpoints = np.array(initpoints)[SELECT]
     return np.array(initpoints, dtype=float) * scale_f
 
+def make_dir(dirname):
+    if not os.path.isdir(dirname):
+        os.makedirs(dirname, exist_ok=True)
+
+def clear_checkpoint_dir(MCMC_fields):
+    if MCMC_fields["load_checkpoint"] is None:
+        for chpt in os.listdir(MCMC_fields["checkpoint_dirname"]):
+            os.remove(os.path.join(MCMC_fields["checkpoint_dirname"], chpt))
+
 def put_into_param_info(param_info, vals, new_key):
     if "names" not in param_info:
         raise KeyError("Entry \"Param names\" not found in MCMC config file.\n"

@@ -10,10 +10,13 @@ from scipy.integrate import solve_ivp, odeint
 import os
 import sys
 import signal
+import pickle
 
 from forward_solver import dydt_numba
 from sim_utils import MetroState, Grid, Solution
-import pickle
+from mcmc_logging import start_logging, stop_logging
+from bayes_io import make_dir, clear_checkpoint_dir
+
 
 ## Constants
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
@@ -278,10 +281,10 @@ def roll_acceptance(logratio):
             accepted = True
     return accepted
 
-def unpack_simpar(simPar, i):
-    thickness = simPar["lengths"][i]
-    nx = simPar["nx"]
-    meas_type = simPar["meas_types"][i]
+def unpack_simpar(sim_info, i):
+    thickness = sim_info["lengths"][i]
+    nx = sim_info["nx"]
+    meas_type = sim_info["meas_types"][i]
     return thickness, nx, meas_type
 
 # def anneal(t, anneal_mode, anneal_params):
@@ -316,12 +319,12 @@ def almost_equal(x, x0, threshold=1e-10):
 
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
-def one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, args):
+def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
     i, iniPar, times, vals, uncs = args
     STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
     RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
     ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
-    thickness, nx, meas_type = unpack_simpar(simPar, i)
+    thickness, nx, meas_type = unpack_simpar(sim_info, i)
     hmax[i] = min(STARTING_HMAX, hmax[i] * 2) # Always attempt a slightly larger hmax than what worked at previous proposal
     
     while hmax[i] > MIN_HMAX:
@@ -371,7 +374,7 @@ def one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, args):
     return likelihood
         
 
-def run_iteration(p, simPar, iniPar, times, vals, uncs, hmax, MCMC_fields, verbose, logger, prev_p=None, t=0):
+def run_iteration(p, sim_info, iniPar, times, vals, uncs, hmax, MCMC_fields, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
     accepted = True
     logratio = 0 # acceptance ratio = 1
@@ -380,12 +383,12 @@ def run_iteration(p, simPar, iniPar, times, vals, uncs, hmax, MCMC_fields, verbo
     if MCMC_fields.get("use_multi_cpus", False):
         raise NotImplementedError
         #with Pool(MCMC_fields["num_cpus"]) as pool:
-        #    likelihoods = pool.map(partial(one_sim_likelihood, p, simPar, hmax, MCMC_fields, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
+        #    likelihoods = pool.map(partial(one_sim_likelihood, p, sim_info, hmax, MCMC_fields, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
         #    p.likelihood = np.array(likelihoods)
                 
     else:
         for i in range(len(iniPar)):
-            p.likelihood[i] = one_sim_likelihood(p, simPar, hmax, MCMC_fields, logger, (i, iniPar[i], times[i], vals[i], uncs[i]))
+            p.likelihood[i] = one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, (i, iniPar[i], times[i], vals[i], uncs[i]))
             
     if prev_p is not None:
         logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
@@ -414,10 +417,23 @@ def all_signal_handler(func):
             continue
     return
 
-def metro(simPar, iniPar, e_data, MCMC_fields, param_info, verbose, logger):
+def metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False, export_path=None,
+          logger=None):
+    
+    if logger is None: # Require a logger
+        logger, handler = start_logging(log_dir=MCMC_fields["output_path"], name="Log-")
+        using_default_logger = True
+    else:
+        using_default_logger = False
+        
     # Setup
     logger.info("PID: {}".format(os.getpid()))
     all_signal_handler(kill_from_cl)
+    
+    if verbose:
+        logger.info("Sim info: {}".format(sim_info))
+        logger.info("Param infos: {}".format(param_info))
+        logger.info("MCMC fields: {}".format(MCMC_fields))
 
     num_iters = MCMC_fields["num_iters"]
     DA_mode = MCMC_fields.get("delayed_acceptance", "off")
@@ -425,13 +441,14 @@ def metro(simPar, iniPar, e_data, MCMC_fields, param_info, verbose, logger):
     load_checkpoint = MCMC_fields["load_checkpoint"]
     STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
     
-    if MCMC_fields.get("use_multi_cpus", False):
-        MCMC_fields["num_cpus"] = min(os.cpu_count(), len(iniPar))
-        logger.info("Taking {} cpus".format(MCMC_fields["num_cpus"]))
-    
     times, vals, uncs = e_data
     # As model unc we take cN, where c is specified in main and N is number of observations
     MCMC_fields["model_uncertainty"] *= sum([len(time)-1 for time in times])
+    
+    make_dir(MCMC_fields["checkpoint_dirname"])
+    clear_checkpoint_dir(MCMC_fields)
+    
+    make_dir(MCMC_fields["output_path"])
     
     if load_checkpoint is not None:
         with open(os.path.join(MCMC_fields["checkpoint_dirname"], load_checkpoint), 'rb') as ifstream:
@@ -448,7 +465,7 @@ def metro(simPar, iniPar, e_data, MCMC_fields, param_info, verbose, logger):
     
         # Calculate likelihood of initial guess
         MS.running_hmax = [STARTING_HMAX] * len(iniPar)
-        run_iteration(MS.prev_p, simPar, iniPar, times, vals, uncs, MS.running_hmax, MCMC_fields, verbose, logger)
+        run_iteration(MS.prev_p, sim_info, iniPar, times, vals, uncs, MS.running_hmax, MCMC_fields, verbose, logger)
         MS.H.update(0, MS.prev_p, MS.means, param_info)
 
     for k in range(starting_iter, num_iters):
@@ -472,7 +489,7 @@ def metro(simPar, iniPar, e_data, MCMC_fields, param_info, verbose, logger):
             if verbose: MS.print_status(logger)
                     
             if DA_mode == "off":
-                accepted = run_iteration(MS.p, simPar, iniPar, times, vals, uncs, MS.running_hmax, MCMC_fields, verbose, logger, prev_p=MS.prev_p, t=k)
+                accepted = run_iteration(MS.p, sim_info, iniPar, times, vals, uncs, MS.running_hmax, MCMC_fields, verbose, logger, prev_p=MS.prev_p, t=k)
                 
             elif DA_mode == 'DEBUG':
                 accepted = False
@@ -499,4 +516,12 @@ def metro(simPar, iniPar, e_data, MCMC_fields, param_info, verbose, logger):
         
     MS.H.apply_unit_conversions(param_info)
     MS.H.final_cov = MS.variances.cov
+    
+    if export_path is not None:
+        logger.info("Exporting to {}".format(MCMC_fields["output_path"]))
+        MS.checkpoint(os.path.join(MCMC_fields["output_path"], export_path))
+
+    
+    if using_default_logger:
+        stop_logging(logger, handler, 0)
     return MS
