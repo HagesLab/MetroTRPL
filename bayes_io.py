@@ -11,6 +11,7 @@ import os
 import numpy as np
 import datetime
 
+
 # Eventually use io_utils for this
 def get_split_and_clean_line(line: str):
     """Split line by colon symbol ':' and
@@ -19,24 +20,27 @@ def get_split_and_clean_line(line: str):
     split_line = [i.strip() for i in split_line]
     return split_line
 
+
 def extract_values(string, delimiter, dtype=float):
     """Converts a string with deliimiters into a list of [dtype] values"""
-	# E.g. "100,200,300" with "," delimiter becomes [100,200,300] with dtype=float,
+    # E.g. "100,200,300" with "," delimiter becomes [100,200,300] with dtype=float,
     # becomes ["100", "200", "300"] with dtype=str
     values = string.split(delimiter)
     values = np.array(values, dtype=dtype)
     return values
 
+
 def check_valid_filename(file_name):
     """Screens file_name for prohibited characters
         This one allows slashes
     """
-    prohibited_characters = ["<",">","*","?",":","\"","|"]
-	# return !any(char in file_name for char in prohibited_characters)
+    prohibited_characters = ["<", ">", "*", "?", ":", "\"", "|"]
+    # return !any(char in file_name for char in prohibited_characters)
     if any(char in file_name for char in prohibited_characters):
         return False
 
     return True
+
 
 def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
     TIME_RANGE = ic_flags['time_cutoff']
@@ -45,15 +49,15 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
 
     LOG_PL = MCMC_fields['log_pl']
     NORMALIZE = MCMC_fields["self_normalize"]
-        
+
     bval_cutoff = sys.float_info.min
-    
+
     data = np.loadtxt(exp_file, delimiter=",")
-    
-    times = data[:,0]
-    y = data[:,1]
-    uncertainty = data[:,2]
-    
+
+    times = data[:, 0]
+    y = data[:, 1]
+    uncertainty = data[:, 2]
+
     if NOISE_LEVEL is not None:
         y = (np.array(y) + NOISE_LEVEL*np.random.normal(0, 1, len(y)))
     else:
@@ -64,13 +68,13 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
     t_list = []
     y_list = []
     u_list = []
-    
+
     cutoff_indices = list(np.where(times == 0)[0]) + [None]
     for i in range(len(cutoff_indices) - 1):
         t_list.append(times[cutoff_indices[i]:cutoff_indices[i+1]])
         y_list.append(y[cutoff_indices[i]:cutoff_indices[i+1]])
         u_list.append(uncertainty[cutoff_indices[i]:cutoff_indices[i+1]])
-        
+
     if TIME_RANGE is not None:
         t_low, t_high = TIME_RANGE[0], TIME_RANGE[1]
         for i in range(len(t_list)):
@@ -79,30 +83,30 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
             t_list[i] = t_list[i][keepL:keepR]
             y_list[i] = y_list[i][keepL:keepR]
             u_list[i] = u_list[i][keepL:keepR]
-            
+
     if isinstance(scale_f, (float, int)):
         scale_f = [scale_f] * len(t_list)
-        
+
     for i in range(len(t_list)):
         y_list[i] *= scale_f[i]
         u_list[i] *= scale_f[i]
-            
+
     if NORMALIZE:
         for i in range(len(t_list)):
             norm_f = np.nanmax(y_list[i])
             y_list[i] /= norm_f
             u_list[i] /= norm_f
-                    
+
     if LOG_PL:
         # Deal with noisy negative values before taking log
         for i in range(len(t_list)):
             y_list[i] = np.abs(y_list[i])
             y_list[i][y_list[i] < bval_cutoff] = bval_cutoff
-    
+
             u_list[i] /= y_list[i]
-            u_list[i] /= np.log(10) # Since we use log10 instead of ln
+            u_list[i] /= np.log(10)  # Since we use log10 instead of ln
             y_list[i] = np.log10(y_list[i])
-    
+
     if SELECT is not None:
         t_s = []
         y_s = []
@@ -116,6 +120,7 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
     else:
         return (t_list, y_list, u_list)
 
+
 def get_initpoints(init_file, ic_flags, scale_f=1e-21):
     SELECT = ic_flags['select_obs_sets']
 
@@ -123,30 +128,35 @@ def get_initpoints(init_file, ic_flags, scale_f=1e-21):
         ifstream = csv.reader(file)
         initpoints = []
         for row in ifstream:
-            if len(row) == 0: continue
+            if len(row) == 0:
+                continue
             initpoints.append(row)
-        
+
     if SELECT is not None:
         initpoints = np.array(initpoints)[SELECT]
     return np.array(initpoints, dtype=float) * scale_f
 
+
 def make_dir(dirname):
     if not os.path.isdir(dirname):
         os.makedirs(dirname, exist_ok=True)
+
 
 def clear_checkpoint_dir(MCMC_fields):
     if MCMC_fields["load_checkpoint"] is None:
         for chpt in os.listdir(MCMC_fields["checkpoint_dirname"]):
             os.remove(os.path.join(MCMC_fields["checkpoint_dirname"], chpt))
 
+
 def put_into_param_info(param_info, vals, new_key):
     if "names" not in param_info:
         raise KeyError("Entry \"Param names\" not found in MCMC config file.\n"
                        "Check whether this entry is present and FIRST in\n"
                        "the Param Info subsection.")
-    param_info[new_key] = {param_info["names"][i]:vals[i] 
+    param_info[new_key] = {param_info["names"][i]: vals[i]
                            for i in range(len(param_info["names"]))}
     return
+
 
 def read_config_script_file(path):
     with open(path, 'r') as ifstream:
