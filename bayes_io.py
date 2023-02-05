@@ -272,6 +272,8 @@ def read_config_script_file(path):
                         MCMC_fields["self_normalize"] = int(line_split[1])
                     elif line.startswith("Proposal function"):
                         MCMC_fields["proposal_function"] = line_split[1]
+                    elif line.startswith("Use hard boundaries"):
+                        MCMC_fields["hard_bounds"] = int(line_split[1])
                     elif line.startswith("Propose params one-at-a-time"):
                         MCMC_fields["one_param_at_a_time"] = int(line_split[1])
                     elif line.startswith("Checkpoint dir"):
@@ -456,11 +458,18 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags, MCM
                                    "\n# it is recommended to try fitting 'm' instead of relying on normalization. \n")
         norm = MCMC_fields["self_normalize"]
         ofstream.write(f"Normalize all meas and sims: {norm}\n")
-        
+
         if verbose: ofstream.write("# Proposal function used to generate new states. "
                                    "Box for joint uniform box and Gauss for multivariate Gaussian. \n")
         prop_f = MCMC_fields["proposal_function"]
         ofstream.write(f"Proposal function: {prop_f}\n")
+
+        if "hard_bounds" in MCMC_fields:
+            if verbose: ofstream.write("# Whether to coerce params to stay within the bounds "
+                                       "listed in metropolis.check_approved_param(). \n"
+                                       "=1 will coerce while =0 will only warn.")
+            bound = MCMC_fields["hard_bounds"]
+            ofstream.write(f"Use hard boundaries: {bound}\n")
         
         if verbose: ofstream.write("# Whether a proposed move should change in one param or all params at once.\n")
         gibbs = MCMC_fields["one_param_at_a_time"]
@@ -739,7 +748,13 @@ def validate_MCMC_fields(MCMC_fields : dict, supported_solvers=("odeint", "solve
     if MCMC_fields["proposal_function"] not in supported_prop_funcs:
         raise ValueError("MCMC control 'proposal_function' must be a supported proposal function.\n"
                          f"Supported funcs are {supported_prop_funcs}")
-        
+
+    if "hard_bounds" in MCMC_fields:
+        bound = MCMC_fields["hard_bounds"]
+        if not (isinstance(bound, (int, np.integer)) and
+                (bound == 0 or bound == 1)):
+            raise ValueError("hard_bounds invalid - must be 0 or 1")
+
     oneaat = MCMC_fields["one_param_at_a_time"]
     if not (isinstance(oneaat, (int, np.integer)) and 
             (oneaat == 0 or oneaat == 1)):

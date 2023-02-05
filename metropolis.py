@@ -27,6 +27,7 @@ MIN_HMAX = 1e-2 # [ns]
 DEFAULT_RTOL = 1e-7
 DEFAULT_ATOL = 1e-10
 DEFAULT_HMAX = 4
+MAX_PROPOSALS = 100
 
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
@@ -204,10 +205,13 @@ def check_approved_param(new_p, param_info):
     
     return failed_checks
 
-def select_next_params(p, means, variances, param_info, trial_function="box", logger=None):
-    """ Trial move function: 
-        box: uniform rectangle centered about current state. 
-        gauss: gaussian centered about current state."""
+
+def select_next_params(p, means, variances, param_info, trial_function="box",
+                       coerce_hard_bounds=False, logger=None):
+    """ Trial move function:
+        box: uniform rectangle centered about current state.
+        gauss: gaussian centered about current state.
+    """
     is_active = param_info["active"]
     do_log = param_info["do_log"]
     names = param_info["names"]
@@ -220,12 +224,23 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
             mean[i] = np.log10(mean[i])
 
     cov = variances.cov
-    success = False
-    while not success:
+
+    tries = 0
+
+    # Try up to MAX_PROPOSALS times to come up with a proposal that stays within
+    # the hard boundaries, if we ask
+    if coerce_hard_bounds:
+        max_tries = MAX_PROPOSALS
+    else:
+        max_tries = 1
+
+    while tries < max_tries:
+        tries += 1
+
         if trial_function == "box":
             new_p = np.zeros_like(mean)
             for i, param in enumerate(names):
-                new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
+                new_p[i] = np.random.uniform(mean[i]-cov[i, i], mean[i]+cov[i, i])
                 if secret_mu and param == "mu_p":
                     new_muambi = np.random.normal(20, 0.3) * param_info["unit_conversions"]["mu_n"]
                     new_p[i] = np.log10((2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
@@ -236,11 +251,15 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
                 new_p = np.random.multivariate_normal(mean, cov)
             except Exception:
                 if logger is not None:
-                    logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
+                    logger.error(f"multivar_norm failed: mean {mean}, cov {cov}")
                 new_p = mean
 
         failed_checks = check_approved_param(new_p, param_info)
         success = len(failed_checks) == 0
+        if success:
+            logger.info("Found params in {} tries".format(tries))
+            break
+
         if logger is not None and len(failed_checks) > 0:
             logger.warning("Failed checks: {}".format(failed_checks))
 
@@ -417,19 +436,21 @@ def all_signal_handler(func):
             continue
     return
 
-def metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False, export_path=None,
-          logger=None):
-    
-    if logger is None: # Require a logger
-        logger, handler = start_logging(log_dir=MCMC_fields["output_path"], name="Log-")
+
+def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
+          verbose=False, export_path=None, logger=None):
+
+    if logger is None:  # Require a logger
+        logger, handler = start_logging(log_dir=MCMC_fields["output_path"],
+                                        name="Log-")
         using_default_logger = True
     else:
         using_default_logger = False
-        
+
     # Setup
     logger.info("PID: {}".format(os.getpid()))
     all_signal_handler(kill_from_cl)
-    
+
     if verbose:
         logger.info("Sim info: {}".format(sim_info))
         logger.info("Param infos: {}".format(param_info))
@@ -440,26 +461,31 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False, expo
     checkpoint_freq = MCMC_fields["checkpoint_freq"]
     load_checkpoint = MCMC_fields["load_checkpoint"]
     STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
-    
+
     times, vals, uncs = e_data
-    # As model unc we take cN, where c is specified in main and N is number of observations
+    # As model unc we take cN,
+    # where c is specified in main and N is number of observations
     MCMC_fields["model_uncertainty"] *= sum([len(time)-1 for time in times])
 
-    if verbose and logger is not None: 
+    if verbose and logger is not None:
         logger.debug("Model unc: {}".format(MCMC_fields["model_uncertainty"]))
         for i in range(len(uncs)):
             logger.debug("{} Max exp unc: {}".format(i, np.amax(uncs[i])))
-    
+
     make_dir(MCMC_fields["checkpoint_dirname"])
     clear_checkpoint_dir(MCMC_fields)
-    
+
     make_dir(MCMC_fields["output_path"])
-    
+
     if load_checkpoint is not None:
-        with open(os.path.join(MCMC_fields["checkpoint_dirname"], load_checkpoint), 'rb') as ifstream:
+        with open(os.path.join(MCMC_fields["checkpoint_dirname"],
+                               load_checkpoint), 'rb') as ifstream:
             MS = pickle.load(ifstream)
             np.random.set_state(MS.random_state)
-            starting_iter = int(load_checkpoint[load_checkpoint.find("_")+1:load_checkpoint.rfind(".pik")])+1
+            first_under = load_checkpoint.find("_")
+            tail = load_checkpoint.rfind(".pik")
+
+            starting_iter = int(load_checkpoint[first_under+1:tail])+1
             MS.H.extend(num_iters, param_info)
             MS.MCMC_fields = dict(MCMC_fields)
 
@@ -467,10 +493,11 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False, expo
         MS = MetroState(param_info, MCMC_fields, num_iters)
 
         starting_iter = 1
-    
+
         # Calculate likelihood of initial guess
         MS.running_hmax = [STARTING_HMAX] * len(iniPar)
-        run_iteration(MS.prev_p, sim_info, iniPar, times, vals, uncs, MS.running_hmax, MCMC_fields, verbose, logger)
+        run_iteration(MS.prev_p, sim_info, iniPar, times, vals, uncs,
+                      MS.running_hmax, MCMC_fields, verbose, logger)
         MS.H.update(0, MS.prev_p, MS.means, param_info)
 
     for k in range(starting_iter, num_iters):
@@ -483,25 +510,30 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False, expo
                 picked_param = MS.means.actives[k % len(MS.means.actives)]
             else:
                 picked_param = None
-                
+
             # Select next sample from distribution
-            
+
             if MCMC_fields.get("adaptive_covariance", "None") == "None":
                 MS.variances.mask_covariance(picked_param)
 
-            select_next_params(MS.p, MS.means, MS.variances, MS.param_info, MCMC_fields["proposal_function"], logger)
-            
-            if verbose: MS.print_status(logger)
-                    
+            select_next_params(MS.p, MS.means, MS.variances, MS.param_info,
+                               MCMC_fields["proposal_function"],
+                               MCMC_fields.get("hard_bounds", 0), logger)
+
+            if verbose:
+                MS.print_status(logger)
+
             if DA_mode == "off":
-                accepted = run_iteration(MS.p, sim_info, iniPar, times, vals, uncs, MS.running_hmax, MCMC_fields, verbose, logger, prev_p=MS.prev_p, t=k)
-                
+                accepted = run_iteration(MS.p, sim_info, iniPar, times, vals, uncs,
+                                         MS.running_hmax, MCMC_fields, verbose,
+                                         logger, prev_p=MS.prev_p, t=k)
+
             elif DA_mode == 'DEBUG':
                 accepted = False
-                
+
             if verbose and not accepted:
                 logger.info("Rejected!")
-                
+
             if accepted:
                 MS.means.transfer_from(MS.p, param_info)
                 MS.H.accept[k] = 1
@@ -511,22 +543,22 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False, expo
             logger.info("Terminating with k={} iters completed:".format(k-1))
             MS.H.truncate(k, param_info)
             break
-        
+
         if checkpoint_freq is not None and k % checkpoint_freq == 0:
             chpt_header = MCMC_fields["checkpoint_header"]
-            chpt_fname = os.path.join(MCMC_fields["checkpoint_dirname"], f"checkpoint{chpt_header}_{k}.pik")
+            chpt_fname = os.path.join(MCMC_fields["checkpoint_dirname"],
+                                      f"checkpoint{chpt_header}_{k}.pik")
             logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
             MS.random_state = np.random.get_state()
             MS.checkpoint(chpt_fname)
-        
+
     MS.H.apply_unit_conversions(param_info)
     MS.H.final_cov = MS.variances.cov
-    
+
     if export_path is not None:
         logger.info("Exporting to {}".format(MCMC_fields["output_path"]))
         MS.checkpoint(os.path.join(MCMC_fields["output_path"], export_path))
 
-    
     if using_default_logger:
         stop_logging(logger, handler, 0)
     return MS
