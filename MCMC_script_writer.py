@@ -32,9 +32,9 @@ if __name__ == "__main__":
         out_dir = r"trts_outputs"
 
     # Filenames
-    init_fname = "staub_MAPI_power_input.csv"
-    exp_fname = "real_staub_aug_corr.csv"
-    out_fname = "TEST_REAL_STAUB"
+    init_fname = "staub_MAPI_power_thick_input.csv"
+    exp_fname = "staub_MAPI_power_thick_withauger.csv"
+    out_fname = "staub_pscan_with1OM_btwn_tntp_equalized"
 
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
@@ -43,8 +43,8 @@ if __name__ == "__main__":
     
     # Info for each measurement's corresponding simulation
     num_measurements = 3
-    Length = [311,2000,311,2000, 311, 2000]
-    Length  = [311, 311, 311]             # Length (nm)
+    #Length = [311,2000,311,2000, 311, 2000]
+    Length  = [2000]*3             # Length (nm)
     L   = 128                                # Spatial points
     measurement_types = ["TRPL"]*3
     simPar = {"lengths": Length, 
@@ -69,24 +69,25 @@ if __name__ == "__main__":
               "m":1}
 
     initial_guesses = {"n0":1e8,
-                       "p0": 10 ** np.random.uniform(12, 16),
-                       "mu_n": 10 ** np.random.uniform(0, 2),
-                       "mu_p": 10 ** np.random.uniform(0, 2),
-                       "ks": 10 ** np.random.uniform(-14, -10),
-                       "Cn": 10 ** np.random.uniform(-29, -27),
-                       "Cp": 10 ** np.random.uniform(-29, -27),
-                       "Sf": 10 ** np.random.uniform(1, 4),
-                       "Sb": 10 ** np.random.uniform(1, 4),
-                       "tauN": 10 ** np.random.uniform(2, 4),
-                       "tauP": 10 ** np.random.uniform(2, 4),
+                       "p0": 1.8 * 10 ** np.random.uniform(14, 16),
+                       "mu_n": 20, #1.56 * 10 ** np.random.uniform(0, 2),
+                       "mu_p": 20, #1.56 * 10 ** np.random.uniform(0, 2),
+                       "ks": 6.1 * 10 ** np.random.uniform(-12, -10),
+                       "Cn": 1.1 * 10 ** np.random.uniform(-29, -27),
+                       "Cp": 1.1 * 10 ** np.random.uniform(-29, -27),
+                       "Sf": 2.2 * 10 ** np.random.uniform(1, 3),
+                       "Sb": 2.2 * 10 ** np.random.uniform(1, 3),
+                       "tauN": 4.56 * 10 ** np.random.uniform(1,3),
+                       "tauP": 4.56 * 10 ** np.random.uniform(1,3),
                        "eps":10,
                        "Tm":300,
                        "m":1}
+    initial_guesses["tauP"] = initial_guesses["tauN"]
 
     active_params = {"n0":0,
                      "p0":1,
-                     "mu_n":1,
-                     "mu_p":1,
+                     "mu_n":0,
+                     "mu_p":0,
                      "ks":1,
                      "Cn":1,
                      "Cp":1,
@@ -124,14 +125,14 @@ if __name__ == "__main__":
     # Measurement preprocessing options
     meas_fields = {"time_cutoff":[0, 2000],
                    "select_obs_sets": None, #[0,1,2],
-                   "noise_level":None}
+                   "noise_level":1e14}
 
     # Other MCMC control potions
     output_path = os.path.join(out_dir, out_fname)
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
-                   "num_iters": 25000,
+                   "num_iters": 32000,
                    "solver": "solveivp",
                    "model_uncertainty": 1/2500*0.1,
                    "log_pl":1,
@@ -140,8 +141,8 @@ if __name__ == "__main__":
                    "one_param_at_a_time":0,
                    "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
                    "checkpoint_header": f"CPU{jobid}",
-                   "checkpoint_freq":12000, # Save a checkpoint every #this many iterations#
-                   "load_checkpoint": None,
+                   "checkpoint_freq":15000, # Save a checkpoint every #this many iterations#
+                   "load_checkpoint": None, #f"checkpointCPU{jobid}_30000.pik",
                    }
     
     generate_config_script_file(script_path, simPar, param_info, meas_fields, MCMC_fields, verbose=False)

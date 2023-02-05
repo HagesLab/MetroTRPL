@@ -195,7 +195,7 @@ def check_approved_param(new_p, param_info):
         logtp -= np.log10(ucs.get('tauP', 1))
         
         diff = np.abs(logtn - logtp)
-        checks["tn_tp_close"] = (diff <= 2)
+        checks["tn_tp_close"] = (diff <= 1)
             
     else:
         checks["tn_tp_close"] = True
@@ -220,27 +220,29 @@ def select_next_params(p, means, variances, param_info, trial_function="box", lo
             mean[i] = np.log10(mean[i])
 
     cov = variances.cov
+    success = False
+    while not success:
+        if trial_function == "box":
+            new_p = np.zeros_like(mean)
+            for i, param in enumerate(names):
+                new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
+                if secret_mu and param == "mu_p":
+                    new_muambi = np.random.normal(20, 0.3) * param_info["unit_conversions"]["mu_n"]
+                    new_p[i] = np.log10((2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
 
-    if trial_function == "box":
-        new_p = np.zeros_like(mean)
-        for i, param in enumerate(names):
-            new_p[i] = np.random.uniform(mean[i] - cov[i,i], mean[i] + cov[i,i])
-            if secret_mu and param == "mu_p":
-                new_muambi = np.random.normal(20, 0.3) * param_info["unit_conversions"]["mu_n"]
-                new_p[i] = np.log10((2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
+        elif trial_function == "gauss":
+            try:
+                assert np.all(cov >= 0)
+                new_p = np.random.multivariate_normal(mean, cov)
+            except Exception:
+                if logger is not None:
+                    logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
+                new_p = mean
 
-    elif trial_function == "gauss":
-        try:
-            assert np.all(cov >= 0)
-            new_p = np.random.multivariate_normal(mean, cov)
-        except Exception:
-            if logger is not None:
-                logger.error("multivar_norm failed: mean {}, cov {}".format(mean, cov))
-            new_p = mean
-
-    failed_checks = check_approved_param(new_p, param_info)
-    if logger is not None and len(failed_checks) > 0:
-        logger.warning("Failed checks: {}".format(failed_checks))
+        failed_checks = check_approved_param(new_p, param_info)
+        success = len(failed_checks) == 0
+        if logger is not None and len(failed_checks) > 0:
+            logger.warning("Failed checks: {}".format(failed_checks))
 
     for i, param in enumerate(names):
         if is_active[param]:
@@ -392,8 +394,6 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, hmax, MCMC_fields, ver
             
     if prev_p is not None:
         logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
-        if verbose and logger is not None: 
-            logger.debug("Model unc: {}".format(MCMC_fields["model_uncertainty"]))
         if np.isnan(logratio): logratio = -np.inf
         
         if verbose and logger is not None: 
@@ -444,6 +444,11 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False, expo
     times, vals, uncs = e_data
     # As model unc we take cN, where c is specified in main and N is number of observations
     MCMC_fields["model_uncertainty"] *= sum([len(time)-1 for time in times])
+
+    if verbose and logger is not None: 
+        logger.debug("Model unc: {}".format(MCMC_fields["model_uncertainty"]))
+        for i in range(len(uncs)):
+            logger.debug("{} Max exp unc: {}".format(i, np.amax(uncs[i])))
     
     make_dir(MCMC_fields["checkpoint_dirname"])
     clear_checkpoint_dir(MCMC_fields)
