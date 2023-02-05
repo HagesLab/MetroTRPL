@@ -6,7 +6,6 @@ Created on Mon Jan 31 22:13:26 2022
 """
 import numpy as np
 from scipy.integrate import solve_ivp, odeint
-#from multiprocessing import Pool
 import os
 import sys
 import signal
@@ -18,42 +17,52 @@ from mcmc_logging import start_logging, stop_logging
 from bayes_io import make_dir, clear_checkpoint_dir
 
 
-## Constants
-eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
-q = 1.0 # [e]
-q_C = 1.602e-19 # [C]
+# Constants
+eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
+q = 1.0  # [e]
+q_C = 1.602e-19  # [C]
 kB = 8.61773e-5  # [eV / K]
-MIN_HMAX = 1e-2 # [ns]
+MIN_HMAX = 1e-2  # [ns]
 DEFAULT_RTOL = 1e-7
 DEFAULT_ATOL = 1e-10
 DEFAULT_HMAX = 4
 MAX_PROPOSALS = 100
 
+
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
-        E = corner_E + q_C / (PA.eps * eps0) * dx * np.cumsum(((P - PA.p0) - (N - PA.n0)))
+        E = corner_E + q_C / (PA.eps * eps0) * dx * \
+            np.cumsum(((P - PA.p0) - (N - PA.n0)))
         E = np.concatenate(([corner_E], E))
     elif N.ndim == 2:
-        E = corner_E + q_C / (PA.eps * eps0) * dx * np.cumsum(((P - PA.p0) - (N - PA.n0)), axis=1)
+        E = corner_E + q_C / (PA.eps * eps0) * dx * \
+            np.cumsum(((P - PA.p0) - (N - PA.n0)), axis=1)
         num_tsteps = len(N)
-        E = np.concatenate((np.ones(shape=(num_tsteps,1))*corner_E, E), axis=1)
+        E = np.concatenate((np.ones(shape=(num_tsteps, 1))*corner_E, E), axis=1)
     return E
 
-def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
+
+def model(init_dN, g, p, meas="TRPL", solver="solveivp",
+          RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
     """ Calculate one simulation. """
     N = init_dN + p.n0
     P = init_dN + p.p0
     E_f = E_field(N, P, p, g.dx)
-    
+
     init_condition = np.concatenate([N, P, E_f], axis=None)
-    
-    if solver=="solveivp":
-        args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
-        sol = solve_ivp(dydt_numba, [g.start_time,g.time], init_condition, args=args, t_eval=g.tSteps, method='LSODA', max_step=g.hmax, rtol=RTOL, atol=ATOL)
+
+    if solver == "solveivp":
+        args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
+                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
+        sol = solve_ivp(dydt_numba, [g.start_time, g.time], init_condition,
+                        args=args, t_eval=g.tSteps, method='LSODA',
+                        max_step=g.hmax, rtol=RTOL, atol=ATOL)
         data = sol.y.T
-    elif solver=="odeint":
-        args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
-        data = odeint(dydt_numba, init_condition, g.tSteps, args=args, hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
+    elif solver == "odeint":
+        args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
+                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
+        data = odeint(dydt_numba, init_condition, g.tSteps, args=args,
+                      hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
     else:
         raise NotImplementedError
 
@@ -63,10 +72,11 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp", RTOL=DEFAULT_RTOL, ATOL
         s.calculate_PL(g, p)
         return s.PL, (s.N[-1]-p.n0)
     elif meas == "TRTS":
-        s.calculate_TRTS(g,p)
+        s.calculate_TRTS(g, p)
         return s.trts, (s.N[-1] - p.n0)
     else:
         raise NotImplementedError("TRTS or TRPL only")
+
 
 def check_approved_param(new_p, param_info):
     """ Raise a warning for non-physical or unrealistic proposed trial moves. """
@@ -76,11 +86,11 @@ def check_approved_param(new_p, param_info):
     checks = {}
     # mu_n and mu_p between 1e-1 and 1e6; a reasonable range for most materials
     if 'mu_n' in order:
-        if do_log['mu_n']: # Briefly exit logspace if needed
+        if do_log['mu_n']:  # Briefly exit logspace if needed
             diff = 10 ** new_p[order.index('mu_n')]
         else:
             diff = new_p[order.index('mu_n')]
-            
+
         # Use unit_conversions to do checks in cm / V / s unit system
         diff /= ucs.get('mu_n', 1)
         checks["mu_n_size"] = (diff < 1e6) and (diff > 1e-1)
@@ -101,7 +111,7 @@ def check_approved_param(new_p, param_info):
         if do_log["ks"]:
             diff = 10 ** new_p[order.index('ks')]
         else:
-            diff = new_p[order.index('ks')] 
+            diff = new_p[order.index('ks')]
         diff /= ucs.get('ks', 1)
         checks["ks_size"] = (diff < 1e-7)
     else:
@@ -111,7 +121,7 @@ def check_approved_param(new_p, param_info):
         if do_log['p0']:
             diff = 10 ** new_p[order.index('p0')]
         else:
-            diff = new_p[order.index('p0')] 
+            diff = new_p[order.index('p0')]
         diff /= ucs.get('p0', 1)
         checks["p0_size"] = (diff < 1e19)
     else:
@@ -126,7 +136,7 @@ def check_approved_param(new_p, param_info):
         if do_log['Sf']:
             diff = 10 ** new_p[order.index('Sf')]
         else:
-            diff = new_p[order.index('Sf')] 
+            diff = new_p[order.index('Sf')]
         diff /= ucs.get('Sf', 1)
         checks["sf_size"] = (diff < 1e7)
     else:
@@ -136,7 +146,7 @@ def check_approved_param(new_p, param_info):
         if do_log['Sb']:
             diff = 10 ** new_p[order.index('Sb')]
         else:
-            diff = new_p[order.index('Sb')] 
+            diff = new_p[order.index('Sb')]
         diff /= ucs.get('Sb', 1)
         checks["sb_size"] = (diff < 1e7)
     else:
@@ -146,7 +156,7 @@ def check_approved_param(new_p, param_info):
         if do_log["Cn"]:
             diff = 10 ** new_p[order.index('Cn')]
         else:
-            diff = new_p[order.index('Cn')] 
+            diff = new_p[order.index('Cn')]
         diff /= ucs.get('Cn', 1)
         checks["cn_size"] = (diff < 1e-21)
     else:
@@ -156,7 +166,7 @@ def check_approved_param(new_p, param_info):
         if do_log["Cp"]:
             diff = 10 ** new_p[order.index('Cp')]
         else:
-            diff = new_p[order.index('Cp')] 
+            diff = new_p[order.index('Cp')]
         diff /= ucs.get('Cp', 1)
         checks["cp_size"] = (diff < 1e-21)
     else:
@@ -166,7 +176,7 @@ def check_approved_param(new_p, param_info):
         if do_log["tauN"]:
             diff = 10 ** new_p[order.index('tauN')]
         else:
-            diff = new_p[order.index('tauN')] 
+            diff = new_p[order.index('tauN')]
         diff /= ucs.get('tauN', 1)
         checks["tn_size"] = (diff > 1e-1)
     else:
@@ -176,7 +186,7 @@ def check_approved_param(new_p, param_info):
         if do_log["tauP"]:
             diff = 10 ** new_p[order.index('tauP')]
         else:
-            diff = new_p[order.index('tauP')] 
+            diff = new_p[order.index('tauP')]
         diff /= ucs.get('tauP', 1)
         checks["tp_size"] = (diff > 1e-1)
     else:
@@ -189,20 +199,20 @@ def check_approved_param(new_p, param_info):
         if not do_log["tauN"]:
             logtn = np.log10(logtn)
         logtn -= np.log10(ucs.get('tauN', 1))
-        
+
         logtp = new_p[order.index('tauP')]
         if not do_log["tauP"]:
             logtp = np.log10(logtp)
         logtp -= np.log10(ucs.get('tauP', 1))
-        
+
         diff = np.abs(logtn - logtp)
         checks["tn_tp_close"] = (diff <= 1)
-            
+
     else:
         checks["tn_tp_close"] = True
 
     failed_checks = [k for k in checks if not checks[k]]
-    
+
     return failed_checks
 
 
@@ -242,7 +252,8 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
             for i, param in enumerate(names):
                 new_p[i] = np.random.uniform(mean[i]-cov[i, i], mean[i]+cov[i, i])
                 if secret_mu and param == "mu_p":
-                    new_muambi = np.random.normal(20, 0.3) * param_info["unit_conversions"]["mu_n"]
+                    new_muambi = np.random.normal(20, 0.3) * \
+                        param_info["unit_conversions"]["mu_n"]
                     new_p[i] = np.log10((2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
 
         elif trial_function == "gauss":
@@ -271,7 +282,8 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
                 setattr(p, param, new_p[i])
     return
 
-def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", 
+
+def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
                   solver="solveivp", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
     """ Set up one simulation. """
     g = Grid()
@@ -279,28 +291,31 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
     g.nx = nx
     g.dx = g.thickness / g.nx
     g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
-    
+
     g.time = times[-1]
     g.start_time = 0
     g.nt = len(times) - 1
     g.hmax = hmax
     g.tSteps = times
-    
-    sol, next_init_condition = model(iniPar, g, p, meas=meas, solver=solver, RTOL=rtol, ATOL=atol)
+
+    sol, next_init_condition = model(
+        iniPar, g, p, meas=meas, solver=solver, RTOL=rtol, ATOL=atol)
     return sol
-    
+
+
 def roll_acceptance(logratio):
     accepted = False
     if logratio >= 0:
         # Continue
         accepted = True
-        
+
     else:
         accept = np.random.random()
         if accept < 10 ** logratio:
             # Continue
             accepted = True
     return accepted
+
 
 def unpack_simpar(sim_info, i):
     thickness = sim_info["lengths"][i]
@@ -320,25 +335,31 @@ def unpack_simpar(sim_info, i):
 
 #     else:
 #         raise ValueError("Invalid annealing type")
-        
+
+
 def detect_sim_fail(sol, ref_vals):
     fail = len(sol) < len(ref_vals)
     if fail:
         sol2 = np.ones_like(ref_vals) * sys.float_info.min
         sol2[:len(sol)] = sol
         sol = np.array(sol2)
-        
+
     return sol, fail
+
 
 def detect_sim_depleted(sol):
     fail = np.any(sol < 0)
-    if fail: sol = np.abs(sol) + sys.float_info.min
+    if fail:
+        sol = np.abs(sol) + sys.float_info.min
     return sol, fail
 
+
 def almost_equal(x, x0, threshold=1e-10):
-    if x.shape != x0.shape: return False
+    if x.shape != x0.shape:
+        return False
 
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
+
 
 def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
     i, iniPar, times, vals, uncs = args
@@ -346,15 +367,17 @@ def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
     RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
     ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
     thickness, nx, meas_type = unpack_simpar(sim_info, i)
-    hmax[i] = min(STARTING_HMAX, hmax[i] * 2) # Always attempt a slightly larger hmax than what worked at previous proposal
-    
+    # Always attempt a slightly larger hmax than what worked at previous proposal
+    hmax[i] = min(STARTING_HMAX, hmax[i] * 2)
+
     while hmax[i] > MIN_HMAX:
-        sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=meas_type, 
+        sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=meas_type,
                             solver=MCMC_fields["solver"], rtol=RTOL, atol=ATOL)
-        
-        #if verbose: 
-        logger.info("{}: Simulation complete hmax={}; t {}-{}".format(i, hmax, times[0], times[len(sol)-1]))
-        
+
+        # if verbose:
+        logger.info("{}: Simulation complete hmax={}; t {}-{}".format(i,
+                    hmax, times[0], times[len(sol)-1]))
+
         sol, fail = detect_sim_fail(sol, vals)
         if fail:
             logger.warning(f"{i}: Simulation terminated early!")
@@ -364,12 +387,13 @@ def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
             logger.warning(f"{i}: Carriers depleted!")
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.warning(f"{i}: Retrying hmax={hmax}")
-            
+
         elif MCMC_fields.get("verify_hmax", False):
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
-            sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=meas_type,
-                                  solver=MCMC_fields["solver"], rtol=RTOL, atol=ATOL)
+            sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
+                                 meas=meas_type, solver=MCMC_fields["solver"],
+                                 rtol=RTOL, atol=ATOL)
             if almost_equal(sol, sol2, threshold=RTOL):
                 logger.info("Success!")
                 break
@@ -377,7 +401,7 @@ def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
                 logger.info(f"{i}: Fail - not converged")
                 if hmax[i] <= MIN_HMAX:
                     logger.warning(f"{i}: MIN_HMAX reached")
-                    
+
         else:
             break
     try:
@@ -385,48 +409,56 @@ def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
             sol /= np.nanmax(sol)
         # TODO: accomodate multiple experiments, just like bayes
 
-        likelihood = -np.sum((np.log10(sol) + np.log10(p.m) - vals)**2 / (MCMC_fields["model_uncertainty"] + 2*uncs**2))
+        likelihood = -np.sum((np.log10(sol) + np.log10(p.m) - vals)
+                             ** 2 / (MCMC_fields["model_uncertainty"] + 2*uncs**2))
 
-        # TRPL must be positive! Any simulation which results in depleted carrier is clearly incorrect
-        if fail or np.isnan(likelihood): raise ValueError(f"{i}: Simulation failed!")
+        # TRPL must be positive!
+        # Any simulation which results in depleted carrier is clearly incorrect
+        if fail or np.isnan(likelihood):
+            raise ValueError(f"{i}: Simulation failed!")
     except ValueError as e:
         logger.warning(e)
         likelihood = -np.inf
     return likelihood
-        
 
-def run_iteration(p, sim_info, iniPar, times, vals, uncs, hmax, MCMC_fields, verbose, logger, prev_p=None, t=0):
+
+def run_iteration(p, sim_info, iniPar, times, vals, uncs, hmax,
+                  MCMC_fields, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
     accepted = True
-    logratio = 0 # acceptance ratio = 1
+    logratio = 0  # acceptance ratio = 1
     p.likelihood = np.zeros(len(iniPar))
-    
+
     if MCMC_fields.get("use_multi_cpus", False):
         raise NotImplementedError
-        #with Pool(MCMC_fields["num_cpus"]) as pool:
+        # with Pool(MCMC_fields["num_cpus"]) as pool:
         #    likelihoods = pool.map(partial(one_sim_likelihood, p, sim_info, hmax, MCMC_fields, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
         #    p.likelihood = np.array(likelihoods)
-                
+
     else:
         for i in range(len(iniPar)):
-            p.likelihood[i] = one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, (i, iniPar[i], times[i], vals[i], uncs[i]))
-            
+            p.likelihood[i] = one_sim_likelihood(
+                p, sim_info, hmax, MCMC_fields, logger,
+                (i, iniPar[i], times[i], vals[i], uncs[i]))
+
     if prev_p is not None:
         logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
-        if np.isnan(logratio): logratio = -np.inf
-        
-        if verbose and logger is not None: 
+        if np.isnan(logratio):
+            logratio = -np.inf
+
+        if verbose and logger is not None:
             logger.info("Partial Ratio: {}".format(10 ** logratio))
-            
-        
+
         accepted = roll_acceptance(logratio)
 
     if prev_p is not None and accepted:
         prev_p.likelihood = p.likelihood
     return accepted
 
+
 def kill_from_cl(signal_n, frame):
     raise KeyboardInterrupt("Terminate from command line")
+
 
 def all_signal_handler(func):
     for s in signal.Signals:
