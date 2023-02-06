@@ -7,6 +7,7 @@ Created on Tue Feb  1 19:11:50 2022
 
 import numpy as np
 import matplotlib
+
 matplotlib.rcParams.update({'font.size': 11})
 matplotlib.rcParams.update({'font.family':'sans-serif'})
 matplotlib.rcParams.update({'mathtext.fontset':'stixsans'})
@@ -104,7 +105,7 @@ axis_overrides_1D = {"mu_n": (6e0, 6e2),
 
 axis_overrides_1D = {}
 
-window = [00, 32000]
+window = [00, 20]
 adds = {}
 pairs = [('p0', 'ks')]
 pairs = [('p0', 'ks'), ('tauN', 'tauP')]
@@ -119,7 +120,7 @@ adds = {"tau_srh": 485, "Cn+Cp": None, "HI_tau_srh": None}
 
 
 if __name__ == "__main__":
-    path = os.path.join(r"C:\Users\cfai2\Documents\src\Metro\bay_outputs\staub_pscan_with2OM_btwn_tntp_equalized")
+    path = os.path.join(r"C:\Users\alexm\Home\MetroTRPL\outputs\TEST_REAL_STAUB")
 
     exclude = []
     join_chains(path, exclude=exclude)
@@ -251,6 +252,7 @@ if __name__ == "__main__":
                             fig=fig, ax=ax[j,k])
 
             plot_counter += 1
+            fig.tight_layout()
              
         for ii, add_param in enumerate(adds):
 
@@ -304,9 +306,7 @@ if __name__ == "__main__":
                             ylim=axis_overrides_1D.get(param, None),
                             fig=fig, ax=ax[j,k])
             plot_counter += 1
-            
-        fig.tight_layout()
-        
+            fig.tight_layout()        
 
     if do["1D_histos"]:
         for i, param in enumerate(names):
@@ -529,5 +529,5 @@ if __name__ == "__main__":
                 g = np.inf
                 
             print("Gelman-Rubin score: {}".format(g))
-            
-            
+        
+    plt.show()
