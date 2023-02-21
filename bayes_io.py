@@ -49,6 +49,7 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
 
     LOG_PL = MCMC_fields['log_pl']
     NORMALIZE = MCMC_fields["self_normalize"]
+    resample = ic_flags.get("resample", 1)
 
     bval_cutoff = sys.float_info.min
 
@@ -84,12 +85,18 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
             y_list[i] = y_list[i][keepL:keepR]
             u_list[i] = u_list[i][keepL:keepR]
 
+    for i in range(len(t_list)):
+        t_list[i] = t_list[i][::resample]
+        y_list[i] = y_list[i][::resample]
+        u_list[i] = u_list[i][::resample]
+
+    print("t", t_list)
     if isinstance(scale_f, (float, int)):
         scale_f = [scale_f] * len(t_list)
 
     for i in range(len(t_list)):
         y_list[i] *= scale_f[i]
-        u_list[i] *= scale_f[i]
+        u_list[i] *= scale_f[i] * 0
 
     if NORMALIZE:
         for i in range(len(t_list)):
@@ -255,6 +262,9 @@ def read_config_script_file(path):
                             meas_flags["noise_level"] = None
                         else:
                             meas_flags["noise_level"] = float(line_split[1])
+
+                    elif line.startswith("Resample"):
+                        meas_flags["resample"] = int(line_split[1])
 
                 if (init_flag == 's'):
                     if line.startswith("Num iters"):
@@ -432,6 +442,12 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                            "with simulated data.\n")
         noise_level = measurement_flags["noise_level"]
         ofstream.write(f"Added noise level: {noise_level}\n")
+
+        if verbose:
+            ofstream.write("# Resample the measurement, taking only every n points.\n"
+                           "This can speed up the simulations a little.\n")
+        resample_factor = measurement_flags["resample"]
+        ofstream.write(f"Resample: {resample_factor}\n")
         #######################################################################
         ofstream.write("##\n")
         ofstream.write("p$ MCMC Control flags:\n")
@@ -663,7 +679,7 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
     if not isinstance(meas_flags, dict):
         raise TypeError("MCMC meas_flags must be type 'dict'")
 
-    required_keys = ("time_cutoff", "select_obs_sets", "noise_level")
+    required_keys = ("time_cutoff", "select_obs_sets", "noise_level", "resample")
     for k in required_keys:
         if k not in meas_flags:
             raise ValueError(f"MCMC meas_flags missing entry '{k}'")
@@ -702,6 +718,12 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
         pass
     else:
         raise TypeError("Noise must be numeric and postiive")
+
+    resample = meas_flags["resample"]
+    if not isinstance(resample, int):
+        raise TypeError("Resample must be an integer")
+    if resample < 1:
+        raise ValueError("Invalid resample - must be positive")
 
     return
 

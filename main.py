@@ -31,7 +31,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(e)
         sys.exit()
-
     np.random.seed(jobid)
 
     # Get observations and initial condition
@@ -49,7 +48,6 @@ if __name__ == "__main__":
                 "No scale_f for measurements other than TRPL and TRTS")
     e_data = get_data(MCMC_fields["measurement_path"],
                       meas_fields, MCMC_fields, scale_f=scale_f)
-
     logger, handler = start_logging(
         log_dir=MCMC_fields["output_path"], name=f"CPU{jobid}")
     logger.info("Measurement handling fields: {}".format(meas_fields))

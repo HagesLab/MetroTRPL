@@ -93,7 +93,7 @@ def check_approved_param(new_p, param_info):
 
         # Use unit_conversions to do checks in cm / V / s unit system
         diff /= ucs.get('mu_n', 1)
-        checks["mu_n_size"] = (diff < 1e6) and (diff > 1e-1)
+        checks["mu_n_size"] = (diff < 1e2) and (diff > 1e0)
     else:
         checks["mu_n_size"] = True
 
@@ -103,7 +103,7 @@ def check_approved_param(new_p, param_info):
         else:
             diff = new_p[order.index('mu_p')]
         diff /= ucs.get('mu_p', 1)
-        checks["mu_p_size"] = (diff < 1e6) and (diff > 1e-1)
+        checks["mu_p_size"] = (diff < 1e2) and (diff > 1e0)
     else:
         checks["mu_p_size"] = True
 
@@ -113,7 +113,7 @@ def check_approved_param(new_p, param_info):
         else:
             diff = new_p[order.index('ks')]
         diff /= ucs.get('ks', 1)
-        checks["ks_size"] = (diff < 1e-7)
+        checks["ks_size"] = (diff < 1e-9) and (diff > 1e-11)
     else:
         checks["ks_size"] = True
 
@@ -123,7 +123,7 @@ def check_approved_param(new_p, param_info):
         else:
             diff = new_p[order.index('p0')]
         diff /= ucs.get('p0', 1)
-        checks["p0_size"] = (diff < 1e19)
+        checks["p0_size"] = (diff < 1e16) and (diff > 1e14)
     else:
         checks["p0_size"] = True
 
@@ -138,7 +138,7 @@ def check_approved_param(new_p, param_info):
         else:
             diff = new_p[order.index('Sf')]
         diff /= ucs.get('Sf', 1)
-        checks["sf_size"] = (diff < 1e7)
+        checks["sf_size"] = (diff < 1e4) and (diff > 1e-4)
     else:
         checks["sf_size"] = True
 
@@ -148,7 +148,7 @@ def check_approved_param(new_p, param_info):
         else:
             diff = new_p[order.index('Sb')]
         diff /= ucs.get('Sb', 1)
-        checks["sb_size"] = (diff < 1e7)
+        checks["sb_size"] = (diff < 1e4) and (diff > 1e-4)
     else:
         checks["sb_size"] = True
 
@@ -158,7 +158,7 @@ def check_approved_param(new_p, param_info):
         else:
             diff = new_p[order.index('Cn')]
         diff /= ucs.get('Cn', 1)
-        checks["cn_size"] = (diff < 1e-21)
+        checks["cn_size"] = (diff < 1e-27) and (diff > 1e-29)
     else:
         checks["cn_size"] = True
 
@@ -168,7 +168,7 @@ def check_approved_param(new_p, param_info):
         else:
             diff = new_p[order.index('Cp')]
         diff /= ucs.get('Cp', 1)
-        checks["cp_size"] = (diff < 1e-21)
+        checks["cp_size"] = (diff < 1e-27) and (diff > 1e-29)
     else:
         checks["cp_size"] = True
 
@@ -178,7 +178,7 @@ def check_approved_param(new_p, param_info):
         else:
             diff = new_p[order.index('tauN')]
         diff /= ucs.get('tauN', 1)
-        checks["tn_size"] = (diff > 1e-1)
+        checks["tn_size"] = (diff > 1e0 and diff < 1500)
     else:
         checks["tn_size"] = True
 
@@ -188,7 +188,7 @@ def check_approved_param(new_p, param_info):
         else:
             diff = new_p[order.index('tauP')]
         diff /= ucs.get('tauP', 1)
-        checks["tp_size"] = (diff > 1e-1)
+        checks["tp_size"] = (diff > 1e0 and diff < 3000)
     else:
         checks["tp_size"] = True
 
@@ -206,7 +206,7 @@ def check_approved_param(new_p, param_info):
         logtp -= np.log10(ucs.get('tauP', 1))
 
         diff = np.abs(logtn - logtp)
-        checks["tn_tp_close"] = (diff <= 1)
+        checks["tn_tp_close"] = (diff <= 2)
 
     else:
         checks["tn_tp_close"] = True
@@ -497,7 +497,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     times, vals, uncs = e_data
     # As model unc we take cN,
     # where c is specified in main and N is number of observations
-    MCMC_fields["model_uncertainty"] *= sum([len(time)-1 for time in times])
+    # MCMC_fields["model_uncertainty"] *= sum([len(time)-1 for time in times])
 
     if verbose and logger is not None:
         logger.debug("Model unc: {}".format(MCMC_fields["model_uncertainty"]))

@@ -32,21 +32,21 @@ if __name__ == "__main__":
         out_dir = r"bay_outputs"
 
     # Filenames
-    init_fname = "staub_MAPI_power_thick_input.csv"
-    exp_fname = "staub_MAPI_power_thick_withauger.csv"
-    out_fname = "staub_pscan_with1OM_btwn_tntp_equalized"
+    init_fname = "staub_MAPI_threepower_twothick_input.csv"
+    exp_fname = "staub_MAPI_threepower_twothick_withauger.csv"
+    out_fname = "2T_delta_ext"
 
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
 
-    np.random.seed(10000000*(jobid+1))
+    np.random.seed(100000000*(jobid+1))
 
     # Info for each measurement's corresponding simulation
-    num_measurements = 3
-    # Length = [311,2000,311,2000, 311, 2000]
-    Length = [2000] * 3             # Length (nm)
+    num_measurements = 6
+    Length = [311,2000,311,2000, 311, 2000]
+    #Length = [2000] * 3             # Length (nm)
     L = 128                         # Spatial points
-    measurement_types = ["TRPL"]*3
+    measurement_types = ["TRPL"]*6
     simPar = {"lengths": Length,
               "nx": L,
               "meas_types": measurement_types,
@@ -72,25 +72,25 @@ if __name__ == "__main__":
               "m": 1}
 
     initial_guesses = {"n0": 1e8,
-                       "p0": 1.8 * 10 ** np.random.uniform(14, 16),
-                       "mu_n": 20,  # 1.56 * 10 ** np.random.uniform(0, 2),
-                       "mu_p": 20,  # 1.56 * 10 ** np.random.uniform(0, 2),
-                       "ks": 6.1 * 10 ** np.random.uniform(-12, -10),
-                       "Cn": 1.1 * 10 ** np.random.uniform(-29, -27),
-                       "Cp": 1.1 * 10 ** np.random.uniform(-29, -27),
-                       "Sf": 2.2 * 10 ** np.random.uniform(1, 3),
-                       "Sb": 2.2 * 10 ** np.random.uniform(1, 3),
-                       "tauN": 4.56 * 10 ** np.random.uniform(1, 3),
-                       "tauP": 4.56 * 10 ** np.random.uniform(1, 3),
+                       "p0": 3e15,
+                       "mu_n": 20,
+                       "mu_p": 20,
+                       "ks": 4.8e-11,
+                       "Cn": 4.4e-29,
+                       "Cp": 4.4e-29,
+                       "Sf": 10,
+                       "Sb": 10,
+                       "tauN": 511,
+                       "tauP": 871,
                        "eps": 10,
                        "Tm": 300,
                        "m": 1}
-    initial_guesses["tauP"] = initial_guesses["tauN"]
+    # initial_guesses["tauP"] = initial_guesses["tauN"]
 
     active_params = {"n0": 0,
                      "p0": 1,
-                     "mu_n": 0,
-                     "mu_p": 0,
+                     "mu_n": 1,
+                     "mu_p": 1,
                      "ks": 1,
                      "Cn": 1,
                      "Cp": 1,
@@ -101,22 +101,8 @@ if __name__ == "__main__":
                      "eps": 0,
                      "Tm": 0,
                      "m": 0}
-
     # Proposal function search widths
-    initial_variance = {"n0": 1e-2,
-                        "p0": 1e-2,
-                        "mu_n": 1e-2,
-                        "mu_p": 1e-2,
-                        "ks": 1e-2,
-                        "Cn": 1e-2,
-                        "Cp": 1e-2,
-                        "Sf": 1e-2,
-                        "Sb": 1e-2,
-                        "tauN": 1e-2,
-                        "tauP": 1e-2,
-                        "eps": 1e-2,
-                        "Tm": 1e-2,
-                        "m": 1e-2}
+    initial_variance = {param: 5e-3 for param in param_names}
 
     param_info = {"names": param_names,
                   "active": active_params,
@@ -128,16 +114,18 @@ if __name__ == "__main__":
     # Measurement preprocessing options
     meas_fields = {"time_cutoff": [0, 2000],
                    "select_obs_sets": None,  # [0,1,2],
-                   "noise_level": 1e14}
+                   "noise_level": None,
+                   "resample": 1
+                   }
 
     # Other MCMC control potions
     output_path = os.path.join(out_dir, out_fname)
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
-                   "num_iters": 32000,
+                   "num_iters": 8000,
                    "solver": "solveivp",
-                   "model_uncertainty": 1/2500*0.1,
+                   "model_uncertainty": 1e0, # 1/2500*1e-1,
                    "log_pl": 1,
                    "self_normalize": 0,
                    "proposal_function": "box",
@@ -145,7 +133,7 @@ if __name__ == "__main__":
                    "hard_bounds": 1,
                    "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
                    "checkpoint_header": f"CPU{jobid}",
-                   "checkpoint_freq": 15000,
+                   "checkpoint_freq": 7996,
                    "load_checkpoint": None,  # f"checkpointCPU{jobid}_30000.pik",
                    }
 
