@@ -42,7 +42,7 @@ class MetroState():
         ucs = self.param_info["unit_conversions"]
         for param in self.param_info['names']:
             if is_active.get(param, 0):
-                logger.info("Next {}: {:.3e} from mean {:.3e}".format(param, getattr(self.p, param) / ucs.get(param, 1), getattr(self.means, param) / ucs.get(param, 1)))
+                logger.info("Next {}: {:.6e} from mean {:.6e}".format(param, getattr(self.p, param) / ucs.get(param, 1), getattr(self.means, param) / ucs.get(param, 1)))
                 
         return
     
