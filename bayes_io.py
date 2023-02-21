@@ -23,11 +23,36 @@ def get_split_and_clean_line(line: str):
 
 def extract_values(string, delimiter, dtype=float):
     """Converts a string with deliimiters into a list of [dtype] values"""
-    # E.g. "100,200,300" with "," delimiter becomes [100,200,300] with dtype=float,
-    # becomes ["100", "200", "300"] with dtype=str
+    # E.g. "100,200,300" with "," delimiter becomes
+    # [100,200,300] with dtype=float,
+    # or ["100", "200", "300"] with dtype=str
     values = string.split(delimiter)
     values = np.array(values, dtype=dtype)
     return values
+
+
+def extract_tuples(string, delimiter):
+    """ Converts a string of tuples separated by delimiter into a list of
+    tuples"""
+    tuples_as_str = string.split(delimiter)
+    tuples = []
+
+    for ts in tuples_as_str:
+        first_value = ts[ts.find("(")+1:ts.find(", ")]
+        second_value = ts[ts.find(", ")+2:ts.find(")")]
+        if first_value == "-inf":
+            first_value = -np.inf
+        else:
+            first_value = float(first_value)
+
+        if second_value == "inf":
+            second_value = np.inf
+        else:
+            second_value = float(second_value)
+
+        tuples.append((first_value, second_value))
+
+    return tuples
 
 
 def check_valid_filename(file_name):
@@ -45,7 +70,7 @@ def check_valid_filename(file_name):
 def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
     TIME_RANGE = ic_flags['time_cutoff']
     SELECT = ic_flags['select_obs_sets']
-    NOISE_LEVEL = ic_flags['noise_level']
+    NOISE_LEVEL = ic_flags.get('noise_level', 0)
 
     LOG_PL = MCMC_fields['log_pl']
     NORMALIZE = MCMC_fields["self_normalize"]
@@ -90,13 +115,12 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
         y_list[i] = y_list[i][::resample]
         u_list[i] = u_list[i][::resample]
 
-    print("t", t_list)
     if isinstance(scale_f, (float, int)):
         scale_f = [scale_f] * len(t_list)
 
     for i in range(len(t_list)):
         y_list[i] *= scale_f[i]
-        u_list[i] *= scale_f[i] * 0
+        u_list[i] *= scale_f[i]
 
     if NORMALIZE:
         for i in range(len(t_list)):
@@ -221,7 +245,8 @@ def read_config_script_file(path):
                     elif line.startswith("Unit conversions"):
                         vals = extract_values(
                             line_split[1], delimiter='\t', dtype=float)
-                        put_into_param_info(param_info, vals, "unit_conversions")
+                        put_into_param_info(
+                            param_info, vals, "unit_conversions")
 
                     elif line.startswith("Do logscale"):
                         vals = extract_values(
@@ -237,6 +262,10 @@ def read_config_script_file(path):
                         vals = extract_values(
                             line_split[1], delimiter='\t', dtype=float)
                         put_into_param_info(param_info, vals, "init_guess")
+
+                    elif line.startswith("Prior"):
+                        vals = extract_tuples(line_split[1], delimiter='\t')
+                        put_into_param_info(param_info, vals, "prior_dist")
 
                     elif line.startswith("Initial variance"):
                         vals = extract_values(
@@ -308,9 +337,11 @@ def read_config_script_file(path):
                         else:
                             MCMC_fields["load_checkpoint"] = line_split[1]
                     elif line.startswith("Initial condition path"):
-                        MCMC_fields["init_cond_path"] = os.path.join(line_split[1])
+                        MCMC_fields["init_cond_path"] = os.path.join(
+                            line_split[1])
                     elif line.startswith("Measurement path"):
-                        MCMC_fields["measurement_path"] = os.path.join(line_split[1])
+                        MCMC_fields["measurement_path"] = os.path.join(
+                            line_split[1])
                     elif line.startswith("Output path"):
                         MCMC_fields["output_path"] = os.path.join(line_split[1])
 
@@ -346,7 +377,8 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             ofstream.write(f"\t{value}")
         ofstream.write('\n')
         if verbose:
-            ofstream.write("# Number of space nodes used by solver discretization\n")
+            ofstream.write(
+                "# Number of space nodes used by solver discretization\n")
         nx = simPar["nx"]
         ofstream.write(f"nx: {nx}\n")
         if verbose:
@@ -397,6 +429,16 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         ofstream.write('\n')
 
         if verbose:
+            ofstream.write(
+                "# Bounds of prior distribution for each parameter.\n")
+        prior_dist = param_info["prior_dist"]
+        ofstream.write(
+            f"Prior: {prior_dist.get(param_names[0], (-np.inf, np.inf))}")
+        for name in param_names[1:]:
+            ofstream.write(f"\t{prior_dist.get(name, (-np.inf, np.inf))}")
+        ofstream.write('\n')
+
+        if verbose:
             ofstream.write("# Initial values for each parameter.\n")
         init_guess = param_info["init_guess"]
         ofstream.write(f"Initial guess: {init_guess.get(param_names[0], 0)}")
@@ -408,7 +450,8 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             ofstream.write("# Initial proposal variance for each parameter. "
                            "I.e. how far from the current parameters new proposals will go.\n")
         init_variance = param_info["init_variance"]
-        ofstream.write(f"Initial variance: {init_variance.get(param_names[0], 0)}")
+        ofstream.write(
+            f"Initial variance: {init_variance.get(param_names[0], 0)}")
         for name in param_names[1:]:
             ofstream.write(f"\t{init_variance.get(name, 0)}")
         ofstream.write('\n')
@@ -436,18 +479,21 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                 ofstream.write(f"\t{s}")
             ofstream.write("\n")
 
-        if verbose:
-            ofstream.write("# Whether to add Gaussian noise of the indicated magnitude to "
-                           "the measurement.\n# This should be None (zero noise) unless testing "
-                           "with simulated data.\n")
-        noise_level = measurement_flags["noise_level"]
-        ofstream.write(f"Added noise level: {noise_level}\n")
+        if "noise_level" in measurement_flags:
+            if verbose:
+                ofstream.write("# Whether to add Gaussian noise of the indicated magnitude to "
+                               "the measurement.\n# This should be None (zero noise) unless testing "
+                               "with simulated data.\n")
+            noise_level = measurement_flags["noise_level"]
+            ofstream.write(f"Added noise level: {noise_level}\n")
 
-        if verbose:
-            ofstream.write("# Resample the measurement, taking only every n points.\n"
-                           "This can speed up the simulations a little.\n")
-        resample_factor = measurement_flags["resample"]
-        ofstream.write(f"Resample: {resample_factor}\n")
+        if "resample" in measurement_flags:
+            if verbose:
+                ofstream.write("# Resample the measurement,"
+                               "taking only every n points.\n"
+                               "# This can speed up the simulations a little.\n")
+            resample_factor = measurement_flags["resample"]
+            ofstream.write(f"Resample: {resample_factor}\n")
         #######################################################################
         ofstream.write("##\n")
         ofstream.write("p$ MCMC Control flags:\n")
@@ -472,7 +518,8 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             ofstream.write(f"Solver atol: {atol}\n")
         if "hmax" in MCMC_fields:
             if verbose:
-                ofstream.write("# Solver engine maximum adaptive time stepsize.\n")
+                ofstream.write(
+                    "# Solver engine maximum adaptive time stepsize.\n")
             hmax = MCMC_fields["hmax"]
             ofstream.write(f"Solver hmax: {hmax}\n")
 
@@ -491,7 +538,8 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
 
         if "override_equal_mu" in MCMC_fields:
             if verbose:
-                ofstream.write("# Force parameters mu_n and mu_p to be equal.\n")
+                ofstream.write(
+                    "# Force parameters mu_n and mu_p to be equal.\n")
             emu = MCMC_fields["override_equal_mu"]
             ofstream.write(f"Force equal mu: {emu}\n")
         if "override_equal_s" in MCMC_fields:
@@ -524,7 +572,7 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             if verbose:
                 ofstream.write("# Whether to coerce params to stay within the bounds "
                                "listed in metropolis.check_approved_param(). \n"
-                               "=1 will coerce while =0 will only warn.")
+                               "=1 will coerce while =0 will only warn.\n")
             bound = MCMC_fields["hard_bounds"]
             ofstream.write(f"Use hard boundaries: {bound}\n")
 
@@ -551,17 +599,20 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         ofstream.write(f"Checkpoint freq: {chpt_f}\n")
 
         if verbose:
-            ofstream.write("# Name of a checkpoint file to resume an MCMC from.\n")
+            ofstream.write(
+                "# Name of a checkpoint file to resume an MCMC from.\n")
         load_chpt = MCMC_fields["load_checkpoint"]
         ofstream.write(f"Load checkpoint: {load_chpt}\n")
 
         if verbose:
-            ofstream.write("# Path from which to read initial condition arrays. \n")
+            ofstream.write(
+                "# Path from which to read initial condition arrays. \n")
         ic = MCMC_fields["init_cond_path"]
         ofstream.write(f"Initial condition path: {ic}\n")
 
         if verbose:
-            ofstream.write("# Path from which to read measurement data arrays. \n")
+            ofstream.write(
+                "# Path from which to read measurement data arrays. \n")
         mc = MCMC_fields["measurement_path"]
         ofstream.write(f"Measurement path: {mc}\n")
 
@@ -598,7 +649,8 @@ def validate_grid(grid: dict, supported_meas_types=("TRPL", "TRTS")):
                          "one positive length value per measurement")
 
     if not isinstance(grid['nx'], (int, np.integer)) or grid["nx"] <= 0:
-        raise ValueError("MCMC simPar entry 'num_nodes' must be positive integer")
+        raise ValueError(
+            "MCMC simPar entry 'num_nodes' must be positive integer")
 
     if (isinstance(grid["meas_types"], (list, np.ndarray)) and
         len(grid["meas_types"]) == declared_num_measurements and
@@ -615,7 +667,7 @@ def validate_param_info(param_info: dict):
         raise TypeError("MCMC param_info must be type 'dict'")
 
     required_keys = ("names", "active", "unit_conversions", "do_log",
-                     "init_guess", "init_variance")
+                     "init_guess", "init_variance", "prior_dist")
     for k in required_keys:
         if k not in param_info:
             raise ValueError(f"MCMC param_info missing entry '{k}'")
@@ -662,12 +714,30 @@ def validate_param_info(param_info: dict):
             raise KeyError(f"init_guess missing param {k}")
 
         if not (isinstance(param_info["init_guess"][k], (int, np.integer, float))):
-            raise ValueError(f"init_variance param {k} invalid")
+            raise ValueError(f"init_guess param {k} invalid")
+
+        if k not in param_info["prior_dist"]:
+            raise KeyError(f"prior_dist missing param {k}")
+
+        if not (isinstance(param_info["prior_dist"][k], (tuple, list))):
+            raise ValueError(f"prior_dist param {k} must be tuple or list")
+
+        if not (len(param_info["prior_dist"][k]) == 2):
+            raise ValueError(f"prior_dist param {k} must be length 2")
+
+        if not (isinstance(param_info["prior_dist"][k][0], (int, np.integer, float)) and
+                isinstance(param_info["prior_dist"][k][1], (int, np.integer, float))):
+            raise ValueError(
+                f"prior_dist param {k} must contain two numeric bounds")
+
+        if not (param_info["prior_dist"][k][0] < param_info["prior_dist"][k][1]):
+            raise ValueError(f"prior_dist param {k} lower bound must be smaller"
+                             " than upper bound")
 
         if k not in param_info["init_variance"]:
             raise KeyError(f"init_variance missing param {k}")
 
-        if not (isinstance(param_info["init_variance"][k], (int, np.int32, float))
+        if not (isinstance(param_info["init_variance"][k], (int, np.integer, float))
                 and param_info["init_variance"][k] >= 0):
             raise ValueError(
                 f"init_variance param {k} invalid - must be non-negative")
@@ -679,7 +749,7 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
     if not isinstance(meas_flags, dict):
         raise TypeError("MCMC meas_flags must be type 'dict'")
 
-    required_keys = ("time_cutoff", "select_obs_sets", "noise_level", "resample")
+    required_keys = ("time_cutoff", "select_obs_sets")
     for k in required_keys:
         if k not in meas_flags:
             raise ValueError(f"MCMC meas_flags missing entry '{k}'")
@@ -712,18 +782,19 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
         else:
             raise ValueError("Invalid select value - must be ints between 0 and"
                              " num_measurements - 1")
+    if "noise_level" in meas_flags:
+        noise = meas_flags["noise_level"]
+        if noise is None or (isinstance(noise, (int, np.integer, float)) and noise >= 0):
+            pass
+        else:
+            raise TypeError("Noise must be numeric and postiive")
 
-    noise = meas_flags["noise_level"]
-    if noise is None or (isinstance(noise, (int, np.integer, float)) and noise >= 0):
-        pass
-    else:
-        raise TypeError("Noise must be numeric and postiive")
-
-    resample = meas_flags["resample"]
-    if not isinstance(resample, int):
-        raise TypeError("Resample must be an integer")
-    if resample < 1:
-        raise ValueError("Invalid resample - must be positive")
+    if "resample" in meas_flags:
+        resample = meas_flags["resample"]
+        if not isinstance(resample, int):
+            raise TypeError("Resample must be an integer")
+        if resample < 1:
+            raise ValueError("Invalid resample - must be positive")
 
     return
 
@@ -862,7 +933,8 @@ def validate_MCMC_fields(MCMC_fields: dict, supported_solvers=("odeint", "solvei
 
 
 if __name__ == "__main__":
-    grid, param_info, meas_flags, MCMC_fields = read_config_script_file("mcmc0.txt")
+    grid, param_info, meas_flags, MCMC_fields = read_config_script_file(
+        "mcmc0.txt")
     print(grid)
     print(param_info)
     print(meas_flags)

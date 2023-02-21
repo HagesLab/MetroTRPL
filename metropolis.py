@@ -79,118 +79,36 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp",
 
 
 def check_approved_param(new_p, param_info):
-    """ Raise a warning for non-physical or unrealistic proposed trial moves. """
+    """ Raise a warning for non-physical or unrealistic proposed trial moves,
+        or proposed moves that exceed the prior distribution.
+    """
     order = list(param_info['names'])
     ucs = param_info.get('unit_conversions', {})
     do_log = param_info["do_log"]
     checks = {}
-    # mu_n and mu_p between 1e-1 and 1e6; a reasonable range for most materials
-    if 'mu_n' in order:
-        if do_log['mu_n']:  # Briefly exit logspace if needed
-            diff = 10 ** new_p[order.index('mu_n')]
+    prior_dist = param_info["prior_dist"]
+
+    # Ensure proposal stays within bounds of prior distribution
+    for param in order:
+        if param not in order:
+            continue
+
+        lb = prior_dist[param][0]
+        ub = prior_dist[param][1]
+        if do_log[param]:
+            diff = 10 ** new_p[order.index(param)]
         else:
-            diff = new_p[order.index('mu_n')]
+            diff = new_p[order.index(param)]
+        diff /= ucs.get(param, 1)
+        checks[f"{param}_size"] = (lb < diff < ub)
 
-        # Use unit_conversions to do checks in cm / V / s unit system
-        diff /= ucs.get('mu_n', 1)
-        checks["mu_n_size"] = (diff < 1e2) and (diff > 1e0)
-    else:
-        checks["mu_n_size"] = True
-
-    if 'mu_p' in order:
-        if do_log['mu_p']:
-            diff = 10 ** new_p[order.index('mu_p')]
-        else:
-            diff = new_p[order.index('mu_p')]
-        diff /= ucs.get('mu_p', 1)
-        checks["mu_p_size"] = (diff < 1e2) and (diff > 1e0)
-    else:
-        checks["mu_p_size"] = True
-
-    if 'ks' in order:
-        if do_log["ks"]:
-            diff = 10 ** new_p[order.index('ks')]
-        else:
-            diff = new_p[order.index('ks')]
-        diff /= ucs.get('ks', 1)
-        checks["ks_size"] = (diff < 1e-9) and (diff > 1e-11)
-    else:
-        checks["ks_size"] = True
-
-    if 'p0' in order:
-        if do_log['p0']:
-            diff = 10 ** new_p[order.index('p0')]
-        else:
-            diff = new_p[order.index('p0')]
-        diff /= ucs.get('p0', 1)
-        checks["p0_size"] = (diff < 1e16) and (diff > 1e14)
-    else:
-        checks["p0_size"] = True
-
+    # TRPL specific checks:
+    # p0 > n0 by definition of a p-doped material
     if 'p0' in order and 'n0' in order:
-        checks["p0_greater"] = (new_p[order.index('p0')] > new_p[order.index('n0')])
+        checks["p0_greater"] = (new_p[order.index('p0')]
+                                > new_p[order.index('n0')])
     else:
         checks["p0_greater"] = True
-
-    if 'Sf' in order:
-        if do_log['Sf']:
-            diff = 10 ** new_p[order.index('Sf')]
-        else:
-            diff = new_p[order.index('Sf')]
-        diff /= ucs.get('Sf', 1)
-        checks["sf_size"] = (diff < 1e4) and (diff > 1e-4)
-    else:
-        checks["sf_size"] = True
-
-    if 'Sb' in order:
-        if do_log['Sb']:
-            diff = 10 ** new_p[order.index('Sb')]
-        else:
-            diff = new_p[order.index('Sb')]
-        diff /= ucs.get('Sb', 1)
-        checks["sb_size"] = (diff < 1e4) and (diff > 1e-4)
-    else:
-        checks["sb_size"] = True
-
-    if 'Cn' in order:
-        if do_log["Cn"]:
-            diff = 10 ** new_p[order.index('Cn')]
-        else:
-            diff = new_p[order.index('Cn')]
-        diff /= ucs.get('Cn', 1)
-        checks["cn_size"] = (diff < 1e-27) and (diff > 1e-29)
-    else:
-        checks["cn_size"] = True
-
-    if 'Cp' in order:
-        if do_log["Cp"]:
-            diff = 10 ** new_p[order.index('Cp')]
-        else:
-            diff = new_p[order.index('Cp')]
-        diff /= ucs.get('Cp', 1)
-        checks["cp_size"] = (diff < 1e-27) and (diff > 1e-29)
-    else:
-        checks["cp_size"] = True
-
-    if 'tauN' in order:
-        if do_log["tauN"]:
-            diff = 10 ** new_p[order.index('tauN')]
-        else:
-            diff = new_p[order.index('tauN')]
-        diff /= ucs.get('tauN', 1)
-        checks["tn_size"] = (diff > 1e0 and diff < 1500)
-    else:
-        checks["tn_size"] = True
-
-    if 'tauP' in order:
-        if do_log["tauP"]:
-            diff = 10 ** new_p[order.index('tauP')]
-        else:
-            diff = new_p[order.index('tauP')]
-        diff /= ucs.get('tauP', 1)
-        checks["tp_size"] = (diff > 1e0 and diff < 3000)
-    else:
-        checks["tp_size"] = True
 
     # tau_n and tau_p must be *close* (within 2 OM) for a reasonable midgap SRH
     if 'tauN' in order and 'tauP' in order:
@@ -250,11 +168,13 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
         if trial_function == "box":
             new_p = np.zeros_like(mean)
             for i, param in enumerate(names):
-                new_p[i] = np.random.uniform(mean[i]-cov[i, i], mean[i]+cov[i, i])
+                new_p[i] = np.random.uniform(
+                    mean[i]-cov[i, i], mean[i]+cov[i, i])
                 if secret_mu and param == "mu_p":
                     new_muambi = np.random.normal(20, 0.3) * \
                         param_info["unit_conversions"]["mu_n"]
-                    new_p[i] = np.log10((2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
+                    new_p[i] = np.log10(
+                        (2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
 
         elif trial_function == "gauss":
             try:
@@ -262,7 +182,8 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
                 new_p = np.random.multivariate_normal(mean, cov)
             except Exception:
                 if logger is not None:
-                    logger.error(f"multivar_norm failed: mean {mean}, cov {cov}")
+                    logger.error(
+                        f"multivar_norm failed: mean {mean}, cov {cov}")
                 new_p = mean
 
         failed_checks = check_approved_param(new_p, param_info)

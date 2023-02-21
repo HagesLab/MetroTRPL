@@ -33,6 +33,21 @@ class TestUtils(unittest.TestCase):
                   "Sf": 1, "Sb": 1, "tauN": 1, "tauP": 1, "eps": 1, "Tm": 1,
                   "m": 1}
 
+        prior_dist = {"n0": (0, np.inf),
+                      "p0": (1e14, 1e16),
+                      "mu_n": (1e0, 1e2),
+                      "mu_p": (1e0, 1e2),
+                      "ks": (1e-11, 1e-9),
+                      "Cn": (1e-29, 1e-27),
+                      "Cp": (1e-29, 1e-27),
+                      "Sf": (1e-4, 1e4),
+                      "Sb": (1e-4, 1e4),
+                      "tauN": (1, 1500),
+                      "tauP": (1, 3000),
+                      "eps": (0, np.inf),
+                      "Tm": (0, np.inf),
+                      "m": (-np.inf, np.inf)}
+
         initial_guesses = {"n0": 1e8,
                            "p0": 1e14,
                            "mu_n": 20,
@@ -83,11 +98,13 @@ class TestUtils(unittest.TestCase):
                            "active": active_params,
                            "unit_conversions": unit_conversions,
                            "do_log": do_log,
+                           "prior_dist": prior_dist,
                            "init_guess": initial_guesses,
                            "init_variance": initial_variance}
 
         self.measurement_fields = {"time_cutoff": [0, np.inf],
                                    "select_obs_sets": [0, 1, 2],
+                                   "resample": 2,
                                    "noise_level": None}
 
         output_path = os.path.join("MCMC", "Example_output_path")
@@ -137,7 +154,8 @@ class TestUtils(unittest.TestCase):
                 np.testing.assert_equal(
                     measurement_fields[k], self.measurement_fields[k])
             else:
-                self.assertEqual(measurement_fields[k], self.measurement_fields[k])
+                self.assertEqual(
+                    measurement_fields[k], self.measurement_fields[k])
 
         for k in self.MCMC_fields.keys():
             if isinstance(self.MCMC_fields[k], (list, tuple, np.ndarray)):

@@ -15,7 +15,7 @@ from bayes_io import generate_config_script_file
 
 if __name__ == "__main__":
     # Just some HiperGator-specific stuff
-    on_hpg = 1
+    on_hpg = 0
     try:
         jobid = int(sys.argv[1])
         script_head = sys.argv[2]
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # Filenames
     init_fname = "staub_MAPI_threepower_twothick_input.csv"
     exp_fname = "staub_MAPI_threepower_twothick_withauger.csv"
-    out_fname = "2T_delta_ext"
+    out_fname = "DEBUG"
 
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
@@ -43,8 +43,8 @@ if __name__ == "__main__":
 
     # Info for each measurement's corresponding simulation
     num_measurements = 6
-    Length = [311,2000,311,2000, 311, 2000]
-    #Length = [2000] * 3             # Length (nm)
+    Length = [311, 2000, 311, 2000, 311, 2000]
+    # Length = [2000] * 3             # Length (nm)
     L = 128                         # Spatial points
     measurement_types = ["TRPL"]*6
     simPar = {"lengths": Length,
@@ -70,6 +70,21 @@ if __name__ == "__main__":
     do_log = {"n0": 1, "p0": 1, "mu_n": 1, "mu_p": 1, "ks": 1, "Cn": 1, "Cp": 1,
               "Sf": 1, "Sb": 1, "tauN": 1, "tauP": 1, "eps": 1, "Tm": 1,
               "m": 1}
+
+    prior_dist = {"n0": (0, np.inf),
+                  "p0": (1e14, 1e16),
+                  "mu_n": (1e0, 1e2),
+                  "mu_p": (1e0, 1e2),
+                  "ks": (1e-11, 1e-9),
+                  "Cn": (1e-29, 1e-27),
+                  "Cp": (1e-29, 1e-27),
+                  "Sf": (1e-4, 1e4),
+                  "Sb": (1e-4, 1e4),
+                  "tauN": (1, 1500),
+                  "tauP": (1, 3000),
+                  "eps": (0, np.inf),
+                  "Tm": (0, np.inf),
+                  "m": (-np.inf, np.inf)}
 
     initial_guesses = {"n0": 1e8,
                        "p0": 3e15,
@@ -108,14 +123,13 @@ if __name__ == "__main__":
                   "active": active_params,
                   "unit_conversions": unit_conversions,
                   "do_log": do_log,
+                  "prior_dist": prior_dist,
                   "init_guess": initial_guesses,
                   "init_variance": initial_variance}
 
     # Measurement preprocessing options
     meas_fields = {"time_cutoff": [0, 2000],
                    "select_obs_sets": None,  # [0,1,2],
-                   "noise_level": None,
-                   "resample": 1
                    }
 
     # Other MCMC control potions
@@ -123,9 +137,9 @@ if __name__ == "__main__":
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
-                   "num_iters": 8000,
+                   "num_iters": 10,
                    "solver": "solveivp",
-                   "model_uncertainty": 1e0, # 1/2500*1e-1,
+                   "model_uncertainty": 1e0,  # 1/2500*1e-1,
                    "log_pl": 1,
                    "self_normalize": 0,
                    "proposal_function": "box",
@@ -133,9 +147,10 @@ if __name__ == "__main__":
                    "hard_bounds": 1,
                    "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
                    "checkpoint_header": f"CPU{jobid}",
-                   "checkpoint_freq": 7996,
-                   "load_checkpoint": None,  # f"checkpointCPU{jobid}_30000.pik",
+                   "checkpoint_freq": 6,
+                   # f"checkpointCPU{jobid}_30000.pik",
+                   "load_checkpoint": None,
                    }
 
     generate_config_script_file(script_path, simPar, param_info,
-                                meas_fields, MCMC_fields, verbose=False)
+                                meas_fields, MCMC_fields, verbose=True)
