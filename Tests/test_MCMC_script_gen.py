@@ -117,7 +117,7 @@ class TestUtils(unittest.TestCase):
                             "atol": 1e-10,
                             "hmax": 4,
                             "verify_hmax": 0,
-                            "model_uncertainty": 1/2500*0.1,
+                            "likel2variance_ratio": 500,
                             "override_equal_mu": 0,
                             "override_equal_s": 0,
                             "log_pl": 1,
@@ -129,6 +129,12 @@ class TestUtils(unittest.TestCase):
                             "checkpoint_freq": 12000,
                             "load_checkpoint": None,
                             }
+
+        # Compute properly scaled initial model uncertainty from initial variance
+        self.MCMC_fields["annealing"] = (
+            max(initial_variance.values()) *
+            self.MCMC_fields["likel2variance_ratio"],
+            2000, 1e-2)
         return
 
     def test_create_script(self):

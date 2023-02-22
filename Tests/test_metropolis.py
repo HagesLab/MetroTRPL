@@ -593,7 +593,7 @@ class TestUtils(unittest.TestCase):
                          "m": 1}
         param_info["init_guess"] = initial_guess
 
-        sim_flags = {"model_uncertainty": 1,
+        sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "measurement": "TRPL",
                      "solver": "solveivp", }

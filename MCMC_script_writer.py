@@ -117,7 +117,7 @@ if __name__ == "__main__":
                      "Tm": 0,
                      "m": 0}
     # Proposal function search widths
-    initial_variance = {param: 5e-3 for param in param_names}
+    initial_variance = {param: 1 for param in param_names}
 
     param_info = {"names": param_names,
                   "active": active_params,
@@ -137,9 +137,9 @@ if __name__ == "__main__":
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
-                   "num_iters": 10,
+                   "num_iters": 20,
                    "solver": "solveivp",
-                   "model_uncertainty": 1e0,  # 1/2500*1e-1,
+                   "likel2variance_ratio": 500,
                    "log_pl": 1,
                    "self_normalize": 0,
                    "proposal_function": "box",
@@ -151,6 +151,11 @@ if __name__ == "__main__":
                    # f"checkpointCPU{jobid}_30000.pik",
                    "load_checkpoint": None,
                    }
+
+    # Compute properly scaled initial model uncertainty from initial variance
+    MCMC_fields["annealing"] = (
+        max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"],
+        2000, 1e-2)
 
     generate_config_script_file(script_path, simPar, param_info,
                                 meas_fields, MCMC_fields, verbose=True)

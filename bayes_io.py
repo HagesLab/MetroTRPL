@@ -308,8 +308,12 @@ def read_config_script_file(path):
                         MCMC_fields["hmax"] = float(line_split[1])
                     elif line.startswith("Repeat hmax"):
                         MCMC_fields["verify_hmax"] = int(line_split[1])
-                    elif line.startswith("Model uncertainty"):
-                        MCMC_fields["model_uncertainty"] = float(line_split[1])
+                    elif line.startswith("Annealing Controls"):
+                        MCMC_fields["annealing"] = tuple(
+                            extract_values(line_split[1].strip("()"), ", "))
+                    elif line.startswith("Likelihood-to-variance"):
+                        MCMC_fields["likel2variance_ratio"] = float(
+                            line_split[1])
                     elif line.startswith("Force equal mu"):
                         MCMC_fields["override_equal_mu"] = int(line_split[1])
                     elif line.startswith("Force equal S"):
@@ -531,10 +535,17 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             ofstream.write(f"Repeat hmax: {verify_hmax}\n")
 
         if verbose:
-            ofstream.write("# Control coefficient for the likelihood model uncertainty.\n"
-                           "# Model uncertainty will be taken as this times number of measurement points.\n")
-        anneal = MCMC_fields["model_uncertainty"]
-        ofstream.write(f"Model uncertainty: {anneal}\n")
+            ofstream.write("# Annealing schedule parameters.\n"
+                           "# (Starting model uncertainty, steprate, final model uncertainty)\n"
+                           "# Will drop one order of magnitude per STEPRATE samples until FINAL is reached.\n")
+        anneal = MCMC_fields["annealing"]
+        ofstream.write(f"Annealing Controls: {anneal}\n")
+
+        if verbose:
+            ofstream.write("# Ratio to maintain betwen Model uncertainty and proposal variance.\n"
+                           "# Model uncertainty will be taken as this times proposal variance.\n")
+        l2v = MCMC_fields["likel2variance_ratio"]
+        ofstream.write(f"Likelihood-to-variance: {l2v}\n")
 
         if "override_equal_mu" in MCMC_fields:
             if verbose:
@@ -572,7 +583,7 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             if verbose:
                 ofstream.write("# Whether to coerce params to stay within the bounds "
                                "listed in metropolis.check_approved_param(). \n"
-                               "=1 will coerce while =0 will only warn.\n")
+                               "# =1 will coerce while =0 will only warn.\n")
             bound = MCMC_fields["hard_bounds"]
             ofstream.write(f"Use hard boundaries: {bound}\n")
 
@@ -648,7 +659,9 @@ def validate_grid(grid: dict, supported_meas_types=("TRPL", "TRTS")):
         raise ValueError("MCMC simPar entry 'Length' must be a list with "
                          "one positive length value per measurement")
 
-    if not isinstance(grid['nx'], (int, np.integer)) or grid["nx"] <= 0:
+    if isinstance(grid['nx'], (int, np.integer)) or grid["nx"] <= 0:
+        pass
+    else:
         raise ValueError(
             "MCMC simPar entry 'num_nodes' must be positive integer")
 
@@ -679,66 +692,98 @@ def validate_param_info(param_info: dict):
         raise ValueError("Invalid number of param names in param_info")
 
     # No duplicate names allowed
-    if len(names) != len(set(names)):
+    if len(names) == len(set(names)):
+        pass
+    else:
         raise ValueError("Duplicate param names not allowed")
 
     # Alphanumeric + underscore only
     for k in names:
-        if not k.replace("_", "").isalnum():
+        if k.replace("_", "").isalnum():
+            pass
+        else:
             raise ValueError(f"Param name {k} is invalid \n"
                              " Names must be alphanumeric")
 
     # Unit conversions CAN be missing entries - these are defaulted to 1
     for k, v in param_info["unit_conversions"].items():
-        if not isinstance(v, (int, float)):
+        if isinstance(v, (int, float)):
+            pass
+        else:
             raise ValueError(f"Invalid unit conversion {v} for param {k}")
 
     # Others must have ALL entries
     for k in names:
-        if k not in param_info["do_log"]:
+        if k in param_info["do_log"]:
+            pass
+        else:
             raise KeyError(f"do_log missing param {k}")
 
-        if not (isinstance(param_info["do_log"][k], (int, np.integer)) and
+        if (isinstance(param_info["do_log"][k], (int, np.integer)) and
                 (param_info["do_log"][k] == 0 or param_info["do_log"][k] == 1)):
+            pass
+        else:
             raise ValueError(f"do_log param {k} invalid - must be 0 or 1")
 
-        if k not in param_info["active"]:
+        if k in param_info["active"]:
+            pass
+        else:
             raise KeyError(f"param_info's 'active' missing param {k}")
 
-        if not (isinstance(param_info["active"][k], (int, np.integer)) and
+        if (isinstance(param_info["active"][k], (int, np.integer)) and
                 (param_info["active"][k] == 0 or param_info["active"][k] == 1)):
+            pass
+        else:
             raise ValueError(
                 f"param_info's 'active' param {k} invalid - must be 0 or 1")
 
-        if k not in param_info["init_guess"]:
+        if k in param_info["init_guess"]:
+            pass
+        else:
             raise KeyError(f"init_guess missing param {k}")
 
-        if not (isinstance(param_info["init_guess"][k], (int, np.integer, float))):
+        if (isinstance(param_info["init_guess"][k], (int, np.integer, float))):
+            pass
+        else:
             raise ValueError(f"init_guess param {k} invalid")
 
-        if k not in param_info["prior_dist"]:
+        if k in param_info["prior_dist"]:
+            pass
+        else:
             raise KeyError(f"prior_dist missing param {k}")
 
-        if not (isinstance(param_info["prior_dist"][k], (tuple, list))):
+        if (isinstance(param_info["prior_dist"][k], (tuple, list))):
+            pass
+        else:
             raise ValueError(f"prior_dist param {k} must be tuple or list")
 
-        if not (len(param_info["prior_dist"][k]) == 2):
+        if (len(param_info["prior_dist"][k]) == 2):
+            pass
+        else:
             raise ValueError(f"prior_dist param {k} must be length 2")
 
-        if not (isinstance(param_info["prior_dist"][k][0], (int, np.integer, float)) and
+        if (isinstance(param_info["prior_dist"][k][0], (int, np.integer, float)) and
                 isinstance(param_info["prior_dist"][k][1], (int, np.integer, float))):
+            pass
+        else:
             raise ValueError(
                 f"prior_dist param {k} must contain two numeric bounds")
 
-        if not (param_info["prior_dist"][k][0] < param_info["prior_dist"][k][1]):
+        if (param_info["prior_dist"][k][0] < param_info["prior_dist"][k][1]):
+            pass
+        else:
             raise ValueError(f"prior_dist param {k} lower bound must be smaller"
                              " than upper bound")
 
-        if k not in param_info["init_variance"]:
+        if k in param_info["init_variance"]:
+            pass
+        else:
             raise KeyError(f"init_variance missing param {k}")
 
-        if not (isinstance(param_info["init_variance"][k], (int, np.integer, float))
+        if (isinstance(param_info["init_variance"][k], (int, np.integer, float))
                 and param_info["init_variance"][k] >= 0):
+            pass
+        else:
             raise ValueError(
                 f"init_variance param {k} invalid - must be non-negative")
 
@@ -761,13 +806,19 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
         raise ValueError("meas_flags time_cutoff must be list with 2 cutoff values \n"
                          "E.g. [0, np.inf] to allow all non-negative times.")
 
-    if not isinstance(time_cutoff[0], (int, np.integer, float)):
+    if isinstance(time_cutoff[0], (int, np.integer, float)):
+        pass
+    else:
         raise ValueError("Invalid time_cutoff lower bound")
 
-    if not isinstance(time_cutoff[1], (int, np.integer, float)):
+    if isinstance(time_cutoff[1], (int, np.integer, float)):
+        pass
+    else:
         raise ValueError("Invalid time_cutoff upper bound")
 
-    if time_cutoff[1] < time_cutoff[0]:
+    if time_cutoff[1] >= time_cutoff[0]:
+        pass
+    else:
         raise ValueError("time_cutoff upper bound smaller than lower bound")
 
     select = meas_flags["select_obs_sets"]
@@ -791,22 +842,28 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
 
     if "resample" in meas_flags:
         resample = meas_flags["resample"]
-        if not isinstance(resample, int):
+        if isinstance(resample, int):
+            pass
+        else:
             raise TypeError("Resample must be an integer")
-        if resample < 1:
+        if resample >= 1:
+            pass
+        else:
             raise ValueError("Invalid resample - must be positive")
 
     return
 
 
-def validate_MCMC_fields(MCMC_fields: dict, supported_solvers=("odeint", "solveivp"),
+def validate_MCMC_fields(MCMC_fields: dict,
+                         supported_solvers=("odeint", "solveivp"),
                          supported_prop_funcs=("box", "gauss", "None")):
     if not isinstance(MCMC_fields, dict):
         raise TypeError("MCMC control flags must be type 'dict'")
 
     required_keys = ("init_cond_path", "measurement_path", "output_path",
                      "num_iters", "solver",
-                     "model_uncertainty",
+                     "likel2variance_ratio",
+                     "annealing",
                      "log_pl", "self_normalize",
                      "proposal_function", "one_param_at_a_time",
                      "checkpoint_dirname", "checkpoint_header",
@@ -817,16 +874,24 @@ def validate_MCMC_fields(MCMC_fields: dict, supported_solvers=("odeint", "solvei
         if k not in MCMC_fields:
             raise ValueError(f"MCMC control flags missing entry '{k}'")
 
-    if not isinstance(MCMC_fields["init_cond_path"], str):
+    if isinstance(MCMC_fields["init_cond_path"], str):
+        pass
+    else:
         raise ValueError("init_cond_path must be a valid path")
 
-    if not isinstance(MCMC_fields["measurement_path"], str):
+    if isinstance(MCMC_fields["measurement_path"], str):
+        pass
+    else:
         raise ValueError("measurement_path must be a valid path")
 
-    if not isinstance(MCMC_fields["output_path"], str):
+    if isinstance(MCMC_fields["output_path"], str):
+        pass
+    else:
         raise ValueError("output_path must be a valid path")
 
-    if not check_valid_filename(MCMC_fields["output_path"]):
+    if check_valid_filename(MCMC_fields["output_path"]):
+        pass
+    else:
         raise ValueError("Invalid char in output_path")
 
     num_iters = MCMC_fields["num_iters"]
@@ -835,7 +900,9 @@ def validate_MCMC_fields(MCMC_fields: dict, supported_solvers=("odeint", "solvei
     else:
         raise ValueError("Invalid number of iterations")
 
-    if MCMC_fields["solver"] not in supported_solvers:
+    if MCMC_fields["solver"] in supported_solvers:
+        pass
+    else:
         raise ValueError("MCMC control 'solver' must be a supported solver.\n"
                          f"Supported solvers are {supported_solvers}")
 
@@ -862,60 +929,98 @@ def validate_MCMC_fields(MCMC_fields: dict, supported_solvers=("odeint", "solvei
 
     if "verify_hmax" in MCMC_fields:
         verify_hmax = MCMC_fields["verify_hmax"]
-        if not (isinstance(verify_hmax, (int, np.integer)) and
+        if (isinstance(verify_hmax, (int, np.integer)) and
                 (verify_hmax == 0 or verify_hmax == 1)):
+            pass
+        else:
             raise ValueError("verify_hmax invalid - must be 0 or 1")
 
-    anneal = MCMC_fields["model_uncertainty"]
+    annealing = MCMC_fields["annealing"]
 
-    if isinstance(anneal, (int, np.integer, float)) and anneal > 0:
+    if isinstance(annealing, tuple):
         pass
     else:
-        raise ValueError("model uncertainty must be a postiive value")
+        raise TypeError("Annealing must be tuple")
+
+    if len(annealing) == 3:
+        pass
+    else:
+        raise ValueError("Annealing must contain 3 values - "
+                         "start, steprate, and stop")
+
+    if annealing[0] >= annealing[2]:
+        pass
+    else:
+        raise ValueError("Annealing start must be at least as large as stop")
+
+    l2v = MCMC_fields["likel2variance_ratio"]
+
+    if isinstance(l2v, (int, np.integer, float)) and l2v > 0:
+        pass
+    else:
+        raise ValueError("Likelihood-to-variance must be a postiive value")
 
     if "override_equal_mu" in MCMC_fields:
         mu = MCMC_fields["override_equal_mu"]
-        if not (isinstance(mu, (int, np.integer)) and
+        if (isinstance(mu, (int, np.integer)) and
                 (mu == 0 or mu == 1)):
+            pass
+        else:
             raise ValueError("override equal_mu invalid - must be 0 or 1")
 
     if "override_equal_s" in MCMC_fields:
         s = MCMC_fields["override_equal_s"]
-        if not (isinstance(s, (int, np.integer)) and
+        if (isinstance(s, (int, np.integer)) and
                 (s == 0 or s == 1)):
+            pass
+        else:
             raise ValueError("override equal_s invalid - must be 0 or 1")
 
     logpl = MCMC_fields["log_pl"]
-    if not (isinstance(logpl, (int, np.integer)) and
+    if (isinstance(logpl, (int, np.integer)) and
             (logpl == 0 or logpl == 1)):
+        pass
+    else:
         raise ValueError("logpl invalid - must be 0 or 1")
 
     norm = MCMC_fields["self_normalize"]
-    if not (isinstance(norm, (int, np.integer)) and
+    if (isinstance(norm, (int, np.integer)) and
             (norm == 0 or norm == 1)):
+        pass
+    else:
         raise ValueError("self_normalize invalid - must be 0 or 1")
 
-    if MCMC_fields["proposal_function"] not in supported_prop_funcs:
+    if MCMC_fields["proposal_function"] in supported_prop_funcs:
+        pass
+    else:
         raise ValueError("MCMC control 'proposal_function' must be a supported proposal function.\n"
                          f"Supported funcs are {supported_prop_funcs}")
 
     if "hard_bounds" in MCMC_fields:
         bound = MCMC_fields["hard_bounds"]
-        if not (isinstance(bound, (int, np.integer)) and
+        if (isinstance(bound, (int, np.integer)) and
                 (bound == 0 or bound == 1)):
+            pass
+        else:
             raise ValueError("hard_bounds invalid - must be 0 or 1")
 
     oneaat = MCMC_fields["one_param_at_a_time"]
-    if not (isinstance(oneaat, (int, np.integer)) and
+    if (isinstance(oneaat, (int, np.integer)) and
             (oneaat == 0 or oneaat == 1)):
+        pass
+    else:
         raise ValueError("one_param_at_a_time invalid - must be 0 or 1")
 
     chpt_d = MCMC_fields["checkpoint_dirname"]
-    if not check_valid_filename(chpt_d):
+    if check_valid_filename(chpt_d):
+        pass
+    else:
         raise ValueError("Invalid char in checkpoint dirname")
 
     chpt_h = MCMC_fields["checkpoint_header"]
-    if not check_valid_filename(chpt_h):
+    if check_valid_filename(chpt_h):
+        pass
+    else:
         raise ValueError("Invalid char in checkpoint header")
 
     chpt_f = MCMC_fields["checkpoint_freq"]

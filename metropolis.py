@@ -244,19 +244,6 @@ def unpack_simpar(sim_info, i):
     meas_type = sim_info["meas_types"][i]
     return thickness, nx, meas_type
 
-# def anneal(t, anneal_mode, anneal_params):
-#     if anneal_mode is None or anneal_mode == "None":
-#         return anneal_params[2]
-
-#     elif anneal_mode == "exp":
-#         return anneal_params[0] * np.exp(-t / anneal_params[1]) + anneal_params[2]
-
-#     elif anneal_mode == "log":
-#         return (anneal_params[0] * np.log(2)) / (np.log(t / anneal_params[1] + 2)) + anneal_params[2]
-
-#     else:
-#         raise ValueError("Invalid annealing type")
-
 
 def detect_sim_fail(sol, ref_vals):
     fail = len(sol) < len(ref_vals)
@@ -331,7 +318,7 @@ def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
         # TODO: accomodate multiple experiments, just like bayes
 
         likelihood = -np.sum((np.log10(sol) + np.log10(p.m) - vals)
-                             ** 2 / (MCMC_fields["model_uncertainty"] + 2*uncs**2))
+                             ** 2 / (MCMC_fields["current_sigma"]**2 + 2*uncs**2))
 
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect
@@ -416,12 +403,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
 
     times, vals, uncs = e_data
-    # As model unc we take cN,
-    # where c is specified in main and N is number of observations
-    # MCMC_fields["model_uncertainty"] *= sum([len(time)-1 for time in times])
 
     if verbose and logger is not None:
-        logger.debug("Model unc: {}".format(MCMC_fields["model_uncertainty"]))
         for i in range(len(uncs)):
             logger.debug("{} Max exp unc: {}".format(i, np.amax(uncs[i])))
 
@@ -458,6 +441,13 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             logger.info("#####")
             logger.info("Iter {}".format(k))
             logger.info("#####")
+
+            # Check if anneal needed
+            MS.anneal(k)
+            logger.debug("Current sigma: {}".format(
+                MS.MCMC_fields["current_sigma"]))
+            logger.debug("Current variances: {}".format(MS.variances.trace()))
+
             # Identify which parameter to move
             if MCMC_fields.get("one_param_at_a_time", 0):
                 picked_param = MS.means.actives[k % len(MS.means.actives)]
