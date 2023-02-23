@@ -40,11 +40,12 @@ class MetroState():
         self.MCMC_fields["current_sigma"] = self.MCMC_fields["annealing"][0]
         return
 
-    def anneal(self, k):
+    def anneal(self, k, uncs=None):
         steprate = self.MCMC_fields["annealing"][1]
         min_sigma = self.MCMC_fields["annealing"][2]
         l2v = self.MCMC_fields["likel2variance_ratio"]
         if k > 0 and k % steprate == 0:
+
             self.MCMC_fields["current_sigma"] *= 0.1
 
             self.MCMC_fields["current_sigma"] = max(self.MCMC_fields["current_sigma"],
@@ -53,6 +54,18 @@ class MetroState():
             new_variance = self.MCMC_fields["current_sigma"] / l2v
             self.variances.apply_values(
                 {param: new_variance for param in self.param_info["names"]})
+
+            # Ensure we aren't comparing states calculated with two different
+            # likelihoods
+
+            # for i in range(len(self.prev_p.likelihood)):
+            #     if uncs is not None:
+            #         exp_unc = 2 * uncs[i] ** 2
+            #     else:
+            #         exp_unc = 0
+            #     new_uncertainty = self.MCMC_fields["current_sigma"]**2 + exp_unc
+            #     self.prev_p.likelihood[i] = - \
+            #         np.sum(self.prev_p.err_sq[i] / new_uncertainty)
         return
 
     def print_status(self, logger):

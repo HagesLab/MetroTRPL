@@ -317,8 +317,9 @@ def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
             sol /= np.nanmax(sol)
         # TODO: accomodate multiple experiments, just like bayes
 
-        likelihood = -np.sum((np.log10(sol) + np.log10(p.m) - vals)
-                             ** 2 / (MCMC_fields["current_sigma"]**2 + 2*uncs**2))
+        err_sq = (np.log10(sol) + np.log10(p.m) - vals) ** 2
+        likelihood = - \
+            np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs**2))
 
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect
@@ -327,7 +328,8 @@ def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
     except ValueError as e:
         logger.warning(e)
         likelihood = -np.inf
-    return likelihood
+        err_sq = np.inf
+    return likelihood, err_sq
 
 
 def run_iteration(p, sim_info, iniPar, times, vals, uncs, hmax,
@@ -337,6 +339,9 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, hmax,
     logratio = 0  # acceptance ratio = 1
     p.likelihood = np.zeros(len(iniPar))
 
+    # Can't use ndarray - err_sq for each sim can be different length
+    p.err_sq = [[] for i in iniPar]
+
     if MCMC_fields.get("use_multi_cpus", False):
         raise NotImplementedError
         # with Pool(MCMC_fields["num_cpus"]) as pool:
@@ -345,7 +350,7 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, hmax,
 
     else:
         for i in range(len(iniPar)):
-            p.likelihood[i] = one_sim_likelihood(
+            p.likelihood[i], p.err_sq[i] = one_sim_likelihood(
                 p, sim_info, hmax, MCMC_fields, logger,
                 (i, iniPar[i], times[i], vals[i], uncs[i]))
 
@@ -360,7 +365,8 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, hmax,
         accepted = roll_acceptance(logratio)
 
     if prev_p is not None and accepted:
-        prev_p.likelihood = p.likelihood
+        prev_p.likelihood = np.array(p.likelihood)
+        prev_p.err_sq = list(p.err_sq)
     return accepted
 
 
@@ -443,7 +449,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             logger.info("#####")
 
             # Check if anneal needed
-            MS.anneal(k)
+            MS.anneal(k, uncs)
             logger.debug("Current sigma: {}".format(
                 MS.MCMC_fields["current_sigma"]))
             logger.debug("Current variances: {}".format(MS.variances.trace()))

@@ -624,6 +624,7 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(accepted)
         # Accept should overwrite p2 (new) into p (old)
         np.testing.assert_equal(p.likelihood, p2.likelihood)
+        np.testing.assert_equal(p.err_sq, p2.err_sq)
 
     def test_one_sim_ll_errata(self):
         # TODO: The next time odeint fails to do a simulation, upload it into this
