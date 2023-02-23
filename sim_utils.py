@@ -58,14 +58,14 @@ class MetroState():
             # Ensure we aren't comparing states calculated with two different
             # likelihoods
 
-            # for i in range(len(self.prev_p.likelihood)):
-            #     if uncs is not None:
-            #         exp_unc = 2 * uncs[i] ** 2
-            #     else:
-            #         exp_unc = 0
-            #     new_uncertainty = self.MCMC_fields["current_sigma"]**2 + exp_unc
-            #     self.prev_p.likelihood[i] = - \
-            #         np.sum(self.prev_p.err_sq[i] / new_uncertainty)
+            for i in range(len(self.prev_p.likelihood)):
+                if uncs is not None:
+                    exp_unc = 2 * uncs[i] ** 2
+                else:
+                    exp_unc = 0
+                new_uncertainty = self.MCMC_fields["current_sigma"]**2 + exp_unc
+                self.prev_p.likelihood[i] = - \
+                    np.sum(self.prev_p.err_sq[i] / new_uncertainty)
         return
 
     def print_status(self, logger):
