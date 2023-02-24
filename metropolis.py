@@ -319,7 +319,7 @@ def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
 
         err_sq = (np.log10(sol) + np.log10(p.m) - vals) ** 2
         likelihood = - \
-            np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs**2))
+            np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + uncs**2))
 
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect
@@ -412,7 +412,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
     if verbose and logger is not None:
         for i in range(len(uncs)):
-            logger.debug("{} Max exp unc: {}".format(i, np.amax(uncs[i])))
+            logger.debug("{} exp unc max: {} avg: {}".format(i, np.amax(uncs[i]), np.mean(uncs[i])))
 
     make_dir(MCMC_fields["checkpoint_dirname"])
     clear_checkpoint_dir(MCMC_fields)

@@ -955,10 +955,10 @@ def validate_MCMC_fields(MCMC_fields: dict,
 
     l2v = MCMC_fields["likel2variance_ratio"]
 
-    if isinstance(l2v, (int, np.integer, float)) and l2v > 0:
+    if isinstance(l2v, (int, np.integer, float)) and l2v >= 0:
         pass
     else:
-        raise ValueError("Likelihood-to-variance must be a postiive value")
+        raise ValueError("Likelihood-to-variance must be a non-negative value")
 
     if "override_equal_mu" in MCMC_fields:
         mu = MCMC_fields["override_equal_mu"]
