@@ -429,7 +429,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
             starting_iter = int(load_checkpoint[first_under+1:tail])+1
             MS.H.extend(num_iters, param_info)
-            MS.MCMC_fields = dict(MCMC_fields)
+            for f in MCMC_fields:
+                MS.MCMC_fields[f] = MCMC_fields[f]
 
     else:
         MS = MetroState(param_info, MCMC_fields, num_iters)
@@ -439,8 +440,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         # Calculate likelihood of initial guess
         MS.running_hmax = [STARTING_HMAX] * len(iniPar)
         run_iteration(MS.prev_p, sim_info, iniPar, times, vals, uncs,
-                      MS.running_hmax, MCMC_fields, verbose, logger)
-        MS.H.update(0, MS.prev_p, MS.means, param_info)
+                      MS.running_hmax, MS.MCMC_fields, verbose, logger)
+        MS.H.update(0, MS.prev_p, MS.means, MS.param_info)
 
     for k in range(starting_iter, num_iters):
         try:
@@ -455,26 +456,26 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             logger.debug("Current variances: {}".format(MS.variances.trace()))
 
             # Identify which parameter to move
-            if MCMC_fields.get("one_param_at_a_time", 0):
+            if MS.MCMC_fields.get("one_param_at_a_time", 0):
                 picked_param = MS.means.actives[k % len(MS.means.actives)]
             else:
                 picked_param = None
 
             # Select next sample from distribution
 
-            if MCMC_fields.get("adaptive_covariance", "None") == "None":
+            if MS.MCMC_fields.get("adaptive_covariance", "None") == "None":
                 MS.variances.mask_covariance(picked_param)
 
             select_next_params(MS.p, MS.means, MS.variances, MS.param_info,
-                               MCMC_fields["proposal_function"],
-                               MCMC_fields.get("hard_bounds", 0), logger)
+                               MS.MCMC_fields["proposal_function"],
+                               MS.MCMC_fields.get("hard_bounds", 0), logger)
 
             if verbose:
                 MS.print_status(logger)
 
             if DA_mode == "off":
                 accepted = run_iteration(MS.p, sim_info, iniPar, times, vals, uncs,
-                                         MS.running_hmax, MCMC_fields, verbose,
+                                         MS.running_hmax, MS.MCMC_fields, verbose,
                                          logger, prev_p=MS.prev_p, t=k)
 
             elif DA_mode == 'DEBUG':
@@ -484,29 +485,29 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                 logger.info("Rejected!")
 
             if accepted:
-                MS.means.transfer_from(MS.p, param_info)
+                MS.means.transfer_from(MS.p, MS.param_info)
                 MS.H.accept[k] = 1
 
-            MS.H.update(k, MS.p, MS.means, param_info)
+            MS.H.update(k, MS.p, MS.means, MS.param_info)
         except KeyboardInterrupt:
             logger.info("Terminating with k={} iters completed:".format(k-1))
-            MS.H.truncate(k, param_info)
+            MS.H.truncate(k, MS.param_info)
             break
 
         if checkpoint_freq is not None and k % checkpoint_freq == 0:
-            chpt_header = MCMC_fields["checkpoint_header"]
-            chpt_fname = os.path.join(MCMC_fields["checkpoint_dirname"],
+            chpt_header = MS.MCMC_fields["checkpoint_header"]
+            chpt_fname = os.path.join(MS.MCMC_fields["checkpoint_dirname"],
                                       f"checkpoint{chpt_header}_{k}.pik")
             logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
             MS.random_state = np.random.get_state()
             MS.checkpoint(chpt_fname)
 
-    MS.H.apply_unit_conversions(param_info)
+    MS.H.apply_unit_conversions(MS.param_info)
     MS.H.final_cov = MS.variances.cov
 
     if export_path is not None:
-        logger.info("Exporting to {}".format(MCMC_fields["output_path"]))
-        MS.checkpoint(os.path.join(MCMC_fields["output_path"], export_path))
+        logger.info("Exporting to {}".format(MS.MCMC_fields["output_path"]))
+        MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
 
     if using_default_logger:
         stop_logging(logger, handler, 0)
