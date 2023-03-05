@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     final_t = perf_counter() - clock0
 
-    logger.info("Metro took {} s".format(final_t))
+    logger.info("Metro took {} s ({} hr)".format(final_t, final_t / 3600))
     logger.info("Avg: {} s per iter".format(final_t / MCMC_fields["num_iters"]))
     logger.info("Acceptance rate: {}".format(
         np.sum(MS.H.accept) / len(MS.H.accept.flatten())))
