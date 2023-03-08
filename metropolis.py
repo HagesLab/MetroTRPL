@@ -418,7 +418,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     clear_checkpoint_dir(MCMC_fields)
 
     make_dir(MCMC_fields["output_path"])
-
     if load_checkpoint is not None:
         with open(os.path.join(MCMC_fields["checkpoint_dirname"],
                                load_checkpoint), 'rb') as ifstream:
@@ -429,8 +428,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
             starting_iter = int(load_checkpoint[first_under+1:tail])+1
             MS.H.extend(num_iters, param_info)
-            for f in MCMC_fields:
-                MS.MCMC_fields[f] = MCMC_fields[f]
+            MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
 
     else:
         MS = MetroState(param_info, MCMC_fields, num_iters)
