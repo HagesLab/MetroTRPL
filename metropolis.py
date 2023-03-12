@@ -279,8 +279,9 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
 
         # if verbose:
         if logger is not None:
-            logger.info("{}: Simulation complete hmax={}; t {}-{}".format(i,
-                        hmax, times[0], times[len(sol)-1]))
+            logger.info("{}: Simulation complete hmax={}; t {}-{}; x {}".format(i,
+                        hmax, times[0], times[len(sol)-1], thickness))
+
 
         sol, fail = detect_sim_fail(sol, vals)
         if fail and logger is not None:
@@ -370,7 +371,7 @@ def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
 
         err_sq = (np.log10(sol) + np.log10(p.m) - vals) ** 2
         likelihood = - \
-            np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + uncs**2))
+            np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs**2))
 
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect
@@ -484,6 +485,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
     else:
         MS = MetroState(param_info, MCMC_fields, num_iters)
+        MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
 
         starting_iter = 1
 
@@ -501,7 +503,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
             # Check if anneal needed
             MS.anneal(k, uncs)
-            logger.debug("Current sigma: {}".format(
+            logger.debug("Current model sigma: {}".format(
                 MS.MCMC_fields["current_sigma"]))
             logger.debug("Current variances: {}".format(MS.variances.trace()))
 
