@@ -224,6 +224,95 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
     return sol
 
 
+def converge_simulation(i, p, sim_info, iniPar, times, vals,
+                        hmax, MCMC_fields, logger=None):
+    """
+    Retest and repeat simulation until all stipulated convergence criteria
+    are met.
+
+    Parameters
+    ----------
+    i : int
+        Index of ith simulation in a measurement set requiring n simulations.
+    p : Parameters
+        Object corresponding to current state of MMC walk.
+    sim_info : dict
+        Dictionary compatible with unpack_simpar(),
+        containing a thickness, nx, and measurement type info
+        needed for simulation.
+    iniPar : ndarray
+        Array of initial conditions for simulation.
+    times : ndarray
+        Time points at which to evaluate the simulation.
+    vals : ndarray
+        Actual values to compare simulation output against.
+    hmax : list
+        List of length n, indexable by i, containing adaptive time steps
+        to be used for each simulation.
+    MCMC_fields : dict
+        Dictionary of MMC control parameters.
+    logger : logger
+        Logger to write status messages to. The default is None.
+
+    Returns
+    -------
+    sol : ndarray
+        Array of values (e.g. TRPL) from final simulation.
+    success : bool
+        Whether the final simulation passed all convergence criteria.
+
+    """
+    thickness, nx, meas_type = unpack_simpar(sim_info, i)
+
+    STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
+    RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
+    ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
+    # Always attempt a slightly larger hmax than what worked previously
+    hmax[i] = min(STARTING_HMAX, hmax[i] * 2)
+
+    # Repeat until all criteria are satisfied.
+    while hmax[i] > MIN_HMAX:
+        sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
+                            meas=meas_type,
+                            solver=MCMC_fields["solver"],
+                            rtol=RTOL, atol=ATOL)
+
+        # if verbose:
+        if logger is not None:
+            logger.info("{}: Simulation complete hmax={}; t {}-{}".format(i,
+                        hmax, times[0], times[len(sol)-1]))
+
+        sol, fail = detect_sim_fail(sol, vals)
+        if fail and logger is not None:
+            logger.warning(f"{i}: Simulation terminated early!")
+
+        sol, fail = detect_sim_depleted(sol)
+        if fail:
+            hmax[i] = max(MIN_HMAX, hmax[i] / 2)
+            if logger is not None:
+                logger.warning(f"{i}: Carriers depleted!")
+                logger.warning(f"{i}: Retrying hmax={hmax}")
+
+        elif MCMC_fields.get("verify_hmax", False):
+            hmax[i] = max(MIN_HMAX, hmax[i] / 2)
+            logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
+            sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
+                                 meas=meas_type, solver=MCMC_fields["solver"],
+                                 rtol=RTOL, atol=ATOL)
+            if almost_equal(sol, sol2, threshold=RTOL):
+                logger.info("Success!")
+                break
+            else:
+                logger.info(f"{i}: Fail - not converged")
+                if hmax[i] <= MIN_HMAX:
+                    logger.warning(f"{i}: MIN_HMAX reached")
+
+        else:
+            break
+
+    return sol, not fail
+
+
 def roll_acceptance(logratio):
     accepted = False
     if logratio >= 0:
@@ -271,47 +360,9 @@ def almost_equal(x, x0, threshold=1e-10):
 
 def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
     i, iniPar, times, vals, uncs = args
-    STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
-    RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
-    ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
-    thickness, nx, meas_type = unpack_simpar(sim_info, i)
-    # Always attempt a slightly larger hmax than what worked at previous proposal
-    hmax[i] = min(STARTING_HMAX, hmax[i] * 2)
 
-    while hmax[i] > MIN_HMAX:
-        sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], meas=meas_type,
-                            solver=MCMC_fields["solver"], rtol=RTOL, atol=ATOL)
-
-        # if verbose:
-        logger.info("{}: Simulation complete hmax={}; t {}-{}".format(i,
-                    hmax, times[0], times[len(sol)-1]))
-
-        sol, fail = detect_sim_fail(sol, vals)
-        if fail:
-            logger.warning(f"{i}: Simulation terminated early!")
-
-        sol, fail = detect_sim_depleted(sol)
-        if fail:
-            logger.warning(f"{i}: Carriers depleted!")
-            hmax[i] = max(MIN_HMAX, hmax[i] / 2)
-            logger.warning(f"{i}: Retrying hmax={hmax}")
-
-        elif MCMC_fields.get("verify_hmax", False):
-            hmax[i] = max(MIN_HMAX, hmax[i] / 2)
-            logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
-            sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
-                                 meas=meas_type, solver=MCMC_fields["solver"],
-                                 rtol=RTOL, atol=ATOL)
-            if almost_equal(sol, sol2, threshold=RTOL):
-                logger.info("Success!")
-                break
-            else:
-                logger.info(f"{i}: Fail - not converged")
-                if hmax[i] <= MIN_HMAX:
-                    logger.warning(f"{i}: MIN_HMAX reached")
-
-        else:
-            break
+    sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
+                                       hmax, MCMC_fields, logger)
     try:
         if MCMC_fields.get("self_normalize", False):
             sol /= np.nanmax(sol)
@@ -323,7 +374,7 @@ def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
 
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect
-        if fail or np.isnan(likelihood):
+        if not success or np.isnan(likelihood):
             raise ValueError(f"{i}: Simulation failed!")
     except ValueError as e:
         logger.warning(e)
@@ -412,7 +463,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
     if verbose and logger is not None:
         for i in range(len(uncs)):
-            logger.debug("{} exp unc max: {} avg: {}".format(i, np.amax(uncs[i]), np.mean(uncs[i])))
+            logger.debug("{} exp unc max: {} avg: {}".format(
+                i, np.amax(uncs[i]), np.mean(uncs[i])))
 
     make_dir(MCMC_fields["checkpoint_dirname"])
     clear_checkpoint_dir(MCMC_fields)
