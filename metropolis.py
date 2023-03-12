@@ -283,8 +283,8 @@ def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
                             solver=MCMC_fields["solver"], rtol=RTOL, atol=ATOL)
 
         # if verbose:
-        logger.info("{}: Simulation complete hmax={}; t {}-{}".format(i,
-                    hmax, times[0], times[len(sol)-1]))
+        logger.info("{}: Simulation complete hmax={}; t {}-{}; x {}".format(i,
+                    hmax, times[0], times[len(sol)-1], thickness))
 
         sol, fail = detect_sim_fail(sol, vals)
         if fail:
