@@ -230,7 +230,8 @@ def read_config_script_file(path):
                             line_split[1], delimiter='\t')
 
                     elif line.startswith("nx"):
-                        grid["nx"] = int(line_split[1])
+                        grid["nx"] = extract_values(
+                            line_split[1], delimiter='\t', dtype=int)
 
                     elif line.startswith("Measurement type(s)"):
                         grid["meas_types"] = line_split[1].split('\t')
@@ -384,7 +385,10 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             ofstream.write(
                 "# Number of space nodes used by solver discretization\n")
         nx = simPar["nx"]
-        ofstream.write(f"nx: {nx}\n")
+        ofstream.write(f"nx: {nx[0]}")
+        for value in nx[1:]:
+            ofstream.write(f"\t{value}")
+        ofstream.write('\n')
         if verbose:
             ofstream.write("# Model to use to simulate each measurement\n")
         meas_types = simPar["meas_types"]
@@ -659,11 +663,14 @@ def validate_grid(grid: dict, supported_meas_types=("TRPL", "TRTS")):
         raise ValueError("MCMC simPar entry 'Length' must be a list with "
                          "one positive length value per measurement")
 
-    if isinstance(grid['nx'], (int, np.integer)) or grid["nx"] <= 0:
+    if (isinstance(grid["nx"], (list, np.ndarray)) and
+        len(grid["nx"]) == declared_num_measurements and
+            all(map(lambda x: x > 0, grid["nx"]))):
         pass
     else:
         raise ValueError(
-            "MCMC simPar entry 'num_nodes' must be positive integer")
+            "MCMC simPar entry 'nx' must be a list with one positive integer "
+            "number of nodes per measurement")
 
     if (isinstance(grid["meas_types"], (list, np.ndarray)) and
         len(grid["meas_types"]) == declared_num_measurements and

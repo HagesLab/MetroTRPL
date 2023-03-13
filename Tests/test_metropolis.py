@@ -507,7 +507,7 @@ class TestUtils(unittest.TestCase):
     def test_unpack_simpar(self):
         #Length = [311,2000,311,2000, 311, 2000]
         Length = [2000]                            # Length (nm)
-        L = 2 ** 7                                # Spatial points
+        L = [2 ** 7]                                # Spatial points
         meas_type = ["TRPL"]                          # measurement type
 
         simPar = {"lengths": Length,
@@ -517,10 +517,11 @@ class TestUtils(unittest.TestCase):
 
         thickness, nx, mtype = unpack_simpar(simPar, 0)
         self.assertEqual(Length[0], thickness)
-        self.assertEqual(L, nx)
+        self.assertEqual(L[0], nx)
         self.assertEqual(meas_type[0], mtype)
 
         Length = np.array([311, 2000, 311, 2000, 311, 2000])
+        L = [10, 20, 30, 40, 50, 60]
         meas_type = ["TRPL", "TRTS", "TRPL", "TRPL", "TRTS", "TRPL"]
         simPar = {"lengths": Length,
                   "nx": L,
@@ -529,7 +530,7 @@ class TestUtils(unittest.TestCase):
 
         thickness, nx, mtype = unpack_simpar(simPar, 2)
         self.assertEqual(Length[2], thickness)
-        self.assertEqual(L, nx)
+        self.assertEqual(L[2], nx)
         self.assertEqual(meas_type[2], mtype)
         return
 
@@ -557,14 +558,14 @@ class TestUtils(unittest.TestCase):
         # Will basically need to set up a full simulation for this
         np.random.seed(42)
         Length = [2000, 2000]                            # Length (nm)
-        L = 2 ** 7                                # Spatial point
+        L = [2 ** 7, 2 ** 7]                                # Spatial point
         mtype = ["TRPL", "TRPL"]
         simPar = {"lengths": Length,
                   "nx": L,
                   "meas_types": mtype,
                   "num_meas": 2}
 
-        iniPar = [1e15 * np.ones(L) * 1e-21, 1e16 * np.ones(L) * 1e-21]
+        iniPar = [1e15 * np.ones(L[0]) * 1e-21, 1e16 * np.ones(L[1]) * 1e-21]
 
         param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
                        "Sf", "Sb", "tauN", "tauP", "eps", "m"]

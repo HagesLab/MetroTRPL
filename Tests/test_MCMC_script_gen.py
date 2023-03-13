@@ -14,7 +14,7 @@ class TestUtils(unittest.TestCase):
     def setUp(self):
         num_measurements = 3
         Length = [2000, 2000, 2000]                           # Length (nm)
-        L = 128                                # Spatial points
+        L = [128, 128, 128]                                # Spatial points
         measurement_types = ["TRPL", "TRPL", "TRPL"]
         self.simPar = {"lengths": Length,
                        "nx": L,

@@ -282,7 +282,6 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
             logger.info("{}: Simulation complete hmax={}; t {}-{}; x {}".format(i,
                         hmax, times[0], times[len(sol)-1], thickness))
 
-
         sol, fail = detect_sim_fail(sol, vals)
         if fail and logger is not None:
             logger.warning(f"{i}: Simulation terminated early!")
@@ -330,7 +329,7 @@ def roll_acceptance(logratio):
 
 def unpack_simpar(sim_info, i):
     thickness = sim_info["lengths"][i]
-    nx = sim_info["nx"]
+    nx = sim_info["nx"][i]
     meas_type = sim_info["meas_types"][i]
     return thickness, nx, meas_type
 
