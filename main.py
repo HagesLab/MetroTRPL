@@ -49,16 +49,20 @@ if __name__ == "__main__":
     e_data = get_data(MCMC_fields["measurement_path"],
                       meas_fields, MCMC_fields, scale_f=scale_f)
 
+    # Make simulation info consistent with actual number of selected measurements
     if meas_fields.get("select_obs_sets", None) is not None:
-        sim_info["meas_types"] = [sim_info["meas_types"][i] for i in meas_fields["select_obs_sets"]]
-        sim_info["lengths"] = [sim_info["lengths"][i] for i in meas_fields["select_obs_sets"]]
+        sim_info["meas_types"] = [sim_info["meas_types"][i]
+                                  for i in meas_fields["select_obs_sets"]]
+        sim_info["lengths"] = [sim_info["lengths"][i]
+                               for i in meas_fields["select_obs_sets"]]
         sim_info["num_measurements"] = len(meas_fields["select_obs_sets"])
 
     logger, handler = start_logging(
         log_dir=MCMC_fields["output_path"], name=f"CPU{jobid}")
     logger.info("Measurement handling fields: {}".format(meas_fields))
     logger.info("E data: {}".format(e_data))
-    logger.info("Initial condition: {}".format(["[{}...{}]".format(iniPar[i][0], iniPar[i][-1]) for i in range(len(iniPar))]))
+    logger.info("Initial condition: {}".format(
+        ["[{}...{}]".format(iniPar[i][0], iniPar[i][-1]) for i in range(len(iniPar))]))
 
     export_path = f"CPU{jobid}-final.pik"
 
