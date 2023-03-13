@@ -44,7 +44,7 @@ class MetroState():
         steprate = self.MCMC_fields["annealing"][1]
         min_sigma = self.MCMC_fields["annealing"][2]
         l2v = self.MCMC_fields["likel2variance_ratio"]
-        if k > 0 and k % steprate == 0:
+        if k > 0 and l2v > 0 and k % steprate == 0:
 
             self.MCMC_fields["current_sigma"] *= 0.1
 
