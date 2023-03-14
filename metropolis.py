@@ -450,29 +450,30 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     logger.info("PID: {}".format(os.getpid()))
     all_signal_handler(kill_from_cl)
 
-    if verbose:
-        logger.info("Sim info: {}".format(sim_info))
-        logger.info("Param infos: {}".format(param_info))
-        logger.info("MCMC fields: {}".format(MCMC_fields))
-
-    num_iters = MCMC_fields["num_iters"]
-    DA_mode = MCMC_fields.get("delayed_acceptance", "off")
-    checkpoint_freq = MCMC_fields["checkpoint_freq"]
-    load_checkpoint = MCMC_fields["load_checkpoint"]
-    STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
-
-    times, vals, uncs = e_data
-
-    if verbose and logger is not None:
-        for i in range(len(uncs)):
-            logger.debug("{} exp unc max: {} avg: {}".format(
-                i, np.amax(uncs[i]), np.mean(uncs[i])))
-
     make_dir(MCMC_fields["checkpoint_dirname"])
     clear_checkpoint_dir(MCMC_fields)
 
     make_dir(MCMC_fields["output_path"])
-    if load_checkpoint is not None:
+
+    load_checkpoint = MCMC_fields["load_checkpoint"]
+    num_iters = MCMC_fields["num_iters"]
+    if load_checkpoint is None:
+        MS = MetroState(param_info, MCMC_fields, num_iters)
+        MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
+
+        starting_iter = 1
+
+        # Just so MS saves a record of these
+        MS.sim_info = sim_info
+        MS.iniPar = iniPar
+        MS.times, MS.vals, MS.uncs = e_data
+
+        if verbose and logger is not None:
+            for i in range(len(MS.uncs)):
+                logger.debug("{} exp unc max: {} avg: {}".format(
+                    i, np.amax(MS.uncs[i]), np.mean(MS.uncs[i])))
+
+    else:
         with open(os.path.join(MCMC_fields["checkpoint_dirname"],
                                load_checkpoint), 'rb') as ifstream:
             MS = pickle.load(ifstream)
@@ -484,15 +485,22 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             MS.H.extend(num_iters, param_info)
             MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
 
-    else:
-        MS = MetroState(param_info, MCMC_fields, num_iters)
-        MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
+    # From this point on, for consistency, work with ONLY the MetroState object!
+    if verbose:
+        logger.info("Sim info: {}".format(MS.sim_info))
+        logger.info("Param infos: {}".format(MS.param_info))
+        logger.info("MCMC fields: {}".format(MS.MCMC_fields))
 
-        starting_iter = 1
+    DA_mode = MS.MCMC_fields.get("delayed_acceptance", "off")
+    checkpoint_freq = MS.MCMC_fields["checkpoint_freq"]
 
+    if load_checkpoint is None:
+        logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
-        MS.running_hmax = [STARTING_HMAX] * len(iniPar)
-        run_iteration(MS.prev_p, sim_info, iniPar, times, vals, uncs,
+        STARTING_HMAX = MS.MCMC_fields.get("hmax", DEFAULT_HMAX)
+        MS.running_hmax = [STARTING_HMAX] * len(MS.iniPar)
+        run_iteration(MS.prev_p, MS.sim_info, MS.iniPar,
+                      MS.times, MS.vals, MS.uncs,
                       MS.running_hmax, MS.MCMC_fields, verbose, logger)
         MS.H.update(0, MS.prev_p, MS.means, MS.param_info)
 
@@ -503,7 +511,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             logger.info("#####")
 
             # Check if anneal needed
-            MS.anneal(k, uncs)
+            MS.anneal(k, MS.uncs)
             logger.debug("Current model sigma: {}".format(
                 MS.MCMC_fields["current_sigma"]))
             logger.debug("Current variances: {}".format(MS.variances.trace()))
@@ -527,7 +535,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                 MS.print_status(logger)
 
             if DA_mode == "off":
-                accepted = run_iteration(MS.p, sim_info, iniPar, times, vals, uncs,
+                accepted = run_iteration(MS.p, MS.sim_info, MS.iniPar,
+                                         MS.times, MS.vals, MS.uncs,
                                          MS.running_hmax, MS.MCMC_fields, verbose,
                                          logger, prev_p=MS.prev_p, t=k)
 
