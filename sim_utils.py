@@ -71,6 +71,10 @@ class MetroState():
     def print_status(self, logger):
         is_active = self.param_info['active']
         ucs = self.param_info["unit_conversions"]
+
+        if hasattr(self.prev_p, "likelihood"):
+            logger.info("Current loglikelihood : {:.6e} ".format(
+                np.sum(self.prev_p.likelihood)))
         for param in self.param_info['names']:
             if is_active.get(param, 0):
                 logger.info("Next {}: {:.6e} from mean {:.6e}".format(param, getattr(

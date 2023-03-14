@@ -229,6 +229,8 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     """
     Retest and repeat simulation until all stipulated convergence criteria
     are met.
+    For some models, this can be as simple as running do_simulation()
+    or equivalent once.
 
     Parameters
     ----------
