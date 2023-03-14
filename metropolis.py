@@ -423,78 +423,40 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, hmax,
     return accepted
 
 
-def kill_from_cl(signal_n, frame):
-    raise KeyboardInterrupt("Terminate from command line")
+def main_metro_loop(MS, starting_iter, num_iters,
+                    need_initial_state=True, logger=None, verbose=False):
+    """
+    Run the Metropolis loop for a specified number of iterations,
+    storing all info in a MetroState() object and saving the MetroState()
+    as occasional checkpoints.
 
+    Parameters
+    ----------
+    MS : MetroState() object
 
-def all_signal_handler(func):
-    for s in signal.Signals:
-        try:
-            signal.signal(s, func)
-        except (ValueError, OSError):
-            continue
-    return
+    starting_iter : int
+        Index of first iter. 1 if starting from scratch, checkpoint-dependent
+        otherwise.
+    num_iters : int
+        Index of final iter.
+    need_initial_state : bool, optional
+        Whether we're starting from scratch, and thus need to calculate the
+        likelihood of the initial state before moving around.
+        The default is True.
+    logger : logging object, optional
+        Stream to write status messages. The default is None.
+    verbose : bool, optional
+        Print more detailed status messages. The default is False.
 
+    Returns
+    -------
+    None. MetroState() object is updated throughout.
 
-def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
-          verbose=False, export_path=None, logger=None):
-
-    if logger is None:  # Require a logger
-        logger, handler = start_logging(log_dir=MCMC_fields["output_path"],
-                                        name="Log-")
-        using_default_logger = True
-    else:
-        using_default_logger = False
-
-    # Setup
-    logger.info("PID: {}".format(os.getpid()))
-    all_signal_handler(kill_from_cl)
-
-    make_dir(MCMC_fields["checkpoint_dirname"])
-    clear_checkpoint_dir(MCMC_fields)
-
-    make_dir(MCMC_fields["output_path"])
-
-    load_checkpoint = MCMC_fields["load_checkpoint"]
-    num_iters = MCMC_fields["num_iters"]
-    if load_checkpoint is None:
-        MS = MetroState(param_info, MCMC_fields, num_iters)
-        MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
-
-        starting_iter = 1
-
-        # Just so MS saves a record of these
-        MS.sim_info = sim_info
-        MS.iniPar = iniPar
-        MS.times, MS.vals, MS.uncs = e_data
-
-        if verbose and logger is not None:
-            for i in range(len(MS.uncs)):
-                logger.debug("{} exp unc max: {} avg: {}".format(
-                    i, np.amax(MS.uncs[i]), np.mean(MS.uncs[i])))
-
-    else:
-        with open(os.path.join(MCMC_fields["checkpoint_dirname"],
-                               load_checkpoint), 'rb') as ifstream:
-            MS = pickle.load(ifstream)
-            np.random.set_state(MS.random_state)
-            first_under = load_checkpoint.find("_")
-            tail = load_checkpoint.rfind(".pik")
-
-            starting_iter = int(load_checkpoint[first_under+1:tail])+1
-            MS.H.extend(num_iters, param_info)
-            MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
-
-    # From this point on, for consistency, work with ONLY the MetroState object!
-    if verbose:
-        logger.info("Sim info: {}".format(MS.sim_info))
-        logger.info("Param infos: {}".format(MS.param_info))
-        logger.info("MCMC fields: {}".format(MS.MCMC_fields))
-
+    """
     DA_mode = MS.MCMC_fields.get("delayed_acceptance", "off")
     checkpoint_freq = MS.MCMC_fields["checkpoint_freq"]
 
-    if load_checkpoint is None:
+    if need_initial_state:
         logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
         STARTING_HMAX = MS.MCMC_fields.get("hmax", DEFAULT_HMAX)
@@ -563,6 +525,81 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
             MS.random_state = np.random.get_state()
             MS.checkpoint(chpt_fname)
+    return
+
+
+def kill_from_cl(signal_n, frame):
+    raise KeyboardInterrupt("Terminate from command line")
+
+
+def all_signal_handler(func):
+    for s in signal.Signals:
+        try:
+            signal.signal(s, func)
+        except (ValueError, OSError):
+            continue
+    return
+
+
+def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
+          verbose=False, export_path=None, logger=None):
+
+    if logger is None:  # Require a logger
+        logger, handler = start_logging(log_dir=MCMC_fields["output_path"],
+                                        name="Log-")
+        using_default_logger = True
+    else:
+        using_default_logger = False
+
+    # Setup
+    logger.info("PID: {}".format(os.getpid()))
+    all_signal_handler(kill_from_cl)
+
+    make_dir(MCMC_fields["checkpoint_dirname"])
+    clear_checkpoint_dir(MCMC_fields)
+
+    make_dir(MCMC_fields["output_path"])
+
+    load_checkpoint = MCMC_fields["load_checkpoint"]
+    num_iters = MCMC_fields["num_iters"]
+    if load_checkpoint is None:
+        MS = MetroState(param_info, MCMC_fields, num_iters)
+        MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
+
+        starting_iter = 1
+
+        # Just so MS saves a record of these
+        MS.sim_info = sim_info
+        MS.iniPar = iniPar
+        MS.times, MS.vals, MS.uncs = e_data
+
+        if verbose and logger is not None:
+            for i in range(len(MS.uncs)):
+                logger.debug("{} exp unc max: {} avg: {}".format(
+                    i, np.amax(MS.uncs[i]), np.mean(MS.uncs[i])))
+
+    else:
+        with open(os.path.join(MCMC_fields["checkpoint_dirname"],
+                               load_checkpoint), 'rb') as ifstream:
+            MS = pickle.load(ifstream)
+            np.random.set_state(MS.random_state)
+            first_under = load_checkpoint.find("_")
+            tail = load_checkpoint.rfind(".pik")
+
+            starting_iter = int(load_checkpoint[first_under+1:tail])+1
+            MS.H.extend(num_iters, param_info)
+            MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
+
+    # From this point on, for consistency, work with ONLY the MetroState object!
+    if verbose:
+        logger.info("Sim info: {}".format(MS.sim_info))
+        logger.info("Param infos: {}".format(MS.param_info))
+        logger.info("MCMC fields: {}".format(MS.MCMC_fields))
+
+    need_initial_state = (load_checkpoint is None)
+    main_metro_loop(MS, starting_iter, num_iters,
+                    need_initial_state=need_initial_state,
+                    logger=logger, verbose=True)
 
     MS.H.apply_unit_conversions(MS.param_info)
     MS.H.final_cov = MS.variances.cov
