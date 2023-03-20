@@ -78,9 +78,11 @@ if __name__ == "__main__":
         np.sum(MS.H.accept) / len(MS.H.accept.flatten())))
 
     # Successful completion - checkpoints not needed anymore
+    chpt_header = MS.MCMC_fields["checkpoint_header"]
     for chpt in os.listdir(MS.MCMC_fields["checkpoint_dirname"]):
-        os.remove(os.path.join(MS.MCMC_fields["checkpoint_dirname"], chpt))
-    os.rmdir(MS.MCMC_fields["checkpoint_dirname"])
+        if f"checkpoint{chpt_header}" in chpt:
+            os.remove(os.path.join(MS.MCMC_fields["checkpoint_dirname"], chpt))
+    # os.rmdir(MS.MCMC_fields["checkpoint_dirname"])
 
     stop_logging(logger, handler, 0)
 
