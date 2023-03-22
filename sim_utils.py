@@ -244,14 +244,21 @@ class History():
         self.accept = np.zeros(num_iters)
         self.loglikelihood = np.zeros(num_iters)
 
+    def record_loglikelihood(self, k, p):
+        self.loglikelihood[k] = np.sum(p.likelihood)
+        return
+
     def update(self, k, p, means, param_info):
         self.loglikelihood[k] = np.sum(p.likelihood)
 
         for param in param_info['names']:
+            # Proposed states
             h = getattr(self, param)
             h[k] = getattr(p, param)
+            # Accepted states
             h_mean = getattr(self, f"mean_{param}")
             h_mean[k] = getattr(means, param)
+        return
 
     def apply_unit_conversions(self, param_info):
         for param in param_info["names"]:

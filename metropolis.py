@@ -408,6 +408,7 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, hmax,
                 (i, iniPar[i], times[i], vals[i], uncs[i]))
 
     if prev_p is not None:
+        logger.info("Likelihood of proposed move: {}".format(np.sum(p.likelihood)))
         logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
         if np.isnan(logratio):
             logratio = -np.inf
@@ -495,6 +496,8 @@ def main_metro_loop(MS, starting_iter, num_iters,
 
             if verbose:
                 MS.print_status(logger)
+
+            MS.H.record_loglikelihood(k, MS.prev_p)
 
             if DA_mode == "off":
                 accepted = run_iteration(MS.p, MS.sim_info, MS.iniPar,
