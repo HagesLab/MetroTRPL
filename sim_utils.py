@@ -243,13 +243,15 @@ class History():
 
         self.accept = np.zeros(num_iters)
         self.loglikelihood = np.zeros(num_iters)
+        self.proposed_loglikelihood = np.zeros(num_iters)
 
-    def record_loglikelihood(self, k, p):
-        self.loglikelihood[k] = np.sum(p.likelihood)
+    def record_best_logll(self, k, prev_p):
+        # prev_p is essentially the latest accepted move
+        self.loglikelihood[k] = np.sum(prev_p.likelihood)
         return
 
     def update(self, k, p, means, param_info):
-        self.loglikelihood[k] = np.sum(p.likelihood)
+        self.proposed_loglikelihood[k] = np.sum(p.likelihood)
 
         for param in param_info['names']:
             # Proposed states
@@ -292,6 +294,7 @@ class History():
 
         self.accept = self.accept[:k]
         self.loglikelihood = self.loglikelihood[:k]
+        self.proposed_loglikelihood = self.proposed_loglikelihood[:k]
         return
 
     def extend(self, new_num_iters, param_info):
@@ -305,6 +308,8 @@ class History():
             (self.accept, np.zeros(addtl_iters)), axis=0)
         self.loglikelihood = np.concatenate(
             (self.loglikelihood, np.zeros(addtl_iters)), axis=0)
+        self.proposed_loglikelihood = np.concatenate(
+            (self.proposed_loglikelihood, np.zeros(addtl_iters)), axis=0)
 
         for param in param_info["names"]:
             val = getattr(self, param)

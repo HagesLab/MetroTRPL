@@ -497,7 +497,7 @@ def main_metro_loop(MS, starting_iter, num_iters,
             if verbose:
                 MS.print_status(logger)
 
-            MS.H.record_loglikelihood(k, MS.prev_p)
+            MS.H.record_best_logll(k, MS.prev_p)
 
             if DA_mode == "off":
                 accepted = run_iteration(MS.p, MS.sim_info, MS.iniPar,
