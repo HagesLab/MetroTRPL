@@ -1,3 +1,5 @@
+# Outdated Version
+
 # --- IMPORTS --- #
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
@@ -6,11 +8,6 @@ from types import FunctionType
 import tkinter as tk
 import sim_utils
 import pickle
-
-# right click horizontal lines cannot be saved. If we add horizontal lines via a input box, then we could save them
-# doing it this way would also allow us to remove horizontal lines and potentially change the appearance of graphs 
-
-# could make variable labels display what variable they are 
 
 # --- CONSTANTS --- #
 
@@ -119,11 +116,6 @@ class Chart:
         self.clean()
         axes = self.figure.add_subplot()
         axes.plot(self.data[self.menus["trace2d 1"][1].get()][self.mean.get()], self.data[self.menus["trace2d 2"][1].get()][self.mean.get()])
-        #text = self.menus["trace1d"][1].get()
-        #if self.mean.get():
-        #    text = "Accepted " + text
-        #axes.set_title(text)
-        #axes.set_xlabel("n", fontstyle="italic")
         self.figure_canvas.draw()
 
     def save(self) -> None:
