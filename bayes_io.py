@@ -732,12 +732,13 @@ def validate_param_info(param_info: dict):
             raise ValueError(f"Invalid unit conversion {v} for param {k}")
 
     # Mu constraint
-    mu = param_info["do_mu_constraint"]
-    if isinstance(mu, (list, tuple, np.ndarray)) and len(mu) == 2:
-        pass
-    else:
-        raise ValueError("mu_constraint must be list with center and width values \n"
-                         "E.g. [100, 10] to restrict ambipolar mu between 90 and 110.")
+    if "do_mu_constraint" in param_info:
+        mu = param_info["do_mu_constraint"]
+        if isinstance(mu, (list, tuple, np.ndarray)) and len(mu) == 2:
+            pass
+        else:
+            raise ValueError("mu_constraint must be list with center and width values \n"
+                             "E.g. [100, 10] to restrict ambipolar mu between 90 and 110.")
 
     # Others must have ALL entries
     for k in names:
