@@ -171,7 +171,10 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
                 new_p[i] = np.random.uniform(
                     mean[i]-cov[i, i], mean[i]+cov[i, i])
                 if secret_mu and param == "mu_p":
-                    new_muambi = np.random.normal(20, 0.3) * \
+                    ambi = 20
+                    ambi_std = 1.557
+                    logger.debug("Secret mu: ambi {} +/- {}".format(ambi, ambi_std))
+                    new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std) * \
                         param_info["unit_conversions"]["mu_n"]
                     new_p[i] = np.log10(
                         (2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
