@@ -345,8 +345,22 @@ class Solution():
         self.trts = trapz(trts, dx=g.dx, axis=1)
         self.trts += trts[:, 0] * g.dx / 2
         self.trts += trts[:, -1] * g.dx / 2
-
+        self.trts *= q_C
 
 @njit(cache=True)
 def calculate_RR(N, P, ks, n0, p0):
     return ks * (N * P - n0 * p0)
+
+if __name__ == "__main__":
+    S = Solution()
+    g = Grid()
+    g.dx = 20
+    p = Grid()
+    p.mu_n = 20  *1e5
+    p.mu_p = 20 * 1e5
+    S.N = 1e15 * np.ones((1, 100)) * 1e-21
+    S.P = 1e15 * np.ones((1, 100)) * 1e-21
+    p.n0 = 1e8 * 1e-21
+    p.p0 = 1e13 * 1e-21
+    S.calculate_TRTS(g, p)
+    print(S.trts)
