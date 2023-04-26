@@ -8,6 +8,7 @@ import os
 import logging
 from datetime import datetime
 
+
 def start_logging(log_dir="Logs", name=""):
 
     if not os.path.isdir(log_dir):
@@ -17,7 +18,6 @@ def start_logging(log_dir="Logs", name=""):
             pass
 
     tstamp = str(datetime.now()).replace(":", "-")
-    #logging.basicConfig(filename=os.path.join(log_dir, f"{name}-{tstamp}.log"), filemode='a', level=logging.DEBUG)
     logger = logging.getLogger("Metro Logger Main")
     logger.setLevel(logging.DEBUG)
 
@@ -25,14 +25,15 @@ def start_logging(log_dir="Logs", name=""):
     handler.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter(
-            fmt='%(asctime)s %(levelname)s: %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-            )
+        fmt='%(asctime)s %(levelname)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
 
     handler.setFormatter(formatter)
 
     logger.addHandler(handler)
     return logger, handler
+
 
 def stop_logging(logger, handler, err=0):
     if err:
