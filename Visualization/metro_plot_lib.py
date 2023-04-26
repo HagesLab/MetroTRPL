@@ -144,6 +144,7 @@ def make_2D_histo(x_accepted, y_accepted, **kwargs):
     markx = kwargs.get("markx", None)
     marky = kwargs.get("marky", None)
     bin_count = kwargs.get("bin_count", 96)
+    axis_overrides = kwargs.get("axis_overrides", (None, None))
 
     minx = min(x_accepted.flatten())
     maxx = max(x_accepted.flatten())
@@ -169,6 +170,9 @@ def make_2D_histo(x_accepted, y_accepted, **kwargs):
             markx = np.log10(markx)
         if cx is not None:
             cx = np.log10(cx)
+        if axis_overrides[0] is not None:
+            axis_overrides[0] = (
+                np.log10(axis_overrides[0][0]), np.log10(axis_overrides[0][1]))
 
     if logy:
         y_accepted = np.log10(y_accepted)
@@ -178,6 +182,9 @@ def make_2D_histo(x_accepted, y_accepted, **kwargs):
             marky = np.log10(marky)
         if cy is not None:
             cy = np.log10(cy)
+        if axis_overrides[1] is not None:
+            axis_overrides[1] = (
+                np.log10(axis_overrides[1][0]), np.log10(axis_overrides[1][1]))
 
     bins_x = np.arange(bin_count+1)
     bins_x = minx + (maxx-minx)*(bins_x)/bin_count
@@ -191,7 +198,7 @@ def make_2D_histo(x_accepted, y_accepted, **kwargs):
     fig, ax2d = plt.subplots(1, 1, figsize=(2, 2), dpi=120)
     ax2d.pcolormesh(grid_y, grid_x, h2d[0].T, cmap='Blues')
     if markx is not None and marky is not None:
-        ax2d.scatter(markx, marky, c='r', marker='s')
+        ax2d.scatter(markx, marky, c='r', marker='s', s=8)
 
     if contour_info is not None:
         cwg = ax2d.contour(cx, cy, cZ, levels=clevels,
@@ -204,6 +211,8 @@ def make_2D_histo(x_accepted, y_accepted, **kwargs):
         if len(decades) == 1:
             decades = np.arange(decades[0] - 1, decades[-1] + 2)
         ax2d.set_yticks(decades)
+        ax2d.set_yticks(np.concatenate(
+            [d + np.log10(np.linspace(1, 10, 10)) for d in decades]), minor=True)
         ax2d.set_ylim((miny, maxy))
         ax2d.set_yticklabels([r"$10^{{{}}}$".format(d) for d in decades])
     if logx:
@@ -212,11 +221,18 @@ def make_2D_histo(x_accepted, y_accepted, **kwargs):
         if len(decades) == 1:
             decades = np.arange(decades[0] - 1, decades[-1] + 2)
         ax2d.set_xticks(decades)
+        ax2d.set_xticks(np.concatenate(
+            [d + np.log10(np.linspace(1, 10, 10)) for d in decades]), minor=True)
         ax2d.set_xlim((minx, maxx))
         ax2d.set_xticklabels([r"$10^{{{}}}$".format(d) for d in decades])
 
-    ax2d.set_xlabel(xlabel)
-    ax2d.set_ylabel(ylabel)
+    # ax2d.set_xlabel(xlabel)
+    # ax2d.set_ylabel(ylabel)
+    # ax2d.axvline(np.log10(9e-29), color='k', linestyle='dashed', linewidth=0.6)
+
+    if axis_overrides is not None:
+        ax2d.set_xlim(axis_overrides[0])
+        ax2d.set_ylim(axis_overrides[1])
     fig.tight_layout()
 
 
@@ -250,10 +266,8 @@ def make_2D_tracker(x_accepted, y_accepted, **kwargs):
     if isinstance(colors, str) or colors is None:
         colors = [colors] * len(x_accepted)
 
-    labels = [r"$\sigma=10$", r"$\sigma=1$", r"$\sigma=0.1$"]
     for i in range(len(x_accepted)):
         ax2d.plot(x_accepted[i], y_accepted[i], color=colors[i], linewidth=lw,
-                  label=labels[i],
                   )
         # ax2d.scatter(x_accepted[0], y_accepted[0], c='purple', zorder=99)
         # ax2d.scatter(x_accepted[-1], y_accepted[-1], c='red', marker='s', zorder=99)
