@@ -7,6 +7,7 @@ from sim_utils import Parameters, Solution, Grid
 class TestUtils(unittest.TestCase):
            
     def test_Solution(self):
+        q_C = 1.602e-19  # [C per carrier]
         testS = Solution()
         testG = Grid()
         testG.dx = 1
@@ -53,7 +54,7 @@ class TestUtils(unittest.TestCase):
         testS.P = np.ones((num_tsteps, num_nodes)) * 10
         testP = Parameters(param_info)
         testS.calculate_TRTS(testG, testP)
-        expected_TRTS = (initial_guesses["mu_n"] * (testS.N - initial_guesses["n0"]) +
+        expected_TRTS = q_C * (initial_guesses["mu_n"] * (testS.N - initial_guesses["n0"]) +
                        initial_guesses["mu_p"] * (testS.P - initial_guesses["p0"]))
         np.testing.assert_equal(expected_TRTS[:,0] * num_nodes, testS.trts)
         

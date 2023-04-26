@@ -8,7 +8,7 @@ from metropolis import E_field, model, select_next_params
 from metropolis import do_simulation, roll_acceptance, unpack_simpar
 from metropolis import detect_sim_fail, detect_sim_depleted, almost_equal
 from metropolis import check_approved_param
-from metropolis import run_iteration, one_sim_likelihood
+from metropolis import run_iteration
 from sim_utils import Parameters, Grid, Covariance
 from scipy.integrate import trapz
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
@@ -169,7 +169,7 @@ class TestUtils(unittest.TestCase):
 
         test_TRTS, out_dN = model(
             init_dN, g, pa, meas="TRTS", solver="solveivp")
-        trts = pa.mu_n * out_dN + pa.mu_p * out_dN
+        trts = q_C * (pa.mu_n * out_dN + pa.mu_p * out_dN)
         self.assertAlmostEqual(
             test_TRTS[-1], trapz(trts, dx=g.dx) + trts[0]*g.dx/2 + trts[-1]*g.dx/2)
 
@@ -505,7 +505,7 @@ class TestUtils(unittest.TestCase):
         return
 
     def test_unpack_simpar(self):
-        #Length = [311,2000,311,2000, 311, 2000]
+        # Length = [311,2000,311,2000, 311, 2000]
         Length = [2000]                            # Length (nm)
         L = [2 ** 7]                                # Spatial points
         meas_type = ["TRPL"]                          # measurement type
