@@ -273,6 +273,11 @@ def read_config_script_file(path):
                             line_split[1], delimiter='\t', dtype=float)
                         put_into_param_info(param_info, vals, "init_variance")
 
+                    elif line.startswith("Mu constraint"):
+                        vals = extract_values(
+                            line_split[1], delimiter='\t', dtype=float)
+                        param_info["do_mu_constraint"] = vals
+
                 if (init_flag == 'm'):
                     if line.startswith("Time cutoffs"):
                         vals = extract_values(
@@ -463,6 +468,13 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         for name in param_names[1:]:
             ofstream.write(f"\t{init_variance.get(name, 0)}")
         ofstream.write('\n')
+
+        if "do_mu_constraint" in param_info:
+            if verbose:
+                ofstream.write("# Restrict mu_n and mu_p within a small range of ambipolar mobility. "
+                               "Ambipolar mobility is limited within A +/- B.\n")
+            mu = param_info["do_mu_constraint"]
+            ofstream.write(f"Mu constraint: {mu[0]}\t{mu[1]}\n")
         #######################################################################
         ofstream.write("##\n")
         ofstream.write("p$ Measurement handling flags:\n")
@@ -718,6 +730,14 @@ def validate_param_info(param_info: dict):
             pass
         else:
             raise ValueError(f"Invalid unit conversion {v} for param {k}")
+
+    # Mu constraint
+    mu = param_info["do_mu_constraint"]
+    if isinstance(mu, (list, tuple, np.ndarray)) and len(mu) == 2:
+        pass
+    else:
+        raise ValueError("mu_constraint must be list with center and width values \n"
+                         "E.g. [100, 10] to restrict ambipolar mu between 90 and 110.")
 
     # Others must have ALL entries
     for k in names:

@@ -59,6 +59,7 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp",
                         max_step=g.hmax, rtol=RTOL, atol=ATOL)
         data = sol.y.T
     elif solver == "odeint":
+        # Slightly faster but less robust
         args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
                 p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
         data = odeint(dydt_numba, init_condition, g.tSteps, args=args,
@@ -144,7 +145,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
     do_log = param_info["do_log"]
     names = param_info["names"]
 
-    secret_mu = param_info.get("secret_mu", False)
+    mu_constraint = param_info.get("do_mu_constraint", None)
 
     mean = means.to_array(param_info)
     for i, param in enumerate(names):
@@ -170,10 +171,10 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
             for i, param in enumerate(names):
                 new_p[i] = np.random.uniform(
                     mean[i]-cov[i, i], mean[i]+cov[i, i])
-                if secret_mu and param == "mu_p":
-                    ambi = 20
-                    ambi_std = 1.557
-                    logger.debug("Secret mu: ambi {} +/- {}".format(ambi, ambi_std))
+                if mu_constraint is not None and param == "mu_p":
+                    ambi = mu_constraint[0]
+                    ambi_std = mu_constraint[1]
+                    logger.debug("mu constraint: ambi {} +/- {}".format(ambi, ambi_std))
                     new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std) * \
                         param_info["unit_conversions"]["mu_n"]
                     new_p[i] = np.log10(

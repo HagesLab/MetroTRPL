@@ -45,7 +45,7 @@ if __name__ == "__main__":
     num_measurements = 6
     Length = [311, 2000, 311, 2000, 311, 2000]
     # Length = [2000] * 3             # Length (nm)
-    L = 128                         # Spatial points
+    L = [128] * 6                         # Spatial points
     measurement_types = ["TRPL"]*6
     simPar = {"lengths": Length,
               "nx": L,
@@ -123,6 +123,7 @@ if __name__ == "__main__":
                   "active": active_params,
                   "unit_conversions": unit_conversions,
                   "do_log": do_log,
+                  "do_mu_constraint": [20, 3],
                   "prior_dist": prior_dist,
                   "init_guess": initial_guesses,
                   "init_variance": initial_variance}
