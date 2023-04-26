@@ -55,12 +55,13 @@ if __name__ == "__main__":
                                   for i in meas_fields["select_obs_sets"]]
         sim_info["lengths"] = [sim_info["lengths"][i]
                                for i in meas_fields["select_obs_sets"]]
-        sim_info["num_measurements"] = len(meas_fields["select_obs_sets"])
+        sim_info["num_meas"] = len(meas_fields["select_obs_sets"])
 
     logger, handler = start_logging(
         log_dir=MCMC_fields["output_path"], name=f"CPU{jobid}")
     logger.info("Measurement handling fields: {}".format(meas_fields))
-    logger.info("E data: {}".format(e_data))
+    logger.info("E data: {}".format(
+        ["[{}...{}]".format(e_data[1][i][0], e_data[1][i][-1]) for i in range(len(e_data[1]))]))
     logger.info("Initial condition: {}".format(
         ["[{}...{}]".format(iniPar[i][0], iniPar[i][-1]) for i in range(len(iniPar))]))
 
