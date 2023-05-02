@@ -6,6 +6,7 @@ Created on Mon Jan 31 22:13:26 2022
 """
 import numpy as np
 from scipy.integrate import solve_ivp, odeint
+from scipy.interpolate import griddata
 import os
 import sys
 import signal
@@ -15,6 +16,7 @@ from forward_solver import dydt_numba
 from sim_utils import MetroState, Grid, Solution
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import make_dir, clear_checkpoint_dir
+from laplace import make_I_tables, do_irf_convolution, post_conv_trim
 
 
 # Constants
@@ -225,7 +227,7 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
 
     sol, next_init_condition = model(
         iniPar, g, p, meas=meas, solver=solver, RTOL=rtol, ATOL=atol)
-    return sol
+    return g.tSteps, sol
 
 
 def converge_simulation(i, p, sim_info, iniPar, times, vals,
@@ -264,6 +266,8 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     -------
     sol : ndarray
         Array of values (e.g. TRPL) from final simulation.
+    tSteps : ndarray
+        Array of times the final simulation was evaluated at.
     success : bool
         Whether the final simulation passed all convergence criteria.
 
@@ -278,10 +282,10 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
 
     # Repeat until all criteria are satisfied.
     while hmax[i] > MIN_HMAX:
-        sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
-                            meas=meas_type,
-                            solver=MCMC_fields["solver"],
-                            rtol=RTOL, atol=ATOL)
+        tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
+                                    meas=meas_type,
+                                    solver=MCMC_fields["solver"],
+                                    rtol=RTOL, atol=ATOL)
 
         # if verbose:
         if logger is not None:
@@ -302,9 +306,9 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
         elif MCMC_fields.get("verify_hmax", False):
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
-            sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
-                                 meas=meas_type, solver=MCMC_fields["solver"],
-                                 rtol=RTOL, atol=ATOL)
+            tSteps, sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
+                                         meas=meas_type, solver=MCMC_fields["solver"],
+                                         rtol=RTOL, atol=ATOL)
             if almost_equal(sol, sol2, threshold=RTOL):
                 logger.info("Success!")
                 break
@@ -316,7 +320,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
         else:
             break
 
-    return sol, not fail
+    return tSteps, sol, not fail
 
 
 def roll_acceptance(logratio):
@@ -364,19 +368,35 @@ def almost_equal(x, x0, threshold=1e-10):
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
 
-def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
+def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, args):
     i, iniPar, times, vals, uncs = args
+    irf_convolution = MCMC_fields.get("irf_convolution", None)
 
-    sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
-                                       hmax, MCMC_fields, logger)
+    tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
+                                               hmax, MCMC_fields, logger)
+
+    if irf_convolution is not None and irf_convolution[i] != 0:
+        wave = int(irf_convolution[i])
+        tSteps, sol, success = do_irf_convolution(
+            tSteps, sol, IRF_tables[wave], time_max_shift=True)
+        if not success:
+            raise ValueError("Error: Interpolation for conv failed. Check measurement data"
+                             " times for floating-point inaccuracies.")
+        sol, times_c, vals_c, uncs_c = post_conv_trim(tSteps, sol, times, vals, uncs)
+
+    else:
+        times_c = times
+        vals_c = vals
+        uncs_c = uncs
+
     try:
         if MCMC_fields.get("self_normalize", False):
             sol /= np.nanmax(sol)
         # TODO: accomodate multiple experiments, just like bayes
 
-        err_sq = (np.log10(sol) + np.log10(p.m) - vals) ** 2
+        err_sq = (np.log10(sol) + np.log10(p.m) - vals_c) ** 2
         likelihood = - \
-            np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs**2))
+            np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs_c**2))
 
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect
@@ -389,7 +409,7 @@ def one_sim_likelihood(p, sim_info, hmax, MCMC_fields, logger, args):
     return likelihood, err_sq
 
 
-def run_iteration(p, sim_info, iniPar, times, vals, uncs, hmax,
+def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
                   MCMC_fields, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
     accepted = True
@@ -408,7 +428,7 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, hmax,
     else:
         for i in range(len(iniPar)):
             p.likelihood[i], p.err_sq[i] = one_sim_likelihood(
-                p, sim_info, hmax, MCMC_fields, logger,
+                p, sim_info, IRF_tables, hmax, MCMC_fields, logger,
                 (i, iniPar[i], times[i], vals[i], uncs[i]))
 
     if prev_p is not None:
@@ -467,7 +487,7 @@ def main_metro_loop(MS, starting_iter, num_iters,
         STARTING_HMAX = MS.MCMC_fields.get("hmax", DEFAULT_HMAX)
         MS.running_hmax = [STARTING_HMAX] * len(MS.iniPar)
         run_iteration(MS.prev_p, MS.sim_info, MS.iniPar,
-                      MS.times, MS.vals, MS.uncs,
+                      MS.times, MS.vals, MS.uncs, MS.IRF_tables,
                       MS.running_hmax, MS.MCMC_fields, verbose, logger)
         MS.H.update(0, MS.prev_p, MS.means, MS.param_info)
 
@@ -505,7 +525,7 @@ def main_metro_loop(MS, starting_iter, num_iters,
 
             if DA_mode == "off":
                 accepted = run_iteration(MS.p, MS.sim_info, MS.iniPar,
-                                         MS.times, MS.vals, MS.uncs,
+                                         MS.times, MS.vals, MS.uncs, MS.IRF_tables,
                                          MS.running_hmax, MS.MCMC_fields, verbose,
                                          logger, prev_p=MS.prev_p, t=k)
 
@@ -584,6 +604,17 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             for i in range(len(MS.uncs)):
                 logger.debug("{} exp unc max: {} avg: {}".format(
                     i, np.amax(MS.uncs[i]), np.mean(MS.uncs[i])))
+
+        if MCMC_fields.get("irf_convolution", None) is not None:
+            irfs = {}
+            for i in MCMC_fields["irf_convolution"]:
+                if i > 0 and i not in irfs:
+                    irfs[int(i)] = np.loadtxt(os.path.join("IRFs", "irf_{}nm.csv".format(int(i))),
+                                              delimiter=",")
+
+            MS.IRF_tables = make_I_tables(irfs)
+        else:
+            MS.IRF_tables = None
 
     else:
         with open(os.path.join(MCMC_fields["checkpoint_dirname"],

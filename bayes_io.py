@@ -332,6 +332,13 @@ def read_config_script_file(path):
                         MCMC_fields["proposal_function"] = line_split[1]
                     elif line.startswith("Use hard boundaries"):
                         MCMC_fields["hard_bounds"] = int(line_split[1])
+                    elif line.startswith("IRF"):
+                        if line_split[1] == "None":
+                            MCMC_fields["irf_convolution"] = None
+                        else:
+                            MCMC_fields["irf_convolution"] = extract_values(line_split[1],
+                                                                            delimiter='\t',
+                                                                            dtype=float)
                     elif line.startswith("Propose params one-at-a-time"):
                         MCMC_fields["one_param_at_a_time"] = int(line_split[1])
                     elif line.startswith("Checkpoint dir"):
@@ -358,7 +365,7 @@ def read_config_script_file(path):
     validate_grid(grid)
     validate_param_info(param_info)
     validate_meas_flags(meas_flags, grid["num_meas"])
-    validate_MCMC_fields(MCMC_fields)
+    validate_MCMC_fields(MCMC_fields, grid["num_meas"])
 
     return grid, param_info, meas_flags, MCMC_fields
 
@@ -368,7 +375,7 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
     validate_grid(simPar)
     validate_param_info(param_info)
     validate_meas_flags(measurement_flags, simPar["num_meas"])
-    validate_MCMC_fields(MCMC_fields)
+    validate_MCMC_fields(MCMC_fields, simPar["num_meas"])
     if not path.endswith(".txt"):
         path += ".txt"
 
@@ -602,6 +609,21 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                                "# =1 will coerce while =0 will only warn.\n")
             bound = MCMC_fields["hard_bounds"]
             ofstream.write(f"Use hard boundaries: {bound}\n")
+
+        if verbose:
+            ofstream.write(
+                "# None for no convolution, or a list of wavelengths whose IRF profiles\n"
+                "# will be used to convolute each simulated TRPL curve. One wavelength per"
+                " measurement.\n")
+        if "irf_convolution" in MCMC_fields:
+            irf = MCMC_fields["irf_convolution"]
+            if irf is None:
+                ofstream.write(f"IRF: {irf}")
+            else:
+                ofstream.write(f"IRF: {irf[0]}")
+                for value in irf[1:]:
+                    ofstream.write(f"\t{value}")
+            ofstream.write('\n')
 
         if verbose:
             ofstream.write(
@@ -882,7 +904,7 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
     return
 
 
-def validate_MCMC_fields(MCMC_fields: dict,
+def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
                          supported_solvers=("odeint", "solveivp"),
                          supported_prop_funcs=("box", "gauss", "None")):
     if not isinstance(MCMC_fields, dict):
@@ -1031,6 +1053,18 @@ def validate_MCMC_fields(MCMC_fields: dict,
             pass
         else:
             raise ValueError("hard_bounds invalid - must be 0 or 1")
+
+    if "irf_convolution" in MCMC_fields:
+        irf = MCMC_fields["irf_convolution"]
+        if irf is None:
+            pass
+        elif (isinstance(irf, (list, np.ndarray)) and
+              len(irf) == num_measurements and
+                all(map(lambda x: x >= 0, irf))):
+            pass
+        else:
+            raise ValueError("MCMC control 'irf_convolution' must be None, or a list with "
+                             "one positive wavelength value per measurement")
 
     oneaat = MCMC_fields["one_param_at_a_time"]
     if (isinstance(oneaat, (int, np.integer)) and

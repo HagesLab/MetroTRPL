@@ -141,6 +141,7 @@ if __name__ == "__main__":
                    "likel2variance_ratio": 500,
                    "log_pl": 1,
                    "self_normalize": 0,
+                   "irf_convolution": [1, 2, 3, 4, 5],
                    "proposal_function": "box",
                    "one_param_at_a_time": 0,
                    "hard_bounds": 1,

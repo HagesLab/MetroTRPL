@@ -609,7 +609,7 @@ class TestUtils(unittest.TestCase):
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.zeros(nt+1), np.zeros(nt+1)]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs,
+        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
                                  running_hmax, sim_flags, verbose=True,
                                  logger=self.logger, prev_p=None)
 
@@ -619,7 +619,7 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(accepted)
 
         # Second iter same as the first; auto-accept with likelihood ratio exactly 1
-        accepted = run_iteration(p2, simPar, iniPar, times, vals, uncs,
+        accepted = run_iteration(p2, simPar, iniPar, times, vals, uncs, None,
                                  running_hmax, sim_flags, verbose=True,
                                  logger=self.logger, prev_p=p)
         self.assertTrue(accepted)

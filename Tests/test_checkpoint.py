@@ -130,6 +130,7 @@ class TestUtils(unittest.TestCase):
         self.MS.times = [np.linspace(0, 100, 100)]
         self.MS.vals = [np.ones(len(self.MS.times[0])) * -20]
         self.MS.uncs = [np.ones(len(self.MS.times[0])) * 0.04]
+        self.MS.IRF_tables = None
 
         make_dir(self.MS.MCMC_fields["checkpoint_dirname"])
         clear_checkpoint_dir(MCMC_fields)
