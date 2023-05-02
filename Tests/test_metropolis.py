@@ -420,6 +420,49 @@ class TestUtils(unittest.TestCase):
 
         return
 
+    def test_mu_constraint(self):
+        # This function assigns a set of randomly generated values
+        np.random.seed(1)
+        param_names = ["mu_n", "mu_p"]
+
+        do_log = {"mu_n": 1, "mu_p": 1}
+        unit_conversions = {"mu_n": 1, "mu_p": 1}
+
+        prior_dist = {"mu_n": (0.1, np.inf),
+                      "mu_p": (0.1, np.inf),
+                      }
+
+        initial_guesses = {"mu_n": 20,
+                           "mu_p": 20,
+                           }
+
+        active_params = {"mu_n": 1,
+                         "mu_p": 1,
+                         }
+
+        param_info = {"active": active_params,
+                      "unit_conversions": unit_conversions,
+                      "do_log": do_log,
+                      "names": param_names,
+                      "do_mu_constraint": (20, 3),
+                      "prior_dist": prior_dist,
+                      "init_guess": initial_guesses}
+
+        pa = Parameters(param_info)
+        means = Parameters(param_info)
+        variances = Covariance(param_info)
+        variances.set_variance('mu_n', 0.1)
+        variances.set_variance('mu_p', 0.1)
+
+        for i in range(10):
+            select_next_params(pa, means, variances, param_info,
+                               trial_function="box", logger=self.logger)
+
+            self.assertTrue(2 / (pa.mu_n**-1 + pa.mu_p**-1) <= 23)
+            self.assertTrue(2 / (pa.mu_n**-1 + pa.mu_p**-1) >= 17)
+
+        return
+
     def test_do_simulation(self):
         # Just verify this realistic simulation converges
         unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
@@ -697,4 +740,4 @@ class TestUtils(unittest.TestCase):
 if __name__ == "__main__":
     t = TestUtils()
     t.setUp()
-    t.test_run_iter()
+    t.test_mu_constraint()

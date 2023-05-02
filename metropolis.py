@@ -178,7 +178,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
                     ambi_std = mu_constraint[1]
                     logger.debug("mu constraint: ambi {} +/- {}".format(ambi, ambi_std))
                     new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std) * \
-                        param_info["unit_conversions"]["mu_n"]
+                        param_info["unit_conversions"].get("mu_n", 1)
                     new_p[i] = np.log10(
                         (2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
 
