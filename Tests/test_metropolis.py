@@ -604,6 +604,7 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "measurement": "TRPL",
+                     "self_normalize": None,
                      "solver": "solveivp", }
 
         p = Parameters(param_info)
@@ -679,6 +680,7 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "measurement": "TRPL",
+                     "self_normalize": None,
                      "solver": "solveivp", }
 
         p = Parameters(param_info)
