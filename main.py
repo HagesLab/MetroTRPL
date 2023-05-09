@@ -46,7 +46,7 @@ if __name__ == "__main__":
         else:
             raise NotImplementedError(
                 "No scale_f for measurements other than TRPL and TRTS")
-    e_data = get_data(MCMC_fields["measurement_path"],
+    e_data = get_data(MCMC_fields["measurement_path"], measurement_types,
                       meas_fields, MCMC_fields, scale_f=scale_f)
 
     # Make simulation info consistent with actual number of selected measurements

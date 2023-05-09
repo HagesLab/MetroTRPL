@@ -225,6 +225,11 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
     g.hmax = hmax
     g.tSteps = times
 
+    if times[0] > 0:
+        # Always start sims from t=0 even if experimental data doesn't, to verify initial conditions
+        dt_estimate = times[1] - times[0]
+        g.tSteps = np.concatenate((np.arange(0, times[0], dt_estimate), g.tSteps))
+
     sol, next_init_condition = model(
         iniPar, g, p, meas=meas, solver=solver, RTOL=rtol, ATOL=atol)
     return g.tSteps, sol
@@ -290,7 +295,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
         # if verbose:
         if logger is not None:
             logger.info("{}: Simulation complete hmax={}; t {}-{}; x {}".format(i,
-                        hmax, times[0], times[len(sol)-1], thickness))
+                        hmax, tSteps[0], tSteps[-1], thickness))
 
         sol, fail = detect_sim_fail(sol, vals)
         if fail and logger is not None:
@@ -376,6 +381,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, args)
                                                hmax, MCMC_fields, logger)
 
     if irf_convolution is not None and irf_convolution[i] != 0:
+        logger.debug(f"Convolving with wavelength {irf_convolution[i]}")
         wave = int(irf_convolution[i])
         tSteps, sol, success = do_irf_convolution(
             tSteps, sol, IRF_tables[wave], time_max_shift=True)
@@ -385,16 +391,23 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, args)
         sol, times_c, vals_c, uncs_c = post_conv_trim(tSteps, sol, times, vals, uncs)
 
     else:
+        # Still need to trim, in case experimental data doesn't start at t=0
         times_c = times
         vals_c = vals
         uncs_c = uncs
+        sol = sol[-len(times_c):]
 
     try:
-        if MCMC_fields.get("self_normalize", False):
+        if (MCMC_fields["self_normalize"] is not None and
+                sim_info["meas_types"][i] in MCMC_fields["self_normalize"]):
+            logger.debug("Normalizing sim result...")
             sol /= np.nanmax(sol)
+            scale_shift = 0
+        else:
+            scale_shift = np.log10(p.m)
         # TODO: accomodate multiple experiments, just like bayes
 
-        err_sq = (np.log10(sol) + np.log10(p.m) - vals_c) ** 2
+        err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
         likelihood = - \
             np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs_c**2))
 

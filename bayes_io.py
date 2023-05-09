@@ -67,7 +67,7 @@ def check_valid_filename(file_name):
     return True
 
 
-def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
+def get_data(exp_file, meas_types, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
     TIME_RANGE = ic_flags['time_cutoff']
     SELECT = ic_flags['select_obs_sets']
     NOISE_LEVEL = ic_flags.get('noise_level', 0)
@@ -122,11 +122,12 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
         y_list[i] *= scale_f[i]
         u_list[i] *= scale_f[i]
 
-    if NORMALIZE:
+    if NORMALIZE is not None:
         for i in range(len(t_list)):
-            norm_f = np.nanmax(y_list[i])
-            y_list[i] /= norm_f
-            u_list[i] /= norm_f
+            if meas_types[i] in NORMALIZE:
+                norm_f = np.nanmax(y_list[i])
+                y_list[i] /= norm_f
+                u_list[i] /= norm_f
 
     if LOG_PL:
         # Deal with noisy negative values before taking log
@@ -326,8 +327,11 @@ def read_config_script_file(path):
                         MCMC_fields["override_equal_s"] = int(line_split[1])
                     elif line.startswith("Use log of measurements"):
                         MCMC_fields["log_pl"] = int(line_split[1])
-                    elif line.startswith("Normalize all meas and sims"):
-                        MCMC_fields["self_normalize"] = int(line_split[1])
+                    elif line.startswith("Normalize these meas and sim types"):
+                        if line_split[1] == "None":
+                            MCMC_fields["self_normalize"] = None
+                        else:
+                            MCMC_fields["self_normalize"] = line_split[1].split('\t')
                     elif line.startswith("Proposal function"):
                         MCMC_fields["proposal_function"] = line_split[1]
                     elif line.startswith("Use hard boundaries"):
@@ -587,6 +591,7 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                            "purpose of likelihood evaluation. Recommended to be 1 or True. \n")
         logpl = MCMC_fields["log_pl"]
         ofstream.write(f"Use log of measurements: {logpl}\n")
+
         if verbose:
             ofstream.write("# Normalize all individual measurements and simulations "
                            "to maximum of 1 before likelihood evaluation. "
@@ -594,7 +599,14 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                            "\n# If the absolute units or efficiency of the measurement is unknown, "
                            "\n# it is recommended to try fitting 'm' instead of relying on normalization. \n")
         norm = MCMC_fields["self_normalize"]
-        ofstream.write(f"Normalize all meas and sims: {norm}\n")
+
+        if norm is None:
+            ofstream.write(f"Normalize these meas and sim types: {norm}")
+        else:
+            ofstream.write(f"Normalize these meas and sim types: {norm[0]}")
+            for value in norm[1:]:
+                ofstream.write(f"\t{value}")
+        ofstream.write('\n')
 
         if verbose:
             ofstream.write("# Proposal function used to generate new states. "
@@ -1034,11 +1046,13 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         raise ValueError("logpl invalid - must be 0 or 1")
 
     norm = MCMC_fields["self_normalize"]
-    if (isinstance(norm, (int, np.integer)) and
-            (norm == 0 or norm == 1)):
+    if norm is None:
+        pass
+    elif (isinstance(norm, list)) and all(map(lambda x: isinstance(x, str), norm)):
         pass
     else:
-        raise ValueError("self_normalize invalid - must be 0 or 1")
+        raise ValueError("self_normalize invalid - must be None, or a list of measurement types "
+                         "that should be normalized.")
 
     if MCMC_fields["proposal_function"] in supported_prop_funcs:
         pass

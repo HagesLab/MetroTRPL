@@ -105,7 +105,7 @@ class TestUtils(unittest.TestCase):
                        "solver": "solveivp",
                        "likel2variance_ratio": 500,
                        "log_pl": 1,
-                       "self_normalize": 0,
+                       "self_normalize": None,
                        "proposal_function": "box",
                        "one_param_at_a_time": 0,
                        "hard_bounds": 1,

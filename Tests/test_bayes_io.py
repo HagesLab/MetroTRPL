@@ -29,17 +29,18 @@ class TestUtils(unittest.TestCase):
 
     def test_get_data_basic(self):
         # Basic selection and cutting operations on dataset
+        meas_types = ["TRPL"] * 5
         ic_flags = {'time_cutoff': None,
                     'select_obs_sets': None,
                     'noise_level': None}
 
         sim_flags = {'log_pl': False,
-                     'self_normalize': False}
+                     'self_normalize': None}
 
         where_inits = os.path.join("Tests", "testfiles", "test_data.csv")
 
         times, vals, uncs = get_data(
-            where_inits, ic_flags, sim_flags, scale_f=1)
+            where_inits, meas_types, ic_flags, sim_flags, scale_f=1)
         expected_times = [np.array([0]), np.arange(5), np.array(
             [0, 10, 20]), np.array([0]), np.array([0, 1])]
         expected_vals = [np.array([0]), np.ones(5), np.array(
@@ -54,7 +55,7 @@ class TestUtils(unittest.TestCase):
         ic_flags['time_cutoff'] = [-np.inf, 1]
 
         times, vals, uncs = get_data(
-            where_inits, ic_flags, sim_flags, scale_f=1)
+            where_inits, meas_types, ic_flags, sim_flags, scale_f=1)
         expected_times = [np.array([0]), np.array(
             [0, 1]), np.array([0]), np.array([0]), np.array([0, 1])]
         expected_vals = [np.array([0]), np.array([1, 1]), np.array(
@@ -68,7 +69,7 @@ class TestUtils(unittest.TestCase):
 
         ic_flags['select_obs_sets'] = [0, 4]
         times, vals, uncs = get_data(
-            where_inits, ic_flags, sim_flags, scale_f=1)
+            where_inits, meas_types, ic_flags, sim_flags, scale_f=1)
         expected_times = [np.array([0]), np.array([0, 1])]
         expected_vals = [np.array([0]), np.array([4, 4])]
         expected_uncs = [np.array([0]), np.array([40, 40])]
@@ -79,21 +80,22 @@ class TestUtils(unittest.TestCase):
 
     def test_get_data_transform(self):
         # Normalization, scaling, and log operators
+        meas_types = ["TRPL"] * 5
         ic_flags = {'time_cutoff': None,
                     'select_obs_sets': None,
                     'noise_level': None}
 
         sim_flags = {'log_pl': False,
-                     'self_normalize': False}
+                     'self_normalize': None}
 
         where_inits = os.path.join("Tests", "testfiles", "test_data.csv")
         ic_flags['time_cutoff'] = [-np.inf, 1]
         ic_flags['select_obs_sets'] = [0, 4]
 
-        sim_flags["self_normalize"] = True
+        sim_flags["self_normalize"] = ["TRPL"]
         with np.errstate(divide='ignore', invalid='ignore'):
             times, vals, uncs = get_data(
-                where_inits, ic_flags, sim_flags, scale_f=1)
+                where_inits, meas_types, ic_flags, sim_flags, scale_f=1)
         expected_times = [np.array([0]), np.array([0, 1])]
         # First curve is a single datapoint with val=0, so norm should fail
         # Second curve orig vals is 4, so should be divided by 4
@@ -107,7 +109,7 @@ class TestUtils(unittest.TestCase):
         # Scaling should apply before norm so final result is still normalized
         random_scale_factor = 235125
         with np.errstate(divide='ignore', invalid='ignore'):
-            times, vals, uncs = get_data(where_inits, ic_flags, sim_flags,
+            times, vals, uncs = get_data(where_inits, meas_types, ic_flags, sim_flags,
                                          scale_f=random_scale_factor)
         expected_times = [np.array([0]), np.array([0, 1])]
         # First curve is a single datapoint with val=0, so norm should fail
@@ -123,7 +125,7 @@ class TestUtils(unittest.TestCase):
         sim_flags["log_pl"] = True
         with np.errstate(divide='ignore', invalid='ignore'):
             times, vals, uncs = get_data(
-                where_inits, ic_flags, sim_flags, scale_f=1)
+                where_inits, meas_types, ic_flags, sim_flags, scale_f=1)
         expected_times = [np.array([0]), np.array([0, 1])]
 
         expected_vals = [np.array([np.nan]), np.array([0, 0])]
@@ -138,14 +140,14 @@ class TestUtils(unittest.TestCase):
                     'noise_level': None}
 
         sim_flags = {'log_pl': False,
-                     'self_normalize': False}
+                     'self_normalize': None}
 
         ic_flags['select_obs_sets'] = [1]
 
         ic_flags['time_cutoff'] = [1, 3]
 
         times, vals, uncs = get_data(
-            where_inits, ic_flags, sim_flags, scale_f=1)
+            where_inits, meas_types, ic_flags, sim_flags, scale_f=1)
         expected_times = [np.array([1, 2, 3])]
         expected_vals = [np.array([1, 1, 1])]
         expected_uncs = [np.array([10, 10, 10])]
