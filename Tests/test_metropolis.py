@@ -421,7 +421,7 @@ class TestUtils(unittest.TestCase):
         return
 
     def test_do_simulation(self):
-        # Just verify this realistic simulation converges
+        # Make sure the simulation starts at 0, even if the experimental data doesn't
         unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
                             "mu_n": ((1e7) ** 2) / (1e9), "mu_p": ((1e7) ** 2) / (1e9),
                             "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
@@ -453,10 +453,17 @@ class TestUtils(unittest.TestCase):
 
         thickness = 1000
         nx = 100
-        times = np.linspace(0, 100, 1000)
+        times = np.linspace(10, 100, 901)
 
         iniPar = np.logspace(19, 14, nx) * 1e-21
-        do_simulation(pa, thickness, nx, iniPar, times, hmax=4)
+        tSteps, sol = do_simulation(pa, thickness, nx, iniPar, times, hmax=4)
+        np.testing.assert_equal(tSteps[0], 0)
+
+        times = np.linspace(0, 100, 1001)
+        tSteps2, sol2 = do_simulation(pa, thickness, nx, iniPar, times, hmax=4)
+        np.testing.assert_equal(sol[0], sol2[0])
+        np.testing.assert_equal(sol[-1], sol2[-1])
+
         return
 
     def test_sim_fail(self):
@@ -627,6 +634,71 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(p.likelihood, p2.likelihood)
         np.testing.assert_equal(p.err_sq, p2.err_sq)
 
+    def test_run_iter_cutoff(self):
+        # Same as test_run_iter, only "experimental" data is
+        # truncated at [50,100] instead of [0,100].
+        # Half as many points means the likelihood should be reduced to about half.
+        np.random.seed(42)
+        Length = [2000, 2000]                            # Length (nm)
+        L = [2 ** 7, 2 ** 7]                                # Spatial point
+        mtype = ["TRPL", "TRPL"]
+        simPar = {"lengths": Length,
+                  "nx": L,
+                  "meas_types": mtype,
+                  "num_meas": 2}
+
+        iniPar = [1e15 * np.ones(L[0]) * 1e-21, 1e16 * np.ones(L[1]) * 1e-21]
+
+        param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
+                       "Sf", "Sb", "tauN", "tauP", "eps", "m"]
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9), "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
+
+        # Iterations should proceed independent of which params are actively iterated,
+        # as all params are presumably needed to complete the simulation
+        param_info = {"names": param_names,
+                      "unit_conversions": unit_conversions,
+                      "active": {name: 0 for name in param_names}}
+        initial_guess = {"n0": 0,
+                         "p0": 0,
+                         "mu_n": 0,
+                         "mu_p": 0,
+                         "ks": 1e-11,
+                         "Sf": 0,
+                         "Sb": 0,
+                         "Cn": 0,
+                         "Cp": 0,
+                         "Tm": 300,
+                         "tauN": 1e99,
+                         "tauP": 1e99,
+                         "eps": 10,
+                         "m": 1}
+        param_info["init_guess"] = initial_guess
+
+        sim_flags = {"current_sigma": 1,
+                     "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
+                     "measurement": "TRPL",
+                     "solver": "solveivp", }
+
+        p = Parameters(param_info)
+        p.apply_unit_conversions(param_info)
+        p2 = Parameters(param_info)
+        p2.apply_unit_conversions(param_info)
+
+        nt = 500
+        running_hmax = [4] * len(iniPar)
+        times = [np.linspace(50, 100, nt+1), np.linspace(50, 100, nt+1)]
+        vals = [np.zeros(nt+1), np.zeros(nt+1)]
+        uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
+        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                                 running_hmax, sim_flags, verbose=True,
+                                 logger=self.logger, prev_p=None)
+
+        # First iter; auto-accept
+        np.testing.assert_almost_equal(
+            p.likelihood, [-29701, -16309], decimal=0)  # rtol=1e-5
+
     def test_one_sim_ll_errata(self):
         # TODO: The next time odeint fails to do a simulation, upload it into this
         # test case
@@ -697,4 +769,4 @@ class TestUtils(unittest.TestCase):
 if __name__ == "__main__":
     t = TestUtils()
     t.setUp()
-    t.test_run_iter()
+    t.test_do_simulation()

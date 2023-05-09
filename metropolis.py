@@ -225,6 +225,11 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
     g.hmax = hmax
     g.tSteps = times
 
+    if times[0] > 0:
+        # Always start sims from t=0 even if experimental data doesn't, to verify initial conditions
+        dt_estimate = times[1] - times[0]
+        g.tSteps = np.concatenate((np.arange(0, times[0], dt_estimate), g.tSteps))
+
     sol, next_init_condition = model(
         iniPar, g, p, meas=meas, solver=solver, RTOL=rtol, ATOL=atol)
     return g.tSteps, sol
@@ -290,7 +295,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
         # if verbose:
         if logger is not None:
             logger.info("{}: Simulation complete hmax={}; t {}-{}; x {}".format(i,
-                        hmax, times[0], times[len(sol)-1], thickness))
+                        hmax, tSteps[0], tSteps[-1], thickness))
 
         sol, fail = detect_sim_fail(sol, vals)
         if fail and logger is not None:
@@ -386,9 +391,11 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, args)
         sol, times_c, vals_c, uncs_c = post_conv_trim(tSteps, sol, times, vals, uncs)
 
     else:
+        # Still need to trim, in case experimental data doesn't start at t=0
         times_c = times
         vals_c = vals
         uncs_c = uncs
+        sol = sol[-len(times_c):]
 
     try:
         if MCMC_fields.get("self_normalize", False) or sim_info["meas_types"][i] == "TRTS":
