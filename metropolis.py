@@ -398,7 +398,8 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, args)
         sol = sol[-len(times_c):]
 
     try:
-        if MCMC_fields.get("self_normalize", False) or sim_info["meas_types"][i] == "TRTS":
+        if (MCMC_fields["self_normalize"] is not None and
+                sim_info["meas_types"][i] in MCMC_fields["self_normalize"]):
             logger.debug("Normalizing sim result...")
             sol /= np.nanmax(sol)
             scale_shift = 0
