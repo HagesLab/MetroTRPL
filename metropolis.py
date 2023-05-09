@@ -376,6 +376,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, args)
                                                hmax, MCMC_fields, logger)
 
     if irf_convolution is not None and irf_convolution[i] != 0:
+        logger.debug(f"Convolving with wavelength {irf_convolution[i]}")
         wave = int(irf_convolution[i])
         tSteps, sol, success = do_irf_convolution(
             tSteps, sol, IRF_tables[wave], time_max_shift=True)
@@ -390,11 +391,15 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, args)
         uncs_c = uncs
 
     try:
-        if MCMC_fields.get("self_normalize", False):
+        if MCMC_fields.get("self_normalize", False) or sim_info["meas_types"][i] == "TRTS":
+            logger.debug("Normalizing sim result...")
             sol /= np.nanmax(sol)
+            scale_shift = 0
+        else:
+            scale_shift = np.log10(p.m)
         # TODO: accomodate multiple experiments, just like bayes
 
-        err_sq = (np.log10(sol) + np.log10(p.m) - vals_c) ** 2
+        err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
         likelihood = - \
             np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs_c**2))
 
