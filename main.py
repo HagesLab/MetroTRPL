@@ -56,6 +56,9 @@ if __name__ == "__main__":
         sim_info["lengths"] = [sim_info["lengths"][i]
                                for i in meas_fields["select_obs_sets"]]
         sim_info["num_meas"] = len(meas_fields["select_obs_sets"])
+        if MCMC_fields.get("irf_convolution", None) is not None:
+            MCMC_fields["irf_convolution"] = [MCMC_fields["irf_convolution"][i]
+                                              for i in meas_fields["select_obs_sets"]]
 
     logger, handler = start_logging(
         log_dir=MCMC_fields["output_path"], name=f"CPU{jobid}")
