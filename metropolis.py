@@ -397,6 +397,8 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, args)
         uncs_c = uncs
         sol = sol[-len(times_c):]
 
+    logger.debug(f"Comparing times {times_c[0]}-{times_c[-1]}")
+
     try:
         if (MCMC_fields["self_normalize"] is not None and
                 sim_info["meas_types"][i] in MCMC_fields["self_normalize"]):
