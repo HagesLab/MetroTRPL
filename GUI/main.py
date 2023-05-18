@@ -179,7 +179,7 @@ class Window:
                               background=LIGHT_GREY, relief="sunken", border=2, anchor="nw", justify="left")
         data_label.place(x=10, y=10)
         self.base_panel.widgets["data label"] = data_label
-
+        self.base_panel.setvar("data label", "Use Load File to select a file")
         self.make_side_panel()
 
     def make_side_panel(self) -> None:
@@ -201,11 +201,11 @@ class Window:
                      ]
 
         # Text labels
-        widgets["label 1"] = tk.Label(master=panel, text="X Axis", **LABEL_KWARGS)
-        widgets["label 2"] = tk.Label(master=panel, text="Y Axis", **LABEL_KWARGS)
-        widgets["label 3"] = tk.Label(master=panel, text="Axis Scale", **LABEL_KWARGS)
-        widgets["label 4"] = tk.Label(master=panel, text="Data Set", **LABEL_KWARGS)
-        widgets["label 5"] = tk.Label(master=panel, text="Horizontal Line", **LABEL_KWARGS)
+        widgets["x_axis_label"] = tk.Label(master=panel, text="X Axis", **LABEL_KWARGS)
+        widgets["y_axis_label"] = tk.Label(master=panel, text="Y Axis", **LABEL_KWARGS)
+        widgets["scale_label"] = tk.Label(master=panel, text="Axis Scale", **LABEL_KWARGS)
+        widgets["accept_label"] = tk.Label(master=panel, text="Filter", **LABEL_KWARGS)
+        widgets["hori_marker_label"] = tk.Label(master=panel, text="Horizontal Line", **LABEL_KWARGS)
 
         # User select menus
         variable_1 = tk.StringVar(value="select")
@@ -219,14 +219,16 @@ class Window:
 
         widgets["variable 1"].configure(**MENU_KWARGS)
         widgets["variable 2"].configure(**MENU_KWARGS)
-        widgets["accepted"].configure(**MENU_KWARGS)
         widgets["scale"].configure(**MENU_KWARGS)
+        widgets["accepted"].configure(**MENU_KWARGS)
 
         # Add fixed items to specific OptionMenus
         menu: tk.Menu = widgets["accepted"]["menu"]
         menu.delete(0)
-        menu.add_checkbutton(label="Accepted", onvalue="Accepted", offvalue="Accepted", variable=accepted)
-        menu.add_checkbutton(label="Raw", onvalue="Raw", offvalue="Raw", variable=accepted)
+        menu.add_checkbutton(label="Accepted", onvalue="Accepted", offvalue="Accepted",
+                             variable=accepted)
+        menu.add_checkbutton(label="All Proposed", onvalue="All Proposed", offvalue="All Proposed",
+                             variable=accepted)
 
         menu: tk.Menu = widgets["scale"]["menu"]
         menu.delete(0)
@@ -234,21 +236,19 @@ class Window:
         menu.add_checkbutton(label="Logarithmic", onvalue="Logarithmic",
                              offvalue="Logarithmic", variable=scale)
 
-        # Status message box
-        widgets["entry"] = tk.Entry(master=panel, width=16, border=3)
+        # Entry for horizontal marker
+        widgets["hori_marker_entry"] = tk.Entry(master=panel, width=16, border=3)
 
-        self.side_panel.addstate("1D Trace Plot", [(widgets["label 1"], locations[0]), (widgets["label 4"], locations[1]), (widgets["label 3"], locations[2]),
+        self.side_panel.addstate("1D Trace Plot", [(widgets["x_axis_label"], locations[0]), (widgets["accept_label"], locations[1]), (widgets["scale_label"], locations[2]),
                                                    (widgets["variable 1"], locations[3]), (widgets["accepted"],
                                                                                              locations[4]), (widgets["scale"], locations[5]),
-                                                     (widgets["label 5"], locations[6]), (widgets["entry"], locations[9])])
-        self.side_panel.addstate("2D Trace Plot", [(widgets["label 1"], locations[0]), (widgets["label 2"], locations[1]), (widgets["label 3"], locations[2]),
+                                                     (widgets["hori_marker_label"], locations[6]), (widgets["hori_marker_entry"], locations[9])])
+        self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], locations[0]), (widgets["y_axis_label"], locations[1]), (widgets["scale_label"], locations[2]),
                                                    (widgets["variable 1"], locations[3]), (widgets["variable 2"], locations[4]), (widgets["scale"], locations[5])])
-        self.side_panel.addstate("1D Histogram", [(widgets["label 1"], locations[0]), (widgets["label 3"], locations[1]), (widgets["variable 1"], locations[3]),
+        self.side_panel.addstate("1D Histogram", [(widgets["x_axis_label"], locations[0]), (widgets["scale_label"], locations[1]), (widgets["variable 1"], locations[3]),
                                                   (widgets["scale"], locations[4])])
-        self.side_panel.addstate("2D Histogram", [(widgets["label 1"], locations[0]), (widgets["label 2"], locations[1]), (widgets["label 3"], locations[2]),
+        self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], locations[0]), (widgets["y_axis_label"], locations[1]), (widgets["scale_label"], locations[2]),
                                                   (widgets["variable 1"], locations[3]), (widgets["variable 2"], locations[4]), (widgets["scale"], locations[5])])
-
-        self.base_panel.setvar("data label", "Text can be inserted here.")
 
     def mainloop(self) -> None:
         self.widget.mainloop()
@@ -304,7 +304,7 @@ class Window:
                 accepted = self.widget.getvar(name)
                 name = self.side_panel.widgets["scale"]["textvariable"]
                 scale = self.widget.getvar(name)
-                entry: tk.Entry = self.side_panel.widgets["entry"]
+                entry: tk.Entry = self.side_panel.widgets["hori_marker_entry"]
                 hline = entry.get()
                 try:
                     hline = (float(hline),)
