@@ -8,7 +8,7 @@ from metropolis import E_field, model, select_next_params
 from metropolis import do_simulation, roll_acceptance, unpack_simpar
 from metropolis import detect_sim_fail, detect_sim_depleted, almost_equal
 from metropolis import check_approved_param
-from metropolis import run_iteration, one_sim_likelihood
+from metropolis import run_iteration
 from sim_utils import Parameters, Grid, Covariance
 from scipy.integrate import trapz
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
@@ -169,7 +169,7 @@ class TestUtils(unittest.TestCase):
 
         test_TRTS, out_dN = model(
             init_dN, g, pa, meas="TRTS", solver="solveivp")
-        trts = pa.mu_n * out_dN + pa.mu_p * out_dN
+        trts = q_C * (pa.mu_n * out_dN + pa.mu_p * out_dN)
         self.assertAlmostEqual(
             test_TRTS[-1], trapz(trts, dx=g.dx) + trts[0]*g.dx/2 + trts[-1]*g.dx/2)
 
@@ -420,8 +420,51 @@ class TestUtils(unittest.TestCase):
 
         return
 
+    def test_mu_constraint(self):
+        # This function assigns a set of randomly generated values
+        np.random.seed(1)
+        param_names = ["mu_n", "mu_p"]
+
+        do_log = {"mu_n": 1, "mu_p": 1}
+        unit_conversions = {"mu_n": 1, "mu_p": 1}
+
+        prior_dist = {"mu_n": (0.1, np.inf),
+                      "mu_p": (0.1, np.inf),
+                      }
+
+        initial_guesses = {"mu_n": 20,
+                           "mu_p": 20,
+                           }
+
+        active_params = {"mu_n": 1,
+                         "mu_p": 1,
+                         }
+
+        param_info = {"active": active_params,
+                      "unit_conversions": unit_conversions,
+                      "do_log": do_log,
+                      "names": param_names,
+                      "do_mu_constraint": (20, 3),
+                      "prior_dist": prior_dist,
+                      "init_guess": initial_guesses}
+
+        pa = Parameters(param_info)
+        means = Parameters(param_info)
+        variances = Covariance(param_info)
+        variances.set_variance('mu_n', 0.1)
+        variances.set_variance('mu_p', 0.1)
+
+        for i in range(10):
+            select_next_params(pa, means, variances, param_info,
+                               trial_function="box", logger=self.logger)
+
+            self.assertTrue(2 / (pa.mu_n**-1 + pa.mu_p**-1) <= 23)
+            self.assertTrue(2 / (pa.mu_n**-1 + pa.mu_p**-1) >= 17)
+
+        return
+
     def test_do_simulation(self):
-        # Just verify this realistic simulation converges
+        # Make sure the simulation starts at 0, even if the experimental data doesn't
         unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
                             "mu_n": ((1e7) ** 2) / (1e9), "mu_p": ((1e7) ** 2) / (1e9),
                             "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
@@ -453,10 +496,17 @@ class TestUtils(unittest.TestCase):
 
         thickness = 1000
         nx = 100
-        times = np.linspace(0, 100, 1000)
+        times = np.linspace(10, 100, 901)
 
         iniPar = np.logspace(19, 14, nx) * 1e-21
-        do_simulation(pa, thickness, nx, iniPar, times, hmax=4)
+        tSteps, sol = do_simulation(pa, thickness, nx, iniPar, times, hmax=4)
+        np.testing.assert_equal(tSteps[0], 0)
+
+        times = np.linspace(0, 100, 1001)
+        tSteps2, sol2 = do_simulation(pa, thickness, nx, iniPar, times, hmax=4)
+        np.testing.assert_equal(sol[0], sol2[0])
+        np.testing.assert_equal(sol[-1], sol2[-1])
+
         return
 
     def test_sim_fail(self):
@@ -505,9 +555,9 @@ class TestUtils(unittest.TestCase):
         return
 
     def test_unpack_simpar(self):
-        #Length = [311,2000,311,2000, 311, 2000]
+        # Length = [311,2000,311,2000, 311, 2000]
         Length = [2000]                            # Length (nm)
-        L = 2 ** 7                                # Spatial points
+        L = [2 ** 7]                                # Spatial points
         meas_type = ["TRPL"]                          # measurement type
 
         simPar = {"lengths": Length,
@@ -517,10 +567,11 @@ class TestUtils(unittest.TestCase):
 
         thickness, nx, mtype = unpack_simpar(simPar, 0)
         self.assertEqual(Length[0], thickness)
-        self.assertEqual(L, nx)
+        self.assertEqual(L[0], nx)
         self.assertEqual(meas_type[0], mtype)
 
         Length = np.array([311, 2000, 311, 2000, 311, 2000])
+        L = [10, 20, 30, 40, 50, 60]
         meas_type = ["TRPL", "TRTS", "TRPL", "TRPL", "TRTS", "TRPL"]
         simPar = {"lengths": Length,
                   "nx": L,
@@ -529,7 +580,7 @@ class TestUtils(unittest.TestCase):
 
         thickness, nx, mtype = unpack_simpar(simPar, 2)
         self.assertEqual(Length[2], thickness)
-        self.assertEqual(L, nx)
+        self.assertEqual(L[2], nx)
         self.assertEqual(meas_type[2], mtype)
         return
 
@@ -557,14 +608,14 @@ class TestUtils(unittest.TestCase):
         # Will basically need to set up a full simulation for this
         np.random.seed(42)
         Length = [2000, 2000]                            # Length (nm)
-        L = 2 ** 7                                # Spatial point
+        L = [2 ** 7, 2 ** 7]                                # Spatial point
         mtype = ["TRPL", "TRPL"]
         simPar = {"lengths": Length,
                   "nx": L,
                   "meas_types": mtype,
                   "num_meas": 2}
 
-        iniPar = [1e15 * np.ones(L) * 1e-21, 1e16 * np.ones(L) * 1e-21]
+        iniPar = [1e15 * np.ones(L[0]) * 1e-21, 1e16 * np.ones(L[1]) * 1e-21]
 
         param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
                        "Sf", "Sb", "tauN", "tauP", "eps", "m"]
@@ -596,6 +647,7 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "measurement": "TRPL",
+                     "self_normalize": None,
                      "solver": "solveivp", }
 
         p = Parameters(param_info)
@@ -608,7 +660,7 @@ class TestUtils(unittest.TestCase):
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.zeros(nt+1), np.zeros(nt+1)]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs,
+        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
                                  running_hmax, sim_flags, verbose=True,
                                  logger=self.logger, prev_p=None)
 
@@ -618,13 +670,79 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(accepted)
 
         # Second iter same as the first; auto-accept with likelihood ratio exactly 1
-        accepted = run_iteration(p2, simPar, iniPar, times, vals, uncs,
+        accepted = run_iteration(p2, simPar, iniPar, times, vals, uncs, None,
                                  running_hmax, sim_flags, verbose=True,
                                  logger=self.logger, prev_p=p)
         self.assertTrue(accepted)
         # Accept should overwrite p2 (new) into p (old)
         np.testing.assert_equal(p.likelihood, p2.likelihood)
         np.testing.assert_equal(p.err_sq, p2.err_sq)
+
+    def test_run_iter_cutoff(self):
+        # Same as test_run_iter, only "experimental" data is
+        # truncated at [50,100] instead of [0,100].
+        # Half as many points means the likelihood should be reduced to about half.
+        np.random.seed(42)
+        Length = [2000, 2000]                            # Length (nm)
+        L = [2 ** 7, 2 ** 7]                                # Spatial point
+        mtype = ["TRPL", "TRPL"]
+        simPar = {"lengths": Length,
+                  "nx": L,
+                  "meas_types": mtype,
+                  "num_meas": 2}
+
+        iniPar = [1e15 * np.ones(L[0]) * 1e-21, 1e16 * np.ones(L[1]) * 1e-21]
+
+        param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
+                       "Sf", "Sb", "tauN", "tauP", "eps", "m"]
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9), "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
+
+        # Iterations should proceed independent of which params are actively iterated,
+        # as all params are presumably needed to complete the simulation
+        param_info = {"names": param_names,
+                      "unit_conversions": unit_conversions,
+                      "active": {name: 0 for name in param_names}}
+        initial_guess = {"n0": 0,
+                         "p0": 0,
+                         "mu_n": 0,
+                         "mu_p": 0,
+                         "ks": 1e-11,
+                         "Sf": 0,
+                         "Sb": 0,
+                         "Cn": 0,
+                         "Cp": 0,
+                         "Tm": 300,
+                         "tauN": 1e99,
+                         "tauP": 1e99,
+                         "eps": 10,
+                         "m": 1}
+        param_info["init_guess"] = initial_guess
+
+        sim_flags = {"current_sigma": 1,
+                     "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
+                     "measurement": "TRPL",
+                     "self_normalize": None,
+                     "solver": "solveivp", }
+
+        p = Parameters(param_info)
+        p.apply_unit_conversions(param_info)
+        p2 = Parameters(param_info)
+        p2.apply_unit_conversions(param_info)
+
+        nt = 500
+        running_hmax = [4] * len(iniPar)
+        times = [np.linspace(50, 100, nt+1), np.linspace(50, 100, nt+1)]
+        vals = [np.zeros(nt+1), np.zeros(nt+1)]
+        uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
+        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                                 running_hmax, sim_flags, verbose=True,
+                                 logger=self.logger, prev_p=None)
+
+        # First iter; auto-accept
+        np.testing.assert_almost_equal(
+            p.likelihood, [-29701, -16309], decimal=0)  # rtol=1e-5
 
     def test_one_sim_ll_errata(self):
         # TODO: The next time odeint fails to do a simulation, upload it into this
@@ -696,4 +814,4 @@ class TestUtils(unittest.TestCase):
 if __name__ == "__main__":
     t = TestUtils()
     t.setUp()
-    t.test_run_iter()
+    t.test_do_simulation()

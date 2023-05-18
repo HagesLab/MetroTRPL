@@ -46,11 +46,27 @@ if __name__ == "__main__":
         else:
             raise NotImplementedError(
                 "No scale_f for measurements other than TRPL and TRTS")
-    e_data = get_data(MCMC_fields["measurement_path"],
+    e_data = get_data(MCMC_fields["measurement_path"], measurement_types,
                       meas_fields, MCMC_fields, scale_f=scale_f)
+
+    # Make simulation info consistent with actual number of selected measurements
+    if meas_fields.get("select_obs_sets", None) is not None:
+        sim_info["meas_types"] = [sim_info["meas_types"][i]
+                                  for i in meas_fields["select_obs_sets"]]
+        sim_info["lengths"] = [sim_info["lengths"][i]
+                               for i in meas_fields["select_obs_sets"]]
+        sim_info["num_meas"] = len(meas_fields["select_obs_sets"])
+        if MCMC_fields.get("irf_convolution", None) is not None:
+            MCMC_fields["irf_convolution"] = [MCMC_fields["irf_convolution"][i]
+                                              for i in meas_fields["select_obs_sets"]]
+
     logger, handler = start_logging(
         log_dir=MCMC_fields["output_path"], name=f"CPU{jobid}")
     logger.info("Measurement handling fields: {}".format(meas_fields))
+    logger.info("E data: {}".format(
+        ["[{}...{}]".format(e_data[1][i][0], e_data[1][i][-1]) for i in range(len(e_data[1]))]))
+    logger.info("Initial condition: {}".format(
+        ["[{}...{}]".format(iniPar[i][0], iniPar[i][-1]) for i in range(len(iniPar))]))
 
     export_path = f"CPU{jobid}-final.pik"
 
@@ -64,6 +80,13 @@ if __name__ == "__main__":
     logger.info("Avg: {} s per iter".format(final_t / MCMC_fields["num_iters"]))
     logger.info("Acceptance rate: {}".format(
         np.sum(MS.H.accept) / len(MS.H.accept.flatten())))
+
+    # Successful completion - checkpoints not needed anymore
+    chpt_header = MS.MCMC_fields["checkpoint_header"]
+    for chpt in os.listdir(MS.MCMC_fields["checkpoint_dirname"]):
+        if f"checkpoint{chpt_header}" in chpt:
+            os.remove(os.path.join(MS.MCMC_fields["checkpoint_dirname"], chpt))
+    # os.rmdir(MS.MCMC_fields["checkpoint_dirname"])
 
     stop_logging(logger, handler, 0)
 

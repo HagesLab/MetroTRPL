@@ -41,10 +41,13 @@ class MetroState():
         return
 
     def anneal(self, k, uncs=None):
+        """ "Adjust the model sigma according to an annealing schedule -
+            sigma *= 0.1 every kth step
+        """
         steprate = self.MCMC_fields["annealing"][1]
         min_sigma = self.MCMC_fields["annealing"][2]
         l2v = self.MCMC_fields["likel2variance_ratio"]
-        if k > 0 and k % steprate == 0:
+        if k > 0 and l2v > 0 and k % steprate == 0:
 
             self.MCMC_fields["current_sigma"] *= 0.1
 
@@ -55,8 +58,7 @@ class MetroState():
             self.variances.apply_values(
                 {param: new_variance for param in self.param_info["names"]})
 
-            # Ensure we aren't comparing states calculated with two different
-            # likelihoods
+            # Recalculate the previous state's likelihood, for consistency
 
             for i in range(len(self.prev_p.likelihood)):
                 if uncs is not None:
@@ -71,10 +73,15 @@ class MetroState():
     def print_status(self, logger):
         is_active = self.param_info['active']
         ucs = self.param_info["unit_conversions"]
+
+        if hasattr(self.prev_p, "likelihood"):
+            logger.info("Current loglikelihood : {:.6e} ".format(
+                np.sum(self.prev_p.likelihood)))
         for param in self.param_info['names']:
             if is_active.get(param, 0):
-                logger.info("Next {}: {:.6e} from mean {:.6e}".format(param, getattr(
-                    self.p, param) / ucs.get(param, 1), getattr(self.means, param) / ucs.get(param, 1)))
+                trial = getattr(self.p, param) / ucs.get(param, 1)
+                mean = getattr(self.means, param) / ucs.get(param, 1)
+                logger.info("Next {}: {:.6e} from mean {:.6e}".format(param, trial, mean))
 
         return
 
@@ -128,9 +135,10 @@ class Parameters():
             val = getattr(self, param)
             setattr(self, param, val *
                     param_info["unit_conversions"].get(param, 1))
+        return
 
     def make_log(self, param_info=None):
-        """ Convert currently stored parameters to log space. 
+        """ Convert currently stored parameters to log space.
             This is nearly always recommended for TRPL, as TRPL decay can span
             many orders of magnitude.
         """
@@ -138,6 +146,7 @@ class Parameters():
             if param_info["do_log"].get(param, 0) and hasattr(self, param):
                 val = getattr(self, param)
                 setattr(self, param, np.log10(val))
+        return
 
     def to_array(self, param_info=None):
         """ Compress the currently stored parameters into a 1D array. Some
@@ -208,9 +217,10 @@ class Covariance():
 
         self.little_sigma = np.ones(len(self.cov)) * iv_arr
         self.big_sigma = self.cov * iv_arr**-1
+        return
 
     def mask_covariance(self, picked_param):
-        """ Induce a univariate gaussian if doing one-param-at-a-time 
+        """ Induce a univariate gaussian if doing one-param-at-a-time
             picked_param = tuple(param_name, its index)
         """
         if picked_param is None:
@@ -219,6 +229,7 @@ class Covariance():
             i = picked_param[1]
             self.cov = np.zeros_like(self.cov)
             self.cov[i, i] = self.little_sigma[i] * self.big_sigma[i, i]
+        return
 
 
 class History():
@@ -239,15 +250,25 @@ class History():
 
         self.accept = np.zeros(num_iters)
         self.loglikelihood = np.zeros(num_iters)
+        self.proposed_loglikelihood = np.zeros(num_iters)
+        return
+
+    def record_best_logll(self, k, prev_p):
+        # prev_p is essentially the latest accepted move
+        self.loglikelihood[k] = np.sum(prev_p.likelihood)
+        return
 
     def update(self, k, p, means, param_info):
-        self.loglikelihood[k] = np.sum(p.likelihood)
+        self.proposed_loglikelihood[k] = np.sum(p.likelihood)
 
         for param in param_info['names']:
+            # Proposed states
             h = getattr(self, param)
             h[k] = getattr(p, param)
+            # Accepted states
             h_mean = getattr(self, f"mean_{param}")
             h_mean[k] = getattr(means, param)
+        return
 
     def apply_unit_conversions(self, param_info):
         for param in param_info["names"]:
@@ -258,6 +279,7 @@ class History():
             val = getattr(self, f"mean_{param}")
             setattr(self, f"mean_{param}", val /
                     param_info["unit_conversions"].get(param, 1))
+        return
 
     def export(self, param_info, out_pathname):
         for param in param_info["names"]:
@@ -268,7 +290,7 @@ class History():
 
         np.save(os.path.join(out_pathname, "accept"), self.accept)
         np.save(os.path.join(out_pathname, "loglikelihood"), self.loglikelihood)
-        #np.save(os.path.join(out_pathname, "final_cov"), self.final_cov)
+        return
 
     def truncate(self, k, param_info):
         """ Cut off any incomplete iterations should the walk be terminated early"""
@@ -281,6 +303,7 @@ class History():
 
         self.accept = self.accept[:k]
         self.loglikelihood = self.loglikelihood[:k]
+        self.proposed_loglikelihood = self.proposed_loglikelihood[:k]
         return
 
     def extend(self, new_num_iters, param_info):
@@ -294,6 +317,8 @@ class History():
             (self.accept, np.zeros(addtl_iters)), axis=0)
         self.loglikelihood = np.concatenate(
             (self.loglikelihood, np.zeros(addtl_iters)), axis=0)
+        self.proposed_loglikelihood = np.concatenate(
+            (self.proposed_loglikelihood, np.zeros(addtl_iters)), axis=0)
 
         for param in param_info["names"]:
             val = getattr(self, param)
@@ -322,6 +347,7 @@ class Solution():
         self.PL = trapz(rr, dx=g.dx, axis=1)
         self.PL += rr[:, 0] * g.dx / 2
         self.PL += rr[:, -1] * g.dx / 2
+        return
 
     def calculate_TRTS(self, g, p):
         """ Transient terahertz decay """
@@ -329,8 +355,25 @@ class Solution():
         self.trts = trapz(trts, dx=g.dx, axis=1)
         self.trts += trts[:, 0] * g.dx / 2
         self.trts += trts[:, -1] * g.dx / 2
+        self.trts *= q_C
+        return
 
 
 @njit(cache=True)
 def calculate_RR(N, P, ks, n0, p0):
     return ks * (N * P - n0 * p0)
+
+
+if __name__ == "__main__":
+    S = Solution()
+    g = Grid()
+    g.dx = 20
+    p = Grid()
+    p.mu_n = 20 * 1e5
+    p.mu_p = 20 * 1e5
+    S.N = 1e15 * np.ones((1, 100)) * 1e-21
+    S.P = 1e15 * np.ones((1, 100)) * 1e-21
+    p.n0 = 1e8 * 1e-21
+    p.p0 = 1e13 * 1e-21
+    S.calculate_TRTS(g, p)
+    print(S.trts)

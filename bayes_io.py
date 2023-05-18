@@ -67,7 +67,7 @@ def check_valid_filename(file_name):
     return True
 
 
-def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
+def get_data(exp_file, meas_types, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
     TIME_RANGE = ic_flags['time_cutoff']
     SELECT = ic_flags['select_obs_sets']
     NOISE_LEVEL = ic_flags.get('noise_level', 0)
@@ -122,11 +122,12 @@ def get_data(exp_file, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
         y_list[i] *= scale_f[i]
         u_list[i] *= scale_f[i]
 
-    if NORMALIZE:
+    if NORMALIZE is not None:
         for i in range(len(t_list)):
-            norm_f = np.nanmax(y_list[i])
-            y_list[i] /= norm_f
-            u_list[i] /= norm_f
+            if meas_types[i] in NORMALIZE:
+                norm_f = np.nanmax(y_list[i])
+                y_list[i] /= norm_f
+                u_list[i] /= norm_f
 
     if LOG_PL:
         # Deal with noisy negative values before taking log
@@ -230,7 +231,8 @@ def read_config_script_file(path):
                             line_split[1], delimiter='\t')
 
                     elif line.startswith("nx"):
-                        grid["nx"] = int(line_split[1])
+                        grid["nx"] = extract_values(
+                            line_split[1], delimiter='\t', dtype=int)
 
                     elif line.startswith("Measurement type(s)"):
                         grid["meas_types"] = line_split[1].split('\t')
@@ -271,6 +273,11 @@ def read_config_script_file(path):
                         vals = extract_values(
                             line_split[1], delimiter='\t', dtype=float)
                         put_into_param_info(param_info, vals, "init_variance")
+
+                    elif line.startswith("Mu constraint"):
+                        vals = extract_values(
+                            line_split[1], delimiter='\t', dtype=float)
+                        param_info["do_mu_constraint"] = vals
 
                 if (init_flag == 'm'):
                     if line.startswith("Time cutoffs"):
@@ -320,12 +327,22 @@ def read_config_script_file(path):
                         MCMC_fields["override_equal_s"] = int(line_split[1])
                     elif line.startswith("Use log of measurements"):
                         MCMC_fields["log_pl"] = int(line_split[1])
-                    elif line.startswith("Normalize all meas and sims"):
-                        MCMC_fields["self_normalize"] = int(line_split[1])
+                    elif line.startswith("Normalize these meas and sim types"):
+                        if line_split[1] == "None":
+                            MCMC_fields["self_normalize"] = None
+                        else:
+                            MCMC_fields["self_normalize"] = line_split[1].split('\t')
                     elif line.startswith("Proposal function"):
                         MCMC_fields["proposal_function"] = line_split[1]
                     elif line.startswith("Use hard boundaries"):
                         MCMC_fields["hard_bounds"] = int(line_split[1])
+                    elif line.startswith("IRF"):
+                        if line_split[1] == "None":
+                            MCMC_fields["irf_convolution"] = None
+                        else:
+                            MCMC_fields["irf_convolution"] = extract_values(line_split[1],
+                                                                            delimiter='\t',
+                                                                            dtype=float)
                     elif line.startswith("Propose params one-at-a-time"):
                         MCMC_fields["one_param_at_a_time"] = int(line_split[1])
                     elif line.startswith("Checkpoint dir"):
@@ -352,7 +369,7 @@ def read_config_script_file(path):
     validate_grid(grid)
     validate_param_info(param_info)
     validate_meas_flags(meas_flags, grid["num_meas"])
-    validate_MCMC_fields(MCMC_fields)
+    validate_MCMC_fields(MCMC_fields, grid["num_meas"])
 
     return grid, param_info, meas_flags, MCMC_fields
 
@@ -362,7 +379,7 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
     validate_grid(simPar)
     validate_param_info(param_info)
     validate_meas_flags(measurement_flags, simPar["num_meas"])
-    validate_MCMC_fields(MCMC_fields)
+    validate_MCMC_fields(MCMC_fields, simPar["num_meas"])
     if not path.endswith(".txt"):
         path += ".txt"
 
@@ -384,7 +401,10 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             ofstream.write(
                 "# Number of space nodes used by solver discretization\n")
         nx = simPar["nx"]
-        ofstream.write(f"nx: {nx}\n")
+        ofstream.write(f"nx: {nx[0]}")
+        for value in nx[1:]:
+            ofstream.write(f"\t{value}")
+        ofstream.write('\n')
         if verbose:
             ofstream.write("# Model to use to simulate each measurement\n")
         meas_types = simPar["meas_types"]
@@ -459,6 +479,13 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         for name in param_names[1:]:
             ofstream.write(f"\t{init_variance.get(name, 0)}")
         ofstream.write('\n')
+
+        if "do_mu_constraint" in param_info:
+            if verbose:
+                ofstream.write("# Restrict mu_n and mu_p within a small range of ambipolar mobility. "
+                               "Ambipolar mobility is limited within A +/- B.\n")
+            mu = param_info["do_mu_constraint"]
+            ofstream.write(f"Mu constraint: {mu[0]}\t{mu[1]}\n")
         #######################################################################
         ofstream.write("##\n")
         ofstream.write("p$ Measurement handling flags:\n")
@@ -564,6 +591,7 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                            "purpose of likelihood evaluation. Recommended to be 1 or True. \n")
         logpl = MCMC_fields["log_pl"]
         ofstream.write(f"Use log of measurements: {logpl}\n")
+
         if verbose:
             ofstream.write("# Normalize all individual measurements and simulations "
                            "to maximum of 1 before likelihood evaluation. "
@@ -571,7 +599,14 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                            "\n# If the absolute units or efficiency of the measurement is unknown, "
                            "\n# it is recommended to try fitting 'm' instead of relying on normalization. \n")
         norm = MCMC_fields["self_normalize"]
-        ofstream.write(f"Normalize all meas and sims: {norm}\n")
+
+        if norm is None:
+            ofstream.write(f"Normalize these meas and sim types: {norm}")
+        else:
+            ofstream.write(f"Normalize these meas and sim types: {norm[0]}")
+            for value in norm[1:]:
+                ofstream.write(f"\t{value}")
+        ofstream.write('\n')
 
         if verbose:
             ofstream.write("# Proposal function used to generate new states. "
@@ -586,6 +621,21 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                                "# =1 will coerce while =0 will only warn.\n")
             bound = MCMC_fields["hard_bounds"]
             ofstream.write(f"Use hard boundaries: {bound}\n")
+
+        if verbose:
+            ofstream.write(
+                "# None for no convolution, or a list of wavelengths whose IRF profiles\n"
+                "# will be used to convolute each simulated TRPL curve. One wavelength per"
+                " measurement.\n")
+        if "irf_convolution" in MCMC_fields:
+            irf = MCMC_fields["irf_convolution"]
+            if irf is None:
+                ofstream.write(f"IRF: {irf}")
+            else:
+                ofstream.write(f"IRF: {irf[0]}")
+                for value in irf[1:]:
+                    ofstream.write(f"\t{value}")
+            ofstream.write('\n')
 
         if verbose:
             ofstream.write(
@@ -659,11 +709,14 @@ def validate_grid(grid: dict, supported_meas_types=("TRPL", "TRTS")):
         raise ValueError("MCMC simPar entry 'Length' must be a list with "
                          "one positive length value per measurement")
 
-    if isinstance(grid['nx'], (int, np.integer)) or grid["nx"] <= 0:
+    if (isinstance(grid["nx"], (list, np.ndarray)) and
+        len(grid["nx"]) == declared_num_measurements and
+            all(map(lambda x: x > 0, grid["nx"]))):
         pass
     else:
         raise ValueError(
-            "MCMC simPar entry 'num_nodes' must be positive integer")
+            "MCMC simPar entry 'nx' must be a list with one positive integer "
+            "number of nodes per measurement")
 
     if (isinstance(grid["meas_types"], (list, np.ndarray)) and
         len(grid["meas_types"]) == declared_num_measurements and
@@ -711,6 +764,15 @@ def validate_param_info(param_info: dict):
             pass
         else:
             raise ValueError(f"Invalid unit conversion {v} for param {k}")
+
+    # Mu constraint
+    if "do_mu_constraint" in param_info:
+        mu = param_info["do_mu_constraint"]
+        if isinstance(mu, (list, tuple, np.ndarray)) and len(mu) == 2:
+            pass
+        else:
+            raise ValueError("mu_constraint must be list with center and width values \n"
+                             "E.g. [100, 10] to restrict ambipolar mu between 90 and 110.")
 
     # Others must have ALL entries
     for k in names:
@@ -854,7 +916,7 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
     return
 
 
-def validate_MCMC_fields(MCMC_fields: dict,
+def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
                          supported_solvers=("odeint", "solveivp"),
                          supported_prop_funcs=("box", "gauss", "None")):
     if not isinstance(MCMC_fields, dict):
@@ -984,11 +1046,13 @@ def validate_MCMC_fields(MCMC_fields: dict,
         raise ValueError("logpl invalid - must be 0 or 1")
 
     norm = MCMC_fields["self_normalize"]
-    if (isinstance(norm, (int, np.integer)) and
-            (norm == 0 or norm == 1)):
+    if norm is None:
+        pass
+    elif (isinstance(norm, list)) and all(map(lambda x: isinstance(x, str), norm)):
         pass
     else:
-        raise ValueError("self_normalize invalid - must be 0 or 1")
+        raise ValueError("self_normalize invalid - must be None, or a list of measurement types "
+                         "that should be normalized.")
 
     if MCMC_fields["proposal_function"] in supported_prop_funcs:
         pass
@@ -1003,6 +1067,18 @@ def validate_MCMC_fields(MCMC_fields: dict,
             pass
         else:
             raise ValueError("hard_bounds invalid - must be 0 or 1")
+
+    if "irf_convolution" in MCMC_fields:
+        irf = MCMC_fields["irf_convolution"]
+        if irf is None:
+            pass
+        elif (isinstance(irf, (list, np.ndarray)) and
+              len(irf) == num_measurements and
+                all(map(lambda x: x >= 0, irf))):
+            pass
+        else:
+            raise ValueError("MCMC control 'irf_convolution' must be None, or a list with "
+                             "one positive wavelength value per measurement")
 
     oneaat = MCMC_fields["one_param_at_a_time"]
     if (isinstance(oneaat, (int, np.integer)) and

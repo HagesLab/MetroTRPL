@@ -45,7 +45,7 @@ if __name__ == "__main__":
     num_measurements = 6
     Length = [311, 2000, 311, 2000, 311, 2000]
     # Length = [2000] * 3             # Length (nm)
-    L = 128                         # Spatial points
+    L = [128] * 6                         # Spatial points
     measurement_types = ["TRPL"]*6
     simPar = {"lengths": Length,
               "nx": L,
@@ -100,7 +100,6 @@ if __name__ == "__main__":
                        "eps": 10,
                        "Tm": 300,
                        "m": 1}
-    # initial_guesses["tauP"] = initial_guesses["tauN"]
 
     active_params = {"n0": 0,
                      "p0": 1,
@@ -137,17 +136,18 @@ if __name__ == "__main__":
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
-                   "num_iters": 20,
+                   "num_iters": 8000,
                    "solver": "solveivp",
                    "likel2variance_ratio": 500,
                    "log_pl": 1,
                    "self_normalize": 0,
+                   "irf_convolution": [1, 2, 3, 4, 5],
                    "proposal_function": "box",
                    "one_param_at_a_time": 0,
                    "hard_bounds": 1,
                    "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
                    "checkpoint_header": f"CPU{jobid}",
-                   "checkpoint_freq": 6,
+                   "checkpoint_freq": 12000,
                    # f"checkpointCPU{jobid}_30000.pik",
                    "load_checkpoint": None,
                    }
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     # Compute properly scaled initial model uncertainty from initial variance
     MCMC_fields["annealing"] = (
         max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"],
-        2000, 1e-2)
+        200000, 1e-2)
 
     generate_config_script_file(script_path, simPar, param_info,
                                 meas_fields, MCMC_fields, verbose=True)

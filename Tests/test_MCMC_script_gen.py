@@ -14,7 +14,7 @@ class TestUtils(unittest.TestCase):
     def setUp(self):
         num_measurements = 3
         Length = [2000, 2000, 2000]                           # Length (nm)
-        L = 128                                # Spatial points
+        L = [128, 128, 128]                                # Spatial points
         measurement_types = ["TRPL", "TRPL", "TRPL"]
         self.simPar = {"lengths": Length,
                        "nx": L,
@@ -121,7 +121,7 @@ class TestUtils(unittest.TestCase):
                             "override_equal_mu": 0,
                             "override_equal_s": 0,
                             "log_pl": 1,
-                            "self_normalize": 0,
+                            "self_normalize": None,
                             "proposal_function": "box",
                             "one_param_at_a_time": 0,
                             "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
