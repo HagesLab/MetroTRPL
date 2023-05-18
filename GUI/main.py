@@ -152,13 +152,13 @@ class Window:
         self.base_panel.place(0, 600)
 
         # Status box
-        # TODO: What is self.file for?
-        self.file = tk.StringVar(value="")
-        data_label = tk.Label(master=self.base_panel.widget, textvariable=self.file, width=138, height=11,
+        self.status_msg = tk.StringVar(value="")
+        data_label = tk.Label(master=self.base_panel.widget, textvariable=self.status_msg, width=138, height=11,
                               background=LIGHT_GREY, relief="sunken", border=2, anchor="nw", justify="left")
         data_label.place(x=10, y=10)
         self.base_panel.widgets["data label"] = data_label
         self.base_panel.setvar("data label", "Use Load File to select a file")
+        print(self.status_msg.get())
         self.populate_mini_panel()
         self.populate_side_panel()
         self.mount_side_panel_states()
@@ -301,8 +301,9 @@ class Window:
                                                title="Select File", initialdir=PICKLE_FILE_LOCATION)
         if file_name == "":
             return
+        # TODO: Prefer a list of strs instead of a giant concatenated
         self.base_panel.setvar("data label", self.base_panel.getvar(
-            "data label") + "\nText can also be appened (or deleted).")
+            "data label") + f"\nLoaded file {file_name}")
         self.widget.title(f"{APPLICATION_NAME} - {file_name}")
         with open(file_name, "rb") as rfile:
             metrostate: sim_utils.MetroState = pickle.load(rfile)
