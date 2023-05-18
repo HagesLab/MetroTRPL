@@ -245,29 +245,29 @@ class History():
             We need a better name for this.
         """
         for param in param_info["names"]:
-            setattr(self, param, np.zeros(num_iters))
-            setattr(self, f"mean_{param}", np.zeros(num_iters))
+            setattr(self, param, np.zeros((1, num_iters)))
+            setattr(self, f"mean_{param}", np.zeros((1, num_iters)))
 
-        self.accept = np.zeros(num_iters)
-        self.loglikelihood = np.zeros(num_iters)
-        self.proposed_loglikelihood = np.zeros(num_iters)
+        self.accept = np.zeros((1, num_iters))
+        self.loglikelihood = np.zeros((1, num_iters))
+        self.proposed_loglikelihood = np.zeros((1, num_iters))
         return
 
     def record_best_logll(self, k, prev_p):
         # prev_p is essentially the latest accepted move
-        self.loglikelihood[k] = np.sum(prev_p.likelihood)
+        self.loglikelihood[0, k] = np.sum(prev_p.likelihood)
         return
 
     def update(self, k, p, means, param_info):
-        self.proposed_loglikelihood[k] = np.sum(p.likelihood)
+        self.proposed_loglikelihood[0, k] = np.sum(p.likelihood)
 
         for param in param_info['names']:
             # Proposed states
             h = getattr(self, param)
-            h[k] = getattr(p, param)
+            h[0, k] = getattr(p, param)
             # Accepted states
             h_mean = getattr(self, f"mean_{param}")
-            h_mean[k] = getattr(means, param)
+            h_mean[0, k] = getattr(means, param)
         return
 
     def apply_unit_conversions(self, param_info):
@@ -296,38 +296,38 @@ class History():
         """ Cut off any incomplete iterations should the walk be terminated early"""
         for param in param_info["names"]:
             val = getattr(self, param)
-            setattr(self, param, val[:k])
+            setattr(self, param, val[:, :k])
 
             val = getattr(self, f"mean_{param}")
-            setattr(self, f"mean_{param}", val[:k])
+            setattr(self, f"mean_{param}", val[:, :k])
 
-        self.accept = self.accept[:k]
-        self.loglikelihood = self.loglikelihood[:k]
-        self.proposed_loglikelihood = self.proposed_loglikelihood[:k]
+        self.accept = self.accept[:, :k]
+        self.loglikelihood = self.loglikelihood[:, :k]
+        self.proposed_loglikelihood = self.proposed_loglikelihood[:, :k]
         return
 
     def extend(self, new_num_iters, param_info):
         """ Enlarge an existing MC chain to length new_num_iters, if needed """
-        current_num_iters = len(self.accept)
+        current_num_iters = len(self.accept[0])
         if new_num_iters <= current_num_iters:  # No extension needed
             return
 
         addtl_iters = new_num_iters - current_num_iters
         self.accept = np.concatenate(
-            (self.accept, np.zeros(addtl_iters)), axis=0)
+            (self.accept, np.zeros((1, addtl_iters))), axis=1)
         self.loglikelihood = np.concatenate(
-            (self.loglikelihood, np.zeros(addtl_iters)), axis=0)
+            (self.loglikelihood, np.zeros((1, addtl_iters))), axis=1)
         self.proposed_loglikelihood = np.concatenate(
-            (self.proposed_loglikelihood, np.zeros(addtl_iters)), axis=0)
+            (self.proposed_loglikelihood, np.zeros((1, addtl_iters))), axis=1)
 
         for param in param_info["names"]:
             val = getattr(self, param)
             setattr(self, param, np.concatenate(
-                (val, np.zeros(addtl_iters)), axis=0))
+                (val, np.zeros((1, addtl_iters))), axis=1))
 
             val = getattr(self, f"mean_{param}")
             setattr(self, f"mean_{param}", np.concatenate(
-                (val, np.zeros(addtl_iters)), axis=0))
+                (val, np.zeros((1, addtl_iters))), axis=1))
         return
 
 

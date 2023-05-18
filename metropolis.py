@@ -558,7 +558,7 @@ def main_metro_loop(MS, starting_iter, num_iters,
 
             if accepted:
                 MS.means.transfer_from(MS.p, MS.param_info)
-                MS.H.accept[k] = 1
+                MS.H.accept[0, k] = 1
 
             MS.H.update(k, MS.p, MS.means, MS.param_info)
         except KeyboardInterrupt:
