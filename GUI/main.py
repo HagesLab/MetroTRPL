@@ -181,24 +181,12 @@ class Window:
         self.base_panel.widgets["data label"] = data_label
         self.base_panel.setvar("data label", "Use Load File to select a file")
         self.make_side_panel()
+        self.mount_side_panel_states()
 
     def make_side_panel(self) -> None:
         """ Build the plot control panel to the right of the plotting frame. """
         widgets = self.side_panel.widgets
         panel = self.side_panel.widget
-        locations = [{"x": 20, "y": 20, "anchor": "nw"},
-                     {"x": 200, "y": 20, "anchor": "n"},
-                     {"x": 380, "y": 20, "anchor": "ne"},
-                     {"x": 20, "y": 48, "anchor": "nw"},
-                     {"x": 200, "y": 48, "anchor": "n"},
-                     {"x": 380, "y": 48, "anchor": "ne"},
-                     {"x": 20, "y": 88, "anchor": "nw"},
-                     {"x": 200, "y": 88, "anchor": "n"},
-                     {"x": 380, "y": 88, "anchor": "ne"},
-                     {"x": 20, "y": 116, "anchor": "nw"},
-                     {"x": 200, "y": 116, "anchor": "n"},
-                     {"x": 380, "y": 116, "anchor": "ne"}
-                     ]
 
         # Text labels
         widgets["x_axis_label"] = tk.Label(master=panel, text="X Axis", **LABEL_KWARGS)
@@ -239,16 +227,55 @@ class Window:
         # Entry for horizontal marker
         widgets["hori_marker_entry"] = tk.Entry(master=panel, width=16, border=3)
 
-        self.side_panel.addstate("1D Trace Plot", [(widgets["x_axis_label"], locations[0]), (widgets["accept_label"], locations[1]), (widgets["scale_label"], locations[2]),
-                                                   (widgets["variable 1"], locations[3]), (widgets["accepted"],
-                                                                                             locations[4]), (widgets["scale"], locations[5]),
-                                                     (widgets["hori_marker_label"], locations[6]), (widgets["hori_marker_entry"], locations[9])])
-        self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], locations[0]), (widgets["y_axis_label"], locations[1]), (widgets["scale_label"], locations[2]),
-                                                   (widgets["variable 1"], locations[3]), (widgets["variable 2"], locations[4]), (widgets["scale"], locations[5])])
-        self.side_panel.addstate("1D Histogram", [(widgets["x_axis_label"], locations[0]), (widgets["scale_label"], locations[1]), (widgets["variable 1"], locations[3]),
-                                                  (widgets["scale"], locations[4])])
-        self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], locations[0]), (widgets["y_axis_label"], locations[1]), (widgets["scale_label"], locations[2]),
-                                                  (widgets["variable 1"], locations[3]), (widgets["variable 2"], locations[4]), (widgets["scale"], locations[5])])
+    def mount_side_panel_states(self):
+        widgets = self.side_panel.widgets
+
+        # TODO: Make this a window property or something
+        locations = [{"x": 20, "y": 20, "anchor": "nw"},
+                     {"x": 200, "y": 20, "anchor": "n"},
+                     {"x": 380, "y": 20, "anchor": "ne"},
+                     {"x": 20, "y": 48, "anchor": "nw"},
+                     {"x": 200, "y": 48, "anchor": "n"},
+                     {"x": 380, "y": 48, "anchor": "ne"},
+                     {"x": 20, "y": 88, "anchor": "nw"},
+                     {"x": 200, "y": 88, "anchor": "n"},
+                     {"x": 380, "y": 88, "anchor": "ne"},
+                     {"x": 20, "y": 116, "anchor": "nw"},
+                     {"x": 200, "y": 116, "anchor": "n"},
+                     {"x": 380, "y": 116, "anchor": "ne"}
+                     ]
+
+        self.side_panel.addstate("1D Trace Plot", [(widgets["x_axis_label"], locations[0]),
+                                                   (widgets["accept_label"], locations[1]),
+                                                   (widgets["scale_label"], locations[2]),
+                                                   (widgets["variable 1"], locations[3]),
+                                                   (widgets["accepted"], locations[4]),
+                                                   (widgets["scale"], locations[5]),
+                                                   (widgets["hori_marker_label"], locations[6]),
+                                                   (widgets["hori_marker_entry"], locations[9])]
+                                 )
+
+        self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], locations[0]),
+                                                   (widgets["y_axis_label"], locations[1]),
+                                                   (widgets["scale_label"], locations[2]),
+                                                   (widgets["variable 1"], locations[3]),
+                                                   (widgets["variable 2"], locations[4]),
+                                                   (widgets["scale"], locations[5])]
+                                 )
+
+        self.side_panel.addstate("1D Histogram", [(widgets["x_axis_label"], locations[0]),
+                                                  (widgets["scale_label"], locations[1]),
+                                                  (widgets["variable 1"], locations[3]),
+                                                  (widgets["scale"], locations[4])]
+                                 )
+
+        self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], locations[0]),
+                                                  (widgets["y_axis_label"], locations[1]),
+                                                  (widgets["scale_label"], locations[2]),
+                                                  (widgets["variable 1"], locations[3]),
+                                                  (widgets["variable 2"], locations[4]),
+                                                  (widgets["scale"], locations[5])]
+                                 )
 
     def mainloop(self) -> None:
         self.widget.mainloop()
