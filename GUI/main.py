@@ -150,6 +150,22 @@ class Window:
         self.mini_panel.place(600, 540)
         self.base_panel = self.Panel(self.widget, 1000, 200, GREY)
         self.base_panel.place(0, 600)
+
+        # Status box
+        # TODO: What is self.file for?
+        self.file = tk.StringVar(value="")
+        data_label = tk.Label(master=self.base_panel.widget, textvariable=self.file, width=138, height=11,
+                              background=LIGHT_GREY, relief="sunken", border=2, anchor="nw", justify="left")
+        data_label.place(x=10, y=10)
+        self.base_panel.widgets["data label"] = data_label
+        self.base_panel.setvar("data label", "Use Load File to select a file")
+        self.populate_mini_panel()
+        self.populate_side_panel()
+        self.mount_side_panel_states()
+
+    def populate_mini_panel(self) -> None:
+        """ Build the small panel that loads data files and refreshes the plot. """
+        # Plot type selection
         self.chart_type = tk.StringVar(value="select")
         self.mini_panel.widgets["chart menu"] = tk.OptionMenu(self.mini_panel.widget,
                                                               self.chart_type, "select")
@@ -165,25 +181,21 @@ class Window:
                              variable=self.chart_type, command=self.chartselect)
         self.mini_panel.widgets["chart menu"].configure(**MENU_KWARGS, state=tk.DISABLED)
         self.mini_panel.widgets["chart menu"].place(x=20, y=40, anchor="sw")
+
+        # Opens file dialog
         load_button = tk.Button(master=self.mini_panel.widget, width=10, text="Load File",
                                 background=BLACK, foreground=WHITE, command=self.loadfile, border=4)
         load_button.place(x=200, y=40, anchor="s")
         self.mini_panel.widgets["load button"] = load_button
+
+        # Refreshes the plot
         graph_button = tk.Button(master=self.mini_panel.widget, width=10, text="Graph",
                                  background=BLACK, foreground=WHITE, command=self.drawchart, border=4)
         graph_button.place(x=380, y=40, anchor="se")
         graph_button.configure(state=tk.DISABLED)
         self.mini_panel.widgets["graph button"] = graph_button
-        self.file = tk.StringVar(value="")
-        data_label = tk.Label(master=self.base_panel.widget, textvariable=self.file, width=138, height=11,
-                              background=LIGHT_GREY, relief="sunken", border=2, anchor="nw", justify="left")
-        data_label.place(x=10, y=10)
-        self.base_panel.widgets["data label"] = data_label
-        self.base_panel.setvar("data label", "Use Load File to select a file")
-        self.make_side_panel()
-        self.mount_side_panel_states()
 
-    def make_side_panel(self) -> None:
+    def populate_side_panel(self) -> None:
         """ Build the plot control panel to the right of the plotting frame. """
         widgets = self.side_panel.widgets
         panel = self.side_panel.widget
@@ -231,6 +243,7 @@ class Window:
         widgets = self.side_panel.widgets
 
         # TODO: Make this a window property or something
+        # TODO: More descriptive way to index these
         locations = [{"x": 20, "y": 20, "anchor": "nw"},
                      {"x": 200, "y": 20, "anchor": "n"},
                      {"x": 380, "y": 20, "anchor": "ne"},
