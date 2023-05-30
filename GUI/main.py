@@ -43,7 +43,7 @@ class Plot:
         axes.set_yscale(scale)
         axes.set_xlabel("n", fontstyle="italic")
 
-    def traceplot2d(axes : Axes, x_list: np.ndarray, y_list: np.ndarray,
+    def traceplot2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
                     x_label: str, y_label: str, scale: str) -> None:
         axes.plot(x_list, y_list)
         axes.plot(x_list[0], y_list[0], marker=".", linestyle=" ", color=GREEN,
@@ -154,7 +154,6 @@ class Window:
         data_label.place(x=10, y=10)
         self.base_panel.widgets["data label"] = data_label
         self.base_panel.setvar("data label", "Use Load File to select a file")
-        print(self.status_msg.get())
         self.populate_mini_panel()
         self.populate_side_panel()
         self.mount_side_panel_states()
@@ -300,10 +299,12 @@ class Window:
 
     def do_select_chain_popup(self) -> None:
         toplevel = tk.Toplevel(self.side_panel.widget)
+        toplevel.configure(**{"background": LIGHT_GREY})
+        tk.Label(toplevel, text="Display:", background=LIGHT_GREY).grid(row=0, column=0)
         for i, file_name in enumerate(self.file_names):
             tk.Checkbutton(toplevel, text=os.path.basename(file_name),
                            variable=self.file_names[file_name],
-                           onvalue=1, offvalue=0).pack()
+                           onvalue=1, offvalue=0, background=LIGHT_GREY).grid(row=i+1, column=0)
 
     def mainloop(self) -> None:
         self.widget.mainloop()
@@ -357,6 +358,8 @@ class Window:
                 continue
 
         self.file_names = {file_name: tk.IntVar(value=1) for file_name in file_names}
+        for file_name in self.file_names:
+            self.file_names[file_name].trace("w", self.redraw)
 
         # TODO: Require all file_names have same set of keys, or track only unique keys
 
@@ -382,6 +385,14 @@ class Window:
         self.mini_panel.widgets["graph button"].configure(state=tk.NORMAL)
         self.chart.figure.clear()
         self.chart.canvas.draw()
+
+    def redraw(self, *args) -> None:
+        """
+        Callback for drawchart()
+
+        Updates whenever the values of certain checkbuttons are changed
+        """
+        self.drawchart()
 
     def drawchart(self) -> None:
         self.chart.figure.clear()
