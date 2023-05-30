@@ -1,5 +1,5 @@
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
+from matplotlib.figure import Figure, Axes
 from tkinter import filedialog
 from types import FunctionType
 import tkinter as tk
@@ -33,8 +33,7 @@ LABEL_KWARGS = {"width": 14, "background": LIGHT_GREY}
 
 
 class Plot:
-    def traceplot1d(figure: Figure, x_list: np.ndarray, title: str, scale: str, *hline) -> None:
-        axes = figure.add_subplot()
+    def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str, *hline) -> None:
         axes.plot(x_list)
         if len(hline) == 1:
             if min(x_list) < hline and hline < max(x_list):
@@ -43,9 +42,8 @@ class Plot:
         axes.set_yscale(scale)
         axes.set_xlabel("n", fontstyle="italic")
 
-    def traceplot2d(figure: Figure, x_list: np.ndarray, y_list: np.ndarray,
+    def traceplot2d(axes : Axes, x_list: np.ndarray, y_list: np.ndarray,
                     x_label: str, y_label: str, scale: str) -> None:
-        axes = figure.add_subplot()
         axes.plot(x_list, y_list)
         axes.plot(x_list[0], y_list[0], marker=".", linestyle=" ", color=GREEN,
                   label="Start", markersize=10)
@@ -57,22 +55,19 @@ class Plot:
         axes.set_xlabel(f"Accepted {x_label}")
         axes.set_ylabel(f"Accepted {y_label}")
 
-    def histogram1d(figure: Figure, x_list: np.ndarray, title: str, scale: str) -> None:
-        axes = figure.add_subplot()
+    def histogram1d(axes: Axes, x_list: np.ndarray, title: str, scale: str) -> None:
         axes.hist(x_list, 100, edgecolor=BLACK)
         axes.set_yscale(scale)
         axes.set_title(title)
 
-    def histogram2d(figure: Figure, x_list: np.ndarray, y_list: np.ndarray,
+    def histogram2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
                     x_label: str, y_label: str, scale: str) -> None:
-        axes = figure.add_subplot()
         data = axes.hist2d(x_list, y_list, 100, cmap="Blues")[0]
         axes.set_xscale(scale)
         axes.set_yscale(scale)
         axes.set_xlabel(f"Accepted {x_label}")
         axes.set_ylabel(f"Accepted {y_label}")
-        colorbar = axes.imshow(data, cmap="Blues")
-        figure.colorbar(colorbar, ax=axes, fraction=0.04)
+        return data
 
 
 class Window:
@@ -297,22 +292,55 @@ class Window:
         self.widget.bind(event, command)
 
     def loadfile(self) -> None:
-        file_name = filedialog.askopenfilename(filetypes=[("Pickle File", "*.pik")],
-                                               title="Select File", initialdir=PICKLE_FILE_LOCATION)
-        if file_name == "":
+        file_names = filedialog.askopenfilenames(filetypes=[("Pickle File", "*.pik")],
+                                                 title="Select File(s)", initialdir=PICKLE_FILE_LOCATION)
+        if file_names == "":
             return
-        # TODO: Prefer a list of strs instead of a giant concatenated
+        # TODO: Prefer a list of strs instead of a giant concatenated str
         self.base_panel.setvar("data label", self.base_panel.getvar(
-            "data label") + f"\nLoaded file {file_name}")
-        self.widget.title(f"{APPLICATION_NAME} - {file_name}")
-        with open(file_name, "rb") as rfile:
-            metrostate: sim_utils.MetroState = pickle.load(rfile)
+            "data label") + f"\nLoaded files {file_names}")
+        self.widget.title(f"{APPLICATION_NAME} - {file_names}")
         self.data.clear()
-        for key in metrostate.param_info["names"]:
-            # TODO: add a method to select chains
-            if metrostate.param_info["active"][key]:
-                self.data[key] = {0: metrostate.H.__getattribute__(
-                    key)[0], 1: metrostate.H.__getattribute__(f"mean_{key}")[0]}
+
+        for file_name in file_names:
+            self.data[file_name] = {}
+            with open(file_name, "rb") as rfile:
+                metrostate: sim_utils.MetroState = pickle.load(rfile)
+
+            try:
+                for key in metrostate.param_info["names"]:
+                    if metrostate.param_info["active"][key]:
+                        states = getattr(metrostate.H, key)
+                        # Always downcast to 1D
+                        if states.ndim == 2 and states.shape[0] == 1:
+                            states = states[0]
+                        elif states.ndim == 1:
+                            pass
+                        else:
+                            raise ValueError("Invalid chain states format - "
+                                             "must be 1D or 2D of size (1, num_states)")
+
+                        mean_states = getattr(metrostate.H, f"mean_{key}")
+                        if mean_states.ndim == 2 and mean_states.shape[0] == 1:
+                            mean_states = mean_states[0]
+                        elif mean_states.ndim == 1:
+                            pass
+                        else:
+                            raise ValueError("Invalid chain states format - "
+                                             "must be 1D or 2D of size (1, num_states)")
+
+                        self.data[file_name][key] = {0: states,
+                                                     1: mean_states}
+            except ValueError as e:
+                self.base_panel.setvar("data label", self.base_panel.getvar(
+                    "data label") + f"\nError: {e}")
+                continue
+
+        self.file_names = {file_name: 1 for file_name in file_names}
+
+        # TODO: Require all file_names have same set of keys, or track only unique keys
+
+        # Generate a button for each parameter
         self.mini_panel.widgets["chart menu"].configure(state=tk.NORMAL)
         self.chart_type.set("select")
         self.mini_panel.widgets["graph button"].configure(state=tk.DISABLED)
@@ -320,13 +348,13 @@ class Window:
         variable = self.side_panel.widgets["variable 1"]["textvariable"]
         self.widget.setvar(variable, "select")
         menu.delete(0, tk.END)
-        for key in self.data:
+        for key in self.data[file_names[0]]:
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=variable)
         menu: tk.Menu = self.side_panel.widgets["variable 2"]["menu"]
         variable = self.side_panel.widgets["variable 2"]["textvariable"]
         self.widget.setvar(variable, "select")
         menu.delete(0, tk.END)
-        for key in self.data:
+        for key in self.data[file_names[0]]:
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=variable)
 
     def chartselect(self) -> None:
@@ -363,8 +391,13 @@ class Window:
                     scale = "log"
                 else:
                     scale = "linear"
-                Plot.traceplot1d(self.chart.figure,
-                                 self.data[value][accepted], title, scale, *hline)
+
+                axes = self.chart.figure.add_subplot()
+                for file_name in self.file_names:
+                    if self.file_names[file_name] == 0:
+                        continue
+                    Plot.traceplot1d(axes, self.data[file_name][value][accepted],
+                                     title, scale, *hline)
             case "2D Trace Plot":
                 name = self.side_panel.widgets["variable 1"]["textvariable"]
                 x_val = self.widget.getvar(name)
@@ -378,8 +411,14 @@ class Window:
                     scale = "log"
                 else:
                     scale = "linear"
-                Plot.traceplot2d(
-                    self.chart.figure, self.data[x_val][True], self.data[y_val][True], x_val, y_val, scale)
+
+                axes = self.chart.figure.add_subplot()
+                for file_name in self.file_names:
+                    if self.file_names[file_name] == 0:
+                        continue
+                    Plot.traceplot2d(axes, self.data[file_name][x_val][True],
+                                     self.data[file_name][y_val][True],
+                                     x_val, y_val, scale)
             case "1D Histogram":
                 name = self.side_panel.widgets["variable 1"]["textvariable"]
                 value = self.widget.getvar(name)
@@ -391,8 +430,13 @@ class Window:
                     scale = "log"
                 else:
                     scale = "linear"
-                Plot.histogram1d(self.chart.figure,
-                                 self.data[value][True], f"Accepted {value}", scale)
+
+                axes = self.chart.figure.add_subplot()
+                for file_name in self.file_names:
+                    if self.file_names[file_name] == 0:
+                        continue
+                    Plot.histogram1d(axes, self.data[file_name][value][True],
+                                     f"Accepted {value}", scale)
             case "2D Histogram":
                 name = self.side_panel.widgets["variable 1"]["textvariable"]
                 x_val = self.widget.getvar(name)
@@ -406,8 +450,19 @@ class Window:
                     scale = "log"
                 else:
                     scale = "linear"
-                Plot.histogram2d(
-                    self.chart.figure, self.data[x_val][True], self.data[y_val][True], x_val, y_val, scale)
+
+                axes = self.chart.figure.add_subplot()
+                for file_name in self.file_names:
+                    if self.file_names[file_name] == 0:
+                        continue
+                    Plot.histogram2d(axes, self.data[file_name][x_val][True],
+                                     self.data[file_name][y_val][True],
+                                     x_val, y_val, scale)
+
+                    # colorbar = axes.imshow(hist2d, cmap="Blues")
+                    # self.chart.figure.colorbar(colorbar, ax=axes, fraction=0.04)
+
+        self.chart.figure.tight_layout()
         self.chart.canvas.draw()
 
 
