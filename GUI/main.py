@@ -4,6 +4,7 @@ from tkinter import filedialog
 from types import FunctionType
 import tkinter as tk
 import numpy as np
+import os
 import sys
 sys.path.append("..")
 
@@ -200,7 +201,8 @@ class Window:
         widgets["y_axis_label"] = tk.Label(master=panel, text="Y Axis", **LABEL_KWARGS)
         widgets["scale_label"] = tk.Label(master=panel, text="Axis Scale", **LABEL_KWARGS)
         widgets["accept_label"] = tk.Label(master=panel, text="Filter", **LABEL_KWARGS)
-        widgets["hori_marker_label"] = tk.Label(master=panel, text="Horizontal Line", **LABEL_KWARGS)
+        widgets["hori_marker_label"] = tk.Label(master=panel,
+                                                text="Horizontal Line", **LABEL_KWARGS)
 
         # User select menus
         variable_1 = tk.StringVar(value="select")
@@ -211,6 +213,9 @@ class Window:
         widgets["variable 2"] = tk.OptionMenu(panel, variable_2, "")
         widgets["scale"] = tk.OptionMenu(panel, scale, "")
         widgets["accepted"] = tk.OptionMenu(panel, accepted, "")
+        widgets["chain_vis"] = tk.Button(panel, text="Select Chains",
+                                         command=self.do_select_chain_popup,
+                                         width=13, border=4, background=BLACK, foreground=WHITE)
 
         widgets["variable 1"].configure(**MENU_KWARGS)
         widgets["variable 2"].configure(**MENU_KWARGS)
@@ -243,14 +248,18 @@ class Window:
                      {"x": 200, "y": 20, "anchor": "n"},
                      {"x": 380, "y": 20, "anchor": "ne"},
                      {"x": 20, "y": 48, "anchor": "nw"},
+
                      {"x": 200, "y": 48, "anchor": "n"},
                      {"x": 380, "y": 48, "anchor": "ne"},
                      {"x": 20, "y": 88, "anchor": "nw"},
                      {"x": 200, "y": 88, "anchor": "n"},
+
                      {"x": 380, "y": 88, "anchor": "ne"},
                      {"x": 20, "y": 116, "anchor": "nw"},
                      {"x": 200, "y": 116, "anchor": "n"},
-                     {"x": 380, "y": 116, "anchor": "ne"}
+                     {"x": 380, "y": 116, "anchor": "ne"},
+
+                     {"x": 20, "y": 184, "anchor": "nw"}
                      ]
 
         self.side_panel.addstate("1D Trace Plot", [(widgets["x_axis_label"], locations[0]),
@@ -260,7 +269,8 @@ class Window:
                                                    (widgets["accepted"], locations[4]),
                                                    (widgets["scale"], locations[5]),
                                                    (widgets["hori_marker_label"], locations[6]),
-                                                   (widgets["hori_marker_entry"], locations[9])]
+                                                   (widgets["hori_marker_entry"], locations[9]),
+                                                   (widgets["chain_vis"], locations[12])]
                                  )
 
         self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], locations[0]),
@@ -268,13 +278,15 @@ class Window:
                                                    (widgets["scale_label"], locations[2]),
                                                    (widgets["variable 1"], locations[3]),
                                                    (widgets["variable 2"], locations[4]),
-                                                   (widgets["scale"], locations[5])]
+                                                   (widgets["scale"], locations[5]),
+                                                   (widgets["chain_vis"], locations[12])]
                                  )
 
         self.side_panel.addstate("1D Histogram", [(widgets["x_axis_label"], locations[0]),
                                                   (widgets["scale_label"], locations[1]),
                                                   (widgets["variable 1"], locations[3]),
-                                                  (widgets["scale"], locations[4])]
+                                                  (widgets["scale"], locations[4]),
+                                                  (widgets["chain_vis"], locations[12])]
                                  )
 
         self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], locations[0]),
@@ -282,8 +294,16 @@ class Window:
                                                   (widgets["scale_label"], locations[2]),
                                                   (widgets["variable 1"], locations[3]),
                                                   (widgets["variable 2"], locations[4]),
-                                                  (widgets["scale"], locations[5])]
+                                                  (widgets["scale"], locations[5]),
+                                                  (widgets["chain_vis"], locations[12])]
                                  )
+
+    def do_select_chain_popup(self) -> None:
+        toplevel = tk.Toplevel(self.side_panel.widget)
+        for i, file_name in enumerate(self.file_names):
+            tk.Checkbutton(toplevel, text=os.path.basename(file_name),
+                           variable=self.file_names[file_name],
+                           onvalue=1, offvalue=0).pack()
 
     def mainloop(self) -> None:
         self.widget.mainloop()
@@ -336,7 +356,7 @@ class Window:
                     "data label") + f"\nError: {e}")
                 continue
 
-        self.file_names = {file_name: 1 for file_name in file_names}
+        self.file_names = {file_name: tk.IntVar(value=1) for file_name in file_names}
 
         # TODO: Require all file_names have same set of keys, or track only unique keys
 
@@ -394,7 +414,7 @@ class Window:
 
                 axes = self.chart.figure.add_subplot()
                 for file_name in self.file_names:
-                    if self.file_names[file_name] == 0:
+                    if self.file_names[file_name].get() == 0:
                         continue
                     Plot.traceplot1d(axes, self.data[file_name][value][accepted],
                                      title, scale, *hline)
@@ -414,7 +434,7 @@ class Window:
 
                 axes = self.chart.figure.add_subplot()
                 for file_name in self.file_names:
-                    if self.file_names[file_name] == 0:
+                    if self.file_names[file_name].get() == 0:
                         continue
                     Plot.traceplot2d(axes, self.data[file_name][x_val][True],
                                      self.data[file_name][y_val][True],
@@ -433,7 +453,7 @@ class Window:
 
                 axes = self.chart.figure.add_subplot()
                 for file_name in self.file_names:
-                    if self.file_names[file_name] == 0:
+                    if self.file_names[file_name].get() == 0:
                         continue
                     Plot.histogram1d(axes, self.data[file_name][value][True],
                                      f"Accepted {value}", scale)
@@ -453,7 +473,7 @@ class Window:
 
                 axes = self.chart.figure.add_subplot()
                 for file_name in self.file_names:
-                    if self.file_names[file_name] == 0:
+                    if self.file_names[file_name].get() == 0:
                         continue
                     Plot.histogram2d(axes, self.data[file_name][x_val][True],
                                      self.data[file_name][y_val][True],
