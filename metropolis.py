@@ -236,7 +236,7 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
 
 
 def converge_simulation(i, p, sim_info, iniPar, times, vals,
-                        hmax, MCMC_fields, logger=None):
+                        hmax, MCMC_fields, logger=None, verbose=True):
     """
     Retest and repeat simulation until all stipulated convergence criteria
     are met.
@@ -266,6 +266,8 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
         Dictionary of MMC control parameters.
     logger : logger
         Logger to write status messages to. The default is None.
+    verbose : bool, optional
+        Print more detailed status messages. The default is False.
 
     Returns
     -------
@@ -293,7 +295,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
                                     rtol=RTOL, atol=ATOL)
 
         # if verbose:
-        if logger is not None:
+        if verbose and logger is not None:
             logger.info("{}: Simulation complete hmax={}; t {}-{}; x {}".format(i,
                         hmax, tSteps[0], tSteps[-1], thickness))
 
@@ -373,15 +375,16 @@ def almost_equal(x, x0, threshold=1e-10):
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
 
-def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, args):
+def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbose, args):
     i, iniPar, times, vals, uncs = args
     irf_convolution = MCMC_fields.get("irf_convolution", None)
 
     tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
-                                               hmax, MCMC_fields, logger)
+                                               hmax, MCMC_fields, logger, verbose)
 
     if irf_convolution is not None and irf_convolution[i] != 0:
-        logger.debug(f"Convolving with wavelength {irf_convolution[i]}")
+        if verbose:
+            logger.debug(f"Convolving with wavelength {irf_convolution[i]}")
         wave = int(irf_convolution[i])
         tSteps, sol, success = do_irf_convolution(
             tSteps, sol, IRF_tables[wave], time_max_shift=True)
@@ -397,12 +400,14 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, args)
         uncs_c = uncs
         sol = sol[-len(times_c):]
 
-    logger.debug(f"Comparing times {times_c[0]}-{times_c[-1]}")
+    if verbose:
+        logger.debug(f"Comparing times {times_c[0]}-{times_c[-1]}")
 
     try:
         if (MCMC_fields["self_normalize"] is not None and
                 sim_info["meas_types"][i] in MCMC_fields["self_normalize"]):
-            logger.debug("Normalizing sim result...")
+            if verbose:
+                logger.debug("Normalizing sim result...")
             sol /= np.nanmax(sol)
             scale_shift = 0
         else:
@@ -443,7 +448,7 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
     else:
         for i in range(len(iniPar)):
             p.likelihood[i], p.err_sq[i] = one_sim_likelihood(
-                p, sim_info, IRF_tables, hmax, MCMC_fields, logger,
+                p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbose,
                 (i, iniPar[i], times[i], vals[i], uncs[i]))
 
     if prev_p is not None:
@@ -514,9 +519,10 @@ def main_metro_loop(MS, starting_iter, num_iters,
 
             # Check if anneal needed
             MS.anneal(k, MS.uncs)
-            logger.debug("Current model sigma: {}".format(
-                MS.MCMC_fields["current_sigma"]))
-            logger.debug("Current variances: {}".format(MS.variances.trace()))
+            if verbose:
+                logger.debug("Current model sigma: {}".format(
+                    MS.MCMC_fields["current_sigma"]))
+                logger.debug("Current variances: {}".format(MS.variances.trace()))
 
             # Identify which parameter to move
             if MS.MCMC_fields.get("one_param_at_a_time", 0):
