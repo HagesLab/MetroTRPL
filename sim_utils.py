@@ -281,6 +281,17 @@ class History():
                     param_info["unit_conversions"].get(param, 1))
         return
 
+    def unapply_unit_conversions(self, param_info):
+        for param in param_info["names"]:
+            val = getattr(self, param)
+            setattr(self, param, val *
+                    param_info["unit_conversions"].get(param, 1))
+
+            val = getattr(self, f"mean_{param}")
+            setattr(self, f"mean_{param}", val *
+                    param_info["unit_conversions"].get(param, 1))
+        return
+
     def export(self, param_info, out_pathname):
         for param in param_info["names"]:
             np.save(os.path.join(out_pathname,
