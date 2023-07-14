@@ -412,6 +412,8 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
             scale_shift = 0
         else:
             scale_shift = np.log10(p.m)
+
+        scale_shift += np.log10(getattr(p, f"m{i}"))
         # TODO: accomodate multiple experiments, just like bayes
 
         err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
