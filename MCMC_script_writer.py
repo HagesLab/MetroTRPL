@@ -141,7 +141,7 @@ if __name__ == "__main__":
                    "likel2variance_ratio": 500,
                    "log_pl": 1,
                    "self_normalize": None,
-                   "scale_factor": "pwee",
+                   "scale_factor": ("global", 1, 0.02),
                    "irf_convolution": None,
                    "proposal_function": "box",
                    "one_param_at_a_time": 0,

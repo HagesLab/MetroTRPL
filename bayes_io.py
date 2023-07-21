@@ -327,6 +327,13 @@ def read_config_script_file(path):
                         MCMC_fields["override_equal_s"] = int(line_split[1])
                     elif line.startswith("Use log of measurements"):
                         MCMC_fields["log_pl"] = int(line_split[1])
+                    elif line.startswith("Scale factor"):
+                        if line_split[1] == "None":
+                            MCMC_fields["scale_factor"] = None
+                        else:
+                            MCMC_fields["scale_factor"] = line_split[1].split('\t')
+                            MCMC_fields["scale_factor"][1] = float(MCMC_fields["scale_factor"][1]) # type: ignore
+                            MCMC_fields["scale_factor"][2] = float(MCMC_fields["scale_factor"][2]) # type: ignore
                     elif line.startswith("Normalize these meas and sim types"):
                         if line_split[1] == "None":
                             MCMC_fields["self_normalize"] = None
