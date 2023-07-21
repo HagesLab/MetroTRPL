@@ -608,6 +608,21 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                 ofstream.write(f"\t{value}")
         ofstream.write('\n')
 
+        if "scale_factor" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Add additional scale factors that MMC will attempt to fit for measurement data curves. "
+                            "\n# Must be None, or a list/tuple of three elements: "
+                            "\n# First element \"global\", which will add a single scaling factor \"_s\" shared by all curves, "
+                            "\n# or \"ind\", which will add independent scaling factors \"_s0\", \"_s1\", \"_s2\", ... for each curve. "
+                            "\n# Second element an initial guess. 1 means no scaling is applied."
+                            "\n# Third element an initial variance, similar to the initial_variance parameter for other parameters \n")
+                scale_f = MCMC_fields["scale_factor"]
+                if scale_f is None:
+                    ofstream.write(f"Scale factor: {scale_f}")
+                else:
+                    ofstream.write(f"Scale factor: {scale_f[0]}\t{scale_f[1]}\t{scale_f[2]}")
+            ofstream.write('\n')
+
         if verbose:
             ofstream.write("# Proposal function used to generate new states. "
                            "Box for joint uniform box and Gauss for multivariate Gaussian. \n")
@@ -1044,7 +1059,21 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         pass
     else:
         raise ValueError("logpl invalid - must be 0 or 1")
-
+    
+    if "scale_factor" in MCMC_fields:
+        scale_f = MCMC_fields["scale_factor"]
+        if scale_f is None:
+            pass
+        else:
+            if not ((isinstance(scale_f, (list, tuple))) and len(scale_f) == 3):
+                raise ValueError("scale_factor invalid - must be None, or a list/tuple of 3 elements")
+            if scale_f[0] not in ["global", "ind"]:
+                raise ValueError("scale_factor first value (scale type) invalid - must be \"global\" or \"ind\"")
+            if not isinstance(scale_f[1], (int, float, np.integer)):
+                raise ValueError("scale_factor second value (initial guess) invalid - must be numeric")
+            if not isinstance(scale_f[2], (int, float, np.integer)) or scale_f[2] < 0:
+                raise ValueError("scale_factor third value (initial variance) invalid - must be nonnegative")
+    
     norm = MCMC_fields["self_normalize"]
     if norm is None:
         pass

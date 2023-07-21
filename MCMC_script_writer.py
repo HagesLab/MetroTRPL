@@ -57,7 +57,7 @@ if __name__ == "__main__":
     # which will shift the simulation output by x10**m before calculating
     # likelihood vs measurement
     param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp",
-                   "Sf", "Sb", "tauN", "tauP", "eps", "Tm", "m", "m0", "m1", "m2"]
+                   "Sf", "Sb", "tauN", "tauP", "eps", "Tm"]
 
     unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
                         "mu_n": ((1e7) ** 2) / (1e9),
@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     do_log = {"n0": 1, "p0": 1, "mu_n": 1, "mu_p": 1, "ks": 1, "Cn": 1, "Cp": 1,
               "Sf": 1, "Sb": 1, "tauN": 1, "tauP": 1, "eps": 1, "Tm": 1,
-              "m": 1, "m0":1, "m1":1, "m2":1}
+              }
 
     prior_dist = {"n0": (0, np.inf),
                   "p0": (1e14, 1e16),
@@ -84,10 +84,7 @@ if __name__ == "__main__":
                   "tauP": (1, 3000),
                   "eps": (0, np.inf),
                   "Tm": (0, np.inf),
-                  "m": (-np.inf, np.inf),
-                  "m0": (-np.inf, np.inf),
-                  "m1": (-np.inf, np.inf),
-                  "m2": (-np.inf, np.inf)}
+                  }
 
     initial_guesses = {"n0": 1e8,
                        "p0": 3e15,
@@ -102,10 +99,7 @@ if __name__ == "__main__":
                        "tauP": 871,
                        "eps": 10,
                        "Tm": 300,
-                       "m": 1,
-                       "m0": 1,
-                       "m1": 0.5,
-                       "m2": 10,}
+                       }
 
     active_params = {"n0": 0,
                      "p0": 1,
@@ -120,10 +114,7 @@ if __name__ == "__main__":
                      "tauP": 1,
                      "eps": 0,
                      "Tm": 0,
-                     "m": 0,
-                     "m0": 1,
-                     "m1": 1,
-                     "m2": 1,}
+                     }
     # Proposal function search widths
     initial_variance = {param: 0.02 for param in param_names}
 
@@ -150,6 +141,7 @@ if __name__ == "__main__":
                    "likel2variance_ratio": 500,
                    "log_pl": 1,
                    "self_normalize": None,
+                   "scale_factor": "pwee",
                    "irf_convolution": None,
                    "proposal_function": "box",
                    "one_param_at_a_time": 0,
