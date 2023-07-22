@@ -190,6 +190,38 @@ def put_into_param_info(param_info, vals, new_key):
     return
 
 
+def insert_scale_factors(grid, param_info, meas_fields, MCMC_fields):
+    scale_f = MCMC_fields.get("scale_factor", None)
+    if scale_f is None:
+        return param_info
+    
+    scale_type = scale_f[0]
+    scale_init = scale_f[1]
+    scale_var = scale_f[2]
+    if scale_type == "global":
+        param_info["names"].append("_s")
+        param_info["do_log"]["_s"] = 1
+        param_info["prior_dist"]["_s"] = (-np.inf, np.inf)
+        param_info["init_guess"]["_s"] = scale_init
+        param_info["init_variance"]["_s"] = scale_var
+        param_info["active"]["_s"] = 1
+
+    elif scale_type == "ind":
+        if meas_fields["select_obs_sets"] is not None:
+            num_meas = len(meas_fields["select_obs_sets"])
+        else:
+            num_meas = grid["num_meas"]
+        for i in range(num_meas):
+            param_info["names"].append(f"_s{i}")
+            param_info["do_log"][f"_s{i}"] = 1
+            param_info["prior_dist"][f"_s{i}"] = (-np.inf, np.inf)
+            param_info["init_guess"][f"_s{i}"] = scale_init
+            param_info["init_variance"][f"_s{i}"] = scale_var
+            param_info["active"][f"_s{i}"] = 1
+
+    return param_info
+
+
 def read_config_script_file(path):
     with open(path, 'r') as ifstream:
         grid = {}
@@ -377,6 +409,8 @@ def read_config_script_file(path):
     validate_param_info(param_info)
     validate_meas_flags(meas_flags, grid["num_meas"])
     validate_MCMC_fields(MCMC_fields, grid["num_meas"])
+
+    param_info = insert_scale_factors(grid, param_info, meas_flags, MCMC_fields)
 
     return grid, param_info, meas_flags, MCMC_fields
 
