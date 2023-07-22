@@ -409,11 +409,25 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
             if verbose:
                 logger.debug("Normalizing sim result...")
             sol /= np.nanmax(sol)
+
+            # Suppress scale_factor for all measurements being normalized
+            if MCMC_fields.get("scale_factor", None) is None:
+                pass
+            elif MCMC_fields["scale_factor"][0] == "global":
+                setattr(p, "_s", 1)
+            elif MCMC_fields["scale_factor"][0] == "ind":
+                setattr(p, f"_s{i}", 1)
+
             scale_shift = 0
         else:
-            scale_shift = np.log10(p.m)
+            scale_shift = 0
+            if MCMC_fields.get("scale_factor", None) is None:
+                pass
+            elif MCMC_fields["scale_factor"][0] == "global":
+                scale_shift = np.log10(getattr(p, f"_s"))
+            elif MCMC_fields["scale_factor"][0] == "ind":
+                scale_shift = np.log10(getattr(p, f"_s{i}"))
 
-        scale_shift += np.log10(getattr(p, f"m{i}"))
         # TODO: accomodate multiple experiments, just like bayes
 
         err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
