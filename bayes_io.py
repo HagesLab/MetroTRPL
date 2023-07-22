@@ -636,9 +636,11 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         if verbose:
             ofstream.write("# Normalize all individual measurements and simulations "
                            "to maximum of 1 before likelihood evaluation. "
-                           "\n# A global scaling coefficient named 'm' may optionally be defined in param_info. "
+                           "\n# Global scaling coefficients named '_s#' may optionally be defined in MCMC_fields by "
+                           "\n# enabling the scale_factor setting. "
                            "\n# If the absolute units or efficiency of the measurement is unknown, "
-                           "\n# it is recommended to try fitting 'm' instead of relying on normalization. \n")
+                           "\n# it is recommended to try fitting '_s' instead of relying on normalization. "
+                           "\n# Enabling this will disable _s for the selected measurements. \n")
         norm = MCMC_fields["self_normalize"]
 
         if norm is None:
@@ -656,7 +658,8 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                             "\n# First element \"global\", which will add a single scaling factor \"_s\" shared by all curves, "
                             "\n# or \"ind\", which will add independent scaling factors \"_s0\", \"_s1\", \"_s2\", ... for each curve. "
                             "\n# Second element an initial guess. 1 means no scaling is applied."
-                            "\n# Third element an initial variance, similar to the initial_variance parameter for other parameters \n")
+                            "\n# Third element an initial variance, similar to the initial_variance parameter for other parameters."
+                            "\n# All scale factors will get the same initial guess and variance.")
                 scale_f = MCMC_fields["scale_factor"]
                 if scale_f is None:
                     ofstream.write(f"Scale factor: {scale_f}")
