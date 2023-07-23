@@ -652,13 +652,14 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
 
         if "scale_factor" in MCMC_fields:
             if verbose:
-                ofstream.write("# Add additional scale factors that MMC will attempt to fit for measurement data curves. "
-                            "\n# Must be None, or a list/tuple of three elements: "
-                            "\n# First element \"global\", which will add a single scaling factor \"_s\" shared by all curves, "
-                            "\n# or \"ind\", which will add independent scaling factors \"_s0\", \"_s1\", \"_s2\", ... for each curve. "
-                            "\n# Second element an initial guess. 1 means no scaling is applied."
-                            "\n# Third element an initial variance, similar to the initial_variance parameter for other parameters."
-                            "\n# All scale factors will get the same initial guess and variance.")
+                ofstream.write("# Add additional scale factors that MMC will attempt to apply on the simulations "
+                               "\n# to better fit measurement data curves. "
+                               "\n# Must be None, or a list/tuple of three elements: "
+                               "\n# First element \"global\", which will add a single scaling factor \"_s\" shared by all curves, "
+                               "\n# or \"ind\", which will add independent scaling factors \"_s0\", \"_s1\", \"_s2\", ... for each curve. "
+                               "\n# Second element an initial guess. 1 means no scaling is applied."
+                               "\n# Third element an initial variance, similar to the initial_variance parameter for other parameters."
+                               "\n# All scale factors will get the same initial guess and variance.")
                 scale_f = MCMC_fields["scale_factor"]
                 if scale_f is None:
                     ofstream.write(f"Scale factor: {scale_f}")
