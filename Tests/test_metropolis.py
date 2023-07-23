@@ -803,6 +803,80 @@ class TestUtils(unittest.TestCase):
 
         np.testing.assert_almost_equal(
             p.likelihood, [0, 0], decimal=0)  # rtol=1e-5
+        
+    def test_run_iter_scale(self):
+        # Same as test_run_iter, except global scale factor, which will be chosen to match
+        # the first measurement (but off by one order of magnitude from the second)
+        # likelihood should be small but nonzero as a result
+        np.random.seed(42)
+        Length = [2000, 2000]                            # Length (nm)
+        L = [2 ** 7, 2 ** 7]                                # Spatial point
+        mtype = ["TRPL", "TRPL"]
+        simPar = {"lengths": Length,
+                  "nx": L,
+                  "meas_types": mtype,
+                  "num_meas": 2}
+
+        iniPar = [1e15 * np.ones(L[0]) * 1e-21, 1e16 * np.ones(L[1]) * 1e-21]
+
+        param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
+                       "Sf", "Sb", "tauN", "tauP", "eps"]
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9), "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
+
+        # Iterations should proceed independent of which params are actively iterated,
+        # as all params are presumably needed to complete the simulation
+        param_info = {"names": param_names,
+                      "unit_conversions": unit_conversions,
+                      "active": {name: 0 for name in param_names}}
+        initial_guess = {"n0": 0,
+                         "p0": 0,
+                         "mu_n": 0,
+                         "mu_p": 0,
+                         "ks": 1e-20,
+                         "Sf": 0,
+                         "Sb": 0,
+                         "Cn": 0,
+                         "Cp": 0,
+                         "Tm": 300,
+                         "tauN": 1e99,
+                         "tauP": 1e99,
+                         "eps": 10}
+        param_info["init_guess"] = initial_guess
+
+        sim_flags = {"current_sigma": 1,
+                     "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
+                     "self_normalize": None,
+                     "scale_factor": ("global", 1e-17, 0),
+                     "solver": "solveivp", }
+
+        p = Parameters(param_info)
+        p.apply_unit_conversions(param_info)
+        setattr(p, "_s", 2e-17 ** -1) # PL = thickness * ks * iniPar**2
+
+        nt = 1000
+        running_hmax = [4] * len(iniPar)
+        times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
+        vals = [np.zeros(nt+1), np.zeros(nt+1)]
+        uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
+        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                                 running_hmax, sim_flags, verbose=True,
+                                 logger=self.logger, prev_p=None)
+
+        np.testing.assert_almost_equal(
+            p.likelihood, [0, -4004], decimal=0)  # rtol=1e-5
+        
+        # By setting individual scale factors the likelihood can be made perfect
+        sim_flags["scale_factor"] = ("ind", 1e-17, 0)
+        setattr(p, "_s0", 2e-17 ** -1)
+        setattr(p, "_s1", 2e-15 ** -1)
+        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                                 running_hmax, sim_flags, verbose=True,
+                                 logger=self.logger, prev_p=None)
+
+        np.testing.assert_almost_equal(
+            p.likelihood, [0, 0], decimal=0)  # rtol=1e-5
 
 
     def test_one_sim_ll_errata(self):
@@ -875,4 +949,4 @@ class TestUtils(unittest.TestCase):
 if __name__ == "__main__":
     t = TestUtils()
     t.setUp()
-    t.test_run_iter_normalize()
+    t.test_run_iter_scale()
