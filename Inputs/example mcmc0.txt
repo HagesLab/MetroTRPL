@@ -1,0 +1,88 @@
+$$ MCMC CONFIG CREATED 2023-07-23 AT 16:57:01.865734
+##
+p$ Space Grid:
+# List of material/system thicknesses - one per measurement
+Length(s): 311	2000	311	2000	311	2000
+# Number of space nodes used by solver discretization
+nx: 128	128	128	128	128	128
+# Model to use to simulate each measurement
+Measurement type(s): TRPL	TRPL	TRPL	TRPL	TRPL	TRPL
+Number of measurements: 6
+##
+p$ Param Info:
+# List of names of parameters used in the model
+Param Names: n0	p0	mu_n	mu_p	ks	Cn	Cp	Sf	Sb	tauN	tauP	eps	Tm
+# Conversion from units params are entered in to units used by model
+Unit conversions: 1e-21	1e-21	100000.0	100000.0	1000000000000.0	1.0000000000000001e+33	1.0000000000000001e+33	0.01	0.01	1	1	1	1
+# Whether the MCMC should work with the log of each param. The answer should be YES for most models. 
+Do logscale: 1	1	1	1	1	1	1	1	1	1	1	1	1
+# Whether the MCMC should propose new moves for this parameter. Setting this to 0 or False fixes the parameter at its initial value.
+Active: 0	1	1	1	1	1	1	1	1	1	1	0	0
+# Bounds of prior distribution for each parameter.
+Prior: (0, inf)	(100000000000000.0, 1e+16)	(1.0, 100.0)	(1.0, 100.0)	(1e-11, 1e-09)	(1e-29, 1e-27)	(1e-29, 1e-27)	(0.0001, 10000.0)	(0.0001, 10000.0)	(1, 1500)	(1, 3000)	(0, inf)	(0, inf)
+# Initial values for each parameter.
+Initial guess: 100000000.0	3000000000000000.0	20	20	4.8e-11	4.4e-29	4.4e-29	10	10	511	871	10	300
+# Initial proposal variance for each parameter. I.e. how far from the current parameters new proposals will go.
+Initial variance: 0.02	0.02	0.02	0.02	0.02	0.02	0.02	0.02	0.02	0.02	0.02	0.02	0.02
+##
+p$ Measurement handling flags:
+# Truncate measurements to only those within this time range. Inf values indicate an unbounded range. 
+Time cutoffs: 0	2000
+# Which measurements in a sequence to keep for MCMC. A list such as [0,2] means to keep only the first and third measurements,
+# while omitting the second and others. None means ALL measurements are kept. 
+Select measurement: 0	2	4
+##
+p$ MCMC Control flags:
+# How many samples to propose.
+Num iters: 50
+# Which solver engine to use - solveivp (more robust) or odeint (sometimes faster).
+Solver name: solveivp
+# Annealing schedule parameters.
+# (Starting model uncertainty, steprate, final model uncertainty)
+# Will drop one order of magnitude per STEPRATE samples until FINAL is reached.
+Annealing Controls: (10.0, 200000, 0.01)
+# Ratio to maintain betwen Model uncertainty and proposal variance.
+# Model uncertainty will be taken as this times proposal variance.
+Likelihood-to-variance: 500
+# Compare log of measurements and simulations for purpose of likelihood evaluation. Recommended to be 1 or True. 
+Use log of measurements: 1
+# Normalize all individual measurements and simulations to maximum of 1 before likelihood evaluation. 
+# Global scaling coefficients named '_s#' may optionally be defined in MCMC_fields by 
+# enabling the scale_factor setting. 
+# If the absolute units or efficiency of the measurement is unknown, 
+# it is recommended to try fitting '_s' instead of relying on normalization. 
+# Enabling this will disable _s for the selected measurements. 
+Normalize these meas and sim types: None
+# Add additional scale factors that MMC will attempt to apply on the simulations 
+# to better fit measurement data curves. 
+# Must be None, or a list/tuple of three elements: 
+# First element "global", which will add a single scaling factor "_s" shared by all curves, 
+# or "ind", which will add independent scaling factors "_s0", "_s1", "_s2", ... for each curve. 
+# Second element an initial guess. 1 means no scaling is applied.
+# Third element an initial variance, similar to the initial_variance parameter for other parameters.
+# All scale factors will get the same initial guess and variance. 
+Scale factor: ind	100	0.02
+# Proposal function used to generate new states. Box for joint uniform box and Gauss for multivariate Gaussian. 
+Proposal function: box
+# Whether to coerce params to stay within the bounds listed in metropolis.check_approved_param(). 
+# =1 will coerce while =0 will only warn.
+Use hard boundaries: 1
+# None for no convolution, or a list of wavelengths whose IRF profiles
+# will be used to convolute each simulated TRPL curve. One wavelength per measurement.
+IRF: None
+# Whether a proposed move should change in one param or all params at once.
+Propose params one-at-a-time: 0
+# Directory checkpoint files stored in.
+Checkpoint dir: bay_outputs\DEBUG\Checkpoints
+# An optional tag to append to the filename of each checkpoint.
+Checkpoint fileheader: CPU0
+# Checkpoint saved every 'this many' samples.
+Checkpoint freq: 12000
+# Name of a checkpoint file to resume an MCMC from.
+Load checkpoint: None
+# Path from which to read initial condition arrays. 
+Initial condition path: bay_inputs\staub_MAPI_threepower_twothick_input.csv
+# Path from which to read measurement data arrays. 
+Measurement path: bay_inputs\staub_MAPI_threepower_twothick_withauger.csv
+# Path from which to save output MCMC objects. 
+Output path: bay_outputs\DEBUG

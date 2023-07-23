@@ -15,6 +15,7 @@ from bayes_io import generate_config_script_file
 
 if __name__ == "__main__":
     # Just some HiperGator-specific stuff
+    # Set up jobid, script_head, init_dir, out_dir, etc... depending on your computer
     on_hpg = 0
     try:
         jobid = int(sys.argv[1])
@@ -28,13 +29,13 @@ if __name__ == "__main__":
         out_dir = r"/blue/c.hages/cfai2304/Metro_out"
 
     else:
-        init_dir = r"bay_inputs"
+        init_dir = r"Inputs"
         out_dir = r"bay_outputs"
 
     # Filenames
     init_fname = "staub_MAPI_threepower_twothick_input.csv"
-    exp_fname = "staub_MAPI_threepower_twothick_withauger.csv"
-    out_fname = "DEBUG"
+    exp_fname = "staub_MAPI_threepower_twothick_renoised.csv"
+    out_fname = "sample_output"
 
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
@@ -43,10 +44,9 @@ if __name__ == "__main__":
 
     # Info for each measurement's corresponding simulation
     num_measurements = 6
-    Length = [311, 2000, 311, 2000, 311, 2000]
-    # Length = [2000] * 3             # Length (nm)
+    Length = [311, 2000, 311, 2000, 311, 2000] # in nm
     L = [128] * 6                         # Spatial points
-    measurement_types = ["TRPL"]*6
+    measurement_types = ["TRPL"] * 6
     simPar = {"lengths": Length,
               "nx": L,
               "meas_types": measurement_types,
@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
     # Measurement preprocessing options
     meas_fields = {"time_cutoff": [0, 2000],
-                   "select_obs_sets": [0, 2, 4],  # [0,1,2],
+                   "select_obs_sets": None,  # e.g. [0, 2, 4] to select only 311nm curves
                    }
 
     # Other MCMC control potions
@@ -141,7 +141,7 @@ if __name__ == "__main__":
                    "likel2variance_ratio": 500,
                    "log_pl": 1,
                    "self_normalize": None,
-                   "scale_factor": ("global", 1, 0.02),
+                   "scale_factor": ("ind", 1, 0.02),
                    "irf_convolution": None,
                    "proposal_function": "box",
                    "one_param_at_a_time": 0,
@@ -156,7 +156,7 @@ if __name__ == "__main__":
     # Compute properly scaled initial model uncertainty from initial variance
     MCMC_fields["annealing"] = (
         max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"],
-        200000, 1e-2)
+        999999, 1e-2)
 
     generate_config_script_file(script_path, simPar, param_info,
                                 meas_fields, MCMC_fields, verbose=True)
