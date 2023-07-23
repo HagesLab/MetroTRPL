@@ -218,8 +218,7 @@ def insert_scale_factors(grid, param_info, meas_fields, MCMC_fields):
             param_info["init_guess"][f"_s{i}"] = scale_init
             param_info["init_variance"][f"_s{i}"] = scale_var
             param_info["active"][f"_s{i}"] = 1
-
-    return param_info
+    return
 
 
 def read_config_script_file(path):
@@ -410,7 +409,7 @@ def read_config_script_file(path):
     validate_meas_flags(meas_flags, grid["num_meas"])
     validate_MCMC_fields(MCMC_fields, grid["num_meas"])
 
-    param_info = insert_scale_factors(grid, param_info, meas_flags, MCMC_fields)
+    insert_scale_factors(grid, param_info, meas_flags, MCMC_fields)
 
     return grid, param_info, meas_flags, MCMC_fields
 
