@@ -101,7 +101,7 @@ class TestUtils(unittest.TestCase):
         meas_fields = {"select_obs_sets": [0, 4, 5]}
 
         insert_scale_factors(grid, param_info, meas_fields, MCMC_fields)
-        print(param_info)
+
         for i in range(len(meas_fields["select_obs_sets"])):
             self.assertTrue(f"_s{i}" in param_info["names"])
             self.assertEqual(param_info["active"][f"_s{i}"], 1)
