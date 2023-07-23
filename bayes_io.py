@@ -659,7 +659,7 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                                "\n# or \"ind\", which will add independent scaling factors \"_s0\", \"_s1\", \"_s2\", ... for each curve. "
                                "\n# Second element an initial guess. 1 means no scaling is applied."
                                "\n# Third element an initial variance, similar to the initial_variance parameter for other parameters."
-                               "\n# All scale factors will get the same initial guess and variance.")
+                               "\n# All scale factors will get the same initial guess and variance. \n")
                 scale_f = MCMC_fields["scale_factor"]
                 if scale_f is None:
                     ofstream.write(f"Scale factor: {scale_f}")
