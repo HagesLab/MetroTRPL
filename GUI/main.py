@@ -119,13 +119,6 @@ class Window:
                 widget.place(**placement)
             self.state = state
 
-        def setvar(self, widget_name: str, value: str) -> None:
-            name = self.widgets[widget_name]["textvariable"]
-            self.widget.setvar(name, value)
-
-        def getvar(self, widget_name: str) -> str:
-            name = self.widgets[widget_name]["textvariable"]
-            return self.widget.getvar(name)
 
     class Chart:
         """ tk embedded matplotlib Figure """
@@ -163,12 +156,13 @@ class Window:
         self.base_panel.place(0, 600)
 
         # Status box
-        self.status_msg = tk.StringVar(value="")
-        data_label = tk.Label(master=self.base_panel.widget, textvariable=self.status_msg, width=138, height=11,
+        self.base_panel.variables["status_msg"] = tk.StringVar(value="")
+        data_label = tk.Label(master=self.base_panel.widget, textvariable=self.base_panel.variables["status_msg"],
+                              width=138, height=11,
                               background=LIGHT_GREY, relief="sunken", border=2, anchor="nw", justify="left")
         data_label.place(x=10, y=10)
         self.base_panel.widgets["data label"] = data_label
-        self.base_panel.setvar("data label", "Use Load File to select a file")
+        self.base_panel.variables["status_msg"].set("Use Load File to select a file")
         self.populate_mini_panel()
         self.populate_side_panel()
         self.mount_side_panel_states()
@@ -227,14 +221,14 @@ class Window:
         widgets["num_bins_label"] = tk.Label(master=panel, text="Bins", **LABEL_KWARGS)
 
         # User select menus
-        variable_1 = tk.StringVar(value="select")
-        variable_2 = tk.StringVar(value="select")
-        accepted = tk.StringVar(value="Accepted")
-        scale = tk.StringVar(value="Linear")
-        widgets["variable 1"] = tk.OptionMenu(panel, variable_1, "")
-        widgets["variable 2"] = tk.OptionMenu(panel, variable_2, "")
-        widgets["scale"] = tk.OptionMenu(panel, scale, "")
-        widgets["accepted"] = tk.OptionMenu(panel, accepted, "")
+        variables["variable_1"] = tk.StringVar(value="select")
+        variables["variable_2"] = tk.StringVar(value="select")
+        variables["accepted"] = tk.StringVar(value="Accepted")
+        variables["scale"] = tk.StringVar(value="Linear")
+        widgets["variable 1"] = tk.OptionMenu(panel, variables["variable_1"], "")
+        widgets["variable 2"] = tk.OptionMenu(panel, variables["variable_2"], "")
+        widgets["scale"] = tk.OptionMenu(panel, variables["scale"], "")
+        widgets["accepted"] = tk.OptionMenu(panel, variables["accepted"], "")
         widgets["chain_vis"] = tk.Button(panel, text="Select Chains",
                                          command=self.do_select_chain_popup,
                                          width=13, border=4, background=BLACK, foreground=WHITE)
@@ -248,15 +242,15 @@ class Window:
         menu: tk.Menu = widgets["accepted"]["menu"]
         menu.delete(0)
         menu.add_checkbutton(label="Accepted", onvalue="Accepted", offvalue="Accepted",
-                             variable=accepted)
+                             variable=variables["accepted"])
         menu.add_checkbutton(label="All Proposed", onvalue="All Proposed", offvalue="All Proposed",
-                             variable=accepted)
+                             variable=variables["accepted"])
 
         menu: tk.Menu = widgets["scale"]["menu"]
         menu.delete(0)
-        menu.add_checkbutton(label="Linear", onvalue="Linear", offvalue="Linear", variable=scale)
+        menu.add_checkbutton(label="Linear", onvalue="Linear", offvalue="Linear", variable=variables["scale"])
         menu.add_checkbutton(label="Logarithmic", onvalue="Logarithmic",
-                             offvalue="Logarithmic", variable=scale)
+                             offvalue="Logarithmic", variable=variables["scale"])
 
         # Entry for horizontal marker
         widgets["hori_marker_entry"] = tk.Entry(master=panel, width=16, border=3)
@@ -351,8 +345,8 @@ class Window:
         if file_names == "":
             return
         # TODO: Prefer a list of strs instead of a giant concatenated str
-        self.base_panel.setvar("data label", self.base_panel.getvar(
-            "data label") + f"\nLoaded files {file_names}")
+        self.base_panel.variables["status_msg"].set(self.base_panel.variables["status_msg"].get() + 
+                                                    f"\nLoaded files {file_names}")
         self.widget.title(f"{APPLICATION_NAME} - {file_names}")
         self.data.clear()
 
@@ -385,9 +379,9 @@ class Window:
 
                         self.data[file_name][key] = {0: states,
                                                      1: mean_states}
-            except ValueError as e:
-                self.base_panel.setvar("data label", self.base_panel.getvar(
-                    "data label") + f"\nError: {e}")
+            except ValueError as err:
+                self.base_panel.variables["status_msg"].set(self.base_panel.variables["status_msg"].get() +
+                                                            f"\nError: {err}")
                 continue
 
         self.file_names = {file_name: tk.IntVar(value=1) for file_name in file_names}
@@ -401,17 +395,15 @@ class Window:
         self.chart_type.set("select")
         self.mini_panel.widgets["graph button"].configure(state=tk.DISABLED)
         menu: tk.Menu = self.side_panel.widgets["variable 1"]["menu"]
-        variable = self.side_panel.widgets["variable 1"]["textvariable"]
-        self.widget.setvar(variable, "select")
+        self.side_panel.variables["variable_1"].set("select")
         menu.delete(0, tk.END)
         for key in self.data[file_names[0]]:
-            menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=variable)
+            menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_1"])
         menu: tk.Menu = self.side_panel.widgets["variable 2"]["menu"]
-        variable = self.side_panel.widgets["variable 2"]["textvariable"]
-        self.widget.setvar(variable, "select")
+        self.side_panel.variables["variable_2"].set("select")
         menu.delete(0, tk.END)
         for key in self.data[file_names[0]]:
-            menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=variable)
+            menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_2"])
 
     def chartselect(self) -> None:
         """ Refresh on choosing a new type of plot """
@@ -432,12 +424,9 @@ class Window:
         self.chart.figure.clear()
         match key := self.side_panel.state:
             case "1D Trace Plot":
-                name = self.side_panel.widgets["variable 1"]["textvariable"]
-                value = self.widget.getvar(name)
-                name = self.side_panel.widgets["accepted"]["textvariable"]
-                accepted = self.widget.getvar(name)
-                name = self.side_panel.widgets["scale"]["textvariable"]
-                scale = self.widget.getvar(name)
+                value = self.side_panel.variables["variable_1"].get()
+                accepted = self.side_panel.variables["accepted"].get()
+                scale = self.side_panel.variables["scale"].get()
                 entry: tk.Entry = self.side_panel.widgets["hori_marker_entry"]
                 hline = entry.get()
                 try:
@@ -463,12 +452,10 @@ class Window:
                     Plot.traceplot1d(axes, self.data[file_name][value][accepted],
                                      title, scale, *hline)
             case "2D Trace Plot":
-                name = self.side_panel.widgets["variable 1"]["textvariable"]
-                x_val = self.widget.getvar(name)
-                name = self.side_panel.widgets["variable 2"]["textvariable"]
-                y_val = self.widget.getvar(name)
-                name = self.side_panel.widgets["scale"]["textvariable"]
-                scale = self.widget.getvar(name)
+                x_val = self.side_panel.variables["variable_1"].get()
+                y_val = self.side_panel.variables["variable_2"].get()
+                accepted = self.side_panel.variables["accepted"].get()
+                scale = self.side_panel.variables["scale"].get()
                 if x_val == "select" or y_val == "select":
                     return
                 if scale == "Logarithmic":
@@ -484,11 +471,9 @@ class Window:
                                      self.data[file_name][y_val][True],
                                      x_val, y_val, scale)
             case "1D Histogram":
-                # FIXME: Why it can't getvar this particular name
-                name = self.side_panel.widgets["variable 1"]["textvariable"]
-                value = self.widget.getvar(name)
-                name = self.side_panel.widgets["scale"]["textvariable"]
-                scale = self.widget.getvar(name)
+                value = self.side_panel.variables["variable_1"].get()
+                accepted = self.side_panel.variables["accepted"].get()
+                scale = self.side_panel.variables["scale"].get()
                 bins = self.side_panel.variables["bins"].get()
                 try:
                     bins = int(bins)
@@ -509,13 +494,10 @@ class Window:
                     Plot.histogram1d(axes, self.data[file_name][value][True],
                                      f"Accepted {value}", scale, bins)
             case "2D Histogram":
-                # FIXME: Why it can't getvar this name
-                name = self.side_panel.widgets["variable 1"]["textvariable"]
-                x_val = self.widget.getvar(name)
-                name = self.side_panel.widgets["variable 2"]["textvariable"]
-                y_val = self.widget.getvar(name)
-                name = self.side_panel.widgets["scale"]["textvariable"]
-                scale = self.widget.getvar(name)
+                x_val = self.side_panel.variables["variable_1"].get()
+                y_val = self.side_panel.variables["variable_2"].get()
+                accepted = self.side_panel.variables["accepted"].get()
+                scale = self.side_panel.variables["scale"].get()
                 bins = self.side_panel.variables["bins"].get()
                 try:
                     bins = int(bins)
@@ -547,10 +529,8 @@ class Window:
         """ Export currently plotted values as .csv or .npy """
         match key := self.side_panel.state:
             case "1D Trace Plot":
-                name = self.side_panel.widgets["variable 1"]["textvariable"]
-                value = self.widget.getvar(name)
-                name = self.side_panel.widgets["accepted"]["textvariable"]
-                accepted = self.widget.getvar(name) == "Accepted"
+                value = self.side_panel.variables["variable_1"].get()
+                accepted = self.side_panel.variables["accepted"].get() == "Accepted"
 
                 # One output per chain
                 for file_name in self.file_names:
@@ -587,11 +567,9 @@ class Window:
                         continue
 
             case "2D Trace Plot":
-                name = self.side_panel.widgets["variable 1"]["textvariable"]
-                x_val = self.widget.getvar(name)
-                name = self.side_panel.widgets["variable 2"]["textvariable"]
-                y_val = self.widget.getvar(name)
-                accepted = self.widget.getvar(name) == "Accepted"
+                x_val = self.side_panel.variables["variable_1"].get()
+                y_val = self.side_panel.variables["variable_2"].get()
+                accepted = self.side_panel.variables["accepted"].get() == "Accepted"
 
                 for file_name in self.file_names:
                     # Reasons to not export a file
