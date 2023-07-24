@@ -559,8 +559,48 @@ class Window:
                         continue
 
             case "2D Trace Plot":
-                # (N x 3) array - (iter #, vals_x, vals_y)
-                pass
+                name = self.side_panel.widgets["variable 1"]["textvariable"]
+                x_val = self.widget.getvar(name)
+                name = self.side_panel.widgets["variable 2"]["textvariable"]
+                y_val = self.widget.getvar(name)
+                accepted = self.widget.getvar(name) == "Accepted"
+
+                for file_name in self.file_names:
+                    # Reasons to not export a file
+                    if self.file_names[file_name].get() == 0: # This value display disabled
+                        continue
+                    if x_val not in self.data[file_name]:
+                        continue
+                    if y_val not in self.data[file_name]:
+                        continue
+
+                    out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
+                                                                       ("Text", "*.csv")],
+                                                            defaultextension=".csv",
+                                                            title=f"{os.path.basename(file_name)} - Save as",
+                                                            initialdir=PICKLE_FILE_LOCATION)
+                    if out_name == "":
+                        continue
+
+                    if out_name.endswith(".npy"):
+                        out_format = "npy"
+                    elif out_name.endswith(".csv"):
+                        out_format = "csv"
+                    else:
+                        raise ValueError("Invalid output file extension - must be .npy or .csv")
+
+                    vals_x = self.data[file_name][x_val][accepted]
+                    vals_y = self.data[file_name][y_val][accepted]
+
+                    # (N x 3) array - (iter #, vals_x, vals_y)
+                    if out_format == "npy":
+                        np.save(out_name, np.vstack((np.arange(len(vals_x)), vals_x, vals_y)).T)
+                    elif out_format == "csv":
+                        np.savetxt(out_name, np.vstack((np.arange(len(vals_x)), vals_x, vals_y)).T, delimiter=",",
+                                   header=f"N,{x_val},{y_val}")
+                    else:
+                        continue
+
             case "1D Histogram":
                 # (b x 2 array) - (bins, freq)
                 pass
