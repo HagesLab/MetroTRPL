@@ -190,6 +190,37 @@ def put_into_param_info(param_info, vals, new_key):
     return
 
 
+def insert_scale_factors(grid, param_info, meas_fields, MCMC_fields):
+    scale_f = MCMC_fields.get("scale_factor", None)
+    if scale_f is None:
+        return param_info
+    
+    scale_type = scale_f[0]
+    scale_init = scale_f[1]
+    scale_var = scale_f[2]
+    if scale_type == "global":
+        param_info["names"].append("_s")
+        param_info["do_log"]["_s"] = 1
+        param_info["prior_dist"]["_s"] = (-np.inf, np.inf)
+        param_info["init_guess"]["_s"] = scale_init
+        param_info["init_variance"]["_s"] = scale_var
+        param_info["active"]["_s"] = 1
+
+    elif scale_type == "ind":
+        if meas_fields["select_obs_sets"] is not None:
+            num_meas = len(meas_fields["select_obs_sets"])
+        else:
+            num_meas = grid["num_meas"]
+        for i in range(num_meas):
+            param_info["names"].append(f"_s{i}")
+            param_info["do_log"][f"_s{i}"] = 1
+            param_info["prior_dist"][f"_s{i}"] = (-np.inf, np.inf)
+            param_info["init_guess"][f"_s{i}"] = scale_init
+            param_info["init_variance"][f"_s{i}"] = scale_var
+            param_info["active"][f"_s{i}"] = 1
+    return
+
+
 def read_config_script_file(path):
     with open(path, 'r') as ifstream:
         grid = {}
@@ -327,6 +358,13 @@ def read_config_script_file(path):
                         MCMC_fields["override_equal_s"] = int(line_split[1])
                     elif line.startswith("Use log of measurements"):
                         MCMC_fields["log_pl"] = int(line_split[1])
+                    elif line.startswith("Scale factor"):
+                        if line_split[1] == "None":
+                            MCMC_fields["scale_factor"] = None
+                        else:
+                            MCMC_fields["scale_factor"] = line_split[1].split('\t')
+                            MCMC_fields["scale_factor"][1] = float(MCMC_fields["scale_factor"][1]) # type: ignore
+                            MCMC_fields["scale_factor"][2] = float(MCMC_fields["scale_factor"][2]) # type: ignore
                     elif line.startswith("Normalize these meas and sim types"):
                         if line_split[1] == "None":
                             MCMC_fields["self_normalize"] = None
@@ -370,6 +408,8 @@ def read_config_script_file(path):
     validate_param_info(param_info)
     validate_meas_flags(meas_flags, grid["num_meas"])
     validate_MCMC_fields(MCMC_fields, grid["num_meas"])
+
+    insert_scale_factors(grid, param_info, meas_flags, MCMC_fields)
 
     return grid, param_info, meas_flags, MCMC_fields
 
@@ -595,9 +635,11 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         if verbose:
             ofstream.write("# Normalize all individual measurements and simulations "
                            "to maximum of 1 before likelihood evaluation. "
-                           "\n# A global scaling coefficient named 'm' may optionally be defined in param_info. "
+                           "\n# Global scaling coefficients named '_s#' may optionally be defined in MCMC_fields by "
+                           "\n# enabling the scale_factor setting. "
                            "\n# If the absolute units or efficiency of the measurement is unknown, "
-                           "\n# it is recommended to try fitting 'm' instead of relying on normalization. \n")
+                           "\n# it is recommended to try fitting '_s' instead of relying on normalization. "
+                           "\n# Enabling this will disable _s for the selected measurements. \n")
         norm = MCMC_fields["self_normalize"]
 
         if norm is None:
@@ -607,6 +649,23 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             for value in norm[1:]:
                 ofstream.write(f"\t{value}")
         ofstream.write('\n')
+
+        if "scale_factor" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Add additional scale factors that MMC will attempt to apply on the simulations "
+                               "\n# to better fit measurement data curves. "
+                               "\n# Must be None, or a list/tuple of three elements: "
+                               "\n# First element \"global\", which will add a single scaling factor \"_s\" shared by all curves, "
+                               "\n# or \"ind\", which will add independent scaling factors \"_s0\", \"_s1\", \"_s2\", ... for each curve. "
+                               "\n# Second element an initial guess. 1 means no scaling is applied."
+                               "\n# Third element an initial variance, similar to the initial_variance parameter for other parameters."
+                               "\n# All scale factors will get the same initial guess and variance. \n")
+                scale_f = MCMC_fields["scale_factor"]
+                if scale_f is None:
+                    ofstream.write(f"Scale factor: {scale_f}")
+                else:
+                    ofstream.write(f"Scale factor: {scale_f[0]}\t{scale_f[1]}\t{scale_f[2]}")
+            ofstream.write('\n')
 
         if verbose:
             ofstream.write("# Proposal function used to generate new states. "
@@ -757,6 +816,13 @@ def validate_param_info(param_info: dict):
         else:
             raise ValueError(f"Param name {k} is invalid \n"
                              " Names must be alphanumeric")
+        
+    # Disallow names starting with _s, which is reserved for scale_factors
+    # Alphanumeric + underscore only
+    for k in names:
+        if k.startswith("_s"):
+            raise ValueError(f"Param name {k} is invalid \n"
+                             " Names must not start with _s")
 
     # Unit conversions CAN be missing entries - these are defaulted to 1
     for k, v in param_info["unit_conversions"].items():
@@ -1044,7 +1110,21 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         pass
     else:
         raise ValueError("logpl invalid - must be 0 or 1")
-
+    
+    if "scale_factor" in MCMC_fields:
+        scale_f = MCMC_fields["scale_factor"]
+        if scale_f is None:
+            pass
+        else:
+            if not ((isinstance(scale_f, (list, tuple))) and len(scale_f) == 3):
+                raise ValueError("scale_factor invalid - must be None, or a list/tuple of 3 elements")
+            if scale_f[0] not in ["global", "ind"]:
+                raise ValueError("scale_factor first value (scale type) invalid - must be \"global\" or \"ind\"")
+            if not isinstance(scale_f[1], (int, float, np.integer)):
+                raise ValueError("scale_factor second value (initial guess) invalid - must be numeric")
+            if not isinstance(scale_f[2], (int, float, np.integer)) or scale_f[2] < 0:
+                raise ValueError("scale_factor third value (initial variance) invalid - must be nonnegative")
+    
     norm = MCMC_fields["self_normalize"]
     if norm is None:
         pass

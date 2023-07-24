@@ -2,12 +2,7 @@ import unittest
 import numpy as np
 import os
 
-from bayes_io import get_initpoints, get_data
-eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
-q = 1.0  # [e]
-q_C = 1.602e-19  # [C]
-kB = 8.61773e-5  # [eV / K]
-
+from bayes_io import get_initpoints, get_data, insert_scale_factors
 
 class TestUtils(unittest.TestCase):
 
@@ -26,6 +21,96 @@ class TestUtils(unittest.TestCase):
         expected = np.array([[1, 2, 3, 4, 5]], dtype=float)
         np.testing.assert_equal(expected, ic)
         return
+    
+    def test_insert_scale_factors(self):
+        # General test case with multiple measurements; mix of measurement types,
+        # only necessary settings defined.
+        num_meas = 6
+        grid = {"meas_types": ["TRPL"] * 3 + ["TRTS"] * 3,
+                "num_meas": num_meas}
+        
+        param_info = {"names": [],
+                      "active": {},
+                      "unit_conversions": {},
+                      "do_log": {},
+                      "prior_dist": {},
+                      "init_guess": {},
+                      "init_variance": {}}
+        
+        meas_fields = {"select_obs_sets": None}
+
+        # 1. No scale_factor - no change to param_info
+        MCMC_fields = {"self_normalize": None,
+                       "scale_factor": None,
+                       }
+
+        insert_scale_factors(grid, param_info, meas_fields, MCMC_fields)
+
+        for k in param_info:
+            self.assertEqual(len(param_info[k]), 0)
+
+        # 2. Global scale_factor - _s parameter added with desired guess and variance
+        param_info = {"names": [],
+                      "active": {},
+                      "unit_conversions": {},
+                      "do_log": {},
+                      "prior_dist": {},
+                      "init_guess": {},
+                      "init_variance": {}}
+        init_guess = 1
+        init_var = 0.1
+        MCMC_fields["scale_factor"] = ("global", init_guess, init_var) # type: ignore
+
+        insert_scale_factors(grid, param_info, meas_fields, MCMC_fields)
+
+        self.assertTrue("_s" in param_info["names"])
+        self.assertEqual(param_info["active"]["_s"], 1)
+        self.assertEqual(param_info["do_log"]["_s"], 1)
+        self.assertEqual(param_info["prior_dist"]["_s"], (-np.inf, np.inf))
+        self.assertEqual(param_info["init_guess"]["_s"], init_guess)
+        self.assertEqual(param_info["init_variance"]["_s"], init_var)
+
+        # 3. Independent scale_factors - one _s per num_meas
+        param_info = {"names": [],
+                      "active": {},
+                      "unit_conversions": {},
+                      "do_log": {},
+                      "prior_dist": {},
+                      "init_guess": {},
+                      "init_variance": {}}
+        MCMC_fields["scale_factor"] = ("ind", init_guess, init_var) # type: ignore
+
+        insert_scale_factors(grid, param_info, meas_fields, MCMC_fields)
+
+        for i in range(num_meas):
+            self.assertTrue(f"_s{i}" in param_info["names"])
+            self.assertEqual(param_info["active"][f"_s{i}"], 1)
+            self.assertEqual(param_info["do_log"][f"_s{i}"], 1)
+            self.assertEqual(param_info["prior_dist"][f"_s{i}"], (-np.inf, np.inf))
+            self.assertEqual(param_info["init_guess"][f"_s{i}"], init_guess)
+            self.assertEqual(param_info["init_variance"][f"_s{i}"], init_var)
+
+        # 4. If select_obs_sets limits the number of measurements considered, only one _s for each active measurement
+        param_info = {"names": [],
+                      "active": {},
+                      "unit_conversions": {},
+                      "do_log": {},
+                      "prior_dist": {},
+                      "init_guess": {},
+                      "init_variance": {}}
+        meas_fields = {"select_obs_sets": [0, 4, 5]}
+
+        insert_scale_factors(grid, param_info, meas_fields, MCMC_fields)
+
+        for i in range(len(meas_fields["select_obs_sets"])):
+            self.assertTrue(f"_s{i}" in param_info["names"])
+            self.assertEqual(param_info["active"][f"_s{i}"], 1)
+            self.assertEqual(param_info["do_log"][f"_s{i}"], 1)
+            self.assertEqual(param_info["prior_dist"][f"_s{i}"], (-np.inf, np.inf))
+            self.assertEqual(param_info["init_guess"][f"_s{i}"], init_guess)
+            self.assertEqual(param_info["init_variance"][f"_s{i}"], init_var)
+
+        self.assertFalse(f"_s{len(meas_fields['select_obs_sets'])}" in param_info["names"])
 
     def test_get_data_basic(self):
         # Basic selection and cutting operations on dataset
@@ -52,7 +137,7 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(vals, expected_vals)
         np.testing.assert_equal(uncs, expected_uncs)
 
-        ic_flags['time_cutoff'] = [-np.inf, 1]
+        ic_flags['time_cutoff'] = [-np.inf, 1] # type: ignore
 
         times, vals, uncs = get_data(
             where_inits, meas_types, ic_flags, sim_flags, scale_f=1)
@@ -67,7 +152,7 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(vals, expected_vals)
         np.testing.assert_equal(uncs, expected_uncs)
 
-        ic_flags['select_obs_sets'] = [0, 4]
+        ic_flags['select_obs_sets'] = [0, 4] # type: ignore
         times, vals, uncs = get_data(
             where_inits, meas_types, ic_flags, sim_flags, scale_f=1)
         expected_times = [np.array([0]), np.array([0, 1])]
@@ -89,8 +174,8 @@ class TestUtils(unittest.TestCase):
                      'self_normalize': None}
 
         where_inits = os.path.join("Tests", "testfiles", "test_data.csv")
-        ic_flags['time_cutoff'] = [-np.inf, 1]
-        ic_flags['select_obs_sets'] = [0, 4]
+        ic_flags['time_cutoff'] = [-np.inf, 1] # type: ignore
+        ic_flags['select_obs_sets'] = [0, 4] # type: ignore
 
         sim_flags["self_normalize"] = ["TRPL"]
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -142,9 +227,9 @@ class TestUtils(unittest.TestCase):
         sim_flags = {'log_pl': False,
                      'self_normalize': None}
 
-        ic_flags['select_obs_sets'] = [1]
+        ic_flags['select_obs_sets'] = [1] # type: ignore
 
-        ic_flags['time_cutoff'] = [1, 3]
+        ic_flags['time_cutoff'] = [1, 3] # type: ignore
 
         times, vals, uncs = get_data(
             where_inits, meas_types, ic_flags, sim_flags, scale_f=1)

@@ -163,6 +163,31 @@ class Parameters():
         for param in param_info['names']:
             setattr(self, param, getattr(sender, param))
         return
+    
+    def suppress_scale_factor(self, scale_info, i):
+        """ Force _s scale factors to 1 if they aren't needed, such as if self_normalize
+            is used.
+        """
+        if scale_info is None:
+            pass
+        elif scale_info[0] == "global":
+            self._s = 1
+        elif scale_info[0] == "ind":
+            setattr(self, f"_s{i}", 1)
+        return
+    
+    def get_scale_factor(self, scale_info, i):
+        """ Returns the scale_factor for the ith measurement. 
+            Return is log, since scale_factors always have do_log=1
+        """
+        scale_shift = 0
+        if scale_info is None:
+            pass
+        elif scale_info[0] == "global":
+            scale_shift = np.log10(self._s)
+        elif scale_info[0] == "ind":
+            scale_shift = np.log10(getattr(self, f"_s{i}"))
+        return scale_shift
 
 
 class Covariance():
