@@ -32,6 +32,7 @@ GREEN = rgb(0, 127, 0)
 MENU_KWARGS = {"width": 10, "background": BLACK, "highlightbackground": BLACK, "foreground": WHITE}
 LABEL_KWARGS = {"width": 14, "background": LIGHT_GREY}
 
+DEFAULT_HIST_BINS = 96
 
 class Plot:
     def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str, *hline) -> None:
@@ -56,14 +57,14 @@ class Plot:
         axes.set_xlabel(f"Accepted {x_label}")
         axes.set_ylabel(f"Accepted {y_label}")
 
-    def histogram1d(axes: Axes, x_list: np.ndarray, title: str, scale: str) -> None:
-        axes.hist(x_list, 100, edgecolor=BLACK)
+    def histogram1d(axes: Axes, x_list: np.ndarray, title: str, scale: str, bins: int) -> None:
+        axes.hist(x_list, bins, edgecolor=BLACK)
         axes.set_yscale(scale)
         axes.set_title(title)
 
     def histogram2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
-                    x_label: str, y_label: str, scale: str) -> None:
-        data = axes.hist2d(x_list, y_list, 100, cmap="Blues")[0]
+                    x_label: str, y_label: str, scale: str, bins: int) -> None:
+        data = axes.hist2d(x_list, y_list, bins, cmap="Blues")[0]
         axes.set_xscale(scale)
         axes.set_yscale(scale)
         axes.set_xlabel(f"Accepted {x_label}")
@@ -101,6 +102,7 @@ class Window:
             self.states = {"blank": list[tuple[tk.Widget, dict[str, int | str]]]()}
             self.state = "blank"
             self.widgets = dict[str, tk.Widget]()
+            self.variables = dict[str, tk.Variable]()
 
         def place(self, x: int, y: int) -> None:
             self.widget.place(x=x, y=y)
@@ -212,6 +214,7 @@ class Window:
     def populate_side_panel(self) -> None:
         """ Build the plot control panel to the right of the plotting frame. """
         widgets = self.side_panel.widgets
+        variables = self.side_panel.variables
         panel = self.side_panel.widget
 
         # Text labels
@@ -221,6 +224,7 @@ class Window:
         widgets["accept_label"] = tk.Label(master=panel, text="Filter", **LABEL_KWARGS)
         widgets["hori_marker_label"] = tk.Label(master=panel,
                                                 text="Horizontal Line", **LABEL_KWARGS)
+        widgets["num_bins_label"] = tk.Label(master=panel, text="Bins", **LABEL_KWARGS)
 
         # User select menus
         variable_1 = tk.StringVar(value="select")
@@ -257,6 +261,12 @@ class Window:
         # Entry for horizontal marker
         widgets["hori_marker_entry"] = tk.Entry(master=panel, width=16, border=3)
 
+        # Entry for number of bins
+        variables["bins"] = tk.StringVar()
+        variables["bins"].set(str(DEFAULT_HIST_BINS))
+        widgets["num_bins_entry"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["bins"])
+        variables["bins"].trace("w", self.redraw)
+
     def mount_side_panel_states(self):
         widgets = self.side_panel.widgets
 
@@ -277,7 +287,7 @@ class Window:
                      {"x": 200, "y": 116, "anchor": "n"},
                      {"x": 380, "y": 116, "anchor": "ne"},
 
-                     {"x": 20, "y": 184, "anchor": "nw"}
+                     {"x": 20, "y": 184, "anchor": "nw"},
                      ]
 
         self.side_panel.addstate("1D Trace Plot", [(widgets["x_axis_label"], locations[0]),
@@ -304,7 +314,9 @@ class Window:
                                                   (widgets["scale_label"], locations[1]),
                                                   (widgets["variable 1"], locations[3]),
                                                   (widgets["scale"], locations[4]),
-                                                  (widgets["chain_vis"], locations[12])]
+                                                  (widgets["chain_vis"], locations[12]),
+                                                  (widgets["num_bins_label"], locations[8]),
+                                                  (widgets["num_bins_entry"], locations[11])]
                                  )
 
         self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], locations[0]),
@@ -313,7 +325,9 @@ class Window:
                                                   (widgets["variable 1"], locations[3]),
                                                   (widgets["variable 2"], locations[4]),
                                                   (widgets["scale"], locations[5]),
-                                                  (widgets["chain_vis"], locations[12])]
+                                                  (widgets["chain_vis"], locations[12]),
+                                                  (widgets["num_bins_label"], locations[8]),
+                                                  (widgets["num_bins_entry"], locations[11])]
                                  )
 
     def do_select_chain_popup(self) -> None:
@@ -470,10 +484,17 @@ class Window:
                                      self.data[file_name][y_val][True],
                                      x_val, y_val, scale)
             case "1D Histogram":
+                # FIXME: Why it can't getvar this particular name
                 name = self.side_panel.widgets["variable 1"]["textvariable"]
                 value = self.widget.getvar(name)
                 name = self.side_panel.widgets["scale"]["textvariable"]
                 scale = self.widget.getvar(name)
+                bins = self.side_panel.variables["bins"].get()
+                try:
+                    bins = int(bins)
+                except ValueError:
+                    bins = DEFAULT_HIST_BINS
+
                 if value == "select":
                     return
                 if scale == "Logarithmic":
@@ -486,14 +507,21 @@ class Window:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
                     Plot.histogram1d(axes, self.data[file_name][value][True],
-                                     f"Accepted {value}", scale)
+                                     f"Accepted {value}", scale, bins)
             case "2D Histogram":
+                # FIXME: Why it can't getvar this name
                 name = self.side_panel.widgets["variable 1"]["textvariable"]
                 x_val = self.widget.getvar(name)
                 name = self.side_panel.widgets["variable 2"]["textvariable"]
                 y_val = self.widget.getvar(name)
                 name = self.side_panel.widgets["scale"]["textvariable"]
                 scale = self.widget.getvar(name)
+                bins = self.side_panel.variables["bins"].get()
+                try:
+                    bins = int(bins)
+                except ValueError:
+                    bins = DEFAULT_HIST_BINS
+
                 if x_val == "select" or y_val == "select":
                     return
                 if scale == "Logarithmic":
@@ -507,7 +535,7 @@ class Window:
                         continue
                     Plot.histogram2d(axes, self.data[file_name][x_val][True],
                                      self.data[file_name][y_val][True],
-                                     x_val, y_val, scale)
+                                     x_val, y_val, scale, bins)
 
                     # colorbar = axes.imshow(hist2d, cmap="Blues")
                     # self.chart.figure.colorbar(colorbar, ax=axes, fraction=0.04)
