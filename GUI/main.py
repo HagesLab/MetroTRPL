@@ -72,7 +72,13 @@ class Plot:
 
 
 class Window:
+    """ The main GUI object"""
+
     class Popup:
+        """
+        For popups?
+        TODO: Is this class needed? 
+        """
         def __init__(self, master: tk.Tk, width: int, height: int, text: str,
                      colors: tuple[str, str]) -> None:
             self.widget = tk.Toplevel(master=master)
@@ -88,6 +94,7 @@ class Window:
             self.widget.bind(events["click"]["left"], lambda code: self.widget.destroy())
 
     class Panel:
+        """ Creates the frames for 1) the plot, 2) the plot options, 3) the import/export buttons, etc..."""
         def __init__(self, master: tk.Tk, width: int, height: int, color: str) -> None:
             self.widget = tk.Frame(master=master, width=width, height=height,
                                    background=color, border=4, relief="raised")
@@ -119,6 +126,7 @@ class Window:
             return self.widget.getvar(name)
 
     class Chart:
+        """ tk embedded matplotlib Figure """
         def __init__(self, master: tk.Tk, width: int, height: int) -> None:
             self.figure = Figure(figsize=(4, 4))
             self.canvas = FigureCanvasTkAgg(master=master, figure=self.figure)
@@ -138,12 +146,17 @@ class Window:
         self.widget.title(title)
         self.widget.option_add("*tearOff", False)
         self.chart = self.Chart(self.widget, 600, 600)
+
+        # Stores all MCMC states - self.data[fname][param_name][accepted]
+        # param_name e.g. p0, mu_n, mu_p
+        # accepted - 0 for all proposed states, 1 for only accepted states
         self.data = dict[str, dict[bool]]()
+
         self.chart.place(0, 0)
-        self.side_panel = self.Panel(self.widget, 400, 540, GREY)
+        self.side_panel = self.Panel(self.widget, 400, 480, GREY)
         self.side_panel.place(600, 0)
-        self.mini_panel = self.Panel(self.widget, 400, 60, DARK_GREY)
-        self.mini_panel.place(600, 540)
+        self.mini_panel = self.Panel(self.widget, 400, 120, DARK_GREY)
+        self.mini_panel.place(600, 480)
         self.base_panel = self.Panel(self.widget, 1000, 200, GREY)
         self.base_panel.place(0, 600)
 
@@ -182,6 +195,12 @@ class Window:
                                 background=BLACK, foreground=WHITE, command=self.loadfile, border=4)
         load_button.place(x=200, y=40, anchor="s")
         self.mini_panel.widgets["load button"] = load_button
+
+        # Export
+        export_button = tk.Button(master=self.mini_panel.widget, width=10, text="Export",
+                                  background=BLACK, foreground=WHITE, command=self.export, border=4)
+        export_button.place(x=200, y=100, anchor="s")
+        self.mini_panel.widgets["export button"] = load_button
 
         # Refreshes the plot
         graph_button = tk.Button(master=self.mini_panel.widget, width=10, text="Graph",
@@ -381,6 +400,7 @@ class Window:
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=variable)
 
     def chartselect(self) -> None:
+        """ Refresh on choosing a new type of plot """
         self.side_panel.loadstate(self.chart_type.get())
         self.mini_panel.widgets["graph button"].configure(state=tk.NORMAL)
         self.chart.figure.clear()
@@ -422,10 +442,9 @@ class Window:
                     scale = "log"
                 else:
                     scale = "linear"
-
                 axes = self.chart.figure.add_subplot()
                 for file_name in self.file_names:
-                    if self.file_names[file_name].get() == 0:
+                    if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
                     Plot.traceplot1d(axes, self.data[file_name][value][accepted],
                                      title, scale, *hline)
@@ -445,7 +464,7 @@ class Window:
 
                 axes = self.chart.figure.add_subplot()
                 for file_name in self.file_names:
-                    if self.file_names[file_name].get() == 0:
+                    if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
                     Plot.traceplot2d(axes, self.data[file_name][x_val][True],
                                      self.data[file_name][y_val][True],
@@ -464,7 +483,7 @@ class Window:
 
                 axes = self.chart.figure.add_subplot()
                 for file_name in self.file_names:
-                    if self.file_names[file_name].get() == 0:
+                    if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
                     Plot.histogram1d(axes, self.data[file_name][value][True],
                                      f"Accepted {value}", scale)
@@ -484,7 +503,7 @@ class Window:
 
                 axes = self.chart.figure.add_subplot()
                 for file_name in self.file_names:
-                    if self.file_names[file_name].get() == 0:
+                    if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
                     Plot.histogram2d(axes, self.data[file_name][x_val][True],
                                      self.data[file_name][y_val][True],
@@ -496,6 +515,58 @@ class Window:
         self.chart.figure.tight_layout()
         self.chart.canvas.draw()
 
+    def export(self) -> None:
+        """ Export currently plotted values as .csv or .npy """
+        match key := self.side_panel.state:
+            case "1D Trace Plot":
+                name = self.side_panel.widgets["variable 1"]["textvariable"]
+                value = self.widget.getvar(name)
+                name = self.side_panel.widgets["accepted"]["textvariable"]
+                accepted = self.widget.getvar(name) == "Accepted"
+
+                # One output per chain
+                for file_name in self.file_names:
+                    # Reasons to not export a file
+                    if self.file_names[file_name].get() == 0: # This value display disabled
+                        continue
+                    if value not in self.data[file_name]:
+                        continue
+
+                    out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
+                                                                       ("Text", "*.csv")],
+                                                            defaultextension=".csv",
+                                                            title=f"{os.path.basename(file_name)} - Save as",
+                                                            initialdir=PICKLE_FILE_LOCATION)
+                    if out_name == "":
+                        continue
+
+                    if out_name.endswith(".npy"):
+                        out_format = "npy"
+                    elif out_name.endswith(".csv"):
+                        out_format = "csv"
+                    else:
+                        raise ValueError("Invalid output file extension - must be .npy or .csv")
+
+                    # (N x 2) array - (iter #, vals)
+                    vals = self.data[file_name][value][accepted]
+
+                    if out_format == "npy":
+                        np.save(out_name, np.vstack((np.arange(len(vals)), vals)).T)
+                    elif out_format == "csv":
+                        np.savetxt(out_name, np.vstack((np.arange(len(vals)), vals)).T, delimiter=",",
+                                   header=f"N,{value}")
+                    else:
+                        continue
+
+            case "2D Trace Plot":
+                # (N x 3) array - (iter #, vals_x, vals_y)
+                pass
+            case "1D Histogram":
+                # (b x 2 array) - (bins, freq)
+                pass
+            case "2D Histogram":
+                # (b0 x b1) array - (freq matrix), one row/col as bin headers
+                pass
 
 window = Window(1000, 800, APPLICATION_NAME)
 window.bind(events["key"]["escape"], lambda code: exit())
