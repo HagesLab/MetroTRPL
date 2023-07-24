@@ -1,6 +1,7 @@
 # MetroTRPL
 Efficient parameter fitting of TRPL curves using a Metropolis-Hastings Monte Carlo sampling algorithm, as described in the article "Rapid optoelectronic characterization of semiconductors combining Bayesian inference with Metropolis sampling" (2023) by C. Fai, A. J. C. Ladd, and C. Hages.
 
+[![DOI](https://zenodo.org/badge/460199913.svg)](https://zenodo.org/badge/latestdoi/460199913)
 ## Required Packages
 Compatible version ranges coming soon!
 
