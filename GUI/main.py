@@ -253,13 +253,15 @@ class Window:
                              offvalue="Logarithmic", variable=variables["scale"])
 
         # Entry for horizontal marker
-        widgets["hori_marker_entry"] = tk.Entry(master=panel, width=16, border=3)
+        variables["hori_marker"] = tk.StringVar()
+        widgets["hori_marker_entry"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["hori_marker"])
+        widgets["hori_marker_entry"].bind("<FocusOut>", self.redraw)
 
         # Entry for number of bins
         variables["bins"] = tk.StringVar()
         variables["bins"].set(str(DEFAULT_HIST_BINS))
         widgets["num_bins_entry"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["bins"])
-        variables["bins"].trace("w", self.redraw)
+        widgets["num_bins_entry"].bind("<FocusOut>", self.redraw)
 
     def mount_side_panel_states(self):
         widgets = self.side_panel.widgets
@@ -427,8 +429,7 @@ class Window:
                 value = self.side_panel.variables["variable_1"].get()
                 accepted = self.side_panel.variables["accepted"].get()
                 scale = self.side_panel.variables["scale"].get()
-                entry: tk.Entry = self.side_panel.widgets["hori_marker_entry"]
-                hline = entry.get()
+                hline = self.side_panel.variables["hori_marker"].get()
                 try:
                     hline = (float(hline),)
                 except:
