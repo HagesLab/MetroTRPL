@@ -1,17 +1,17 @@
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
-from tkinter import filedialog
-from types import FunctionType
-import tkinter as tk
-import numpy as np
+import pickle
 import os
 import sys
 sys.path.append("..")
+import tkinter as tk
+import numpy as np
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+from tkinter import filedialog
+from tkinter import scrolledtext
+from types import FunctionType
 
 import sim_utils
 import mc_plot
-import pickle
-
 
 def rgb(r: int, g: int, b: int) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
@@ -34,7 +34,7 @@ MENU_KWARGS = {"width": 10, "background": BLACK, "highlightbackground": BLACK, "
 LABEL_KWARGS = {"width": 14, "background": LIGHT_GREY}
 
 DEFAULT_HIST_BINS = 96
-
+MAX_STATUS_MSGS = 11
 
 class Window:
     """ The main GUI object"""
@@ -326,6 +326,9 @@ class Window:
         """Append a new message to the status panel"""
         if clear:
             self.status_msg = list[str]()
+
+        if len(self.status_msg) >= MAX_STATUS_MSGS:
+            self.status_msg.pop(0)
 
         self.status_msg.append(msg)
         self.base_panel.variables["status_msg"].set("\n".join(self.status_msg))
