@@ -157,14 +157,15 @@ class Window:
         self.base_panel = self.Panel(self.widget, 1000, 200, GREY)
         self.base_panel.place(0, 600)
 
-        # Status box
+        # Status box - use self.status() to add messages
+        self.status_msg = list[str]()
         self.base_panel.variables["status_msg"] = tk.StringVar(value="")
         data_label = tk.Label(master=self.base_panel.widget, textvariable=self.base_panel.variables["status_msg"],
                               width=138, height=11,
                               background=LIGHT_GREY, relief="sunken", border=2, anchor="nw", justify="left")
         data_label.place(x=10, y=10)
         self.base_panel.widgets["data label"] = data_label
-        self.base_panel.variables["status_msg"].set("Use Load File to select a file")
+        self.status("Use Load File to select a file", clear=True)
         self.populate_mini_panel()
         self.populate_side_panel()
         self.mount_side_panel_states()
@@ -345,14 +346,23 @@ class Window:
     def bind(self, event: str, command: FunctionType) -> None:
         self.widget.bind(event, command)
 
+    def status(self, msg: str, clear=False):
+        """Append a new message to the status panel"""
+        if clear:
+            self.status_msg = list[str]()
+
+        self.status_msg.append(msg)
+        self.base_panel.variables["status_msg"].set("\n".join(self.status_msg))
+
     def loadfile(self) -> None:
         file_names = filedialog.askopenfilenames(filetypes=[("Pickle File", "*.pik")],
                                                  title="Select File(s)", initialdir=PICKLE_FILE_LOCATION)
         if file_names == "":
             return
         # TODO: Prefer a list of strs instead of a giant concatenated str
-        self.base_panel.variables["status_msg"].set(self.base_panel.variables["status_msg"].get() + 
-                                                    f"\nLoaded files {file_names}")
+        for file_name in file_names:
+            self.status(f"Loaded file {file_name}")
+
         self.widget.title(f"{APPLICATION_NAME} - {file_names}")
         self.data.clear()
 
@@ -386,8 +396,7 @@ class Window:
                         self.data[file_name][key] = {0: states,
                                                      1: mean_states}
             except ValueError as err:
-                self.base_panel.variables["status_msg"].set(self.base_panel.variables["status_msg"].get() +
-                                                            f"\nError: {err}")
+                self.status(f"Error: {err}")
                 continue
 
         self.file_names = {file_name: tk.IntVar(value=1) for file_name in file_names}
@@ -570,8 +579,7 @@ class Window:
                                    header=f"N,{value}")
                     else:
                         continue
-                    self.base_panel.variables["status_msg"].set(self.base_panel.variables["status_msg"].get() +
-                                                                f"\nExport complete - {out_name}")
+                    self.status(f"Export complete - {out_name}")
 
             case "2D Trace Plot":
                 x_val = self.side_panel.variables["variable_1"].get()
@@ -612,8 +620,7 @@ class Window:
                                    header=f"N,{x_val},{y_val}")
                     else:
                         continue
-                    self.base_panel.variables["status_msg"].set(self.base_panel.variables["status_msg"].get() +
-                                                                f"\nExport complete - {out_name}")
+                    self.status(f"Export complete - {out_name}")
 
             case "1D Histogram":
                 value = self.side_panel.variables["variable_1"].get()
@@ -656,8 +663,7 @@ class Window:
                                    header="bin_centre,freq")
                     else:
                         continue
-                    self.base_panel.variables["status_msg"].set(self.base_panel.variables["status_msg"].get() +
-                                                                f"\nExport complete - {out_name}")
+                    self.status(f"Export complete - {out_name}")
 
             case "2D Histogram":
                 x_val = self.side_panel.variables["variable_1"].get()
@@ -711,8 +717,7 @@ class Window:
                         np.savetxt(out_name, freq_matrix, delimiter=",")
                     else:
                         continue                    
-                    self.base_panel.variables["status_msg"].set(self.base_panel.variables["status_msg"].get() +
-                                                                f"\nExport complete - {out_name}")
+                    self.status(f"Export complete - {out_name}")
 
 window = Window(1000, 800, APPLICATION_NAME)
 window.bind(events["key"]["escape"], lambda code: exit())
