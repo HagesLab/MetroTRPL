@@ -1,5 +1,5 @@
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure, Axes
+from matplotlib.figure import Figure
 from tkinter import filedialog
 from types import FunctionType
 import tkinter as tk
@@ -9,6 +9,7 @@ import sys
 sys.path.append("..")
 
 import sim_utils
+import mc_plot
 import pickle
 
 
@@ -33,44 +34,6 @@ MENU_KWARGS = {"width": 10, "background": BLACK, "highlightbackground": BLACK, "
 LABEL_KWARGS = {"width": 14, "background": LIGHT_GREY}
 
 DEFAULT_HIST_BINS = 96
-
-class Plot:
-    """ Embedded matplotlib plot object """
-    def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str, *hline) -> None:
-        axes.plot(x_list)
-        if len(hline) == 1:
-            if min(x_list) < hline and hline < max(x_list):
-                axes.hlines(hline[0], 0, len(x_list), colors=BLACK, linestyles="dashed")
-        axes.set_title(title)
-        axes.set_yscale(scale)
-        axes.set_xlabel("n", fontstyle="italic")
-
-    def traceplot2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
-                    x_label: str, y_label: str, scale: str) -> None:
-        axes.plot(x_list, y_list)
-        axes.plot(x_list[0], y_list[0], marker=".", linestyle=" ", color=GREEN,
-                  label="Start", markersize=10)
-        axes.plot(x_list[-1], y_list[-1], marker=".", linestyle=" ", color=RED,
-                  label="End", markersize=10)
-        axes.set_xscale(scale)
-        axes.set_yscale(scale)
-        axes.legend()
-        axes.set_xlabel(f"Accepted {x_label}")
-        axes.set_ylabel(f"Accepted {y_label}")
-
-    def histogram1d(axes: Axes, x_list: np.ndarray, title: str, scale: str, bins: int) -> None:
-        axes.hist(x_list, bins, edgecolor=BLACK)
-        axes.set_yscale(scale)
-        axes.set_title(title)
-
-    def histogram2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
-                    x_label: str, y_label: str, scale: str, bins: int) -> None:
-        data = axes.hist2d(x_list, y_list, bins, cmap="Blues")[0]
-        axes.set_xscale(scale)
-        axes.set_yscale(scale)
-        axes.set_xlabel(f"Accepted {x_label}")
-        axes.set_ylabel(f"Accepted {y_label}")
-        return data
 
 
 class Window:
@@ -463,8 +426,8 @@ class Window:
                 for file_name in self.file_names:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
-                    Plot.traceplot1d(axes, self.data[file_name][value][accepted],
-                                     title, scale, *hline)
+                    mc_plot.traceplot1d(axes, self.data[file_name][value][accepted],
+                                        title, scale, *hline)
             case "2D Trace Plot":
                 x_val = self.side_panel.variables["variable_1"].get()
                 y_val = self.side_panel.variables["variable_2"].get()
@@ -481,9 +444,9 @@ class Window:
                 for file_name in self.file_names:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
-                    Plot.traceplot2d(axes, self.data[file_name][x_val][True],
-                                     self.data[file_name][y_val][True],
-                                     x_val, y_val, scale)
+                    mc_plot.traceplot2d(axes, self.data[file_name][x_val][True],
+                                        self.data[file_name][y_val][True],
+                                        x_val, y_val, scale)
             case "1D Histogram":
                 value = self.side_panel.variables["variable_1"].get()
                 accepted = self.side_panel.variables["accepted"].get()
@@ -505,8 +468,8 @@ class Window:
                 for file_name in self.file_names:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
-                    Plot.histogram1d(axes, self.data[file_name][value][True],
-                                     f"Accepted {value}", scale, bins)
+                    mc_plot.histogram1d(axes, self.data[file_name][value][True],
+                                        f"Accepted {value}", scale, bins)
             case "2D Histogram":
                 x_val = self.side_panel.variables["variable_1"].get()
                 y_val = self.side_panel.variables["variable_2"].get()
@@ -529,9 +492,9 @@ class Window:
                 for file_name in self.file_names:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
-                    Plot.histogram2d(axes, self.data[file_name][x_val][True],
-                                     self.data[file_name][y_val][True],
-                                     x_val, y_val, scale, bins)
+                    mc_plot.histogram2d(axes, self.data[file_name][x_val][True],
+                                        self.data[file_name][y_val][True],
+                                        x_val, y_val, scale, bins)
 
                     # colorbar = axes.imshow(hist2d, cmap="Blues")
                     # self.chart.figure.colorbar(colorbar, ax=axes, fraction=0.04)
@@ -720,6 +683,6 @@ class Window:
                     self.status(f"Export complete - {out_name}")
 
 window = Window(1000, 800, APPLICATION_NAME)
-window.bind(events["key"]["escape"], lambda code: exit())
+window.bind(events["key"]["escape"], sys.exit) # type: ignore
 
 window.mainloop()
