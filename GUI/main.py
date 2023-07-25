@@ -6,8 +6,8 @@ import tkinter as tk
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+from matplotlib.pyplot import rcParams
 from tkinter import filedialog
-from tkinter import scrolledtext
 from types import FunctionType
 
 import sim_utils
@@ -29,6 +29,8 @@ DARK_GREY = rgb(63, 63, 63)
 BLACK = rgb(0, 0, 0)
 RED = rgb(127, 0, 0)
 GREEN = rgb(0, 127, 0)
+
+PLOT_COLOR_CYCLE = rcParams['axes.prop_cycle'].by_key()['color']
 
 MENU_KWARGS = {"width": 10, "background": BLACK, "highlightbackground": BLACK, "foreground": WHITE}
 LABEL_KWARGS = {"width": 14, "background": LIGHT_GREY}
@@ -243,6 +245,7 @@ class Window:
         widgets["num_bins_entry"].bind("<FocusOut>", self.redraw)
 
     def mount_side_panel_states(self):
+        """Add a map of widget locations for each of the four plotting states"""
         widgets = self.side_panel.widgets
 
         # TODO: More descriptive way to index these
@@ -316,13 +319,16 @@ class Window:
                                  )
 
     def do_select_chain_popup(self) -> None:
+        """Toggle the visibility of specific MCMC chains."""
         toplevel = tk.Toplevel(self.side_panel.widget)
         toplevel.configure(**{"background": LIGHT_GREY})
-        tk.Label(toplevel, text="Display:", background=LIGHT_GREY).grid(row=0, column=0)
+        tk.Label(toplevel, text="Display:", background=LIGHT_GREY).grid(row=0, column=0, columnspan=2)
         for i, file_name in enumerate(self.file_names):
             tk.Checkbutton(toplevel, text=os.path.basename(file_name),
                            variable=self.file_names[file_name],
                            onvalue=1, offvalue=0, background=LIGHT_GREY).grid(row=i+1, column=0)
+            
+            tk.Label(toplevel, width=4, height=2, background=PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]).grid(row=i+1,column=1)
 
     def mainloop(self) -> None:
         self.widget.mainloop()
@@ -457,11 +463,12 @@ class Window:
                 else:
                     scale = "linear"
                 axes = self.chart.figure.add_subplot()
-                for file_name in self.file_names:
+                for i, file_name in enumerate(self.file_names):
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
+                    color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
                     mc_plot.traceplot1d(axes, self.data[file_name][value][accepted],
-                                        title, scale, hline, equi)
+                                        title, scale, hline, equi, color)
 
             case "2D Trace Plot":
                 x_val = self.side_panel.variables["variable_1"].get()
@@ -484,12 +491,13 @@ class Window:
                     scale = "linear"
 
                 axes = self.chart.figure.add_subplot()
-                for file_name in self.file_names:
+                for i, file_name in enumerate(self.file_names):
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
+                    color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
                     mc_plot.traceplot2d(axes, self.data[file_name][x_val][True][equi:],
                                         self.data[file_name][y_val][True][equi:],
-                                        x_val, y_val, scale)
+                                        x_val, y_val, scale, color)
 
             case "1D Histogram":
                 value = self.side_panel.variables["variable_1"].get()
@@ -523,13 +531,15 @@ class Window:
                         if self.file_names[file_name].get() == 0: # This value display disabled
                             continue
                         vals = np.hstack((vals, self.data[file_name][value][True][equi:]))
-                    mc_plot.histogram1d(axes, vals, f"Accepted {value}", scale, bins)
+                    color = PLOT_COLOR_CYCLE[0]
+                    mc_plot.histogram1d(axes, vals, f"Accepted {value}", scale, bins, color)
                 else:
-                    for file_name in self.file_names:
+                    for i, file_name in enumerate(self.file_names):
                         if self.file_names[file_name].get() == 0:
                             continue
+                        color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
                         mc_plot.histogram1d(axes, self.data[file_name][value][True][equi:],
-                                            f"Accepted {value}", scale, bins)
+                                            f"Accepted {value}", scale, bins, color)
 
             case "2D Histogram":
                 x_val = self.side_panel.variables["variable_1"].get()
