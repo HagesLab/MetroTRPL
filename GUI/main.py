@@ -570,6 +570,8 @@ class Window:
                                    header=f"N,{value}")
                     else:
                         continue
+                    self.base_panel.variables["status_msg"].set(self.base_panel.variables["status_msg"].get() +
+                                                                f"\nExport complete - {out_name}")
 
             case "2D Trace Plot":
                 x_val = self.side_panel.variables["variable_1"].get()
@@ -611,10 +613,53 @@ class Window:
                                    header=f"N,{x_val},{y_val}")
                     else:
                         continue
+                    self.base_panel.variables["status_msg"].set(self.base_panel.variables["status_msg"].get() +
+                                                                f"\nExport complete - {out_name}")
 
             case "1D Histogram":
-                # (b x 2 array) - (bins, freq)
-                pass
+                value = self.side_panel.variables["variable_1"].get()
+                bins = self.side_panel.variables["bins"].get()
+                try:
+                    bins = int(bins)
+                except ValueError:
+                    bins = DEFAULT_HIST_BINS
+
+                for file_name in self.file_names:
+                    if self.file_names[file_name].get() == 0: # This value display disabled
+                        continue
+                    if value not in self.data[file_name]:
+                        continue
+
+                    out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
+                                                                       ("Text", "*.csv")],
+                                                            defaultextension=".csv",
+                                                            title=f"{os.path.basename(file_name)} - Save as",
+                                                            initialdir=PICKLE_FILE_LOCATION)
+                    if out_name == "":
+                        continue
+
+                    if out_name.endswith(".npy"):
+                        out_format = "npy"
+                    elif out_name.endswith(".csv"):
+                        out_format = "csv"
+                    else:
+                        raise ValueError("Invalid output file extension - must be .npy or .csv")
+
+                    # (b x 2 array) - (bin centres, freq)
+                    # Use a bar plot to regenerate the histogram shown in the GUI
+                    vals = self.data[file_name][value][True]
+                    freq, bin_centres = np.histogram(vals, bins)
+                    bin_centres = (bin_centres + np.roll(bin_centres, -1))[:-1] / 2
+                    if out_format == "npy":
+                        np.save(out_name, np.vstack((bin_centres, freq)).T)
+                    elif out_format == "csv":
+                        np.savetxt(out_name, np.vstack((bin_centres, freq)).T, delimiter=",",
+                                   header="bin_centre,freq")
+                    else:
+                        continue
+                    self.base_panel.variables["status_msg"].set(self.base_panel.variables["status_msg"].get() +
+                                                                f"\nExport complete - {out_name}")
+
             case "2D Histogram":
                 # (b0 x b1) array - (freq matrix), one row/col as bin headers
                 pass
