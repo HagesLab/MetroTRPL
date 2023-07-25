@@ -234,7 +234,6 @@ class Window:
     def mount_side_panel_states(self):
         widgets = self.side_panel.widgets
 
-        # TODO: Make this a window property or something
         # TODO: More descriptive way to index these
         locations = [{"x": 20, "y": 20, "anchor": "nw"},
                      {"x": 200, "y": 20, "anchor": "n"},
@@ -322,7 +321,7 @@ class Window:
                                                  title="Select File(s)", initialdir=PICKLE_FILE_LOCATION)
         if file_names == "":
             return
-        # TODO: Prefer a list of strs instead of a giant concatenated str
+
         for file_name in file_names:
             self.status(f"Loaded file {file_name}")
 
@@ -367,9 +366,9 @@ class Window:
             self.file_names[file_name].trace("w", self.redraw)
 
         # Generate a button for each parameter
-        self.mini_panel.widgets["chart menu"].configure(state=tk.NORMAL)
+        self.mini_panel.widgets["chart menu"].configure(state=tk.NORMAL) # type: ignore
         self.chart_type.set("select")
-        self.mini_panel.widgets["graph button"].configure(state=tk.DISABLED)
+        self.mini_panel.widgets["graph button"].configure(state=tk.DISABLED) # type: ignore
         menu: tk.Menu = self.side_panel.widgets["variable 1"]["menu"]
         self.side_panel.variables["variable_1"].set("select")
         menu.delete(0, tk.END)
@@ -386,7 +385,7 @@ class Window:
     def chartselect(self) -> None:
         """ Refresh on choosing a new type of plot """
         self.side_panel.loadstate(self.chart_type.get())
-        self.mini_panel.widgets["graph button"].configure(state=tk.NORMAL)
+        self.mini_panel.widgets["graph button"].configure(state=tk.NORMAL) # type: ignore
         self.chart.figure.clear()
         self.chart.canvas.draw()
 
@@ -408,7 +407,7 @@ class Window:
                 hline = self.side_panel.variables["hori_marker"].get()
                 try:
                     hline = (float(hline),)
-                except:
+                except ValueError:
                     hline = tuple()
                 if value == "select":
                     return
