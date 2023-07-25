@@ -644,6 +644,14 @@ class Window:
             case "1D Histogram":
                 value = self.side_panel.variables["variable_1"].get()
                 bins = self.side_panel.variables["bins"].get()
+                equi = self.side_panel.variables["equi"].get()
+
+                try:
+                    equi = int(equi)
+                    equi = max(0, equi)
+                except ValueError:
+                    equi = 0
+
                 try:
                     bins = int(bins)
                 except ValueError:
@@ -672,7 +680,7 @@ class Window:
 
                     # (b x 2 array) - (bin centres, freq)
                     # Use a bar plot to regenerate the histogram shown in the GUI
-                    vals = self.data[file_name][value][True]
+                    vals = self.data[file_name][value][True][equi:]
                     freq, bin_centres = np.histogram(vals, bins)
                     bin_centres = (bin_centres + np.roll(bin_centres, -1))[:-1] / 2
                     if out_format == "npy":
@@ -688,6 +696,14 @@ class Window:
                 x_val = self.side_panel.variables["variable_1"].get()
                 y_val = self.side_panel.variables["variable_2"].get()
                 bins = self.side_panel.variables["bins"].get()
+                equi = self.side_panel.variables["equi"].get()
+
+                try:
+                    equi = int(equi)
+                    equi = max(0, equi)
+                except ValueError:
+                    equi = 0
+
                 try:
                     bins = int(bins)
                 except ValueError:
@@ -717,8 +733,8 @@ class Window:
                     else:
                         raise ValueError("Invalid output file extension - must be .npy or .csv")
 
-                    vals_x = self.data[file_name][x_val][True]
-                    vals_y = self.data[file_name][y_val][True]
+                    vals_x = self.data[file_name][x_val][True][equi:]
+                    vals_y = self.data[file_name][y_val][True][equi:]
                     # (b0+1 x b1+1) array - (freq matrix), one row/col as bin headers
                     freq, bins_x, bins_y = np.histogram2d(vals_x, vals_y, bins)
                     bins_x = (bins_x + np.roll(bins_x, -1))[:-1] / 2
