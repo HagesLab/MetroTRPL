@@ -35,6 +35,7 @@ LABEL_KWARGS = {"width": 14, "background": LIGHT_GREY}
 DEFAULT_HIST_BINS = 96
 
 class Plot:
+    """ Embedded matplotlib plot object """
     def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str, *hline) -> None:
         axes.plot(x_list)
         if len(hline) == 1:
@@ -145,7 +146,8 @@ class Window:
         # Stores all MCMC states - self.data[fname][param_name][accepted]
         # param_name e.g. p0, mu_n, mu_p
         # accepted - 0 for all proposed states, 1 for only accepted states
-        self.data = dict[str, dict[bool]]()
+        self.data = dict[str, dict[str, dict[bool, np.ndarray]]]()
+        self.file_names = dict[str, tk.IntVar]()
 
         self.chart.place(0, 0)
         self.side_panel = self.Panel(self.widget, 400, 480, GREY)
@@ -245,12 +247,14 @@ class Window:
                              variable=variables["accepted"])
         menu.add_checkbutton(label="All Proposed", onvalue="All Proposed", offvalue="All Proposed",
                              variable=variables["accepted"])
+        variables["accepted"].trace("w", self.redraw)
 
         menu: tk.Menu = widgets["scale"]["menu"]
         menu.delete(0)
         menu.add_checkbutton(label="Linear", onvalue="Linear", offvalue="Linear", variable=variables["scale"])
         menu.add_checkbutton(label="Logarithmic", onvalue="Logarithmic",
                              offvalue="Logarithmic", variable=variables["scale"])
+        variables["scale"].trace("w", self.redraw)
 
         # Entry for horizontal marker
         variables["hori_marker"] = tk.StringVar()
@@ -390,8 +394,6 @@ class Window:
         for file_name in self.file_names:
             self.file_names[file_name].trace("w", self.redraw)
 
-        # TODO: Require all file_names have same set of keys, or track only unique keys
-
         # Generate a button for each parameter
         self.mini_panel.widgets["chart menu"].configure(state=tk.NORMAL)
         self.chart_type.set("select")
@@ -399,13 +401,15 @@ class Window:
         menu: tk.Menu = self.side_panel.widgets["variable 1"]["menu"]
         self.side_panel.variables["variable_1"].set("select")
         menu.delete(0, tk.END)
-        for key in self.data[file_names[0]]:
+        for key in self.data[file_names[0]]: # TODO: Require all file_names have same set of keys, or track only unique keys
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_1"])
+        self.side_panel.variables["variable_1"].trace("w", self.redraw)
         menu: tk.Menu = self.side_panel.widgets["variable 2"]["menu"]
         self.side_panel.variables["variable_2"].set("select")
         menu.delete(0, tk.END)
         for key in self.data[file_names[0]]:
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_2"])
+        self.side_panel.variables["variable_2"].trace("w", self.redraw)
 
     def chartselect(self) -> None:
         """ Refresh on choosing a new type of plot """
