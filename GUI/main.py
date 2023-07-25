@@ -184,6 +184,7 @@ class Window:
         widgets["accept_label"] = tk.Label(master=panel, text="Filter", **LABEL_KWARGS)
         widgets["hori_marker_label"] = tk.Label(master=panel,
                                                 text="Horizontal Line", **LABEL_KWARGS)
+        widgets["equi_label"] = tk.Label(master=panel, text="Equilibration Period", **LABEL_KWARGS)
         widgets["num_bins_label"] = tk.Label(master=panel, text="Bins", **LABEL_KWARGS)
 
         # User select menus
@@ -225,6 +226,11 @@ class Window:
         widgets["hori_marker_entry"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["hori_marker"])
         widgets["hori_marker_entry"].bind("<FocusOut>", self.redraw)
 
+        # Entry to designate initial equilibration period (of states to discard from the statistics)
+        variables["equi"] = tk.StringVar()
+        widgets["equi_entry"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["equi"])
+        widgets["equi_entry"].bind("<FocusOut>", self.redraw)
+
         # Entry for number of bins
         variables["bins"] = tk.StringVar()
         variables["bins"].set(str(DEFAULT_HIST_BINS))
@@ -261,6 +267,8 @@ class Window:
                                                    (widgets["scale"], locations[5]),
                                                    (widgets["hori_marker_label"], locations[6]),
                                                    (widgets["hori_marker_entry"], locations[9]),
+                                                   (widgets["equi_label"], locations[7]),
+                                                   (widgets["equi_entry"], locations[10]),
                                                    (widgets["chain_vis"], locations[12])]
                                  )
 
@@ -270,6 +278,8 @@ class Window:
                                                    (widgets["variable 1"], locations[3]),
                                                    (widgets["variable 2"], locations[4]),
                                                    (widgets["scale"], locations[5]),
+                                                   (widgets["equi_label"], locations[7]),
+                                                   (widgets["equi_entry"], locations[10]),
                                                    (widgets["chain_vis"], locations[12])]
                                  )
 
@@ -278,6 +288,8 @@ class Window:
                                                   (widgets["variable 1"], locations[3]),
                                                   (widgets["scale"], locations[4]),
                                                   (widgets["chain_vis"], locations[12]),
+                                                  (widgets["equi_label"], locations[7]),
+                                                  (widgets["equi_entry"], locations[10]),
                                                   (widgets["num_bins_label"], locations[8]),
                                                   (widgets["num_bins_entry"], locations[11])]
                                  )
@@ -289,6 +301,8 @@ class Window:
                                                   (widgets["variable 2"], locations[4]),
                                                   (widgets["scale"], locations[5]),
                                                   (widgets["chain_vis"], locations[12]),
+                                                  (widgets["equi_label"], locations[7]),
+                                                  (widgets["equi_entry"], locations[10]),
                                                   (widgets["num_bins_label"], locations[8]),
                                                   (widgets["num_bins_entry"], locations[11])]
                                  )
