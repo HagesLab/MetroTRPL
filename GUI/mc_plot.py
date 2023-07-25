@@ -3,12 +3,17 @@
 from matplotlib.figure import Axes # type: ignore
 import numpy as np
 
-def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str, *hline) -> None:
+def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str,
+                hline: tuple, vline: tuple) -> None:
     """1D trace, showing history of moves for a single parameter"""
     axes.plot(x_list)
     if len(hline) == 1:
-        if min(x_list) < hline and hline < max(x_list):
+        if min(x_list) < hline[0] < max(x_list):
             axes.hlines(hline[0], 0, len(x_list), colors='k', linestyles="dashed")
+
+    if len(vline) == 1:
+        if 0 <= vline[0] <= len(x_list):
+            axes.vlines(vline[0], np.amin(x_list), np.amax(x_list), colors='k')
     axes.set_title(title)
     axes.set_yscale(scale)
     axes.set_xlabel("n", fontstyle="italic")

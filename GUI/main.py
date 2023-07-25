@@ -419,10 +419,17 @@ class Window:
                 accepted = self.side_panel.variables["accepted"].get()
                 scale = self.side_panel.variables["scale"].get()
                 hline = self.side_panel.variables["hori_marker"].get()
+                equi = self.side_panel.variables["equi"].get()
                 try:
                     hline = (float(hline),)
                 except ValueError:
                     hline = tuple()
+
+                try:
+                    equi = (int(equi),)
+                except ValueError:
+                    equi = tuple()
+
                 if value == "select":
                     return
                 if accepted == "Accepted":
@@ -440,12 +447,20 @@ class Window:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
                     mc_plot.traceplot1d(axes, self.data[file_name][value][accepted],
-                                        title, scale, *hline)
+                                        title, scale, hline, equi)
             case "2D Trace Plot":
                 x_val = self.side_panel.variables["variable_1"].get()
                 y_val = self.side_panel.variables["variable_2"].get()
                 accepted = self.side_panel.variables["accepted"].get()
                 scale = self.side_panel.variables["scale"].get()
+                equi = self.side_panel.variables["equi"].get()
+
+                try:
+                    equi = int(equi)
+                    equi = max(0, equi)
+                except ValueError:
+                    equi = 0
+
                 if x_val == "select" or y_val == "select":
                     return
                 if scale == "Logarithmic":
@@ -465,10 +480,17 @@ class Window:
                 accepted = self.side_panel.variables["accepted"].get()
                 scale = self.side_panel.variables["scale"].get()
                 bins = self.side_panel.variables["bins"].get()
+                equi = self.side_panel.variables["equi"].get()
                 try:
                     bins = int(bins)
                 except ValueError:
                     bins = DEFAULT_HIST_BINS
+
+                try:
+                    equi = int(equi)
+                    equi = max(0, equi)
+                except ValueError:
+                    equi = 0
 
                 if value == "select":
                     return
@@ -489,10 +511,17 @@ class Window:
                 accepted = self.side_panel.variables["accepted"].get()
                 scale = self.side_panel.variables["scale"].get()
                 bins = self.side_panel.variables["bins"].get()
+                equi = self.side_panel.variables["equi"].get()
                 try:
                     bins = int(bins)
                 except ValueError:
                     bins = DEFAULT_HIST_BINS
+
+                try:
+                    equi = int(equi)
+                    equi = max(0, equi)
+                except ValueError:
+                    equi = 0
 
                 if x_val == "select" or y_val == "select":
                     return
