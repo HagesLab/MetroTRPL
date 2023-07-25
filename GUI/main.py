@@ -199,6 +199,10 @@ class Window:
         widgets["chain_vis"] = tk.Button(panel, text="Select Chains",
                                          command=self.do_select_chain_popup,
                                          width=13, border=4, background=BLACK, foreground=WHITE)
+        variables["combined_hist"] = tk.IntVar(value=0)
+        widgets["combined_hist"] = tk.Checkbutton(panel, text="Single Hist",
+                                                  variable=variables["combined_hist"],
+                                                  **{"width": 10, "background": LIGHT_GREY})
 
         widgets["variable 1"].configure(**MENU_KWARGS)
         widgets["variable 2"].configure(**MENU_KWARGS)
@@ -256,6 +260,8 @@ class Window:
                      {"x": 200, "y": 116, "anchor": "n"},
                      {"x": 380, "y": 116, "anchor": "ne"},
 
+                     {"x": 380, "y": 156, "anchor": "e"},
+
                      {"x": 20, "y": 184, "anchor": "nw"},
                      ]
 
@@ -269,7 +275,7 @@ class Window:
                                                    (widgets["hori_marker_entry"], locations[9]),
                                                    (widgets["equi_label"], locations[7]),
                                                    (widgets["equi_entry"], locations[10]),
-                                                   (widgets["chain_vis"], locations[12])]
+                                                   (widgets["chain_vis"], locations[13])]
                                  )
 
         self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], locations[0]),
@@ -280,18 +286,19 @@ class Window:
                                                    (widgets["scale"], locations[5]),
                                                    (widgets["equi_label"], locations[7]),
                                                    (widgets["equi_entry"], locations[10]),
-                                                   (widgets["chain_vis"], locations[12])]
+                                                   (widgets["chain_vis"], locations[13])]
                                  )
 
         self.side_panel.addstate("1D Histogram", [(widgets["x_axis_label"], locations[0]),
                                                   (widgets["scale_label"], locations[1]),
                                                   (widgets["variable 1"], locations[3]),
                                                   (widgets["scale"], locations[4]),
-                                                  (widgets["chain_vis"], locations[12]),
+                                                  (widgets["chain_vis"], locations[13]),
                                                   (widgets["equi_label"], locations[7]),
                                                   (widgets["equi_entry"], locations[10]),
                                                   (widgets["num_bins_label"], locations[8]),
-                                                  (widgets["num_bins_entry"], locations[11])]
+                                                  (widgets["num_bins_entry"], locations[11]),
+                                                  (widgets["combined_hist"], locations[12])]
                                  )
 
         self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], locations[0]),
@@ -300,11 +307,12 @@ class Window:
                                                   (widgets["variable 1"], locations[3]),
                                                   (widgets["variable 2"], locations[4]),
                                                   (widgets["scale"], locations[5]),
-                                                  (widgets["chain_vis"], locations[12]),
+                                                  (widgets["chain_vis"], locations[13]),
                                                   (widgets["equi_label"], locations[7]),
                                                   (widgets["equi_entry"], locations[10]),
                                                   (widgets["num_bins_label"], locations[8]),
-                                                  (widgets["num_bins_entry"], locations[11])]
+                                                  (widgets["num_bins_entry"], locations[11]),
+                                                  (widgets["combined_hist"], locations[12])]
                                  )
 
     def do_select_chain_popup(self) -> None:
