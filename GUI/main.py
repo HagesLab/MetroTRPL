@@ -80,7 +80,7 @@ class Window:
             for widget, placement in self.states[self.state]:
                 widget.place_forget()
             for widget, placement in self.states[state]:
-                widget.place(**placement)
+                widget.place(**placement) # type: ignore
             self.state = state
 
 
@@ -356,8 +356,8 @@ class Window:
                             raise ValueError("Invalid chain states format - "
                                              "must be 1D or 2D of size (1, num_states)")
 
-                        self.data[file_name][key] = {0: states,
-                                                     1: mean_states}
+                        self.data[file_name][key] = {False: states,
+                                                     True: mean_states}
             except ValueError as err:
                 self.status(f"Error: {err}")
                 continue
