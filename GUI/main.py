@@ -203,6 +203,7 @@ class Window:
         widgets["combined_hist"] = tk.Checkbutton(panel, text="Single Hist",
                                                   variable=variables["combined_hist"],
                                                   **{"width": 10, "background": LIGHT_GREY})
+        variables["combined_hist"].trace("w", self.redraw)
 
         widgets["variable 1"].configure(**MENU_KWARGS)
         widgets["variable 2"].configure(**MENU_KWARGS)
@@ -311,8 +312,7 @@ class Window:
                                                   (widgets["equi_label"], locations[7]),
                                                   (widgets["equi_entry"], locations[10]),
                                                   (widgets["num_bins_label"], locations[8]),
-                                                  (widgets["num_bins_entry"], locations[11]),
-                                                  (widgets["combined_hist"], locations[12])]
+                                                  (widgets["num_bins_entry"], locations[11]),]
                                  )
 
     def do_select_chain_popup(self) -> None:
@@ -462,6 +462,7 @@ class Window:
                         continue
                     mc_plot.traceplot1d(axes, self.data[file_name][value][accepted],
                                         title, scale, hline, equi)
+
             case "2D Trace Plot":
                 x_val = self.side_panel.variables["variable_1"].get()
                 y_val = self.side_panel.variables["variable_2"].get()
@@ -489,12 +490,14 @@ class Window:
                     mc_plot.traceplot2d(axes, self.data[file_name][x_val][True][equi:],
                                         self.data[file_name][y_val][True][equi:],
                                         x_val, y_val, scale)
+
             case "1D Histogram":
                 value = self.side_panel.variables["variable_1"].get()
                 accepted = self.side_panel.variables["accepted"].get()
                 scale = self.side_panel.variables["scale"].get()
                 bins = self.side_panel.variables["bins"].get()
                 equi = self.side_panel.variables["equi"].get()
+                combined_hist = self.side_panel.variables["combined_hist"].get()
                 try:
                     bins = int(bins)
                 except ValueError:
@@ -514,11 +517,20 @@ class Window:
                     scale = "linear"
 
                 axes = self.chart.figure.add_subplot()
-                for file_name in self.file_names:
-                    if self.file_names[file_name].get() == 0: # This value display disabled
-                        continue
-                    mc_plot.histogram1d(axes, self.data[file_name][value][True][equi:],
-                                        f"Accepted {value}", scale, bins)
+                if combined_hist:
+                    vals = np.zeros(0)
+                    for file_name in self.file_names:
+                        if self.file_names[file_name].get() == 0: # This value display disabled
+                            continue
+                        vals = np.hstack((vals, self.data[file_name][value][True][equi:]))
+                    mc_plot.histogram1d(axes, vals, f"Accepted {value}", scale, bins)
+                else:
+                    for file_name in self.file_names:
+                        if self.file_names[file_name].get() == 0:
+                            continue
+                        mc_plot.histogram1d(axes, self.data[file_name][value][True][equi:],
+                                            f"Accepted {value}", scale, bins)
+
             case "2D Histogram":
                 x_val = self.side_panel.variables["variable_1"].get()
                 y_val = self.side_panel.variables["variable_2"].get()
@@ -545,12 +557,18 @@ class Window:
                     scale = "linear"
 
                 axes = self.chart.figure.add_subplot()
+                
+                # Always combine samples before plotting (essentially combined_hist=True)
+                vals_x = np.zeros(0)
+                vals_y = np.zeros(0)
                 for file_name in self.file_names:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
-                    mc_plot.histogram2d(axes, self.data[file_name][x_val][True][equi:],
-                                        self.data[file_name][y_val][True][equi:],
-                                        x_val, y_val, scale, bins)
+                    vals_x = np.hstack((vals_x, self.data[file_name][x_val][True][equi:]))
+                    vals_y = np.hstack((vals_y, self.data[file_name][y_val][True][equi:]))
+                mc_plot.histogram2d(axes, vals_x, vals_y,
+                                    x_val, y_val, scale, bins)
+
 
                     # colorbar = axes.imshow(hist2d, cmap="Blues")
                     # self.chart.figure.colorbar(colorbar, ax=axes, fraction=0.04)
