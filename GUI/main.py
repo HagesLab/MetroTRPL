@@ -503,7 +503,7 @@ class Window:
                 for file_name in self.file_names:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
-                    mc_plot.histogram1d(axes, self.data[file_name][value][True],
+                    mc_plot.histogram1d(axes, self.data[file_name][value][True][equi:],
                                         f"Accepted {value}", scale, bins)
             case "2D Histogram":
                 x_val = self.side_panel.variables["variable_1"].get()
@@ -534,8 +534,8 @@ class Window:
                 for file_name in self.file_names:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
-                    mc_plot.histogram2d(axes, self.data[file_name][x_val][True],
-                                        self.data[file_name][y_val][True],
+                    mc_plot.histogram2d(axes, self.data[file_name][x_val][True][equi:],
+                                        self.data[file_name][y_val][True][equi:],
                                         x_val, y_val, scale, bins)
 
                     # colorbar = axes.imshow(hist2d, cmap="Blues")
