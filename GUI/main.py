@@ -741,6 +741,23 @@ class Window:
                 except ValueError:
                     bins = DEFAULT_HIST_BINS
 
+                out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
+                                                                   ("Text", "*.csv")],
+                                                        defaultextension=".csv",
+                                                        title="Histogram - Save as",
+                                                        initialdir=PICKLE_FILE_LOCATION)
+                if out_name == "":
+                    return
+
+                if out_name.endswith(".npy"):
+                    out_format = "npy"
+                elif out_name.endswith(".csv"):
+                    out_format = "csv"
+                else:
+                    raise ValueError("Invalid output file extension - must be .npy or .csv")
+
+                vals_x = np.zeros(0)
+                vals_y = np.zeros(0)
                 for file_name in self.file_names:
                     # Reasons to not export a file
                     if self.file_names[file_name].get() == 0: # This value display disabled
@@ -750,41 +767,25 @@ class Window:
                     if y_val not in self.data[file_name]:
                         continue
 
-                    out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
-                                                                       ("Text", "*.csv")],
-                                                            defaultextension=".csv",
-                                                            title=f"{os.path.basename(file_name)} - Save as",
-                                                            initialdir=PICKLE_FILE_LOCATION)
-                    if out_name == "":
-                        continue
+                    vals_x = np.hstack((vals_x, self.data[file_name][x_val][True][equi:]))
+                    vals_y = np.hstack((vals_y, self.data[file_name][y_val][True][equi:]))
+                # (b0+1 x b1+1) array - (freq matrix), one row/col as bin headers
+                freq, bins_x, bins_y = np.histogram2d(vals_x, vals_y, bins)
+                bins_x = (bins_x + np.roll(bins_x, -1))[:-1] / 2
+                bins_y = (bins_y + np.roll(bins_y, -1))[:-1] / 2
 
-                    if out_name.endswith(".npy"):
-                        out_format = "npy"
-                    elif out_name.endswith(".csv"):
-                        out_format = "csv"
-                    else:
-                        raise ValueError("Invalid output file extension - must be .npy or .csv")
+                freq_matrix = np.zeros((bins+1, bins+1))
+                freq_matrix[0, 0] = -1
+                freq_matrix[0, 1:] = bins_x
+                freq_matrix[1:, 0] = bins_y
+                freq_matrix[1:, 1:] = freq
 
-                    vals_x = self.data[file_name][x_val][True][equi:]
-                    vals_y = self.data[file_name][y_val][True][equi:]
-                    # (b0+1 x b1+1) array - (freq matrix), one row/col as bin headers
-                    freq, bins_x, bins_y = np.histogram2d(vals_x, vals_y, bins)
-                    bins_x = (bins_x + np.roll(bins_x, -1))[:-1] / 2
-                    bins_y = (bins_y + np.roll(bins_y, -1))[:-1] / 2
+                if out_format == "npy":
+                    np.save(out_name, freq_matrix)
+                elif out_format == "csv":
+                    np.savetxt(out_name, freq_matrix, delimiter=",")
 
-                    freq_matrix = np.zeros((bins+1, bins+1))
-                    freq_matrix[0, 0] = -1
-                    freq_matrix[0, 1:] = bins_x
-                    freq_matrix[1:, 0] = bins_y
-                    freq_matrix[1:, 1:] = freq
-
-                    if out_format == "npy":
-                        np.save(out_name, freq_matrix)
-                    elif out_format == "csv":
-                        np.savetxt(out_name, freq_matrix, delimiter=",")
-                    else:
-                        continue                    
-                    self.status(f"Export complete - {out_name}")
+                self.status(f"Export complete - {out_name}")
 
 window = Window(1000, 800, APPLICATION_NAME)
 window.bind(events["key"]["escape"], sys.exit) # type: ignore
