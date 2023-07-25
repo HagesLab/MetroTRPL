@@ -472,8 +472,8 @@ class Window:
                 for file_name in self.file_names:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
-                    mc_plot.traceplot2d(axes, self.data[file_name][x_val][True],
-                                        self.data[file_name][y_val][True],
+                    mc_plot.traceplot2d(axes, self.data[file_name][x_val][True][equi:],
+                                        self.data[file_name][y_val][True][equi:],
                                         x_val, y_val, scale)
             case "1D Histogram":
                 value = self.side_panel.variables["variable_1"].get()
