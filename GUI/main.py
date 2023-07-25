@@ -550,6 +550,13 @@ class Window:
             case "1D Trace Plot":
                 value = self.side_panel.variables["variable_1"].get()
                 accepted = self.side_panel.variables["accepted"].get() == "Accepted"
+                equi = self.side_panel.variables["equi"].get()
+
+                try:
+                    equi = int(equi)
+                    equi = max(0, equi)
+                except ValueError:
+                    equi = 0
 
                 # One output per chain
                 for file_name in self.file_names:
@@ -575,12 +582,12 @@ class Window:
                         raise ValueError("Invalid output file extension - must be .npy or .csv")
 
                     # (N x 2) array - (iter #, vals)
-                    vals = self.data[file_name][value][accepted]
+                    vals = self.data[file_name][value][accepted][equi:]
 
                     if out_format == "npy":
-                        np.save(out_name, np.vstack((np.arange(len(vals)), vals)).T)
+                        np.save(out_name, np.vstack((np.arange(len(vals)) + equi, vals)).T)
                     elif out_format == "csv":
-                        np.savetxt(out_name, np.vstack((np.arange(len(vals)), vals)).T, delimiter=",",
+                        np.savetxt(out_name, np.vstack((np.arange(len(vals)) + equi, vals)).T, delimiter=",",
                                    header=f"N,{value}")
                     else:
                         continue
@@ -589,6 +596,13 @@ class Window:
             case "2D Trace Plot":
                 x_val = self.side_panel.variables["variable_1"].get()
                 y_val = self.side_panel.variables["variable_2"].get()
+                equi = self.side_panel.variables["equi"].get()
+
+                try:
+                    equi = int(equi)
+                    equi = max(0, equi)
+                except ValueError:
+                    equi = 0
 
                 for file_name in self.file_names:
                     # Reasons to not export a file
@@ -614,14 +628,14 @@ class Window:
                     else:
                         raise ValueError("Invalid output file extension - must be .npy or .csv")
 
-                    vals_x = self.data[file_name][x_val][True]
-                    vals_y = self.data[file_name][y_val][True]
+                    vals_x = self.data[file_name][x_val][True][equi:]
+                    vals_y = self.data[file_name][y_val][True][equi:]
 
                     # (N x 3) array - (iter #, vals_x, vals_y)
                     if out_format == "npy":
-                        np.save(out_name, np.vstack((np.arange(len(vals_x)), vals_x, vals_y)).T)
+                        np.save(out_name, np.vstack((np.arange(len(vals_x)) + equi, vals_x, vals_y)).T)
                     elif out_format == "csv":
-                        np.savetxt(out_name, np.vstack((np.arange(len(vals_x)), vals_x, vals_y)).T, delimiter=",",
+                        np.savetxt(out_name, np.vstack((np.arange(len(vals_x)) + equi, vals_x, vals_y)).T, delimiter=",",
                                    header=f"N,{x_val},{y_val}")
                     else:
                         continue
