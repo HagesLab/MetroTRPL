@@ -661,8 +661,61 @@ class Window:
                                                                 f"\nExport complete - {out_name}")
 
             case "2D Histogram":
-                # (b0 x b1) array - (freq matrix), one row/col as bin headers
-                pass
+                x_val = self.side_panel.variables["variable_1"].get()
+                y_val = self.side_panel.variables["variable_2"].get()
+                accepted = self.side_panel.variables["accepted"].get()
+                scale = self.side_panel.variables["scale"].get()
+                bins = self.side_panel.variables["bins"].get()
+                try:
+                    bins = int(bins)
+                except ValueError:
+                    bins = DEFAULT_HIST_BINS
+
+                for file_name in self.file_names:
+                    # Reasons to not export a file
+                    if self.file_names[file_name].get() == 0: # This value display disabled
+                        continue
+                    if x_val not in self.data[file_name]:
+                        continue
+                    if y_val not in self.data[file_name]:
+                        continue
+
+                    out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
+                                                                       ("Text", "*.csv")],
+                                                            defaultextension=".csv",
+                                                            title=f"{os.path.basename(file_name)} - Save as",
+                                                            initialdir=PICKLE_FILE_LOCATION)
+                    if out_name == "":
+                        continue
+
+                    if out_name.endswith(".npy"):
+                        out_format = "npy"
+                    elif out_name.endswith(".csv"):
+                        out_format = "csv"
+                    else:
+                        raise ValueError("Invalid output file extension - must be .npy or .csv")
+                    
+                    vals_x = self.data[file_name][x_val][True]
+                    vals_y = self.data[file_name][y_val][True]
+                    # (b0+1 x b1+1) array - (freq matrix), one row/col as bin headers
+                    freq, bins_x, bins_y = np.histogram2d(vals_x, vals_y, bins)
+                    bins_x = (bins_x + np.roll(bins_x, -1))[:-1] / 2
+                    bins_y = (bins_y + np.roll(bins_y, -1))[:-1] / 2
+
+                    freq_matrix = np.zeros((bins+1, bins+1))
+                    freq_matrix[0, 0] = -1
+                    freq_matrix[0, 1:] = bins_x
+                    freq_matrix[1:, 0] = bins_y
+                    freq_matrix[1:, 1:] = freq
+
+                    if out_format == "npy":
+                        np.save(out_name, freq_matrix)
+                    elif out_format == "csv":
+                        np.savetxt(out_name, freq_matrix, delimiter=",")
+                    else:
+                        continue                    
+                    self.base_panel.variables["status_msg"].set(self.base_panel.variables["status_msg"].get() +
+                                                                f"\nExport complete - {out_name}")
 
 window = Window(1000, 800, APPLICATION_NAME)
 window.bind(events["key"]["escape"], lambda code: exit())
