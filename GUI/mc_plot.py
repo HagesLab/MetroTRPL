@@ -7,9 +7,9 @@ def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str,
                 hline: tuple, vline: tuple) -> None:
     """1D trace, showing history of moves for a single parameter"""
     axes.plot(x_list)
-    if len(hline) == 1:
-        if min(x_list) < hline[0] < max(x_list):
-            axes.hlines(hline[0], 0, len(x_list), colors='k', linestyles="dashed")
+    for i in range(len(hline)):
+        if min(x_list) < hline[i] < max(x_list):
+            axes.hlines(hline[i], 0, len(x_list), colors='k', linestyles="dashed")
 
     if len(vline) == 1:
         if 0 <= vline[0] <= len(x_list):

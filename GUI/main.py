@@ -421,7 +421,10 @@ class Window:
                 hline = self.side_panel.variables["hori_marker"].get()
                 equi = self.side_panel.variables["equi"].get()
                 try:
-                    hline = (float(hline),)
+                    if "," in hline:
+                        hline = tuple(map(float, hline.split(",")))
+                    else:
+                        hline = (float(hline),)
                 except ValueError:
                     hline = tuple()
 
