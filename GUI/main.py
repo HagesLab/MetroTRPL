@@ -576,7 +576,6 @@ class Window:
             case "2D Trace Plot":
                 x_val = self.side_panel.variables["variable_1"].get()
                 y_val = self.side_panel.variables["variable_2"].get()
-                accepted = self.side_panel.variables["accepted"].get() == "Accepted"
 
                 for file_name in self.file_names:
                     # Reasons to not export a file
@@ -602,8 +601,8 @@ class Window:
                     else:
                         raise ValueError("Invalid output file extension - must be .npy or .csv")
 
-                    vals_x = self.data[file_name][x_val][accepted]
-                    vals_y = self.data[file_name][y_val][accepted]
+                    vals_x = self.data[file_name][x_val][True]
+                    vals_y = self.data[file_name][y_val][True]
 
                     # (N x 3) array - (iter #, vals_x, vals_y)
                     if out_format == "npy":
@@ -663,8 +662,6 @@ class Window:
             case "2D Histogram":
                 x_val = self.side_panel.variables["variable_1"].get()
                 y_val = self.side_panel.variables["variable_2"].get()
-                accepted = self.side_panel.variables["accepted"].get()
-                scale = self.side_panel.variables["scale"].get()
                 bins = self.side_panel.variables["bins"].get()
                 try:
                     bins = int(bins)
@@ -694,7 +691,7 @@ class Window:
                         out_format = "csv"
                     else:
                         raise ValueError("Invalid output file extension - must be .npy or .csv")
-                    
+
                     vals_x = self.data[file_name][x_val][True]
                     vals_y = self.data[file_name][y_val][True]
                     # (b0+1 x b1+1) array - (freq matrix), one row/col as bin headers
