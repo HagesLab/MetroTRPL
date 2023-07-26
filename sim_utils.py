@@ -109,7 +109,7 @@ class Parameters():
 
     def __init__(self, param_info):
         self.param_names = param_info["names"]
-        self.ucs = param_info["unit_conversions"]
+        self.ucs = param_info.get("unit_conversions", dict[str, float]())
         self.actives = [(param, index) for index, param in enumerate(self.param_names)
                         if param_info["active"].get(param, False)]
 

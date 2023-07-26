@@ -46,15 +46,14 @@ def E_field(N, P, PA, dx, corner_E=0):
 
 def model(init_dN, g, p, meas="TRPL", solver="solveivp",
           RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
-    """ Calculate one simulation. """
-    N = init_dN + p.n0
-    P = init_dN + p.p0
-    E_f = E_field(N, P, p, g.dx)
-
-    init_condition = np.concatenate([N, P, E_f], axis=None)
-
+    """ Calculate one simulation. Outputs in simulation [nm, V, ns] units."""
     if solver == "solveivp":
         p.apply_unit_conversions()
+        N = init_dN + p.n0
+        P = init_dN + p.p0
+        E_f = E_field(N, P, p, g.dx)
+
+        init_condition = np.concatenate([N, P, E_f], axis=None)
         args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
                 p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
         sol = solve_ivp(dydt_numba, [g.start_time, g.time], init_condition,
@@ -65,17 +64,24 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp",
         s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
         if meas == "TRPL":
             s.calculate_PL(g, p)
+            next_init = s.N[-1] - p.n0
             p.apply_unit_conversions(reverse=True)
-            return s.PL, None
+            return s.PL, next_init
         elif meas == "TRTS":
             s.calculate_TRTS(g, p)
+            next_init = s.N[-1] - p.n0
             p.apply_unit_conversions(reverse=True)
-            return s.trts, None
+            return s.trts, next_init
         else:
             raise NotImplementedError("TRTS or TRPL only")
     elif solver == "odeint":
         # Slightly faster but less robust
         p.apply_unit_conversions()
+        N = init_dN + p.n0
+        P = init_dN + p.p0
+        E_f = E_field(N, P, p, g.dx)
+
+        init_condition = np.concatenate([N, P, E_f], axis=None)
         args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
                 p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
         data = odeint(dydt_numba, init_condition, g.tSteps, args=args,
@@ -84,12 +90,14 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp",
         s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
         if meas == "TRPL":
             s.calculate_PL(g, p)
+            next_init = s.N[-1] - p.n0
             p.apply_unit_conversions(reverse=True)
-            return s.PL
+            return s.PL, next_init
         elif meas == "TRTS":
             s.calculate_TRTS(g, p)
+            next_init = s.N[-1] - p.n0
             p.apply_unit_conversions(reverse=True)
-            return s.trts
+            return s.trts, next_init
         else:
             raise NotImplementedError("TRTS or TRPL only")
 

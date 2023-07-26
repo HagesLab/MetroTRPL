@@ -32,9 +32,6 @@ class TestUtils(unittest.TestCase):
         for param in self.dummy_names:
             self.assertEqual(getattr(self.testp, param), self.dummy_parameters[param])
             
-        # THere should also be the 'm' param defined by default
-        self.assertEqual(getattr(self.testp, 'm'), 1)
-            
     def test_as_array(self):
         # Test asarray
         arr = self.testp.to_array(self.dummy_param_info)
@@ -62,9 +59,13 @@ class TestUtils(unittest.TestCase):
     def test_unit_conversion(self):
         # Test unit conversion
         expected_converted_values = {'a':1, 'b':2, 'c':30, 'mu_n':1.0}
-        self.testp.apply_unit_conversions(self.dummy_param_info)
+        self.testp.apply_unit_conversions()
         for param in self.dummy_names:
             self.assertEqual(getattr(self.testp, param), expected_converted_values[param])
+
+        self.testp.apply_unit_conversions(reverse=True)
+        for param in self.dummy_names:
+            self.assertEqual(getattr(self.testp, param), self.dummy_parameters[param])
             
     def test_do_log(self):
         # Test make log

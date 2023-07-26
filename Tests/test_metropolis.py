@@ -131,23 +131,31 @@ class TestUtils(unittest.TestCase):
 
         param_info["init_guess"] = vals
         pa = Parameters(param_info)
-        pa.apply_unit_conversions(param_info)
         init_dN = 1e20 * np.ones(g.nx) * 1e-21  # [cm^-3] to [nm^-3]
 
         # with solveivp
         test_PL, out_dN = model(init_dN, g, pa, meas="TRPL", solver="solveivp",
                                 RTOL=1e-10, ATOL=1e-14)
+        # Calculate expected output in simulation units
+        pa.apply_unit_conversions()
         rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
+        pa.apply_unit_conversions(reverse=True)
         self.assertAlmostEqual(
             test_PL[-1], trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2)
 
         # with odeint
         test_PL, out_DN = model(init_dN, g, pa, meas="TRPL", solver="odeint",
                                 RTOL=1e-10, ATOL=1e-14)
+        pa.apply_unit_conversions()
         rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
+        pa.apply_unit_conversions(reverse=True)
         self.assertAlmostEqual(
             test_PL[-1], trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2,
             places=6)
+
+        # No change should be seen by Parameters()
+        for n in param_info["names"]:
+            self.assertEqual(getattr(pa, n), vals[n])
 
         # try a trts
 
@@ -165,13 +173,17 @@ class TestUtils(unittest.TestCase):
                 'eps': 1}
         param_info["init_guess"] = vals
         pa = Parameters(param_info)
-        pa.apply_unit_conversions(param_info)
 
         test_TRTS, out_dN = model(
             init_dN, g, pa, meas="TRTS", solver="solveivp")
+        pa.apply_unit_conversions()
         trts = q_C * (pa.mu_n * out_dN + pa.mu_p * out_dN)
+        pa.apply_unit_conversions(reverse=True)
         self.assertAlmostEqual(
             test_TRTS[-1], trapz(trts, dx=g.dx) + trts[0]*g.dx/2 + trts[-1]*g.dx/2)
+
+        for n in param_info["names"]:
+            self.assertEqual(getattr(pa, n), vals[n])
 
         # try an undefined measurement
         with self.assertRaises(NotImplementedError):
@@ -185,7 +197,6 @@ class TestUtils(unittest.TestCase):
 
     def test_approve_param(self):
         info = {'names': ['tauP', 'tauN', 'somethingelse'],
-                'unit_conversions': {'tauP': 1, 'tauN': 1, 'somethingelse': 1},
                 'prior_dist': {'tauP': (0.1, np.inf), 'tauN': (0.1, np.inf),
                                'somethingelse': (-np.inf, np.inf)},
                 'do_log': {'tauP': 1, 'tauN': 1, 'somethingelse': 1}}
@@ -207,7 +218,6 @@ class TestUtils(unittest.TestCase):
 
         # These should still work if p is not logscaled
         info = {'names': ['tauP', 'tauN', 'somethingelse'],
-                'unit_conversions': {'tauP': 1, 'tauN': 1, 'somethingelse': 1},
                 'prior_dist': {'tauP': (0.1, np.inf), 'tauN': (0.1, np.inf),
                                'somethingelse': (-np.inf, np.inf)},
                 'do_log': {'tauP': 0, 'tauN': 0, 'somethingelse': 1}}
@@ -221,25 +231,6 @@ class TestUtils(unittest.TestCase):
         new_p = np.array([0.1, 0.11, 1])
         self.assertTrue("tauP_size" in check_approved_param(new_p, info))
         new_p = np.array([0.11, 0.1, 1])
-        self.assertTrue("tauN_size" in check_approved_param(new_p, info))
-
-        # These should also still work if new_p's unit system is different
-        info = {'names': ['tauP', 'tauN', 'somethingelse'],
-                'unit_conversions': {'tauP': 0.1, 'tauN': 0.01,
-                                     'somethingelse': 0.1},
-                'prior_dist': {'tauP': (0.1, np.inf), 'tauN': (0.1, np.inf),
-                               'somethingelse': (-np.inf, np.inf)},
-                'do_log': {'tauP': 0, 'tauN': 0, 'somethingelse': 1}}
-        new_p = np.array([511 * 0.1, 511e2 * 0.01, 1 * 0.1])
-        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
-        new_p = np.array([511 * 0.1, (511e2+1) * 0.01,  1 * 0.1])
-        self.assertTrue("tn_tp_close" in check_approved_param(new_p, info))
-
-        new_p = np.array([0.11 * 0.1, 0.11 * 0.01, 1 * 0.1])
-        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
-        new_p = np.array([0.09 * 0.1, 0.11 * 0.01, 1 * 0.1])
-        self.assertTrue("tauP_size" in check_approved_param(new_p, info))
-        new_p = np.array([0.11 * 0.1, 0.09 * 0.01, 1 * 0.1])
         self.assertTrue("tauN_size" in check_approved_param(new_p, info))
 
         # Check mu_n, mu_p, Sf, and Sb size limits
@@ -426,7 +417,6 @@ class TestUtils(unittest.TestCase):
         param_names = ["mu_n", "mu_p"]
 
         do_log = {"mu_n": 1, "mu_p": 1}
-        unit_conversions = {"mu_n": 1, "mu_p": 1}
 
         prior_dist = {"mu_n": (0.1, np.inf),
                       "mu_p": (0.1, np.inf),
@@ -441,7 +431,6 @@ class TestUtils(unittest.TestCase):
                          }
 
         param_info = {"active": active_params,
-                      "unit_conversions": unit_conversions,
                       "do_log": do_log,
                       "names": param_names,
                       "do_mu_constraint": (20, 3),
@@ -492,7 +481,6 @@ class TestUtils(unittest.TestCase):
 
         param_info["init_guess"] = vals
         pa = Parameters(param_info)
-        pa.apply_unit_conversions(param_info)
 
         thickness = 1000
         nx = 100
@@ -650,9 +638,7 @@ class TestUtils(unittest.TestCase):
                      "solver": "solveivp", }
 
         p = Parameters(param_info)
-        p.apply_unit_conversions(param_info)
         p2 = Parameters(param_info)
-        p2.apply_unit_conversions(param_info)
 
         nt = 1000
         running_hmax = [4] * len(iniPar)
@@ -725,9 +711,7 @@ class TestUtils(unittest.TestCase):
                      "solver": "solveivp", }
 
         p = Parameters(param_info)
-        p.apply_unit_conversions(param_info)
         p2 = Parameters(param_info)
-        p2.apply_unit_conversions(param_info)
 
         nt = 500
         running_hmax = [4] * len(iniPar)
@@ -788,9 +772,7 @@ class TestUtils(unittest.TestCase):
                      "solver": "solveivp", }
 
         p = Parameters(param_info)
-        p.apply_unit_conversions(param_info)
         p2 = Parameters(param_info)
-        p2.apply_unit_conversions(param_info)
 
         nt = 1000
         running_hmax = [4] * len(iniPar)
@@ -852,7 +834,6 @@ class TestUtils(unittest.TestCase):
                      "solver": "solveivp", }
 
         p = Parameters(param_info)
-        p.apply_unit_conversions(param_info)
         setattr(p, "_s", 2e-17 ** -1) # PL = thickness * ks * iniPar**2
 
         nt = 1000
