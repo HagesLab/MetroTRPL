@@ -54,31 +54,59 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp",
     init_condition = np.concatenate([N, P, E_f], axis=None)
 
     if solver == "solveivp":
+        p.apply_unit_conversions()
         args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
                 p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
         sol = solve_ivp(dydt_numba, [g.start_time, g.time], init_condition,
                         args=args, t_eval=g.tSteps, method='LSODA',
                         max_step=g.hmax, rtol=RTOL, atol=ATOL)
         data = sol.y.T
+        s = Solution()
+        s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
+        if meas == "TRPL":
+            s.calculate_PL(g, p)
+            p.apply_unit_conversions(reverse=True)
+            return s.PL, None
+        elif meas == "TRTS":
+            s.calculate_TRTS(g, p)
+            p.apply_unit_conversions(reverse=True)
+            return s.trts, None
+        else:
+            raise NotImplementedError("TRTS or TRPL only")
     elif solver == "odeint":
         # Slightly faster but less robust
+        p.apply_unit_conversions()
         args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
                 p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
         data = odeint(dydt_numba, init_condition, g.tSteps, args=args,
                       hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
+        s = Solution()
+        s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
+        if meas == "TRPL":
+            s.calculate_PL(g, p)
+            p.apply_unit_conversions(reverse=True)
+            return s.PL
+        elif meas == "TRTS":
+            s.calculate_TRTS(g, p)
+            p.apply_unit_conversions(reverse=True)
+            return s.trts
+        else:
+            raise NotImplementedError("TRTS or TRPL only")
+
+    # elif solver == "NN":
+    #     from tensorflow.keras.models import load_model
+    #     path = r"C:\Users\cfai2\Documents\src\Absorber_NN"
+
+    #     # NN files and scales
+    #     model = load_model(os.path.join(path, "Models", "model_exp_all-14.h5"))
+    #     model_scales = np.load(os.path.join(
+    #         path, "Models", "model_exp_all-14-scales.npy"), allow_pickle=True)  # [y_min, y_scale]
+        
+    #     scaled_matPar = np.zeros((1, 14))
+        
     else:
         raise NotImplementedError
 
-    s = Solution()
-    s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
-    if meas == "TRPL":
-        s.calculate_PL(g, p)
-        return s.PL, (s.N[-1]-p.n0)
-    elif meas == "TRTS":
-        s.calculate_TRTS(g, p)
-        return s.trts, (s.N[-1] - p.n0)
-    else:
-        raise NotImplementedError("TRTS or TRPL only")
 
 
 def check_approved_param(new_p, param_info):
@@ -86,7 +114,6 @@ def check_approved_param(new_p, param_info):
         or proposed moves that exceed the prior distribution.
     """
     order = list(param_info['names'])
-    ucs = param_info.get('unit_conversions', {})
     do_log = param_info["do_log"]
     checks = {}
     prior_dist = param_info["prior_dist"]
@@ -102,7 +129,6 @@ def check_approved_param(new_p, param_info):
             diff = 10 ** new_p[order.index(param)]
         else:
             diff = new_p[order.index(param)]
-        diff /= ucs.get(param, 1)
         checks[f"{param}_size"] = (lb < diff < ub)
 
     # TRPL specific checks:
@@ -119,12 +145,10 @@ def check_approved_param(new_p, param_info):
         logtn = new_p[order.index('tauN')]
         if not do_log["tauN"]:
             logtn = np.log10(logtn)
-        logtn -= np.log10(ucs.get('tauN', 1))
 
         logtp = new_p[order.index('tauP')]
         if not do_log["tauP"]:
             logtp = np.log10(logtp)
-        logtp -= np.log10(ucs.get('tauP', 1))
 
         diff = np.abs(logtn - logtp)
         checks["tn_tp_close"] = (diff <= 2)
@@ -177,8 +201,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
                     ambi = mu_constraint[0]
                     ambi_std = mu_constraint[1]
                     logger.debug("mu constraint: ambi {} +/- {}".format(ambi, ambi_std))
-                    new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std) * \
-                        param_info["unit_conversions"].get("mu_n", 1)
+                    new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
                     new_p[i] = np.log10(
                         (2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
 
@@ -665,7 +688,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                     need_initial_state=need_initial_state,
                     logger=logger, verbose=True)
 
-    MS.H.apply_unit_conversions(MS.param_info)
     MS.H.final_cov = MS.variances.cov
 
     if export_path is not None:
