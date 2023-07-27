@@ -49,8 +49,8 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp",
     """ Calculate one simulation. Outputs in simulation [nm, V, ns] units."""
     if solver == "solveivp":
         p.apply_unit_conversions()
-        N = init_dN + p.n0
-        P = init_dN + p.p0
+        N = init_dN * 1e-21 + p.n0
+        P = init_dN * 1e-21 + p.p0
         E_f = E_field(N, P, p, g.dx)
 
         init_condition = np.concatenate([N, P, E_f], axis=None)
@@ -74,11 +74,12 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp",
             return s.trts, next_init
         else:
             raise NotImplementedError("TRTS or TRPL only")
+
     elif solver == "odeint":
         # Slightly faster but less robust
         p.apply_unit_conversions()
-        N = init_dN + p.n0
-        P = init_dN + p.p0
+        N = init_dN * 1e-21 + p.n0
+        P = init_dN * 1e-21 + p.p0
         E_f = E_field(N, P, p, g.dx)
 
         init_condition = np.concatenate([N, P, E_f], axis=None)
@@ -102,6 +103,9 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp",
             raise NotImplementedError("TRTS or TRPL only")
 
     # elif solver == "NN":
+    #     if meas != "TRPL":
+    #         raise NotImplementedError("TRPL only")
+
     #     from tensorflow.keras.models import load_model
     #     path = r"C:\Users\cfai2\Documents\src\Absorber_NN"
 
@@ -111,11 +115,11 @@ def model(init_dN, g, p, meas="TRPL", solver="solveivp",
     #         path, "Models", "model_exp_all-14-scales.npy"), allow_pickle=True)  # [y_min, y_scale]
         
     #     scaled_matPar = np.zeros((1, 14))
+    #     scaled_matPar[0] = [p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)),
+    #                         fluence, absp, g.thickness]
         
     else:
         raise NotImplementedError
-
-
 
 def check_approved_param(new_p, param_info):
     """ Raise a warning for non-physical or unrealistic proposed trial moves,

@@ -8,9 +8,8 @@ Created on Tue Jan 11 18:10:38 2022
 import sys
 import csv
 import os
-import numpy as np
 import datetime
-
+import numpy as np
 
 # Eventually use io_utils for this
 def get_split_and_clean_line(line: str):
@@ -153,10 +152,10 @@ def get_data(exp_file, meas_types, ic_flags, MCMC_fields, scale_f=1e-23, verbose
         return (t_list, y_list, u_list)
 
 
-def get_initpoints(init_file, ic_flags, scale_f=1e-21):
-    SELECT = ic_flags['select_obs_sets']
+def get_initpoints(init_file, ic_flags):
+    select = ic_flags['select_obs_sets']
 
-    with open(init_file, newline='') as file:
+    with open(init_file, newline='', encoding=None) as file:
         ifstream = csv.reader(file)
         initpoints = []
         for row in ifstream:
@@ -164,9 +163,9 @@ def get_initpoints(init_file, ic_flags, scale_f=1e-21):
                 continue
             initpoints.append(row)
 
-    if SELECT is not None:
-        initpoints = np.array(initpoints)[SELECT]
-    return np.array(initpoints, dtype=float) * scale_f
+    if select is not None:
+        initpoints = np.array(initpoints)[select]
+    return np.array(initpoints, dtype=float)
 
 
 def make_dir(dirname):
