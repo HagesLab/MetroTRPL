@@ -44,48 +44,63 @@ def E_field(N, P, PA, dx, corner_E=0):
     return E
 
 
-def model(init_dN, g, p, meas="TRPL", solver="solveivp",
+def model(iniPar, g, p, meas="TRPL", solver="solveivp",
           RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
-    """ Calculate one simulation. Outputs in simulation [nm, V, ns] units."""
-    if solver == "solveivp":
+    """
+    Calculate one simulation. Outputs in simulation [nm, V, ns] units.
+
+    Parameters
+    ----------
+    iniPar : np.ndarray
+        Initial conditions - either an array of one initial value per g.nx, or an array
+        of parameters (e.g. [fluence, alpha]) usable to generate the initial condition.
+    g : Grid
+        Object containing space and time grid information.
+    p : Parameters
+        Object corresponding to current state of MMC walk.
+    meas : str, optional
+        Type of measurement (e.g. TRPL, TRTS) being simulated. The default is "TRPL".
+    solver : str, optional
+        Solution method used to perform simulation. The default is "solveivp".
+        Choices include:
+        solveivp - scipy.integrate.solve_ivp()
+        odeint - scipy.integrate.odeint()
+        NN - a tensorflow/keras model (WIP!)
+
+    RTOL, ATOL : float, optional
+        Tolerance parameters for scipy solvers. See the solve_ivp() docs for details.
+
+    Returns
+    -------
+    sol : np.ndarray
+        Array of values (e.g. TRPL) from final simulation.
+    next_init : np.ndarray
+        Values (e.g. the electron profile) at the final time of the simulation.
+
+    """
+    if solver == "solveivp" or solver == "odeint":
+        if len(iniPar) == g.nx:         # If list of initial values
+            init_dN = iniPar * 1e-21    # [cm^-3] to [nm^-3]
+        else:                           # List of parameters
+            fluence = iniPar[0] * 1e-14 # [cm^-2] to [nm^-2]
+            alpha = iniPar[1] * 1e-7    # [cm^-1] to [nm^-1]
+            init_dN = fluence * alpha * np.exp(-alpha * g.xSteps)
+
         p.apply_unit_conversions()
-        N = init_dN * 1e-21 + p.n0
-        P = init_dN * 1e-21 + p.p0
+        N = init_dN + p.n0
+        P = init_dN + p.p0
         E_f = E_field(N, P, p, g.dx)
 
         init_condition = np.concatenate([N, P, E_f], axis=None)
         args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
                 p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
-        sol = solve_ivp(dydt_numba, [g.start_time, g.time], init_condition,
-                        args=args, t_eval=g.tSteps, method='LSODA',
-                        max_step=g.hmax, rtol=RTOL, atol=ATOL)
-        data = sol.y.T
-        s = Solution()
-        s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
-        if meas == "TRPL":
-            s.calculate_PL(g, p)
-            next_init = s.N[-1] - p.n0
-            p.apply_unit_conversions(reverse=True)
-            return s.PL, next_init
-        elif meas == "TRTS":
-            s.calculate_TRTS(g, p)
-            next_init = s.N[-1] - p.n0
-            p.apply_unit_conversions(reverse=True)
-            return s.trts, next_init
+        if solver == "solveivp":
+            sol = solve_ivp(dydt_numba, [g.start_time, g.time], init_condition,
+                            args=args, t_eval=g.tSteps, method='LSODA',
+                            max_step=g.hmax, rtol=RTOL, atol=ATOL)
+            data = sol.y.T
         else:
-            raise NotImplementedError("TRTS or TRPL only")
-
-    elif solver == "odeint":
-        # Slightly faster but less robust
-        p.apply_unit_conversions()
-        N = init_dN * 1e-21 + p.n0
-        P = init_dN * 1e-21 + p.p0
-        E_f = E_field(N, P, p, g.dx)
-
-        init_condition = np.concatenate([N, P, E_f], axis=None)
-        args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
-                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
-        data = odeint(dydt_numba, init_condition, g.tSteps, args=args,
+            data = odeint(dydt_numba, init_condition, g.tSteps, args=args,
                       hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
         s = Solution()
         s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)

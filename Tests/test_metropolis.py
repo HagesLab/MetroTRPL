@@ -3,7 +3,6 @@ import logging
 import sys
 import numpy as np
 from scipy.integrate import trapz
-
 from metropolis import all_signal_handler
 from metropolis import E_field, model, select_next_params
 from metropolis import do_simulation, roll_acceptance, unpack_simpar
@@ -194,6 +193,64 @@ class TestUtils(unittest.TestCase):
             model(init_dN, g, pa, meas="TRPL", solver="somethign else")
 
         return
+
+    def test_model_iniPar(self):
+        # A high-inj, rad-only sample problem
+        g = Grid()
+        g.nx = 100
+        g.dx = 10
+        g.thickness = 1000 # in nm
+        g.start_time = 0
+        g.time = 100
+        g.nt = 1000
+        g.hmax = 4
+        g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
+
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9),
+                            "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
+
+        param_info = {"names": ["n0", "p0", "mu_n", "mu_p",
+                                "ks", "tauN", "tauP",
+                                "Cn", "Cp", "Sf", "Sb", "eps", "Tm"],
+                      "active": {"n0": 0, "p0": 1,
+                                 "mu_n": 0, "mu_p": 0,
+                                 "Cn": 0, "Cp": 0,
+                                 "ks": 1, "Sf": 1, "Sb": 1,
+                                 "tauN": 1, "tauP": 1, "eps": 0,
+                                 "Tm": 0},
+                      "unit_conversions": unit_conversions}
+        vals = {'n0': 0,
+                'p0': 0,
+                'mu_n': 0,
+                'mu_p': 0,
+                "ks": 1e-11,
+                "Cn": 0, "Cp": 0,
+                'tauN': 1e99,
+                'tauP': 1e99,
+                'Sf': 0,
+                'Sb': 0,
+                "Tm": 300,
+                'eps': 1}
+
+        param_info["init_guess"] = vals
+        pa = Parameters(param_info)
+        
+        fluence = 1e15 # Fluence, alpha in cm units
+        alpha = 6e4
+        g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
+
+        init_dN = fluence * alpha * np.exp(-alpha * g.xSteps * 1e-7)  # In cm units
+
+        PL_by_initvals, out_dN = model(init_dN, g, pa, meas="TRPL", solver="solveivp",
+                                       RTOL=1e-10, ATOL=1e-14)
+        
+        PL_by_initparams, out_dN = model([fluence, alpha], g, pa, meas="TRPL", solver="solveivp",
+                                         RTOL=1e-10, ATOL=1e-14)
+        
+        np.testing.assert_almost_equal(PL_by_initvals, PL_by_initparams)
+
 
     def test_approve_param(self):
         info = {'names': ['tauP', 'tauN', 'somethingelse'],
@@ -925,9 +982,3 @@ class TestUtils(unittest.TestCase):
         #                  f"{i}: Carriers depleted!")
         # self.assertEqual(captured.records[2].getMessage(),
         #                  f"{i}: Retrying hmax={MIN_HMAX * 2}")
-
-
-if __name__ == "__main__":
-    t = TestUtils()
-    t.setUp()
-    t.test_run_iter_scale()
