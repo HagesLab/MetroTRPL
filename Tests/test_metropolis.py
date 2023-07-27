@@ -138,18 +138,20 @@ class TestUtils(unittest.TestCase):
         # Calculate expected output in simulation units
         pa.apply_unit_conversions()
         rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
+        expected_out = trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2
+        expected_out *= 1e23
         pa.apply_unit_conversions(reverse=True)
-        self.assertAlmostEqual(
-            test_PL[-1], trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2)
+        self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]))
 
         # with odeint
         test_PL, out_DN = model(init_dN, g, pa, meas="TRPL", solver="odeint",
                                 RTOL=1e-10, ATOL=1e-14)
         pa.apply_unit_conversions()
         rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
+        expected_out = trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2
+        expected_out *= 1e23
         pa.apply_unit_conversions(reverse=True)
-        self.assertAlmostEqual(
-            test_PL[-1], trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2,
+        self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]),
             places=6)
 
         # No change should be seen by Parameters()
@@ -177,9 +179,10 @@ class TestUtils(unittest.TestCase):
             init_dN, g, pa, meas="TRTS", solver="solveivp")
         pa.apply_unit_conversions()
         trts = q_C * (pa.mu_n * out_dN + pa.mu_p * out_dN)
+        expected_out = trapz(trts, dx=g.dx) + trts[0]*g.dx/2 + trts[-1]*g.dx/2
+        expected_out *= 1e9
         pa.apply_unit_conversions(reverse=True)
-        self.assertAlmostEqual(
-            test_TRTS[-1], trapz(trts, dx=g.dx) + trts[0]*g.dx/2 + trts[-1]*g.dx/2)
+        self.assertAlmostEqual(test_TRTS[-1] / np.amax(test_TRTS[-1]), expected_out / np.amax(test_TRTS[-1]))
 
         for n in param_info["names"]:
             self.assertEqual(getattr(pa, n), vals[n])
@@ -249,7 +252,7 @@ class TestUtils(unittest.TestCase):
         PL_by_initparams, out_dN = model([fluence, alpha], g, pa, meas="TRPL", solver="solveivp",
                                          RTOL=1e-10, ATOL=1e-14)
         
-        np.testing.assert_almost_equal(PL_by_initvals, PL_by_initparams)
+        np.testing.assert_almost_equal(PL_by_initvals / np.amax(PL_by_initvals), PL_by_initparams / np.amax(PL_by_initvals))
 
 
     def test_approve_param(self):
@@ -700,7 +703,7 @@ class TestUtils(unittest.TestCase):
         nt = 1000
         running_hmax = [4] * len(iniPar)
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
-        vals = [np.zeros(nt+1), np.zeros(nt+1)]
+        vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
         accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
                                  running_hmax, sim_flags, verbose=True,
@@ -773,7 +776,7 @@ class TestUtils(unittest.TestCase):
         nt = 500
         running_hmax = [4] * len(iniPar)
         times = [np.linspace(50, 100, nt+1), np.linspace(50, 100, nt+1)]
-        vals = [np.zeros(nt+1), np.zeros(nt+1)]
+        vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
         accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
                                  running_hmax, sim_flags, verbose=True,
@@ -896,7 +899,7 @@ class TestUtils(unittest.TestCase):
         nt = 1000
         running_hmax = [4] * len(iniPar)
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
-        vals = [np.zeros(nt+1), np.zeros(nt+1)]
+        vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
         accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
                                  running_hmax, sim_flags, verbose=True,
