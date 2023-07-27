@@ -66,7 +66,7 @@ def check_valid_filename(file_name):
     return True
 
 
-def get_data(exp_file, meas_types, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
+def get_data(exp_file, meas_types, ic_flags, MCMC_fields, verbose=False):
     TIME_RANGE = ic_flags['time_cutoff']
     SELECT = ic_flags['select_obs_sets']
     NOISE_LEVEL = ic_flags.get('noise_level', 0)
@@ -113,13 +113,6 @@ def get_data(exp_file, meas_types, ic_flags, MCMC_fields, scale_f=1e-23, verbose
         t_list[i] = t_list[i][::resample]
         y_list[i] = y_list[i][::resample]
         u_list[i] = u_list[i][::resample]
-
-    if isinstance(scale_f, (float, int)):
-        scale_f = [scale_f] * len(t_list)
-
-    for i in range(len(t_list)):
-        y_list[i] *= scale_f[i]
-        u_list[i] *= scale_f[i]
 
     if NORMALIZE is not None:
         for i in range(len(t_list)):
