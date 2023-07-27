@@ -30,32 +30,32 @@ DEFAULT_ATOL = 1e-10
 DEFAULT_HMAX = 4
 MAX_PROPOSALS = 100
 
-# def multiexp(x, *args):
-#     """
-#     Arbitrary-order multiexponential of form
-#     f(x) = a_0 * exp(k_0 * x) + a_1 * exp(k_1 * x) + ... + a_z * exp(k_z * x)
+def multiexp(x, *args):
+    """
+    Arbitrary-order multiexponential of form
+    f(x) = a_0 * exp(k_0 * x) + a_1 * exp(k_1 * x) + ... + a_z * exp(k_z * x)
     
-#     in which args is a list of rates followed by coefs [k_0, k_1, ..., k_z, a_0, a_1, ..., a_z]
+    in which args is a list of rates followed by coefs [k_0, k_1, ..., k_z, a_0, a_1, ..., a_z]
 
-#     Parameters
-#     ----------
-#     xin : 1D ndarray
-#         x values, e.g. delay time.
-#     *args : list-like
-#         Sequence of rates and coefs.
+    Parameters
+    ----------
+    xin : 1D ndarray
+        x values, e.g. delay time.
+    *args : list-like
+        Sequence of rates and coefs.
 
-#     Returns
-#     -------
-#     fit_y : 1D ndarray
-#         f(x) values.
+    Returns
+    -------
+    fit_y : 1D ndarray
+        f(x) values.
 
-#     """
-#     fit_y = np.zeros_like(x, dtype=float)
-#     n = len(args) // 2
-#     for i in range(n):
-#         fit_y += args[i+n] * np.exp(args[i] * x)
+    """
+    fit_y = np.zeros_like(x, dtype=float)
+    n = len(args) // 2
+    for i in range(n):
+        fit_y += args[i+n] * np.exp(args[i] * x)
         
-#     return fit_y
+    return fit_y
 
 
 def E_field(N, P, PA, dx, corner_E=0):
@@ -147,39 +147,39 @@ def model(iniPar, g, p, meas="TRPL", solver="solveivp",
         else:
             raise NotImplementedError("TRTS or TRPL only")
 
-    # elif solver == "NN":
-    #     if meas != "TRPL":
-    #         raise NotImplementedError("TRPL only")
+    elif solver == "NN":
+        if meas != "TRPL":
+            raise NotImplementedError("TRPL only")
 
-    #     from tensorflow.keras.models import load_model
-    #     path = r"C:\Users\cfai2\Documents\src\Absorber_NN"
+        from tensorflow.keras.models import load_model
+        path = r"C:\Users\cfai2\Documents\src\Absorber_NN"
 
-    #     # NN files and scales
-    #     model = load_model(os.path.join(path, "Models", "model_exp_all-14.h5"))
-    #     model_scales = np.load(os.path.join(
-    #         path, "Models", "model_exp_all-14-scales.npy"), allow_pickle=True)  # [y_min, y_scale]
+        # NN files and scales
+        model = load_model(os.path.join(path, "Models", "model_exp_all-14.h5"))
+        model_scales = np.load(os.path.join(
+            path, "Models", "model_exp_all-14-scales.npy"), allow_pickle=True)  # [y_min, y_scale]
         
-    #     scaled_matPar = np.zeros((1, 14))
-    #     scaled_matPar[0] = [p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)),
-    #                         iniPar[0], iniPar[1], g.thickness]
-    #     # Preprocess inputs
-    #     scaled_matPar = np.log10(scaled_matPar)
-    #     scaled_matPar -= model_scales[0]
-    #     scaled_matPar /= model_scales[1]
-    #     scaled_matPar -= 0.5
+        scaled_matPar = np.zeros((1, 14))
+        scaled_matPar[0] = [p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)),
+                            iniPar[0], iniPar[1], g.thickness]
+        # Preprocess inputs
+        scaled_matPar = np.log10(scaled_matPar)
+        scaled_matPar -= model_scales[0]
+        scaled_matPar /= model_scales[1]
+        scaled_matPar -= 0.5
 
-    #     # Predict
-    #     coefs = model.predict(scaled_matPar)[0]
+        # Predict
+        coefs = model.predict(scaled_matPar)[0]
 
-    #     # Postprocess outputs
-    #     coefs += 0.5
-    #     coefs *= model_scales[3]
-    #     coefs += model_scales[2]
-    #     coefs[len(coefs)//2:] = 10 ** coefs[len(coefs)//2:]
-    #     coefs[:len(coefs)//2] = -(10 ** coefs[:len(coefs)//2])
+        # Postprocess outputs
+        coefs += 0.5
+        coefs *= model_scales[3]
+        coefs += model_scales[2]
+        coefs[len(coefs)//2:] = 10 ** coefs[len(coefs)//2:]
+        coefs[:len(coefs)//2] = -(10 ** coefs[:len(coefs)//2])
 
-    #     pl_from_NN = multiexp(g.tSteps, *coefs) # in [cm^-2 s^-1]
-    #     pl_from_NN *= 1e-23                     # to [nm^-2 ns^-1]
+        pl_from_NN = multiexp(g.tSteps, *coefs) # in [cm^-2 s^-1]
+        return pl_from_NN, None
 
     else:
         raise NotImplementedError
