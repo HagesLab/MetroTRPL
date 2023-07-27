@@ -9,14 +9,14 @@ class TestUtils(unittest.TestCase):
     def test_get_initpoints(self):
         ic_flags = {'select_obs_sets': None}
         where_inits = os.path.join("Tests", "testfiles", "test_initpoints.csv")
-        ic = get_initpoints(where_inits, ic_flags, scale_f=1)
+        ic = get_initpoints(where_inits, ic_flags)
 
         expected = np.array([[0, 0, 0, 0, 0], [1, 2, 3, 4, 5],
                              [1, 1, 1, 1, 1]], dtype=float)
         np.testing.assert_equal(expected, ic)
 
         ic_flags = {'select_obs_sets': [1]}
-        ic = get_initpoints(where_inits, ic_flags, scale_f=1)
+        ic = get_initpoints(where_inits, ic_flags)
 
         expected = np.array([[1, 2, 3, 4, 5]], dtype=float)
         np.testing.assert_equal(expected, ic)

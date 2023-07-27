@@ -131,7 +131,7 @@ class TestUtils(unittest.TestCase):
 
         param_info["init_guess"] = vals
         pa = Parameters(param_info)
-        init_dN = 1e20 * np.ones(g.nx) * 1e-21  # [cm^-3] to [nm^-3]
+        init_dN = 1e20 * np.ones(g.nx) # [cm^-3]
 
         # with solveivp
         test_PL, out_dN = model(init_dN, g, pa, meas="TRPL", solver="solveivp",
@@ -486,7 +486,7 @@ class TestUtils(unittest.TestCase):
         nx = 100
         times = np.linspace(10, 100, 901)
 
-        iniPar = np.logspace(19, 14, nx) * 1e-21
+        iniPar = np.logspace(19, 14, nx)
         tSteps, sol = do_simulation(pa, thickness, nx, iniPar, times, hmax=4)
         np.testing.assert_equal(tSteps[0], 0)
 
@@ -603,7 +603,7 @@ class TestUtils(unittest.TestCase):
                   "meas_types": mtype,
                   "num_meas": 2}
 
-        iniPar = [1e15 * np.ones(L[0]) * 1e-21, 1e16 * np.ones(L[1]) * 1e-21]
+        iniPar = [1e15 * np.ones(L[0]), 1e16 * np.ones(L[1])]
 
         param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
                        "Sf", "Sb", "tauN", "tauP", "eps", "m"]
@@ -676,7 +676,7 @@ class TestUtils(unittest.TestCase):
                   "meas_types": mtype,
                   "num_meas": 2}
 
-        iniPar = [1e15 * np.ones(L[0]) * 1e-21, 1e16 * np.ones(L[1]) * 1e-21]
+        iniPar = [1e15 * np.ones(L[0]), 1e16 * np.ones(L[1])]
 
         param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
                        "Sf", "Sb", "tauN", "tauP", "eps", "m"]
@@ -738,7 +738,7 @@ class TestUtils(unittest.TestCase):
                   "meas_types": mtype,
                   "num_meas": 2}
 
-        iniPar = [1e15 * np.ones(L[0]) * 1e-21, 1e16 * np.ones(L[1]) * 1e-21]
+        iniPar = [1e15 * np.ones(L[0]), 1e16 * np.ones(L[1])]
 
         param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
                        "Sf", "Sb", "tauN", "tauP", "eps"]
@@ -799,7 +799,7 @@ class TestUtils(unittest.TestCase):
                   "meas_types": mtype,
                   "num_meas": 2}
 
-        iniPar = [1e15 * np.ones(L[0]) * 1e-21, 1e16 * np.ones(L[1]) * 1e-21]
+        iniPar = [1e15 * np.ones(L[0]), 1e16 * np.ones(L[1])]
 
         param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
                        "Sf", "Sb", "tauN", "tauP", "eps"]
@@ -874,7 +874,7 @@ class TestUtils(unittest.TestCase):
 
         # simPar = [Length, -1, L, -1, plT, pT, tol, MAX]
 
-        # iniPar = [np.logspace(20,1,L) * 1e-21, 1e16 * np.ones(L) * 1e-21]
+        # iniPar = [np.logspace(20,1,L), 1e16 * np.ones(L)]
 
         # param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
         #                "Sf", "Sb", "tauN", "tauP", "eps", "m"]
