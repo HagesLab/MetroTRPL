@@ -329,7 +329,7 @@ def read_config_script_file(path):
                     if line.startswith("Num iters"):
                         MCMC_fields["num_iters"] = int(line_split[1])
                     elif line.startswith("Solver name"):
-                        MCMC_fields["solver"] = line_split[1]
+                        MCMC_fields["solver"] = tuple(line_split[1].split('\t'))
                     elif line.startswith("Solver rtol"):
                         MCMC_fields["rtol"] = float(line_split[1])
                     elif line.startswith("Solver atol"):
@@ -566,9 +566,13 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         ofstream.write(f"Num iters: {num_iters}\n")
         if verbose:
             ofstream.write(
-                "# Which solver engine to use - solveivp (more robust) or odeint (sometimes faster).\n")
+                "# Which solver engine to use - solveivp (more robust), odeint (sometimes faster),"
+                "# or NN (experimental!).\n")
         solver = MCMC_fields["solver"]
-        ofstream.write(f"Solver name: {solver}\n")
+        ofstream.write(f"Solver name: {solver[0]}")
+        for value in solver[1:]:
+            ofstream.write(f"\t{value}")
+        ofstream.write("\n")
         if "rtol" in MCMC_fields:
             if verbose:
                 ofstream.write("# Solver engine relative tolerance.\n")
@@ -1020,7 +1024,7 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
     else:
         raise ValueError("Invalid number of iterations")
 
-    if MCMC_fields["solver"] in supported_solvers:
+    if MCMC_fields["solver"][0] in supported_solvers:
         pass
     else:
         raise ValueError("MCMC control 'solver' must be a supported solver.\n"
