@@ -15,6 +15,7 @@ import numpy as np
 def get_split_and_clean_line(line: str):
     """Split line by colon symbol ':' and
     remove preceding and trailing spaces."""
+    # FIXME: This causes absolute file paths to not work
     split_line = line.split(':')
     split_line = [i.strip() for i in split_line]
     return split_line
@@ -1023,6 +1024,12 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         pass
     else:
         raise ValueError("Invalid number of iterations")
+    
+    if isinstance(MCMC_fields["solver"], tuple):
+        pass
+    else:
+        raise ValueError("MCMC control 'solver' must be a tuple with at least"
+                         f" one element - one solver name from {supported_solvers}")
 
     if MCMC_fields["solver"][0] in supported_solvers:
         pass

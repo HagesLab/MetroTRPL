@@ -133,7 +133,7 @@ class TestUtils(unittest.TestCase):
         init_dN = 1e20 * np.ones(g.nx) # [cm^-3]
 
         # with solveivp
-        test_PL, out_dN = model(init_dN, g, pa, meas="TRPL", solver="solveivp",
+        test_PL, out_dN = model(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
                                 RTOL=1e-10, ATOL=1e-14)
         # Calculate expected output in simulation units
         pa.apply_unit_conversions()
@@ -144,7 +144,7 @@ class TestUtils(unittest.TestCase):
         self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]))
 
         # with odeint
-        test_PL, out_DN = model(init_dN, g, pa, meas="TRPL", solver="odeint",
+        test_PL, out_DN = model(init_dN, g, pa, meas="TRPL", solver=("odeint",),
                                 RTOL=1e-10, ATOL=1e-14)
         pa.apply_unit_conversions()
         rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
@@ -176,7 +176,7 @@ class TestUtils(unittest.TestCase):
         pa = Parameters(param_info)
 
         test_TRTS, out_dN = model(
-            init_dN, g, pa, meas="TRTS", solver="solveivp")
+            init_dN, g, pa, meas="TRTS", solver=("solveivp",))
         pa.apply_unit_conversions()
         trts = q_C * (pa.mu_n * out_dN + pa.mu_p * out_dN)
         expected_out = trapz(trts, dx=g.dx) + trts[0]*g.dx/2 + trts[-1]*g.dx/2
@@ -193,7 +193,7 @@ class TestUtils(unittest.TestCase):
 
         # try an undefined solver
         with self.assertRaises(NotImplementedError):
-            model(init_dN, g, pa, meas="TRPL", solver="somethign else")
+            model(init_dN, g, pa, meas="TRPL", solver=("somethign else",))
 
         return
 
@@ -246,10 +246,10 @@ class TestUtils(unittest.TestCase):
 
         init_dN = fluence * alpha * np.exp(-alpha * g.xSteps * 1e-7)  # In cm units
 
-        PL_by_initvals, out_dN = model(init_dN, g, pa, meas="TRPL", solver="solveivp",
+        PL_by_initvals, out_dN = model(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
                                        RTOL=1e-10, ATOL=1e-14)
         
-        PL_by_initparams, out_dN = model([fluence, alpha], g, pa, meas="TRPL", solver="solveivp",
+        PL_by_initparams, out_dN = model([fluence, alpha], g, pa, meas="TRPL", solver=("solveivp",),
                                          RTOL=1e-10, ATOL=1e-14)
         
         np.testing.assert_almost_equal(PL_by_initvals / np.amax(PL_by_initvals), PL_by_initparams / np.amax(PL_by_initvals))
@@ -695,7 +695,7 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": None,
-                     "solver": "solveivp", }
+                     "solver": ("solveivp",), }
 
         p = Parameters(param_info)
         p2 = Parameters(param_info)
@@ -768,7 +768,7 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": None,
-                     "solver": "solveivp", }
+                     "solver": ("solveivp",), }
 
         p = Parameters(param_info)
         p2 = Parameters(param_info)
@@ -829,7 +829,7 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": ["TRPL"],
-                     "solver": "solveivp", }
+                     "solver": ("solveivp",), }
 
         p = Parameters(param_info)
         p2 = Parameters(param_info)
@@ -891,7 +891,7 @@ class TestUtils(unittest.TestCase):
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": None,
                      "scale_factor": ("global", 1e-17, 0),
-                     "solver": "solveivp", }
+                     "solver": ("solveivp",), }
 
         p = Parameters(param_info)
         setattr(p, "_s", 2e-17 ** -1) # PL = thickness * ks * iniPar**2
@@ -964,7 +964,7 @@ class TestUtils(unittest.TestCase):
 
         # sim_flags = {"hmax":MIN_HMAX * 4, "rtol":1e-10, "atol":1e-10,
         #              "measurement":"TRPL",
-        #              "solver":"odeint"}
+        #              "solver":("odeint",)}
 
         # nt = 100
         # i = 0

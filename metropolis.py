@@ -274,7 +274,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
 
 
 def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
-                  solver="solveivp", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
+                  solver=("solveivp",), rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
     """ Set up one simulation. """
     g = Grid()
     g.thickness = thickness
