@@ -38,6 +38,7 @@ MENU_KWARGS = {"width": 10, "background": BLACK, "highlightbackground": BLACK, "
 LABEL_KWARGS = {"width": 14, "background": LIGHT_GREY}
 
 DEFAULT_HIST_BINS = 96
+DEFAULT_THICKNESS = 2000
 MAX_STATUS_MSGS = 11
 
 class Window:
@@ -190,6 +191,7 @@ class Window:
                                                 text="Horizontal Line", **LABEL_KWARGS)
         widgets["equi_label"] = tk.Label(master=panel, text="Equilibration Period", **LABEL_KWARGS)
         widgets["num_bins_label"] = tk.Label(master=panel, text="Bins", **LABEL_KWARGS)
+        widgets["thickness_label"] = tk.Label(master=panel, text="Thickness [nm]", **LABEL_KWARGS)
 
         # User select menus
         variables["variable_1"] = tk.StringVar(value="select")
@@ -246,6 +248,12 @@ class Window:
         widgets["num_bins_entry"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["bins"])
         widgets["num_bins_entry"].bind("<FocusOut>", self.redraw)
 
+        # Entry to designate sample thickness
+        variables["thickness"] = tk.StringVar()
+        variables["thickness"].set(str(DEFAULT_THICKNESS))
+        widgets["thickness"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["thickness"])
+        widgets["thickness"].bind("<FocusOut>", self.redraw)
+
     def mount_side_panel_states(self):
         """Add a map of widget locations for each of the four plotting states"""
         widgets = self.side_panel.widgets
@@ -266,9 +274,13 @@ class Window:
                      {"x": 200, "y": 116, "anchor": "n"},
                      {"x": 380, "y": 116, "anchor": "ne"},
 
+                     {"x": 20, "y": 156, "anchor": "nw"},
+                     {"x": 20, "y": 188, "anchor": "nw"},
+
                      {"x": 380, "y": 156, "anchor": "e"},
 
-                     {"x": 20, "y": 184, "anchor": "nw"},
+                     {"x": 20, "y": 252, "anchor": "nw"},
+
                      ]
 
         self.side_panel.addstate("1D Trace Plot", [(widgets["x_axis_label"], locations[0]),
@@ -281,7 +293,9 @@ class Window:
                                                    (widgets["hori_marker_entry"], locations[9]),
                                                    (widgets["equi_label"], locations[7]),
                                                    (widgets["equi_entry"], locations[10]),
-                                                   (widgets["chain_vis"], locations[13])]
+                                                   (widgets["thickness_label"], locations[12]),
+                                                   (widgets["thickness"], locations[13]),
+                                                   (widgets["chain_vis"], locations[15])]
                                  )
 
         self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], locations[0]),
@@ -292,19 +306,23 @@ class Window:
                                                    (widgets["scale"], locations[5]),
                                                    (widgets["equi_label"], locations[7]),
                                                    (widgets["equi_entry"], locations[10]),
-                                                   (widgets["chain_vis"], locations[13])]
+                                                   (widgets["thickness_label"], locations[12]),
+                                                   (widgets["thickness"], locations[13]),
+                                                   (widgets["chain_vis"], locations[15])]
                                  )
 
         self.side_panel.addstate("1D Histogram", [(widgets["x_axis_label"], locations[0]),
                                                   (widgets["scale_label"], locations[1]),
                                                   (widgets["variable 1"], locations[3]),
                                                   (widgets["scale"], locations[4]),
-                                                  (widgets["chain_vis"], locations[13]),
+                                                  (widgets["chain_vis"], locations[15]),
                                                   (widgets["equi_label"], locations[7]),
                                                   (widgets["equi_entry"], locations[10]),
                                                   (widgets["num_bins_label"], locations[8]),
                                                   (widgets["num_bins_entry"], locations[11]),
-                                                  (widgets["combined_hist"], locations[12])]
+                                                  (widgets["thickness_label"], locations[12]),
+                                                  (widgets["thickness"], locations[13]),
+                                                  (widgets["combined_hist"], locations[14])]
                                  )
 
         self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], locations[0]),
@@ -313,11 +331,13 @@ class Window:
                                                   (widgets["variable 1"], locations[3]),
                                                   (widgets["variable 2"], locations[4]),
                                                   (widgets["scale"], locations[5]),
-                                                  (widgets["chain_vis"], locations[13]),
+                                                  (widgets["chain_vis"], locations[15]),
                                                   (widgets["equi_label"], locations[7]),
                                                   (widgets["equi_entry"], locations[10]),
                                                   (widgets["num_bins_label"], locations[8]),
-                                                  (widgets["num_bins_entry"], locations[11]),]
+                                                  (widgets["num_bins_entry"], locations[11]),
+                                                  (widgets["thickness_label"], locations[12]),
+                                                  (widgets["thickness"], locations[13]),]
                                  )
 
     def do_select_chain_popup(self) -> None:
@@ -449,6 +469,7 @@ class Window:
                 scale = self.side_panel.variables["scale"].get()
                 hline = self.side_panel.variables["hori_marker"].get()
                 equi = self.side_panel.variables["equi"].get()
+                thickness = self.side_panel.variables["thickness"].get()
                 try:
                     if "," in hline:
                         hline = tuple(map(float, hline.split(",")))
@@ -485,9 +506,22 @@ class Window:
                     elif value in sp.func:
                         primary_params = {}
                         for needed_param in sp.func[value][1]:
-                            primary_params[needed_param] = self.data[file_name][needed_param][accepted]
+                            if needed_param == "thickness": # Not included in MCMC data
+                                try:
+                                    primary_params["thickness"] = float(thickness)
+                                except ValueError: # invalid thickness
+                                    break
+                            else:
+                                try:
+                                    primary_params[needed_param] = self.data[file_name][needed_param][accepted]
+                                except KeyError:
+                                    self.status(f"Data {file_name} missing parameter {needed_param}")
+                                    break
 
-                        y = sp.func[value][0](primary_params)
+                        try:
+                            y = sp.func[value][0](primary_params)
+                        except KeyError:
+                            continue
                     else:
                         continue
                     mc_plot.traceplot1d(axes, y,
