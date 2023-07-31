@@ -619,9 +619,9 @@ class Window:
                         if self.file_names[file_name].get() == 0: # This value display disabled
                             continue
 
-                        if value in self.data[file_name]:
-                            y = self.data[file_name][value][True][equi:]
-                        elif value in sp.func:
+                        y = self.data[file_name][value][True]
+                        if (len(y) == 0 or thickness != sp.last_thickness.get(value, thickness)) and value in sp.func:
+                            self.status(f"DEBUG - Calc {value} needed")
                             primary_params = {}
                             for needed_param in sp.func[value][1]:
                                 if needed_param == "thickness": # Not included in MCMC data
@@ -632,18 +632,18 @@ class Window:
                                         break
                                 else:
                                     try:
-                                        primary_params[needed_param] = self.data[file_name][needed_param][True][equi:]
+                                        primary_params[needed_param] = self.data[file_name][needed_param][True]
                                     except KeyError:
                                         self.status(f"Data {file_name} missing parameter {needed_param}")
                                         break
 
                             try:
                                 y = sp.func[value][0](primary_params)
+                                self.data[file_name][value][True] = np.array(y)
                             except KeyError:
                                 continue
-                        else:
-                            continue
-                        vals = np.hstack((vals, y))
+
+                        vals = np.hstack((vals, y[equi:]))
                     color = PLOT_COLOR_CYCLE[0]
                     mc_plot.histogram1d(axes, vals, f"Accepted {value}", value, scale, bins, color)
                 else:
@@ -653,9 +653,7 @@ class Window:
                         color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
                         y = self.data[file_name][value][True]
-                        print(y)
                         if (len(y) == 0 or thickness != sp.last_thickness.get(value, thickness)) and value in sp.func:
-                            self.status(f"DEBUG - Calc {value} needed")
                             primary_params = {}
                             for needed_param in sp.func[value][1]:
                                 if needed_param == "thickness": # Not included in MCMC data
@@ -680,8 +678,8 @@ class Window:
                         mc_plot.histogram1d(axes, y[equi:],
                                             f"Accepted {value}", value, scale, bins, color)
                         
-                    if value in sp.last_thickness:
-                        sp.last_thickness[value] = thickness
+                if value in sp.last_thickness:
+                    sp.last_thickness[value] = thickness
 
             case "2D Histogram":
                 x_val = self.side_panel.variables["variable_1"].get()
