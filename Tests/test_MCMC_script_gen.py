@@ -112,7 +112,7 @@ class TestUtils(unittest.TestCase):
                             "measurement_path": os.path.join("MCMC", "Example_meas_path"),
                             "output_path": output_path,
                             "num_iters": 25000,
-                            "solver": "solveivp",
+                            "solver": ("solveivp",),
                             "rtol": 1e-7,
                             "atol": 1e-10,
                             "hmax": 4,

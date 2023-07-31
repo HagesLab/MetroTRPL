@@ -18,6 +18,12 @@ from mcmc_logging import start_logging, stop_logging
 from bayes_io import make_dir, clear_checkpoint_dir
 from laplace import make_I_tables, do_irf_convolution, post_conv_trim
 
+try:
+    from nn_features import NeuralNetwork
+    HAS_NN_LIB = True
+    nn = NeuralNetwork()
+except ImportError:
+    HAS_NN_LIB = False
 
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
@@ -29,7 +35,6 @@ DEFAULT_RTOL = 1e-7
 DEFAULT_ATOL = 1e-10
 DEFAULT_HMAX = 4
 MAX_PROPOSALS = 100
-
 
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
@@ -43,50 +48,112 @@ def E_field(N, P, PA, dx, corner_E=0):
         E = np.concatenate((np.ones(shape=(num_tsteps, 1))*corner_E, E), axis=1)
     return E
 
-
-def model(init_dN, g, p, meas="TRPL", solver="solveivp",
+def model(iniPar, g, p, meas="TRPL", solver=("solveivp",),
           RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
-    """ Calculate one simulation. """
-    N = init_dN + p.n0
-    P = init_dN + p.p0
-    E_f = E_field(N, P, p, g.dx)
+    """
+    Calculate one simulation. Outputs in same units as measurement data,
+    ([cm, V, s]) for PL.
 
-    init_condition = np.concatenate([N, P, E_f], axis=None)
+    Parameters
+    ----------
+    iniPar : np.ndarray
+        Initial conditions - either an array of one initial value per g.nx, or an array
+        of parameters (e.g. [fluence, alpha]) usable to generate the initial condition.
+    g : Grid
+        Object containing space and time grid information.
+    p : Parameters
+        Object corresponding to current state of MMC walk.
+    meas : str, optional
+        Type of measurement (e.g. TRPL, TRTS) being simulated. The default is "TRPL".
+    solver : tuple(str), optional
+        Solution method used to perform simulation and optional related args.
+        The first element is the solver type.
+        Choices include:
+        solveivp - scipy.integrate.solve_ivp()
+        odeint - scipy.integrate.odeint()
+        NN - a tensorflow/keras model (WIP!)
+        All subsequent elements are optional. For NN the second element is
+        a path to the NN weight file, the third element is a path
+        to the corresponding NN scale factor file.
+        The default is ("solveivp",).
 
-    if solver == "solveivp":
+    RTOL, ATOL : float, optional
+        Tolerance parameters for scipy solvers. See the solve_ivp() docs for details.
+
+    Returns
+    -------
+    sol : np.ndarray
+        Array of values (e.g. TRPL) from final simulation.
+    next_init : np.ndarray
+        Values (e.g. the electron profile) at the final time of the simulation.
+
+    """
+    if solver[0] == "solveivp" or solver[0] == "odeint":
+        if len(iniPar) == g.nx:         # If list of initial values
+            init_dN = iniPar * 1e-21    # [cm^-3] to [nm^-3]
+        else:                           # List of parameters
+            fluence = iniPar[0] * 1e-14 # [cm^-2] to [nm^-2]
+            alpha = iniPar[1] * 1e-7    # [cm^-1] to [nm^-1]
+            init_dN = fluence * alpha * np.exp(-alpha * g.xSteps)
+
+        p.apply_unit_conversions()
+        N = init_dN + p.n0
+        P = init_dN + p.p0
+        E_f = E_field(N, P, p, g.dx)
+
+        init_condition = np.concatenate([N, P, E_f], axis=None)
         args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
                 p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
-        sol = solve_ivp(dydt_numba, [g.start_time, g.time], init_condition,
-                        args=args, t_eval=g.tSteps, method='LSODA',
-                        max_step=g.hmax, rtol=RTOL, atol=ATOL)
-        data = sol.y.T
-    elif solver == "odeint":
-        # Slightly faster but less robust
-        args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
-                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
-        data = odeint(dydt_numba, init_condition, g.tSteps, args=args,
+        if solver[0] == "solveivp":
+            sol = solve_ivp(dydt_numba, [g.start_time, g.time], init_condition,
+                            args=args, t_eval=g.tSteps, method='LSODA',
+                            max_step=g.hmax, rtol=RTOL, atol=ATOL)
+            data = sol.y.T
+        else:
+            data = odeint(dydt_numba, init_condition, g.tSteps, args=args,
                       hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
+        s = Solution()
+        s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
+        if meas == "TRPL":
+            s.calculate_PL(g, p)
+            next_init = s.N[-1] - p.n0
+            p.apply_unit_conversions(reverse=True)  # [nm, V, ns] to [cm, V, s]
+            s.PL *= 1e23                            # [nm^-2 ns^-1] to [cm^-2 s^-1]
+            return s.PL, next_init
+        elif meas == "TRTS":
+            s.calculate_TRTS(g, p)
+            next_init = s.N[-1] - p.n0
+            p.apply_unit_conversions(reverse=True)
+            s.trts *= 1e9
+            return s.trts, next_init
+        else:
+            raise NotImplementedError("TRTS or TRPL only")
+
+    elif solver[0] == "NN":
+        if not HAS_NN_LIB:
+            raise ImportError("Failed to load neural network library")
+
+        if meas != "TRPL":
+            raise NotImplementedError("TRPL only")
+        
+        if not nn.has_model:
+            nn.load_model(solver[1], solver[2])
+
+        scaled_matPar = np.zeros((1, 14))
+        scaled_matPar[0] = [p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)),
+                            iniPar[0], iniPar[1], g.thickness]
+
+        pl_from_NN = nn.predict(g.tSteps, scaled_matPar)
+        return pl_from_NN, None
+
     else:
         raise NotImplementedError
-
-    s = Solution()
-    s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
-    if meas == "TRPL":
-        s.calculate_PL(g, p)
-        return s.PL, (s.N[-1]-p.n0)
-    elif meas == "TRTS":
-        s.calculate_TRTS(g, p)
-        return s.trts, (s.N[-1] - p.n0)
-    else:
-        raise NotImplementedError("TRTS or TRPL only")
-
 
 def check_approved_param(new_p, param_info):
     """ Raise a warning for non-physical or unrealistic proposed trial moves,
         or proposed moves that exceed the prior distribution.
     """
     order = list(param_info['names'])
-    ucs = param_info.get('unit_conversions', {})
     do_log = param_info["do_log"]
     checks = {}
     prior_dist = param_info["prior_dist"]
@@ -102,7 +169,6 @@ def check_approved_param(new_p, param_info):
             diff = 10 ** new_p[order.index(param)]
         else:
             diff = new_p[order.index(param)]
-        diff /= ucs.get(param, 1)
         checks[f"{param}_size"] = (lb < diff < ub)
 
     # TRPL specific checks:
@@ -119,12 +185,10 @@ def check_approved_param(new_p, param_info):
         logtn = new_p[order.index('tauN')]
         if not do_log["tauN"]:
             logtn = np.log10(logtn)
-        logtn -= np.log10(ucs.get('tauN', 1))
 
         logtp = new_p[order.index('tauP')]
         if not do_log["tauP"]:
             logtp = np.log10(logtp)
-        logtp -= np.log10(ucs.get('tauP', 1))
 
         diff = np.abs(logtn - logtp)
         checks["tn_tp_close"] = (diff <= 2)
@@ -177,8 +241,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
                     ambi = mu_constraint[0]
                     ambi_std = mu_constraint[1]
                     logger.debug("mu constraint: ambi {} +/- {}".format(ambi, ambi_std))
-                    new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std) * \
-                        param_info["unit_conversions"].get("mu_n", 1)
+                    new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
                     new_p[i] = np.log10(
                         (2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
 
@@ -211,7 +274,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
 
 
 def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
-                  solver="solveivp", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
+                  solver=("solveivp",), rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
     """ Set up one simulation. """
     g = Grid()
     g.thickness = thickness
@@ -665,7 +728,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                     need_initial_state=need_initial_state,
                     logger=logger, verbose=True)
 
-    MS.H.apply_unit_conversions(MS.param_info)
     MS.H.final_cov = MS.variances.cov
 
     if export_path is not None:

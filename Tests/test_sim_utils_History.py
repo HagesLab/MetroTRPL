@@ -39,23 +39,6 @@ class TestUtils(unittest.TestCase):
             self.assertEqual(
                 len(getattr(self.tasth, f"mean_{param}")[0]), self.num_iters)
 
-    def test_unit_conversions(self):
-        self.tasth = History(self.num_iters, self.dummy_param_info)
-
-        # Test unit conversions: note, these are converting OUT i.e. dividing
-        for param in self.dummy_names:
-            setattr(self.tasth, param, getattr(self.tasth, param) + 1)
-            setattr(self.tasth, f"mean_{param}", getattr(
-                self.tasth, f"mean_{param}") + 10)
-
-        self.tasth.apply_unit_conversions(self.dummy_param_info)
-        expected_vals = {'a': 1, 'b': 1, 'c': 0.1, 'mu_n': 4}
-        for param in self.dummy_names:
-            np.testing.assert_equal(getattr(self.tasth, param), np.ones(
-                (1, self.num_iters)) * expected_vals[param])
-            np.testing.assert_equal(getattr(self.tasth, f"mean_{param}"), np.ones(
-                (1, self.num_iters)) * expected_vals[param] * 10)
-
     # Skipping over export...
 
     def test_truncate(self):

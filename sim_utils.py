@@ -22,15 +22,12 @@ class MetroState():
 
     def __init__(self, param_info, MCMC_fields, num_iters):
         self.p = Parameters(param_info)
-        self.p.apply_unit_conversions(param_info)
 
         self.H = History(num_iters, param_info)
 
         self.prev_p = Parameters(param_info)
-        self.prev_p.apply_unit_conversions(param_info)
 
         self.means = Parameters(param_info)
-        self.means.apply_unit_conversions(param_info)
 
         self.variances = Covariance(param_info)
         self.variances.apply_values(param_info["init_variance"])
@@ -72,15 +69,14 @@ class MetroState():
 
     def print_status(self, logger):
         is_active = self.param_info['active']
-        ucs = self.param_info["unit_conversions"]
 
         if hasattr(self.prev_p, "likelihood"):
             logger.info("Current loglikelihood : {:.6e} ".format(
                 np.sum(self.prev_p.likelihood)))
         for param in self.param_info['names']:
             if is_active.get(param, 0):
-                trial = getattr(self.p, param) / ucs.get(param, 1)
-                mean = getattr(self.means, param) / ucs.get(param, 1)
+                trial = getattr(self.p, param)
+                mean = getattr(self.means, param)
                 logger.info("Next {}: {:.6e} from mean {:.6e}".format(param, trial, mean))
 
         return
@@ -113,6 +109,7 @@ class Parameters():
 
     def __init__(self, param_info):
         self.param_names = param_info["names"]
+        self.ucs = param_info.get("unit_conversions", dict[str, float]())
         self.actives = [(param, index) for index, param in enumerate(self.param_names)
                         if param_info["active"].get(param, False)]
 
@@ -121,20 +118,19 @@ class Parameters():
                 raise KeyError(f"Param with name {param} already exists")
             setattr(self, param, param_info["init_guess"][param])
 
-        # Global scale factor is an optional fitting param - if not defined,
-        # default to x1
-        if "m" not in self.param_names:
-            setattr(self, "m", 1)
+
         return
 
-    def apply_unit_conversions(self, param_info=None):
-        """ Multiply the currently stored parameters according to a provided
+    def apply_unit_conversions(self, reverse=False):
+        """ Multiply the currently stored parameters according to a stored
             unit conversion dictionary.
         """
         for param in self.param_names:
             val = getattr(self, param)
-            setattr(self, param, val *
-                    param_info["unit_conversions"].get(param, 1))
+            if reverse:
+                setattr(self, param, val / self.ucs.get(param, 1))
+            else:
+                setattr(self, param, val * self.ucs.get(param, 1))
         return
 
     def make_log(self, param_info=None):
@@ -293,17 +289,6 @@ class History():
             # Accepted states
             h_mean = getattr(self, f"mean_{param}")
             h_mean[0, k] = getattr(means, param)
-        return
-
-    def apply_unit_conversions(self, param_info):
-        for param in param_info["names"]:
-            val = getattr(self, param)
-            setattr(self, param, val /
-                    param_info["unit_conversions"].get(param, 1))
-
-            val = getattr(self, f"mean_{param}")
-            setattr(self, f"mean_{param}", val /
-                    param_info["unit_conversions"].get(param, 1))
         return
 
     def export(self, param_info, out_pathname):

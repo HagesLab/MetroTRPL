@@ -37,17 +37,9 @@ if __name__ == "__main__":
     iniPar = get_initpoints(MCMC_fields["init_cond_path"], meas_fields)
 
     measurement_types = sim_info["meas_types"]
-    scale_f = np.ones(len(measurement_types))
-    for i, mt in enumerate(measurement_types):
-        if mt == "TRPL":
-            scale_f[i] = 1e-23
-        elif mt == "TRTS":
-            scale_f[i] = 1e-9
-        else:
-            raise NotImplementedError(
-                "No scale_f for measurements other than TRPL and TRTS")
+
     e_data = get_data(MCMC_fields["measurement_path"], measurement_types,
-                      meas_fields, MCMC_fields, scale_f=scale_f)
+                      meas_fields, MCMC_fields)
 
     # Make simulation info consistent with actual number of selected measurements
     if meas_fields.get("select_obs_sets", None) is not None:

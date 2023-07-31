@@ -8,14 +8,14 @@ Created on Tue Jan 11 18:10:38 2022
 import sys
 import csv
 import os
-import numpy as np
 import datetime
-
+import numpy as np
 
 # Eventually use io_utils for this
 def get_split_and_clean_line(line: str):
     """Split line by colon symbol ':' and
     remove preceding and trailing spaces."""
+    # FIXME: This causes absolute file paths to not work
     split_line = line.split(':')
     split_line = [i.strip() for i in split_line]
     return split_line
@@ -67,7 +67,7 @@ def check_valid_filename(file_name):
     return True
 
 
-def get_data(exp_file, meas_types, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
+def get_data(exp_file, meas_types, ic_flags, MCMC_fields, verbose=False):
     TIME_RANGE = ic_flags['time_cutoff']
     SELECT = ic_flags['select_obs_sets']
     NOISE_LEVEL = ic_flags.get('noise_level', 0)
@@ -115,13 +115,6 @@ def get_data(exp_file, meas_types, ic_flags, MCMC_fields, scale_f=1e-23, verbose
         y_list[i] = y_list[i][::resample]
         u_list[i] = u_list[i][::resample]
 
-    if isinstance(scale_f, (float, int)):
-        scale_f = [scale_f] * len(t_list)
-
-    for i in range(len(t_list)):
-        y_list[i] *= scale_f[i]
-        u_list[i] *= scale_f[i]
-
     if NORMALIZE is not None:
         for i in range(len(t_list)):
             if meas_types[i] in NORMALIZE:
@@ -153,10 +146,10 @@ def get_data(exp_file, meas_types, ic_flags, MCMC_fields, scale_f=1e-23, verbose
         return (t_list, y_list, u_list)
 
 
-def get_initpoints(init_file, ic_flags, scale_f=1e-21):
-    SELECT = ic_flags['select_obs_sets']
+def get_initpoints(init_file, ic_flags):
+    select = ic_flags['select_obs_sets']
 
-    with open(init_file, newline='') as file:
+    with open(init_file, newline='', encoding=None) as file:
         ifstream = csv.reader(file)
         initpoints = []
         for row in ifstream:
@@ -164,9 +157,9 @@ def get_initpoints(init_file, ic_flags, scale_f=1e-21):
                 continue
             initpoints.append(row)
 
-    if SELECT is not None:
-        initpoints = np.array(initpoints)[SELECT]
-    return np.array(initpoints, dtype=float) * scale_f
+    if select is not None:
+        initpoints = np.array(initpoints)[select]
+    return np.array(initpoints, dtype=float)
 
 
 def make_dir(dirname):
@@ -337,7 +330,7 @@ def read_config_script_file(path):
                     if line.startswith("Num iters"):
                         MCMC_fields["num_iters"] = int(line_split[1])
                     elif line.startswith("Solver name"):
-                        MCMC_fields["solver"] = line_split[1]
+                        MCMC_fields["solver"] = tuple(line_split[1].split('\t'))
                     elif line.startswith("Solver rtol"):
                         MCMC_fields["rtol"] = float(line_split[1])
                     elif line.startswith("Solver atol"):
@@ -574,9 +567,13 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         ofstream.write(f"Num iters: {num_iters}\n")
         if verbose:
             ofstream.write(
-                "# Which solver engine to use - solveivp (more robust) or odeint (sometimes faster).\n")
+                "# Which solver engine to use - solveivp (more robust), odeint (sometimes faster),"
+                "# or NN (experimental!).\n")
         solver = MCMC_fields["solver"]
-        ofstream.write(f"Solver name: {solver}\n")
+        ofstream.write(f"Solver name: {solver[0]}")
+        for value in solver[1:]:
+            ofstream.write(f"\t{value}")
+        ofstream.write("\n")
         if "rtol" in MCMC_fields:
             if verbose:
                 ofstream.write("# Solver engine relative tolerance.\n")
@@ -983,7 +980,7 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
 
 
 def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
-                         supported_solvers=("odeint", "solveivp"),
+                         supported_solvers=("odeint", "solveivp", "NN"),
                          supported_prop_funcs=("box", "gauss", "None")):
     if not isinstance(MCMC_fields, dict):
         raise TypeError("MCMC control flags must be type 'dict'")
@@ -1027,8 +1024,14 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         pass
     else:
         raise ValueError("Invalid number of iterations")
+    
+    if isinstance(MCMC_fields["solver"], tuple):
+        pass
+    else:
+        raise ValueError("MCMC control 'solver' must be a tuple with at least"
+                         f" one element - one solver name from {supported_solvers}")
 
-    if MCMC_fields["solver"] in supported_solvers:
+    if MCMC_fields["solver"][0] in supported_solvers:
         pass
     else:
         raise ValueError("MCMC control 'solver' must be a supported solver.\n"

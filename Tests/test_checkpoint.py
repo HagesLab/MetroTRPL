@@ -102,7 +102,7 @@ class TestUtils(unittest.TestCase):
                        "measurement_path": None,
                        "output_path": "test-out",
                        "num_iters": num_iters,
-                       "solver": "solveivp",
+                       "solver": ("solveivp",),
                        "likel2variance_ratio": 500,
                        "log_pl": 1,
                        "self_normalize": None,
@@ -126,7 +126,7 @@ class TestUtils(unittest.TestCase):
 
         self.MS.sim_info = sim_info
         # Dummy initial condition and measurement data
-        self.MS.iniPar = [np.ones(self.MS.sim_info["nx"][0]) * 1e16 * 1e-21]
+        self.MS.iniPar = [np.ones(self.MS.sim_info["nx"][0]) * 1e16]
         self.MS.times = [np.linspace(0, 100, 100)]
         self.MS.vals = [np.ones(len(self.MS.times[0])) * -20]
         self.MS.uncs = [np.ones(len(self.MS.times[0])) * 0.04]

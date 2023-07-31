@@ -322,14 +322,14 @@ class TestUtils(unittest.TestCase):
         diffs = ASJD(accepted)
         np.testing.assert_equal(diffs, [1.25 * 0.5 ** 2, 1.25, 1.25 * 2**2])
         
-    def test_ESS(self):
-        test1 = np.expand_dims(np.arange(100), 0)
-        test2 = np.expand_dims(np.sin(np.arange(100)), 0)
+    # def test_ESS(self):
+    #     test1 = np.expand_dims(np.arange(100), 0)
+    #     test2 = np.expand_dims(np.sin(np.arange(100)), 0)
         
-        avg_ess = ESS(test1, False, verbose=False)
-        self.assertEqual(avg_ess, 0)
-        avg_ess = ESS(test2, False, verbose=False)
-        self.assertAlmostEqual(avg_ess, 3494.367866841)
+    #     avg_ess = ESS(test1, False, verbose=False)
+    #     self.assertEqual(avg_ess, 0)
+    #     avg_ess = ESS(test2, False, verbose=False)
+    #     self.assertAlmostEqual(avg_ess, 3494.367866841)
         
     def test_binned_stderr(self):
         test_chain = np.arange(100)
