@@ -549,18 +549,17 @@ class Window:
                 else:
                     scale = "linear"
 
+                xy_val = {"x": x_val, "y": y_val}
+
                 axes = self.chart.figure.add_subplot()
                 for i, file_name in enumerate(self.file_names):
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
                     color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
-
-                    xy_val = {"x": x_val, "y": y_val}
                     xy = {}
                     for s, val in xy_val.items():
-                        if val in self.data[file_name]:
-                            xy[s] = self.data[file_name][val][True][equi:]
-                        elif val in sp.func:
+                        xy[s] = self.data[file_name][val][True]
+                        if (len(xy[s]) == 0 or thickness != sp.last_thickness.get(val, thickness)) and val in sp.func:
                             primary_params = {}
                             for needed_param in sp.func[val][1]:
                                 if needed_param == "thickness": # Not included in MCMC data
@@ -571,21 +570,25 @@ class Window:
                                         break
                                 else:
                                     try:
-                                        primary_params[needed_param] = self.data[file_name][needed_param][True][equi:]
+                                        primary_params[needed_param] = self.data[file_name][needed_param][True]
                                     except KeyError:
                                         self.status(f"Data {file_name} missing parameter {needed_param}")
                                         break
 
                             try:
                                 xy[s] = sp.func[val][0](primary_params)
+                                self.data[file_name][val][True] = np.array(xy[s])
                             except KeyError:
                                 continue
-                        else:
-                            continue
 
                     if "x" in xy and "y" in xy: # Successfully obtained data for both params
-                        mc_plot.traceplot2d(axes, xy["x"], xy["y"],
+                        mc_plot.traceplot2d(axes, xy["x"][equi:], xy["y"][equi:],
                                             x_val, y_val, scale, color)
+                        
+                if x_val in sp.last_thickness:
+                    sp.last_thickness[x_val] = thickness
+                if y_val in sp.last_thickness:
+                    sp.last_thickness[y_val] = thickness
 
             case "1D Histogram":
                 value = self.side_panel.variables["variable_1"].get()
@@ -621,7 +624,6 @@ class Window:
 
                         y = self.data[file_name][value][True]
                         if (len(y) == 0 or thickness != sp.last_thickness.get(value, thickness)) and value in sp.func:
-                            self.status(f"DEBUG - Calc {value} needed")
                             primary_params = {}
                             for needed_param in sp.func[value][1]:
                                 if needed_param == "thickness": # Not included in MCMC data
