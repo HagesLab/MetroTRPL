@@ -88,7 +88,6 @@ class Window:
                 widget.place(**placement) # type: ignore
             self.state = state
 
-
     class Chart:
         """ tk embedded matplotlib Figure """
         def __init__(self, master: tk.Tk, width: int, height: int) -> None:
@@ -410,6 +409,11 @@ class Window:
 
                         self.data[file_name][key] = {False: states,
                                                      True: mean_states}
+                        
+                for key in sp.func:
+                    # TODO: Option to precalculate all of these
+                    self.data[file_name][key] = {False: np.zeros(0),
+                                                 True: np.zeros(0)}
             except ValueError as err:
                 self.status(f"Error: {err}")
                 continue
@@ -429,17 +433,11 @@ class Window:
         for key in self.data[file_names[0]]: # TODO: Require all file_names have same set of keys, or track only unique keys
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_1"])
 
-        for key in sp.func:
-            menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_1"])
-
         self.side_panel.variables["variable_1"].trace("w", self.redraw)
         menu: tk.Menu = self.side_panel.widgets["variable 2"]["menu"]
         self.side_panel.variables["variable_2"].set("select")
         menu.delete(0, tk.END)
         for key in self.data[file_names[0]]:
-            menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_2"])
-
-        for key in sp.func:
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_2"])
 
         self.side_panel.variables["variable_2"].trace("w", self.redraw)
@@ -501,9 +499,9 @@ class Window:
                         continue
                     color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
-                    if value in self.data[file_name]:
-                        y = self.data[file_name][value][accepted]
-                    elif value in sp.func:
+                    y = self.data[file_name][value][accepted]
+                    if (len(y) == 0 or thickness != sp.last_thickness.get(value, thickness)) and value in sp.func:
+                        # Calculate and cache the secondary parameter
                         primary_params = {}
                         for needed_param in sp.func[value][1]:
                             if needed_param == "thickness": # Not included in MCMC data
@@ -521,12 +519,15 @@ class Window:
 
                         try:
                             y = sp.func[value][0](primary_params)
+                            self.data[file_name][value][accepted] = np.array(y)
                         except KeyError:
-                            continue
-                    else:
-                        continue
+                            self.status(f"Failed to calculate {value}")
+
                     mc_plot.traceplot1d(axes, y,
                                         title, scale, hline, equi, color)
+                    
+                if value in sp.last_thickness:
+                    sp.last_thickness[value] = thickness
 
             case "2D Trace Plot":
                 x_val = self.side_panel.variables["variable_1"].get()
@@ -651,9 +652,10 @@ class Window:
                             continue
                         color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
-                        if value in self.data[file_name]:
-                            y = self.data[file_name][value][True][equi:]
-                        elif value in sp.func:
+                        y = self.data[file_name][value][True]
+                        print(y)
+                        if (len(y) == 0 or thickness != sp.last_thickness.get(value, thickness)) and value in sp.func:
+                            self.status(f"DEBUG - Calc {value} needed")
                             primary_params = {}
                             for needed_param in sp.func[value][1]:
                                 if needed_param == "thickness": # Not included in MCMC data
@@ -664,19 +666,22 @@ class Window:
                                         break
                                 else:
                                     try:
-                                        primary_params[needed_param] = self.data[file_name][needed_param][True][equi:]
+                                        primary_params[needed_param] = self.data[file_name][needed_param][True]
                                     except KeyError:
                                         self.status(f"Data {file_name} missing parameter {needed_param}")
                                         break
 
                             try:
                                 y = sp.func[value][0](primary_params)
+                                self.data[file_name][value][True] = np.array(y)
                             except KeyError:
-                                continue
-                        else:
-                            continue
-                        mc_plot.histogram1d(axes, y,
+                                self.status(f"Failed to calculate {value}")
+
+                        mc_plot.histogram1d(axes, y[equi:],
                                             f"Accepted {value}", value, scale, bins, color)
+                        
+                    if value in sp.last_thickness:
+                        sp.last_thickness[value] = thickness
 
             case "2D Histogram":
                 x_val = self.side_panel.variables["variable_1"].get()

@@ -21,6 +21,7 @@ class SecondaryParameters():
     """
 
     def __init__(self):
+        # dict[str, (fxn, needed params)]
         self.func = {"t_rad": (self.t_rad, ("ks", "p0")),
                      "t_auger": (self.t_auger, ("Cp", "p0")),
                      "LI_tau_eff": (self.li_tau_eff, ("ks", "p0", "tauN", "Sf", "Sb", "Cp", "thickness", "mu_n", "mu_p")),
@@ -29,6 +30,9 @@ class SecondaryParameters():
                      "Sf+Sb": (self.s_eff, ("Sf", "Sb")),
                      "mu_ambi": (self.mu_eff, ("mu_n", "mu_p")),
                      "epsilon": (self.epsilon, ("lambda",))}
+        
+        # Most recent thickness used to calculate; determines if recalculation needed when thickness updated
+        self.last_thickness = {name: -1 for name in self.func if "thickness" in self.func[name][1]}
 
     def t_rad(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
         """Radiative recombination lifetime, in ns"""
