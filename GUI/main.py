@@ -479,7 +479,18 @@ class Window:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
                     color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
-                    mc_plot.traceplot1d(axes, self.data[file_name][value][accepted],
+
+                    if value in self.data[file_name]:
+                        y = self.data[file_name][value][accepted]
+                    elif value in sp.func:
+                        primary_params = {}
+                        for needed_param in sp.func[value][1]:
+                            primary_params[needed_param] = self.data[file_name][needed_param][accepted]
+
+                        y = sp.func[value][0](primary_params)
+                    else:
+                        continue
+                    mc_plot.traceplot1d(axes, y,
                                         title, scale, hline, equi, color)
 
             case "2D Trace Plot":
