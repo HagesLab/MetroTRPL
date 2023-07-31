@@ -708,6 +708,8 @@ class Window:
                 else:
                     scale = "linear"
 
+                xy_val = {"x": x_val, "y": y_val}
+
                 axes = self.chart.figure.add_subplot()
                 
                 # Always combine samples before plotting (essentially combined_hist=True)
@@ -717,12 +719,11 @@ class Window:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
 
-                    xy_val = {"x": x_val, "y": y_val}
                     xy = {}
                     for s, val in xy_val.items():
-                        if val in self.data[file_name]:
-                            xy[s] = self.data[file_name][val][True][equi:]
-                        elif val in sp.func:
+                        xy[s] = self.data[file_name][val][True]
+                        if (len(xy[s]) == 0 or thickness != sp.last_thickness.get(val, thickness)) and val in sp.func:
+                            self.status(f"DEBUG - Calc {val} needed")
                             primary_params = {}
                             for needed_param in sp.func[val][1]:
                                 if needed_param == "thickness": # Not included in MCMC data
@@ -733,26 +734,28 @@ class Window:
                                         break
                                 else:
                                     try:
-                                        primary_params[needed_param] = self.data[file_name][needed_param][True][equi:]
+                                        primary_params[needed_param] = self.data[file_name][needed_param][True]
                                     except KeyError:
                                         self.status(f"Data {file_name} missing parameter {needed_param}")
                                         break
 
                             try:
                                 xy[s] = sp.func[val][0](primary_params)
+                                self.data[file_name][val][True] = np.array(xy[s])
                             except KeyError:
                                 continue
-                        else:
-                            continue
+
                     if "x" in xy and "y" in xy:
-                        vals_x = np.hstack((vals_x, xy["x"]))
-                        vals_y = np.hstack((vals_y, xy["y"]))
+                        vals_x = np.hstack((vals_x, xy["x"][equi:]))
+                        vals_y = np.hstack((vals_y, xy["y"][equi:]))
                 mc_plot.histogram2d(axes, vals_x, vals_y,
                                     x_val, y_val, scale, bins)
-
-
-                    # colorbar = axes.imshow(hist2d, cmap="Blues")
-                    # self.chart.figure.colorbar(colorbar, ax=axes, fraction=0.04)
+                # colorbar = axes.imshow(hist2d, cmap="Blues")
+                # self.chart.figure.colorbar(colorbar, ax=axes, fraction=0.04)
+                if x_val in sp.last_thickness:
+                    sp.last_thickness[x_val] = thickness
+                if y_val in sp.last_thickness:
+                    sp.last_thickness[y_val] = thickness
 
         self.chart.figure.tight_layout()
         self.chart.canvas.draw()
