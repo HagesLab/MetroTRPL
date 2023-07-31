@@ -12,6 +12,8 @@ from types import FunctionType
 
 import sim_utils
 import mc_plot
+from secondary_parameters import SecondaryParameters
+sp = SecondaryParameters()
 
 def rgb(r: int, g: int, b: int) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
@@ -403,14 +405,23 @@ class Window:
         menu: tk.Menu = self.side_panel.widgets["variable 1"]["menu"]
         self.side_panel.variables["variable_1"].set("select")
         menu.delete(0, tk.END)
+
         for key in self.data[file_names[0]]: # TODO: Require all file_names have same set of keys, or track only unique keys
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_1"])
+
+        for key in sp.func:
+            menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_1"])
+
         self.side_panel.variables["variable_1"].trace("w", self.redraw)
         menu: tk.Menu = self.side_panel.widgets["variable 2"]["menu"]
         self.side_panel.variables["variable_2"].set("select")
         menu.delete(0, tk.END)
         for key in self.data[file_names[0]]:
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_2"])
+
+        for key in sp.func:
+            menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_2"])
+
         self.side_panel.variables["variable_2"].trace("w", self.redraw)
 
     def chartselect(self) -> None:
