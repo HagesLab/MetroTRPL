@@ -588,11 +588,11 @@ class Window:
 
             case "1D Histogram":
                 value = self.side_panel.variables["variable_1"].get()
-                accepted = self.side_panel.variables["accepted"].get()
                 scale = self.side_panel.variables["scale"].get()
                 bins = self.side_panel.variables["bins"].get()
                 equi = self.side_panel.variables["equi"].get()
                 combined_hist = self.side_panel.variables["combined_hist"].get()
+                thickness = self.side_panel.variables["thickness"].get()
                 try:
                     bins = int(bins)
                 except ValueError:
@@ -617,7 +617,32 @@ class Window:
                     for file_name in self.file_names:
                         if self.file_names[file_name].get() == 0: # This value display disabled
                             continue
-                        vals = np.hstack((vals, self.data[file_name][value][True][equi:]))
+
+                        if value in self.data[file_name]:
+                            y = self.data[file_name][value][True][equi:]
+                        elif value in sp.func:
+                            primary_params = {}
+                            for needed_param in sp.func[value][1]:
+                                if needed_param == "thickness": # Not included in MCMC data
+                                    try:
+                                        primary_params["thickness"] = float(thickness)
+                                    except ValueError: # invalid thickness
+                                        self.status("Thickness value needed")
+                                        break
+                                else:
+                                    try:
+                                        primary_params[needed_param] = self.data[file_name][needed_param][True][equi:]
+                                    except KeyError:
+                                        self.status(f"Data {file_name} missing parameter {needed_param}")
+                                        break
+
+                            try:
+                                y = sp.func[value][0](primary_params)
+                            except KeyError:
+                                continue
+                        else:
+                            continue
+                        vals = np.hstack((vals, y))
                     color = PLOT_COLOR_CYCLE[0]
                     mc_plot.histogram1d(axes, vals, f"Accepted {value}", value, scale, bins, color)
                 else:
@@ -625,7 +650,32 @@ class Window:
                         if self.file_names[file_name].get() == 0:
                             continue
                         color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
-                        mc_plot.histogram1d(axes, self.data[file_name][value][True][equi:],
+
+                        if value in self.data[file_name]:
+                            y = self.data[file_name][value][True][equi:]
+                        elif value in sp.func:
+                            primary_params = {}
+                            for needed_param in sp.func[value][1]:
+                                if needed_param == "thickness": # Not included in MCMC data
+                                    try:
+                                        primary_params["thickness"] = float(thickness)
+                                    except ValueError: # invalid thickness
+                                        self.status("Thickness value needed")
+                                        break
+                                else:
+                                    try:
+                                        primary_params[needed_param] = self.data[file_name][needed_param][True][equi:]
+                                    except KeyError:
+                                        self.status(f"Data {file_name} missing parameter {needed_param}")
+                                        break
+
+                            try:
+                                y = sp.func[value][0](primary_params)
+                            except KeyError:
+                                continue
+                        else:
+                            continue
+                        mc_plot.histogram1d(axes, y,
                                             f"Accepted {value}", value, scale, bins, color)
 
             case "2D Histogram":
