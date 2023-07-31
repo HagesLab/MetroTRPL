@@ -24,7 +24,7 @@ class SecondaryParameters():
         self.func = {"t_rad": (self.t_rad, ("ks", "p0")),
                      "t_auger": (self.t_auger, ("Cp", "p0")),
                      "LI_tau_eff": (self.li_tau_eff, ("ks", "p0", "tauN", "Sf", "Sb", "Cp", "thickness", "mu_n", "mu_p")),
-                     "LI_tau_srh": (self.li_tau_eff, ("tauN", "Sf", "Sb", "thickness", "mu_n", "mu_p")),
+                     "LI_tau_srh": (self.li_tau_srh, ("tauN", "Sf", "Sb", "thickness", "mu_n", "mu_p")),
                      "HI_tau_srh": (self.hi_tau_srh, ("tauN", "tauP", "Sf", "Sb", "thickness", "mu_n", "mu_p")),
                      "Sf+Sb": (self.s_eff, ("Sf", "Sb")),
                      "mu_ambi": (self.mu_eff, ("mu_n", "mu_p")),
