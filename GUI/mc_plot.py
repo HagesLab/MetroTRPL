@@ -9,7 +9,7 @@ def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str,
     """1D trace, showing history of moves for a single parameter"""
     axes.plot(x_list, color=color)
     for hline in hlines:
-        if min(x_list) < hline < max(x_list):
+        if min(x_list) < hline < max(x_list):  # Draw only if within trace range
             axes.hlines(hline, 0, len(x_list), colors='k', linestyles="dashed")
 
     if len(vline) == 1:
@@ -33,12 +33,14 @@ def traceplot2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
     axes.set_xlabel(f"Accepted {x_label}")
     axes.set_ylabel(f"Accepted {y_label}")
 
-def histogram1d(axes: Axes, x_list: np.ndarray, title: str, scale: str, bins: int,
+def histogram1d(axes: Axes, x_list: np.ndarray, title: str, x_label: str, scale: str, bins: int,
                 color: str) -> None:
     """1D histogram, showing distribution of values visited by one parameter"""
     axes.hist(x_list, bins, edgecolor='k', facecolor=color)
     axes.set_yscale(scale)
     axes.set_title(title)
+    axes.set_ylabel("Counts")
+    axes.set_xlabel(x_label)
 
 def histogram2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
                 x_label: str, y_label: str, scale: str, bins: int) -> None:

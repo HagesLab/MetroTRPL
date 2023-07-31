@@ -429,8 +429,9 @@ class Window:
         self.drawchart()
 
     def drawchart(self) -> None:
+        """Draw the plot"""
         self.chart.figure.clear()
-        match key := self.side_panel.state:
+        match self.side_panel.state:
             case "1D Trace Plot":
                 value = self.side_panel.variables["variable_1"].get()
                 accepted = self.side_panel.variables["accepted"].get()
@@ -532,14 +533,14 @@ class Window:
                             continue
                         vals = np.hstack((vals, self.data[file_name][value][True][equi:]))
                     color = PLOT_COLOR_CYCLE[0]
-                    mc_plot.histogram1d(axes, vals, f"Accepted {value}", scale, bins, color)
+                    mc_plot.histogram1d(axes, vals, f"Accepted {value}", value, scale, bins, color)
                 else:
                     for i, file_name in enumerate(self.file_names):
                         if self.file_names[file_name].get() == 0:
                             continue
                         color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
                         mc_plot.histogram1d(axes, self.data[file_name][value][True][equi:],
-                                            f"Accepted {value}", scale, bins, color)
+                                            f"Accepted {value}", value, scale, bins, color)
 
             case "2D Histogram":
                 x_val = self.side_panel.variables["variable_1"].get()
@@ -588,7 +589,7 @@ class Window:
 
     def export(self) -> None:
         """ Export currently plotted values as .csv or .npy """
-        match key := self.side_panel.state:
+        match self.side_panel.state:
             case "1D Trace Plot":
                 value = self.side_panel.variables["variable_1"].get()
                 accepted = self.side_panel.variables["accepted"].get() == "Accepted"
