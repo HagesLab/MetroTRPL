@@ -460,14 +460,49 @@ class Window:
     def drawchart(self) -> None:
         """Draw the plot"""
         self.chart.figure.clear()
+
+        # Collect common entries
+        x_val = self.side_panel.variables["variable_1"].get()
+        scale = self.side_panel.variables["scale"].get()
+        equi = self.side_panel.variables["equi"].get()
+        thickness = self.side_panel.variables["thickness"].get()
+
+        # Parse common entries
+        if x_val == "select":
+            return
+
+        if scale == "Logarithmic":
+            scale = "log"
+        else:
+            scale = "linear"
+
+        try:
+            equi = int(equi)
+            equi = max(0, equi)
+        except ValueError:
+            equi = 0
+
+        # Histogram specific entries
+        bins = DEFAULT_HIST_BINS
+        if "Histogram" in self.side_panel.state:
+            bins = self.side_panel.variables["bins"].get()
+            try:
+                bins = int(bins)
+            except ValueError:
+                pass
+
+        # 2D specific entries
+        y_val = "select"
+        if "2D" in self.side_panel.state:
+            y_val = self.side_panel.variables["variable_2"].get()
+            if y_val == "select":
+                return
+
+        axes = self.chart.figure.add_subplot()
         match self.side_panel.state:
             case "1D Trace Plot":
-                value = self.side_panel.variables["variable_1"].get()
                 accepted = self.side_panel.variables["accepted"].get()
-                scale = self.side_panel.variables["scale"].get()
                 hline = self.side_panel.variables["hori_marker"].get()
-                equi = self.side_panel.variables["equi"].get()
-                thickness = self.side_panel.variables["thickness"].get()
                 try:
                     if "," in hline:
                         hline = tuple(map(float, hline.split(",")))
@@ -476,65 +511,31 @@ class Window:
                 except ValueError:
                     hline = tuple()
 
-                try:
-                    equi = (int(equi),)
-                except ValueError:
-                    equi = tuple()
-
-                if value == "select":
-                    return
                 if accepted == "Accepted":
                     accepted = True
-                    title = f"Accepted {value}"
+                    title = f"Accepted {x_val}"
                 else:
                     accepted = False
-                    title = f"Raw {value}"
-                if scale == "Logarithmic":
-                    scale = "log"
-                else:
-                    scale = "linear"
-                axes = self.chart.figure.add_subplot()
+                    title = f"Raw {x_val}"
+
                 for i, file_name in enumerate(self.file_names):
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
                     color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
-                    y = self.data[file_name][value][accepted]
-                    if (len(y) == 0 or thickness != sp.last_thickness.get(value, thickness)) and value in sp.func:
+                    y = self.data[file_name][x_val][accepted]
+                    if (len(y) == 0 or thickness != sp.last_thickness.get(x_val, thickness)) and x_val in sp.func:
                         # Calculate and cache the secondary parameter
                         try:
-                            sp.get(self.data, {"file_name": file_name, "value": value, "accepted": accepted}, thickness)
+                            sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": accepted}, thickness)
                         except (ValueError, KeyError) as err:
                             self.status(str(err))
-                    mc_plot.traceplot1d(axes, self.data[file_name][value][accepted],
-                                        title, scale, hline, equi, color)
-                    
-                if value in sp.last_thickness:
-                    sp.last_thickness[value] = thickness
+                    mc_plot.traceplot1d(axes, self.data[file_name][x_val][accepted],
+                                        title, scale, hline, (equi,), color)
 
             case "2D Trace Plot":
-                x_val = self.side_panel.variables["variable_1"].get()
-                y_val = self.side_panel.variables["variable_2"].get()
-                scale = self.side_panel.variables["scale"].get()
-                equi = self.side_panel.variables["equi"].get()
-                thickness = self.side_panel.variables["thickness"].get()
-
-                try:
-                    equi = int(equi)
-                    equi = max(0, equi)
-                except ValueError:
-                    equi = 0
-
-                if x_val == "select" or y_val == "select":
-                    return
-                if scale == "Logarithmic":
-                    scale = "log"
-                else:
-                    scale = "linear"
-
                 xy_val = {"x": x_val, "y": y_val}
 
-                axes = self.chart.figure.add_subplot()
                 for i, file_name in enumerate(self.file_names):
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
@@ -555,104 +556,47 @@ class Window:
                         mc_plot.traceplot2d(axes, self.data[file_name][x_val][True][equi:],
                                             self.data[file_name][y_val][True][equi:],
                                             x_val, y_val, scale, color)
-                        
-                if x_val in sp.last_thickness:
-                    sp.last_thickness[x_val] = thickness
-                if y_val in sp.last_thickness:
-                    sp.last_thickness[y_val] = thickness
 
             case "1D Histogram":
-                value = self.side_panel.variables["variable_1"].get()
-                scale = self.side_panel.variables["scale"].get()
-                bins = self.side_panel.variables["bins"].get()
-                equi = self.side_panel.variables["equi"].get()
                 combined_hist = self.side_panel.variables["combined_hist"].get()
-                thickness = self.side_panel.variables["thickness"].get()
-                try:
-                    bins = int(bins)
-                except ValueError:
-                    bins = DEFAULT_HIST_BINS
 
-                try:
-                    equi = int(equi)
-                    equi = max(0, equi)
-                except ValueError:
-                    equi = 0
-
-                if value == "select":
-                    return
-                if scale == "Logarithmic":
-                    scale = "log"
-                else:
-                    scale = "linear"
-
-                axes = self.chart.figure.add_subplot()
                 if combined_hist:
                     vals = np.zeros(0)
                     for file_name in self.file_names:
                         if self.file_names[file_name].get() == 0: # This value display disabled
                             continue
 
-                        y = self.data[file_name][value][True]
-                        if (len(y) == 0 or thickness != sp.last_thickness.get(value, thickness)) and value in sp.func:
+                        y = self.data[file_name][x_val][True]
+                        if (len(y) == 0 or thickness != sp.last_thickness.get(x_val, thickness)) and x_val in sp.func:
                             try:
-                                sp.get(self.data, {"file_name": file_name, "value": value, "accepted": True}, thickness)
+                                sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": True}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
 
-                        vals = np.hstack((vals, self.data[file_name][value][True][equi:]))
+                        vals = np.hstack((vals, self.data[file_name][x_val][True][equi:]))
                     color = PLOT_COLOR_CYCLE[0]
-                    mc_plot.histogram1d(axes, vals, f"Accepted {value}", value, scale, bins, color)
+                    mc_plot.histogram1d(axes, vals, f"Accepted {x_val}", x_val, scale, bins, color)
                 else:
                     for i, file_name in enumerate(self.file_names):
                         if self.file_names[file_name].get() == 0:
                             continue
                         color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
-                        y = self.data[file_name][value][True]
-                        if (len(y) == 0 or thickness != sp.last_thickness.get(value, thickness)) and value in sp.func:
+                        y = self.data[file_name][x_val][True]
+                        if (len(y) == 0 or thickness != sp.last_thickness.get(x_val, thickness)) and x_val in sp.func:
                             try:
-                                sp.get(self.data, {"file_name": file_name, "value": value, "accepted": True}, thickness)
+                                sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": True}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
 
-                        mc_plot.histogram1d(axes, self.data[file_name][value][True][equi:],
-                                            f"Accepted {value}", value, scale, bins, color)
-                        
-                if value in sp.last_thickness:
-                    sp.last_thickness[value] = thickness
+                        mc_plot.histogram1d(axes, self.data[file_name][x_val][True][equi:],
+                                            f"Accepted {x_val}", x_val, scale, bins, color)
 
             case "2D Histogram":
-                x_val = self.side_panel.variables["variable_1"].get()
-                y_val = self.side_panel.variables["variable_2"].get()
-                scale = self.side_panel.variables["scale"].get()
-                bins = self.side_panel.variables["bins"].get()
-                equi = self.side_panel.variables["equi"].get()
-                thickness = self.side_panel.variables["thickness"].get()
-                try:
-                    bins = int(bins)
-                except ValueError:
-                    bins = DEFAULT_HIST_BINS
-
-                try:
-                    equi = int(equi)
-                    equi = max(0, equi)
-                except ValueError:
-                    equi = 0
-
-                if x_val == "select" or y_val == "select":
-                    return
-                if scale == "Logarithmic":
-                    scale = "log"
-                else:
-                    scale = "linear"
-
                 xy_val = {"x": x_val, "y": y_val}
 
-                axes = self.chart.figure.add_subplot()
-                
                 # Always combine samples before plotting (essentially combined_hist=True)
                 vals_x = np.zeros(0)
                 vals_y = np.zeros(0)
@@ -678,10 +622,13 @@ class Window:
                                     x_val, y_val, scale, bins)
                 # colorbar = axes.imshow(hist2d, cmap="Blues")
                 # self.chart.figure.colorbar(colorbar, ax=axes, fraction=0.04)
-                if x_val in sp.last_thickness:
-                    sp.last_thickness[x_val] = thickness
-                if y_val in sp.last_thickness:
-                    sp.last_thickness[y_val] = thickness
+
+        # Record most recently used thickness
+        if x_val in sp.last_thickness:
+            sp.last_thickness[x_val] = thickness
+
+        if "2D" in self.side_panel.state and y_val in sp.last_thickness:
+            sp.last_thickness[y_val] = thickness
 
         self.chart.figure.tight_layout()
         self.chart.canvas.draw()
