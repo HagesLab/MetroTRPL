@@ -20,6 +20,7 @@ from types import FunctionType
 
 import sim_utils
 import mc_plot
+from metropolis import do_simulation
 from secondary_parameters import SecondaryParameters
 sp = SecondaryParameters()
 
@@ -98,7 +99,7 @@ class Window:
 
     class Chart:
         """ tk embedded matplotlib Figure """
-        def __init__(self, master: tk.Tk, width: int, height: int) -> None:
+        def __init__(self, master: tk.Tk | tk.Toplevel, width: int, height: int) -> None:
             self.figure = Figure(figsize=(4, 4))
             self.canvas = FigureCanvasTkAgg(master=master, figure=self.figure)
             self.widget = self.canvas.get_tk_widget()
@@ -189,6 +190,11 @@ class Window:
         graph_button.configure(state=tk.DISABLED)
         self.mini_panel.widgets["graph button"] = graph_button
 
+        # Does a simulation using the state data
+        simulate_button = tk.Button(master=self.mini_panel.widget, width=10, text="Simulate",
+                                    background=BLACK, foreground=WHITE, command=self.quicksim, border=4)
+        simulate_button.place(x=380, y=100, anchor="se")
+
     def populate_side_panel(self) -> None:
         """ Build the plot control panel to the right of the plotting frame. """
         widgets = self.side_panel.widgets
@@ -267,7 +273,7 @@ class Window:
         widgets["thickness"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["thickness"])
         widgets["thickness"].bind("<FocusOut>", self.redraw)
 
-    def mount_side_panel_states(self):
+    def mount_side_panel_states(self) -> None:
         """Add a map of widget locations for each of the four plotting states"""
         widgets = self.side_panel.widgets
 
@@ -371,7 +377,7 @@ class Window:
     def bind(self, event: str, command: FunctionType) -> None:
         self.widget.bind(event, command)
 
-    def status(self, msg: str, clear=False):
+    def status(self, msg: str, clear=False) -> None:
         """Append a new message to the status panel"""
         if clear:
             self.status_msg = list[str]()
@@ -381,6 +387,36 @@ class Window:
 
         self.status_msg.append(msg)
         self.base_panel.variables["status_msg"].set("\n".join(self.status_msg))
+
+    def do_sim_result_popup(self, sim_result) -> None:
+        """Show quicksim results"""
+        toplevel = tk.Toplevel(self.side_panel.widget)
+        toplevel.configure(**{"background": LIGHT_GREY})
+        width = 500
+        height = 500
+        x_offset = (self.widget.winfo_screenwidth() - width) // 2
+        y_offset = (self.widget.winfo_screenheight() - height) // 2
+        toplevel.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
+        toplevel.resizable(False, False)
+        toplevel.title("Quicksim result")
+        chart = self.Chart(toplevel, 400, 400)
+        chart.place(0, 0)
+        axes = chart.figure.add_subplot()
+
+        xlabel = "delay time [ns]"
+        ylabel = "TRPL"
+        scale = "linear"
+        color = PLOT_COLOR_CYCLE[0]
+        mc_plot.quicksim_plot(axes, sim_result[0], sim_result[1], xlabel,
+                              ylabel, scale, color)
+        
+    def quicksim(self) -> None:
+        """Regenerate a simulation using a selected state"""
+        # t, sol = do_simulation(p, thickness, nx, iniPar, t_sim, hmax=4, meas="TRPL",
+        #                        solver="solveivp")
+        t = np.arange(-4, 4, 0.01)
+        sol = np.sin(t)
+        self.do_sim_result_popup((t, sol))
 
     def loadfile(self) -> None:
         file_names = filedialog.askopenfilenames(filetypes=[("Pickle File", "*.pik")],
