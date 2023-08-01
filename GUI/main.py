@@ -720,6 +720,13 @@ class Window:
                     vals_x = self.data[file_name][x_val][True][equi:]
                     vals_y = self.data[file_name][y_val][True][equi:]
 
+                    if len(vals_x) == 0:
+                        self.status(f"Missing {x_val}")
+                        continue
+                    if len(vals_y) == 0:
+                        self.status(f"Missing {y_val}")
+                        continue
+
                     # (N x 3) array - (iter #, vals_x, vals_y)
                     if out_format == "npy":
                         np.save(out_name, np.vstack((np.arange(len(vals_x)) + equi, vals_x, vals_y)).T)
@@ -862,6 +869,13 @@ class Window:
 
                     vals_x = np.hstack((vals_x, self.data[file_name][x_val][True][equi:]))
                     vals_y = np.hstack((vals_y, self.data[file_name][y_val][True][equi:]))
+
+                if len(vals_x) == 0:
+                    self.status(f"Missing {x_val}")
+                    return
+                if len(vals_y) == 0:
+                    self.status(f"Missing {y_val}")
+                    return
                 # (b0+1 x b1+1) array - (freq matrix), one row/col as bin headers
                 freq, bins_x, bins_y = np.histogram2d(vals_x, vals_y, bins)
                 bins_x = (bins_x + np.roll(bins_x, -1))[:-1] / 2
