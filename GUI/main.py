@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Mar 30 12:05:40 2022
+
+@author: amurad2
+"""
+
 import pickle
 import os
 import sys
@@ -5,6 +12,7 @@ sys.path.append("..")
 import tkinter as tk
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from matplotlib.pyplot import rcParams
 from tkinter import filedialog
@@ -117,8 +125,10 @@ class Window:
         self.file_names = dict[str, tk.IntVar]()
 
         self.chart.place(0, 0)
-        self.side_panel = self.Panel(self.widget, 400, 480, GREY)
+        self.side_panel = self.Panel(self.widget, 400, 430, GREY)
         self.side_panel.place(600, 0)
+        self.toolbar_panel = self.Panel(self.widget, 400, 50, DARK_GREY)
+        self.toolbar_panel.place(600, 430)
         self.mini_panel = self.Panel(self.widget, 400, 120, DARK_GREY)
         self.mini_panel.place(600, 480)
         self.base_panel = self.Panel(self.widget, 1000, 200, GREY)
@@ -136,6 +146,10 @@ class Window:
         self.populate_mini_panel()
         self.populate_side_panel()
         self.mount_side_panel_states()
+
+        # Figure toolbar
+        toolbar = NavigationToolbar2Tk(self.chart.canvas, self.toolbar_panel.widget, pack_toolbar=False)
+        toolbar.place(x=0, y=0, width=390)
 
     def populate_mini_panel(self) -> None:
         """ Build the small panel that loads data files and refreshes the plot. """
