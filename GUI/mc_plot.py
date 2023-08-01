@@ -13,7 +13,7 @@ def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str,
             axes.hlines(hline, 0, len(x_list), colors='k', linestyles="dashed")
 
     if len(vline) == 1:
-        if 0 <= vline[0] <= len(x_list):
+        if 0 < vline[0] <= len(x_list):
             axes.vlines(vline[0], np.amin(x_list), np.amax(x_list), colors='k')
     axes.set_title(title)
     axes.set_yscale(scale)
