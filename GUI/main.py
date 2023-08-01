@@ -635,24 +635,46 @@ class Window:
 
     def export(self) -> None:
         """ Export currently plotted values as .csv or .npy """
+        # Collect common entries
+        x_val = self.side_panel.variables["variable_1"].get()
+        equi = self.side_panel.variables["equi"].get()
+        
+        # Parse common entries
+        if x_val == "select":
+            return
+
+        try:
+            equi = int(equi)
+            equi = max(0, equi)
+        except ValueError:
+            equi = 0
+
+        # Histogram specific entries
+        bins = DEFAULT_HIST_BINS
+        if "Histogram" in self.side_panel.state:
+            bins = self.side_panel.variables["bins"].get()
+            try:
+                bins = int(bins)
+            except ValueError:
+                pass
+
+        # 2D specific entries
+        y_val = "select"
+        if "2D" in self.side_panel.state:
+            y_val = self.side_panel.variables["variable_2"].get()
+            if y_val == "select":
+                return
+
         match self.side_panel.state:
             case "1D Trace Plot":
-                value = self.side_panel.variables["variable_1"].get()
                 accepted = self.side_panel.variables["accepted"].get() == "Accepted"
-                equi = self.side_panel.variables["equi"].get()
-
-                try:
-                    equi = int(equi)
-                    equi = max(0, equi)
-                except ValueError:
-                    equi = 0
 
                 # One output per chain
                 for file_name in self.file_names:
                     # Reasons to not export a file
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
-                    if value not in self.data[file_name]:
+                    if x_val not in self.data[file_name]:
                         continue
 
                     out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
@@ -671,28 +693,18 @@ class Window:
                         raise ValueError("Invalid output file extension - must be .npy or .csv")
 
                     # (N x 2) array - (iter #, vals)
-                    vals = self.data[file_name][value][accepted][equi:]
+                    vals = self.data[file_name][x_val][accepted][equi:]
 
                     if out_format == "npy":
                         np.save(out_name, np.vstack((np.arange(len(vals)) + equi, vals)).T)
                     elif out_format == "csv":
                         np.savetxt(out_name, np.vstack((np.arange(len(vals)) + equi, vals)).T, delimiter=",",
-                                   header=f"N,{value}")
+                                   header=f"N,{x_val}")
                     else:
                         continue
                     self.status(f"Export complete - {out_name}")
 
             case "2D Trace Plot":
-                x_val = self.side_panel.variables["variable_1"].get()
-                y_val = self.side_panel.variables["variable_2"].get()
-                equi = self.side_panel.variables["equi"].get()
-
-                try:
-                    equi = int(equi)
-                    equi = max(0, equi)
-                except ValueError:
-                    equi = 0
-
                 for file_name in self.file_names:
                     # Reasons to not export a file
                     if self.file_names[file_name].get() == 0: # This value display disabled
@@ -738,21 +750,7 @@ class Window:
                     self.status(f"Export complete - {out_name}")
 
             case "1D Histogram":
-                value = self.side_panel.variables["variable_1"].get()
-                bins = self.side_panel.variables["bins"].get()
-                equi = self.side_panel.variables["equi"].get()
                 combined_hist = self.side_panel.variables["combined_hist"].get()
-                try:
-                    equi = int(equi)
-                    equi = max(0, equi)
-                except ValueError:
-                    equi = 0
-
-                try:
-                    bins = int(bins)
-                except ValueError:
-                    bins = DEFAULT_HIST_BINS
-
                 if combined_hist:
                     out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
                                                                        ("Text", "*.csv")],
@@ -773,10 +771,10 @@ class Window:
                     for file_name in self.file_names:
                         if self.file_names[file_name].get() == 0: # This value display disabled
                             continue
-                        if value not in self.data[file_name]:
+                        if x_val not in self.data[file_name]:
                             continue
 
-                        vals = np.hstack((vals, self.data[file_name][value][True][equi:]))
+                        vals = np.hstack((vals, self.data[file_name][x_val][True][equi:]))
 
                     freq, bin_centres = np.histogram(vals, bins)
                     bin_centres = (bin_centres + np.roll(bin_centres, -1))[:-1] / 2
@@ -792,7 +790,7 @@ class Window:
                     for file_name in self.file_names:
                         if self.file_names[file_name].get() == 0: # This value display disabled
                             continue
-                        if value not in self.data[file_name]:
+                        if x_val not in self.data[file_name]:
                             continue
 
                         out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
@@ -812,7 +810,7 @@ class Window:
 
                         # (b x 2 array) - (bin centres, freq)
                         # Use a bar plot to regenerate the histogram shown in the GUI
-                        vals = self.data[file_name][value][True][equi:]
+                        vals = self.data[file_name][x_val][True][equi:]
                         freq, bin_centres = np.histogram(vals, bins)
                         bin_centres = (bin_centres + np.roll(bin_centres, -1))[:-1] / 2
                         if out_format == "npy":
@@ -825,22 +823,6 @@ class Window:
                         self.status(f"Export complete - {out_name}")
 
             case "2D Histogram":
-                x_val = self.side_panel.variables["variable_1"].get()
-                y_val = self.side_panel.variables["variable_2"].get()
-                bins = self.side_panel.variables["bins"].get()
-                equi = self.side_panel.variables["equi"].get()
-
-                try:
-                    equi = int(equi)
-                    equi = max(0, equi)
-                except ValueError:
-                    equi = 0
-
-                try:
-                    bins = int(bins)
-                except ValueError:
-                    bins = DEFAULT_HIST_BINS
-
                 out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
                                                                    ("Text", "*.csv")],
                                                         defaultextension=".csv",
