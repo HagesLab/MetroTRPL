@@ -575,6 +575,12 @@ class Window:
                                 continue
 
                         vals = np.hstack((vals, self.data[file_name][x_val][True][equi:]))
+
+                    # Print some statistics
+                    mean = np.mean(vals)
+                    stdev = np.std(vals, ddof=1)
+                    self.status(f"Mean: {mean}, stdev: {stdev}")
+
                     color = PLOT_COLOR_CYCLE[0]
                     mc_plot.histogram1d(axes, vals, f"Accepted {x_val}", x_val, scale, bins, color)
                 else:
