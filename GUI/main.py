@@ -502,28 +502,11 @@ class Window:
                     y = self.data[file_name][value][accepted]
                     if (len(y) == 0 or thickness != sp.last_thickness.get(value, thickness)) and value in sp.func:
                         # Calculate and cache the secondary parameter
-                        primary_params = {}
-                        for needed_param in sp.func[value][1]:
-                            if needed_param == "thickness": # Not included in MCMC data
-                                try:
-                                    primary_params["thickness"] = float(thickness)
-                                except ValueError: # invalid thickness
-                                    self.status("Thickness value needed")
-                                    break
-                            else:
-                                try:
-                                    primary_params[needed_param] = self.data[file_name][needed_param][accepted]
-                                except KeyError:
-                                    self.status(f"Data {file_name} missing parameter {needed_param}")
-                                    break
-
                         try:
-                            y = sp.func[value][0](primary_params)
-                            self.data[file_name][value][accepted] = np.array(y)
-                        except KeyError:
-                            self.status(f"Failed to calculate {value}")
-
-                    mc_plot.traceplot1d(axes, y,
+                            sp.get(self.data, {"file_name": file_name, "value": value, "accepted": accepted}, thickness)
+                        except (ValueError, KeyError) as err:
+                            self.status(str(err))
+                    mc_plot.traceplot1d(axes, self.data[file_name][value][accepted],
                                         title, scale, hline, equi, color)
                     
                 if value in sp.last_thickness:
@@ -556,33 +539,21 @@ class Window:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
                     color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
-                    xy = {}
+
+                    success = {"x": False, "y": False}
                     for s, val in xy_val.items():
-                        xy[s] = self.data[file_name][val][True]
-                        if (len(xy[s]) == 0 or thickness != sp.last_thickness.get(val, thickness)) and val in sp.func:
-                            primary_params = {}
-                            for needed_param in sp.func[val][1]:
-                                if needed_param == "thickness": # Not included in MCMC data
-                                    try:
-                                        primary_params["thickness"] = float(thickness)
-                                    except ValueError: # invalid thickness
-                                        self.status("Thickness value needed")
-                                        break
-                                else:
-                                    try:
-                                        primary_params[needed_param] = self.data[file_name][needed_param][True]
-                                    except KeyError:
-                                        self.status(f"Data {file_name} missing parameter {needed_param}")
-                                        break
-
+                        y =  self.data[file_name][val][True]
+                        if (len(y) == 0 or thickness != sp.last_thickness.get(val, thickness)) and val in sp.func:
                             try:
-                                xy[s] = sp.func[val][0](primary_params)
-                                self.data[file_name][val][True] = np.array(xy[s])
-                            except KeyError:
+                                sp.get(self.data, {"file_name": file_name, "value": val, "accepted": True}, thickness)
+                            except (ValueError, KeyError) as err:
+                                self.status(str(err))
                                 continue
+                        success[s] = True
 
-                    if "x" in xy and "y" in xy: # Successfully obtained data for both params
-                        mc_plot.traceplot2d(axes, xy["x"][equi:], xy["y"][equi:],
+                    if success["x"] and success["y"]: # Successfully obtained data for both params
+                        mc_plot.traceplot2d(axes, self.data[file_name][x_val][True][equi:],
+                                            self.data[file_name][y_val][True][equi:],
                                             x_val, y_val, scale, color)
                         
                 if x_val in sp.last_thickness:
@@ -624,28 +595,13 @@ class Window:
 
                         y = self.data[file_name][value][True]
                         if (len(y) == 0 or thickness != sp.last_thickness.get(value, thickness)) and value in sp.func:
-                            primary_params = {}
-                            for needed_param in sp.func[value][1]:
-                                if needed_param == "thickness": # Not included in MCMC data
-                                    try:
-                                        primary_params["thickness"] = float(thickness)
-                                    except ValueError: # invalid thickness
-                                        self.status("Thickness value needed")
-                                        break
-                                else:
-                                    try:
-                                        primary_params[needed_param] = self.data[file_name][needed_param][True]
-                                    except KeyError:
-                                        self.status(f"Data {file_name} missing parameter {needed_param}")
-                                        break
-
                             try:
-                                y = sp.func[value][0](primary_params)
-                                self.data[file_name][value][True] = np.array(y)
-                            except KeyError:
+                                sp.get(self.data, {"file_name": file_name, "value": value, "accepted": True}, thickness)
+                            except (ValueError, KeyError) as err:
+                                self.status(str(err))
                                 continue
 
-                        vals = np.hstack((vals, y[equi:]))
+                        vals = np.hstack((vals, self.data[file_name][value][True][equi:]))
                     color = PLOT_COLOR_CYCLE[0]
                     mc_plot.histogram1d(axes, vals, f"Accepted {value}", value, scale, bins, color)
                 else:
@@ -656,28 +612,13 @@ class Window:
 
                         y = self.data[file_name][value][True]
                         if (len(y) == 0 or thickness != sp.last_thickness.get(value, thickness)) and value in sp.func:
-                            primary_params = {}
-                            for needed_param in sp.func[value][1]:
-                                if needed_param == "thickness": # Not included in MCMC data
-                                    try:
-                                        primary_params["thickness"] = float(thickness)
-                                    except ValueError: # invalid thickness
-                                        self.status("Thickness value needed")
-                                        break
-                                else:
-                                    try:
-                                        primary_params[needed_param] = self.data[file_name][needed_param][True]
-                                    except KeyError:
-                                        self.status(f"Data {file_name} missing parameter {needed_param}")
-                                        break
-
                             try:
-                                y = sp.func[value][0](primary_params)
-                                self.data[file_name][value][True] = np.array(y)
-                            except KeyError:
-                                self.status(f"Failed to calculate {value}")
+                                sp.get(self.data, {"file_name": file_name, "value": value, "accepted": True}, thickness)
+                            except (ValueError, KeyError) as err:
+                                self.status(str(err))
+                                continue
 
-                        mc_plot.histogram1d(axes, y[equi:],
+                        mc_plot.histogram1d(axes, self.data[file_name][value][True][equi:],
                                             f"Accepted {value}", value, scale, bins, color)
                         
                 if value in sp.last_thickness:
@@ -719,35 +660,20 @@ class Window:
                     if self.file_names[file_name].get() == 0: # This value display disabled
                         continue
 
-                    xy = {}
+                    success = {"x": False, "y": False}
                     for s, val in xy_val.items():
-                        xy[s] = self.data[file_name][val][True]
-                        if (len(xy[s]) == 0 or thickness != sp.last_thickness.get(val, thickness)) and val in sp.func:
-                            self.status(f"DEBUG - Calc {val} needed")
-                            primary_params = {}
-                            for needed_param in sp.func[val][1]:
-                                if needed_param == "thickness": # Not included in MCMC data
-                                    try:
-                                        primary_params["thickness"] = float(thickness)
-                                    except ValueError: # invalid thickness
-                                        self.status("Thickness value needed")
-                                        break
-                                else:
-                                    try:
-                                        primary_params[needed_param] = self.data[file_name][needed_param][True]
-                                    except KeyError:
-                                        self.status(f"Data {file_name} missing parameter {needed_param}")
-                                        break
-
+                        y = self.data[file_name][val][True]
+                        if (len(y) == 0 or thickness != sp.last_thickness.get(val, thickness)) and val in sp.func:
                             try:
-                                xy[s] = sp.func[val][0](primary_params)
-                                self.data[file_name][val][True] = np.array(xy[s])
-                            except KeyError:
+                                sp.get(self.data, {"file_name": file_name, "value": val, "accepted": True}, thickness)
+                            except (ValueError, KeyError) as err:
+                                self.status(str(err))
                                 continue
+                        success[s] = True
 
-                    if "x" in xy and "y" in xy:
-                        vals_x = np.hstack((vals_x, xy["x"][equi:]))
-                        vals_y = np.hstack((vals_y, xy["y"][equi:]))
+                    if success["x"] and success["y"]:
+                        vals_x = np.hstack((vals_x, self.data[file_name][x_val][True][equi:]))
+                        vals_y = np.hstack((vals_y, self.data[file_name][y_val][True][equi:]))
                 mc_plot.histogram2d(axes, vals_x, vals_y,
                                     x_val, y_val, scale, bins)
                 # colorbar = axes.imshow(hist2d, cmap="Blues")

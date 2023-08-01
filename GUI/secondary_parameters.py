@@ -34,6 +34,43 @@ class SecondaryParameters():
         # Most recent thickness used to calculate; determines if recalculation needed when thickness updated
         self.last_thickness = {name: -1 for name in self.func if "thickness" in self.func[name][1]}
 
+    def get(self, data, data_keys, thickness : str) -> None:
+        """
+        Calculate and cache the requested secondary parameter from a Data object provided by GUI
+
+        Parameters
+        ----------
+        data : Data
+            Object containing MCMC results loaded from a .pik file produced by metropolis()
+        data_keys : dict[str, str | bool]
+            Dict of three necessary indices for data - file_name that the result came from,
+            value to calculate, and whether to use the accepted or raw data.
+        thickness : str
+            Thickness string from GUI, needed for some diffusion lifetimes.
+        """
+        file_name = data_keys["file_name"]
+        value = data_keys["value"]
+        accepted = data_keys["accepted"]
+        primary_params = {}
+        for needed_param in self.func[value][1]:
+            if needed_param == "thickness": # Not included in MCMC data
+                try:
+                    primary_params["thickness"] = float(thickness)
+                except ValueError as err: # invalid thickness
+                    raise ValueError("Thickness value needed") from err
+            else:
+                try:
+                    primary_params[needed_param] = data[file_name][needed_param][accepted]
+                except KeyError as err:
+                    raise KeyError(f"Data {file_name} missing parameter {needed_param}") from err
+
+        try:
+            y = self.func[value][0](primary_params)
+            data[file_name][value][accepted] = np.array(y)
+        except KeyError as err:
+            raise KeyError(f"Failed to calculate {value}") from err
+
+
     def t_rad(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
         """Radiative recombination lifetime, in ns"""
         return 1 / (p["ks"] * p["p0"]) * 1e9
