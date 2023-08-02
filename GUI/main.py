@@ -5,12 +5,15 @@ Created on Thu Mar 30 12:05:40 2022
 @author: amurad2
 """
 
+import time
 import pickle
 import os
+import multiprocessing
 import sys
 sys.path.append("..")
 import tkinter as tk
 import numpy as np
+from functools import partial
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
@@ -49,6 +52,8 @@ LABEL_KWARGS = {"width": 14, "background": LIGHT_GREY}
 DEFAULT_HIST_BINS = 96
 DEFAULT_THICKNESS = 2000
 MAX_STATUS_MSGS = 11
+
+q = multiprocessing.Queue()
 
 class Window:
     """ The main GUI object"""
@@ -388,35 +393,74 @@ class Window:
         self.status_msg.append(msg)
         self.base_panel.variables["status_msg"].set("\n".join(self.status_msg))
 
-    def do_sim_result_popup(self, sim_result) -> None:
+    def do_quicksim_result_popup(self) -> None:
         """Show quicksim results"""
-        toplevel = tk.Toplevel(self.side_panel.widget)
-        toplevel.configure(**{"background": LIGHT_GREY})
+        self.qs_toplevel = tk.Toplevel(self.side_panel.widget)
+        self.qs_toplevel.configure(**{"background": LIGHT_GREY})
         width = 500
         height = 500
         x_offset = (self.widget.winfo_screenwidth() - width) // 2
         y_offset = (self.widget.winfo_screenheight() - height) // 2
-        toplevel.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
-        toplevel.resizable(False, False)
-        toplevel.title("Quicksim result")
-        chart = self.Chart(toplevel, 400, 400)
-        chart.place(0, 0)
-        axes = chart.figure.add_subplot()
+        self.qs_toplevel.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
+        self.qs_toplevel.resizable(False, False)
+        self.qs_toplevel.title("Quicksim result")
+        self.qs_chart = self.Chart(self.qs_toplevel, 400, 400)
+        self.qs_chart.place(0, 0)
+        self.qs_chart.figure.clear()
+        self.qs_axes = self.qs_chart.figure.add_subplot()
 
-        xlabel = "delay time [ns]"
-        ylabel = "TRPL"
-        scale = "linear"
-        color = PLOT_COLOR_CYCLE[0]
-        mc_plot.quicksim_plot(axes, sim_result[0], sim_result[1], xlabel,
-                              ylabel, scale, color)
+    def query_quicksim(self, expected_num_sims : int) -> None:
+        print("Checking...")
+        print(q.qsize())
+        if q.qsize() != expected_num_sims:
+            self.widget.after(1000, self.query_quicksim, expected_num_sims)
+            return
+        else:
+            self.do_quicksim_result_popup()
+            sim_result = q.get(False)
+            xlabel = "delay time [ns]"
+            ylabel = "TRPL"
+            scale = "log"
+            color = PLOT_COLOR_CYCLE[0]
+            mc_plot.quicksim_plot(self.qs_axes, sim_result[0], sim_result[1], xlabel,
+                                ylabel, scale, color)
+            self.proc.join()
+
+        self.status("Sim finished")
+        self.qs_toplevel.after(100, self.qs_cleanup)
+
+    def qs_cleanup(self) -> None:
+        self.qs_chart.figure.tight_layout()
+        self.qs_chart.canvas.draw()
+
         
     def quicksim(self) -> None:
         """Regenerate a simulation using a selected state"""
-        # t, sol = do_simulation(p, thickness, nx, iniPar, t_sim, hmax=4, meas="TRPL",
-        #                        solver="solveivp")
-        t = np.arange(-4, 4, 0.01)
-        sol = np.sin(t)
-        self.do_sim_result_popup((t, sol))
+        # Currently this just uses the last state from the first chain
+        fname = next(iter(self.file_names.keys()))
+        param_info = {}
+        param_info["names"] = [x for x in self.data[fname] if x not in sp.func]
+        param_info["init_guess"] = {x: self.data[fname][x][True][-1] for x in param_info["names"]}
+        param_info["active"] = {x: True for x in self.data[fname] if x not in sp.func}
+        param_info["unit_conversions"] = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                        "mu_n": ((1e7) ** 2) / (1e9),
+                        "mu_p": ((1e7) ** 2) / (1e9),
+                        "ks": ((1e7) ** 3) / (1e9),
+                        "Cn": ((1e7) ** 6) / (1e9),
+                        "Cp": ((1e7) ** 6) / (1e9),
+                        "Sf": 1e-2, "Sb": 1e-2}
+        self.status("Simulating")
+        p = sim_utils.Parameters(param_info)
+        thickness = 2000
+        nx = 128
+        iniPar = (1e13, 6e4)
+        t_sim = np.linspace(0, 2000, 8000)
+        simulate = partial(do_simulation, p, thickness, nx, iniPar, t_sim, hmax=4, meas="TRPL", solver=("solveivp",))
+
+        self.proc = multiprocessing.Process(target=qs_simulate, args=(q, simulate))
+        self.proc.start()
+        self.widget.after(1000, self.query_quicksim, 1)
+
 
     def loadfile(self) -> None:
         file_names = filedialog.askopenfilenames(filetypes=[("Pickle File", "*.pik")],
@@ -437,28 +481,28 @@ class Window:
 
             try:
                 for key in metrostate.param_info["names"]:
-                    if metrostate.param_info["active"][key]:
-                        states = getattr(metrostate.H, key)
-                        # Always downcast to 1D
-                        if states.ndim == 2 and states.shape[0] == 1:
-                            states = states[0]
-                        elif states.ndim == 1:
-                            pass
-                        else:
-                            raise ValueError("Invalid chain states format - "
-                                             "must be 1D or 2D of size (1, num_states)")
+                    # if metrostate.param_info["active"][key]:
+                    states = getattr(metrostate.H, key)
+                    # Always downcast to 1D
+                    if states.ndim == 2 and states.shape[0] == 1:
+                        states = states[0]
+                    elif states.ndim == 1:
+                        pass
+                    else:
+                        raise ValueError("Invalid chain states format - "
+                                            "must be 1D or 2D of size (1, num_states)")
 
-                        mean_states = getattr(metrostate.H, f"mean_{key}")
-                        if mean_states.ndim == 2 and mean_states.shape[0] == 1:
-                            mean_states = mean_states[0]
-                        elif mean_states.ndim == 1:
-                            pass
-                        else:
-                            raise ValueError("Invalid chain states format - "
-                                             "must be 1D or 2D of size (1, num_states)")
+                    mean_states = getattr(metrostate.H, f"mean_{key}")
+                    if mean_states.ndim == 2 and mean_states.shape[0] == 1:
+                        mean_states = mean_states[0]
+                    elif mean_states.ndim == 1:
+                        pass
+                    else:
+                        raise ValueError("Invalid chain states format - "
+                                            "must be 1D or 2D of size (1, num_states)")
 
-                        self.data[file_name][key] = {False: states,
-                                                     True: mean_states}
+                    self.data[file_name][key] = {False: states,
+                                                    True: mean_states}
                         
                 for key in sp.func:
                     # TODO: Option to precalculate all of these
@@ -932,7 +976,12 @@ class Window:
 
                 self.status(f"Export complete - {out_name}")
 
-window = Window(1000, 800, APPLICATION_NAME)
-window.bind(events["key"]["escape"], sys.exit) # type: ignore
+def qs_simulate(queue, task) -> None:
+    t, sol = task()
+    queue.put((t, sol))
 
-window.mainloop()
+if __name__ == "__main__":
+    window = Window(1000, 800, APPLICATION_NAME)
+    window.bind(events["key"]["escape"], sys.exit) # type: ignore
+
+    window.mainloop()
