@@ -180,9 +180,10 @@ class Window:
         self.mini_panel.widgets["graph button"] = graph_button
 
         # Does a simulation using the state data
-        simulate_button = tk.Button(master=self.mini_panel.widget, width=10, text="Simulate",
-                                    background=BLACK, foreground=WHITE, command=self.quicksim, border=4)
-        simulate_button.place(x=380, y=100, anchor="se")
+        qs_button = tk.Button(master=self.mini_panel.widget, width=10, text="Simulate",
+                              background=BLACK, foreground=WHITE, command=self.quicksim, border=4)
+        qs_button.place(x=380, y=100, anchor="se")
+        self.mini_panel.widgets["quicksim button"] = qs_button
 
     def populate_side_panel(self) -> None:
         """ Build the plot control panel to the right of the plotting frame. """
@@ -398,6 +399,7 @@ class Window:
 
     def quicksim(self) -> None:
         """Start a quicksim and periodically check for completion"""
+        self.mini_panel.widgets["quicksim button"].configure(state=tk.DISABLED) # type: ignore
         self.qsm.quicksim()
         self.widget.after(1000, self.query_quicksim, 1)
 

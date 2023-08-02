@@ -6,16 +6,18 @@ from popup import Popup
 class QuicksimPopup(Popup):
 
     def __init__(self, window, master, bkg_color):
+        self.window = window
         self.toplevel = tk.Toplevel(master)
         self.toplevel.configure(**{"background": bkg_color})
         width = 500
         height = 500
-        x_offset = (window.widget.winfo_screenwidth() - width) // 2
-        y_offset = (window.widget.winfo_screenheight() - height) // 2
+        x_offset = (self.window.widget.winfo_screenwidth() - width) // 2
+        y_offset = (self.window.widget.winfo_screenheight() - height) // 2
         self.toplevel.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
         self.toplevel.resizable(False, False)
         self.toplevel.title("Quicksim result")
-        self.qs_chart = window.Chart(self.toplevel, 400, 400)
+        self.toplevel.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.qs_chart = self.window.Chart(self.toplevel, 400, 400)
         self.qs_chart.place(0, 0)
         self.qs_chart.figure.clear()
         self.qs_axes = self.qs_chart.figure.add_subplot()
@@ -34,3 +36,8 @@ class QuicksimPopup(Popup):
     def clear(self):
         """Reset the quicksim plot"""
         self.qs_chart.figure.clear()
+
+    def on_close(self):
+        """Re-enable the simulate button"""
+        self.toplevel.destroy()
+        self.window.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL)
