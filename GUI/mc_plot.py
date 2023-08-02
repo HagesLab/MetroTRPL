@@ -51,9 +51,9 @@ def histogram2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
     axes.set_xlabel(f"Accepted {x_label}")
     axes.set_ylabel(f"Accepted {y_label}")
 
-def quicksim_plot(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
+def sim_plot(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
                   x_label: str, y_label: str, scale: str, color: str) -> None:
-    """Ordinary plot of TRPL, TRTS, etc... decay, for quicksim feature"""
+    """Ordinary plot of TRPL, TRTS, etc... decay, e.g. for quicksim feature"""
     axes.plot(x_list, y_list, color=color)
     axes.set_yscale(scale)
     axes.set_xlabel(x_label)

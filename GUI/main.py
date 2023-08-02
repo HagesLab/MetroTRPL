@@ -5,7 +5,6 @@ Created on Thu Mar 30 12:05:40 2022
 @author: amurad2
 """
 
-import time
 import pickle
 import os
 import multiprocessing
@@ -13,7 +12,6 @@ import sys
 sys.path.append("..")
 import tkinter as tk
 import numpy as np
-from functools import partial
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
@@ -21,11 +19,12 @@ from matplotlib.pyplot import rcParams
 from tkinter import filedialog
 from types import FunctionType
 
+
+from quicksim_popup import QuicksimPopup
 import sim_utils
 import mc_plot
-from metropolis import do_simulation
+from quicksim import QuicksimManager
 from secondary_parameters import SecondaryParameters
-sp = SecondaryParameters()
 
 def rgb(r: int, g: int, b: int) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
@@ -53,29 +52,11 @@ DEFAULT_HIST_BINS = 96
 DEFAULT_THICKNESS = 2000
 MAX_STATUS_MSGS = 11
 
-q = multiprocessing.Queue()
+
 
 class Window:
     """ The main GUI object"""
-
-    class Popup:
-        """
-        For popups?
-        TODO: Is this class needed? 
-        """
-        def __init__(self, master: tk.Tk, width: int, height: int, text: str,
-                     colors: tuple[str, str]) -> None:
-            self.widget = tk.Toplevel(master=master)
-            x_offset = (self.widget.winfo_screenwidth() - width) // 2
-            y_offset = (self.widget.winfo_screenheight() - height) // 2
-            self.widget.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
-            self.widget.resizable(False, False)
-            self.widget.title("")
-            label = tk.Label(master=self.widget, width=width, height=height, text=text,
-                             background=colors[0], foreground=colors[1])
-            label.pack()
-            self.widget.grab_set()
-            self.widget.bind(events["click"]["left"], lambda code: self.widget.destroy())
+    qs_popup: QuicksimPopup
 
     class Panel:
         """ Creates the frames for 1) the plot, 2) the plot options, 3) the import/export buttons, etc..."""
@@ -123,6 +104,9 @@ class Window:
         self.widget.title(title)
         self.widget.option_add("*tearOff", False)
         self.chart = self.Chart(self.widget, 600, 600)
+        self.q = multiprocessing.Queue()
+        self.sp = SecondaryParameters()
+        self.qsm = QuicksimManager(self, self.q)
 
         # Stores all MCMC states - self.data[fname][param_name][accepted]
         # param_name e.g. p0, mu_n, mu_p
@@ -395,70 +379,26 @@ class Window:
 
     def do_quicksim_result_popup(self) -> None:
         """Show quicksim results"""
-        self.qs_toplevel = tk.Toplevel(self.side_panel.widget)
-        self.qs_toplevel.configure(**{"background": LIGHT_GREY})
-        width = 500
-        height = 500
-        x_offset = (self.widget.winfo_screenwidth() - width) // 2
-        y_offset = (self.widget.winfo_screenheight() - height) // 2
-        self.qs_toplevel.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
-        self.qs_toplevel.resizable(False, False)
-        self.qs_toplevel.title("Quicksim result")
-        self.qs_chart = self.Chart(self.qs_toplevel, 400, 400)
-        self.qs_chart.place(0, 0)
-        self.qs_chart.figure.clear()
-        self.qs_axes = self.qs_chart.figure.add_subplot()
+        self.qs_popup = QuicksimPopup(self, self.side_panel.widget, LIGHT_GREY)
 
     def query_quicksim(self, expected_num_sims : int) -> None:
+        """Periodically check and plot completed quicksims"""
         print("Checking...")
-        print(q.qsize())
-        if q.qsize() != expected_num_sims:
+        print(self.q.qsize())
+        if self.q.qsize() != expected_num_sims:
             self.widget.after(1000, self.query_quicksim, expected_num_sims)
             return
-        else:
-            self.do_quicksim_result_popup()
-            sim_result = q.get(False)
-            xlabel = "delay time [ns]"
-            ylabel = "TRPL"
-            scale = "log"
-            color = PLOT_COLOR_CYCLE[0]
-            mc_plot.quicksim_plot(self.qs_axes, sim_result[0], sim_result[1], xlabel,
-                                ylabel, scale, color)
-            self.proc.join()
+
+        self.do_quicksim_result_popup()
+        sim_result = self.q.get(False)
+        self.qs_popup.plot(sim_result, PLOT_COLOR_CYCLE)
 
         self.status("Sim finished")
-        self.qs_toplevel.after(100, self.qs_cleanup)
+        self.qsm.join()
 
-    def qs_cleanup(self) -> None:
-        self.qs_chart.figure.tight_layout()
-        self.qs_chart.canvas.draw()
-
-        
     def quicksim(self) -> None:
-        """Regenerate a simulation using a selected state"""
-        # Currently this just uses the last state from the first chain
-        fname = next(iter(self.file_names.keys()))
-        param_info = {}
-        param_info["names"] = [x for x in self.data[fname] if x not in sp.func]
-        param_info["init_guess"] = {x: self.data[fname][x][True][-1] for x in param_info["names"]}
-        param_info["active"] = {x: True for x in self.data[fname] if x not in sp.func}
-        param_info["unit_conversions"] = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
-                        "mu_n": ((1e7) ** 2) / (1e9),
-                        "mu_p": ((1e7) ** 2) / (1e9),
-                        "ks": ((1e7) ** 3) / (1e9),
-                        "Cn": ((1e7) ** 6) / (1e9),
-                        "Cp": ((1e7) ** 6) / (1e9),
-                        "Sf": 1e-2, "Sb": 1e-2}
-        self.status("Simulating")
-        p = sim_utils.Parameters(param_info)
-        thickness = 2000
-        nx = 128
-        iniPar = (1e13, 6e4)
-        t_sim = np.linspace(0, 2000, 8000)
-        simulate = partial(do_simulation, p, thickness, nx, iniPar, t_sim, hmax=4, meas="TRPL", solver=("solveivp",))
-
-        self.proc = multiprocessing.Process(target=qs_simulate, args=(q, simulate))
-        self.proc.start()
+        """Start a quicksim and periodically check for completion"""
+        self.qsm.quicksim()
         self.widget.after(1000, self.query_quicksim, 1)
 
 
@@ -504,7 +444,7 @@ class Window:
                     self.data[file_name][key] = {False: states,
                                                     True: mean_states}
                         
-                for key in sp.func:
+                for key in self.sp.func:
                     # TODO: Option to precalculate all of these
                     self.data[file_name][key] = {False: np.zeros(0),
                                                  True: np.zeros(0)}
@@ -618,10 +558,10 @@ class Window:
                     color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
                     y = self.data[file_name][x_val][accepted]
-                    if (len(y) == 0 or thickness != sp.last_thickness.get(x_val, thickness)) and x_val in sp.func:
+                    if (len(y) == 0 or thickness != self.sp.last_thickness.get(x_val, thickness)) and x_val in self.sp.func:
                         # Calculate and cache the secondary parameter
                         try:
-                            sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": accepted}, thickness)
+                            self.sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": accepted}, thickness)
                         except (ValueError, KeyError) as err:
                             self.status(str(err))
                     mc_plot.traceplot1d(axes, self.data[file_name][x_val][accepted],
@@ -638,9 +578,9 @@ class Window:
                     success = {"x": False, "y": False}
                     for s, val in xy_val.items():
                         y =  self.data[file_name][val][True]
-                        if (len(y) == 0 or thickness != sp.last_thickness.get(val, thickness)) and val in sp.func:
+                        if (len(y) == 0 or thickness != self.sp.last_thickness.get(val, thickness)) and val in self.sp.func:
                             try:
-                                sp.get(self.data, {"file_name": file_name, "value": val, "accepted": True}, thickness)
+                                self.sp.get(self.data, {"file_name": file_name, "value": val, "accepted": True}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
@@ -661,9 +601,9 @@ class Window:
                             continue
 
                         y = self.data[file_name][x_val][True]
-                        if (len(y) == 0 or thickness != sp.last_thickness.get(x_val, thickness)) and x_val in sp.func:
+                        if (len(y) == 0 or thickness != self.sp.last_thickness.get(x_val, thickness)) and x_val in self.sp.func:
                             try:
-                                sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": True}, thickness)
+                                self.sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": True}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
@@ -684,9 +624,9 @@ class Window:
                         color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
                         y = self.data[file_name][x_val][True]
-                        if (len(y) == 0 or thickness != sp.last_thickness.get(x_val, thickness)) and x_val in sp.func:
+                        if (len(y) == 0 or thickness != self.sp.last_thickness.get(x_val, thickness)) and x_val in self.sp.func:
                             try:
-                                sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": True}, thickness)
+                                self.sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": True}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
@@ -707,9 +647,9 @@ class Window:
                     success = {"x": False, "y": False}
                     for s, val in xy_val.items():
                         y = self.data[file_name][val][True]
-                        if (len(y) == 0 or thickness != sp.last_thickness.get(val, thickness)) and val in sp.func:
+                        if (len(y) == 0 or thickness != self.sp.last_thickness.get(val, thickness)) and val in self.sp.func:
                             try:
-                                sp.get(self.data, {"file_name": file_name, "value": val, "accepted": True}, thickness)
+                                self.sp.get(self.data, {"file_name": file_name, "value": val, "accepted": True}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
@@ -724,11 +664,11 @@ class Window:
                 # self.chart.figure.colorbar(colorbar, ax=axes, fraction=0.04)
 
         # Record most recently used thickness
-        if x_val in sp.last_thickness:
-            sp.last_thickness[x_val] = thickness
+        if x_val in self.sp.last_thickness:
+            self.sp.last_thickness[x_val] = thickness
 
-        if "2D" in self.side_panel.state and y_val in sp.last_thickness:
-            sp.last_thickness[y_val] = thickness
+        if "2D" in self.side_panel.state and y_val in self.sp.last_thickness:
+            self.sp.last_thickness[y_val] = thickness
 
         self.chart.figure.tight_layout()
         self.chart.canvas.draw()
@@ -976,9 +916,6 @@ class Window:
 
                 self.status(f"Export complete - {out_name}")
 
-def qs_simulate(queue, task) -> None:
-    t, sol = task()
-    queue.put((t, sol))
 
 if __name__ == "__main__":
     window = Window(1000, 800, APPLICATION_NAME)
