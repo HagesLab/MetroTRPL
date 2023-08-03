@@ -1,3 +1,8 @@
+"""
+Simulations require info that isn't necessarily part of the state - 
+such as fluence, thickness, and absorption coefficient.
+This popup collects values for these "external variables".
+"""
 import tkinter as tk
 from functools import partial
 
@@ -6,32 +11,48 @@ from popup import Popup
 from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY
 from gui_styles import LABEL_KWARGS
 
-WIDTH = 500
-HEIGHT = 500
+WIDTH = 660
+HEIGHT = 600
 
 class QuicksimEntryPopup(Popup):
 
-    def __init__(self, window, master) -> None:
+    def __init__(self, window, master, ext_var) -> None:
         super().__init__(window, master, WIDTH, HEIGHT)
+        self.ext_var = {ev: [] for ev in ext_var}
         self.continue_ = False
         self.toplevel.resizable(False, False)
         self.toplevel.title("Quicksim Settings")
         self.toplevel.protocol("WM_DELETE_WINDOW", partial(self.on_close, False))
 
-        self.c_frame = self.window.Panel(self.toplevel, width=500,
+        self.c_frame = self.window.Panel(self.toplevel, width=WIDTH,
                                               height=100, color=DARK_GREY)
+        self.ev_frame = self.window.Panel(self.toplevel, width=WIDTH, height=480,
+                                         color=LIGHT_GREY)
+
         self.c_frame.variables["n_sims"] = tk.StringVar(value="1")
-        self.c_frame.variables["n_sims"].trace("w", self.count_sims)
+        self.c_frame.variables["n_sims"].trace("w", self.n_sim_trace)
         self.c_frame.variables["total_sims"] = tk.StringVar()
         self.draw_c_frame()
         self.c_frame.place(0, 0)
 
-    def count_sims(self, *args):
+        self.draw_ev_frame()
+        self.ev_frame.place(0, 100)
+
+    def n_sim_trace(self, *args):
+        self.count_sims()
+        self.draw_ev_frame()
+        print(f"{len(self.ev_frame.widgets)} widgets")
+        print(f"{len(self.ext_var)} variables")
+
+    def parse_n_sims(self):
         try:
             n_sims = int(self.c_frame.variables["n_sims"].get())
         except ValueError:
             n_sims = 0
+        return n_sims
 
+    def count_sims(self, *args):
+        n_sims = self.parse_n_sims()
         n_chains = 0
         for file_name in self.window.file_names:
             if self.window.file_names[file_name].get():
@@ -65,3 +86,26 @@ class QuicksimEntryPopup(Popup):
                                                      command=partial(self.on_close, True),
                                                      border=4)
         self.c_frame.widgets["continue"].place(x=360, y=40)
+
+    def draw_ev_frame(self) -> None:
+        self.clear_ev_frame()
+        n_sims = self.parse_n_sims()
+        for i in range(n_sims):
+            self.ev_frame.widgets[f"Number-{i}"] = tk.Label(self.ev_frame.widget, text=f"{i+1}.", width=4, border=3,
+                                                            background=LIGHT_GREY)
+            self.ev_frame.widgets[f"Number-{i}"].place(x=0, y=60+30*i)
+
+        for e, ev in enumerate(self.ext_var):
+            tk.Label(self.ev_frame.widget, text=ev, **LABEL_KWARGS).place(x=60+100*e, y=20)
+            self.ext_var[ev] = []
+            for i in range(n_sims):
+                self.ext_var[ev].append(tk.StringVar())
+                self.ev_frame.widgets[f"{e}-{i}"] = tk.Entry(master=self.ev_frame.widget, width=16, border=3,
+                    textvariable=self.ext_var[ev][-1])
+                self.ev_frame.widgets[f"{e}-{i}"].place(x=60+100*e, y=60+30*i)
+
+    def clear_ev_frame(self) -> None:
+        for widget in self.ev_frame.widgets:
+            self.ev_frame.widgets[widget].destroy()
+
+        self.ev_frame.widgets.clear()

@@ -102,6 +102,7 @@ class Window:
         # accepted - 0 for all proposed states, 1 for only accepted states
         self.data = dict[str, dict[str, dict[bool, np.ndarray]]]()
         self.file_names = dict[str, tk.IntVar]()
+        self.ext_variables = ["thickness", "nx", "final_time", "nt", "fluence", "absp"]
 
         self.chart.place(0, 0)
         self.side_panel = self.Panel(self.widget, 400, 430, GREY)
@@ -363,7 +364,8 @@ class Window:
 
     def do_quicksim_entry_popup(self) -> None:
         """Collect quicksim settings"""
-        self.qse_popup = QuicksimEntryPopup(self, self.side_panel.widget)
+        self.qse_popup = QuicksimEntryPopup(self, self.side_panel.widget,
+                                            self.ext_variables)
         self.widget.wait_window(self.qse_popup.toplevel)
 
     def do_quicksim_result_popup(self) -> None:
