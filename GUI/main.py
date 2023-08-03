@@ -386,13 +386,13 @@ class Window:
         """Periodically check and plot completed quicksims"""
         print("Checking...")
         print(self.q.qsize())
-        if self.q.qsize() != expected_num_sims:
+        if self.q.qsize() != expected_num_sims: # Not finished yet
             self.widget.after(1000, self.query_quicksim, expected_num_sims)
             return
 
-        self.do_quicksim_result_popup()
-        sim_result = self.q.get(False)
-        self.qs_popup.plot(sim_result, PLOT_COLOR_CYCLE)
+        while self.q.qsize() > 0:
+            sim_result = self.q.get(False)
+            self.qs_popup.plot(sim_result, PLOT_COLOR_CYCLE)
 
         self.status("Sim finished")
         self.qsm.join()
@@ -400,8 +400,15 @@ class Window:
     def quicksim(self) -> None:
         """Start a quicksim and periodically check for completion"""
         self.mini_panel.widgets["quicksim button"].configure(state=tk.DISABLED) # type: ignore
-        self.qsm.quicksim()
-        self.widget.after(1000, self.query_quicksim, 1)
+        self.do_quicksim_result_popup()
+        sim_tasks = {"thickness": [2000, 2000, 2000],
+                     "nx": [128, 128, 128],
+                     "final_time": [2000, 2000, 2000],
+                     "nt": [8000, 8000, 8000],
+                     "fluence": [1e11, 1e12, 1e13],
+                     "absp": [6e4, 6e4, 6e4],}
+        self.widget.after(10, self.qsm.quicksim, sim_tasks)
+        self.widget.after(1000, self.query_quicksim, 3)
 
 
     def loadfile(self) -> None:
