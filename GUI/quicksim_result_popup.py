@@ -2,13 +2,17 @@ import tkinter as tk
 
 import mc_plot
 from popup import Popup
+from gui_colors import LIGHT_GREY
 
-class QuicksimPopup(Popup):
+def rgb(r: int, g: int, b: int) -> str:
+    return f"#{r:02x}{g:02x}{b:02x}"
 
-    def __init__(self, window, master, bkg_color):
+class QuicksimResultPopup(Popup):
+
+    def __init__(self, window, master):
         self.window = window
         self.toplevel = tk.Toplevel(master)
-        self.toplevel.configure(**{"background": bkg_color})
+        self.toplevel.configure(**{"background": LIGHT_GREY})
         width = 500
         height = 500
         x_offset = (self.window.widget.winfo_screenwidth() - width) // 2

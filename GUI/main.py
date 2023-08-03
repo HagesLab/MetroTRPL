@@ -20,33 +20,23 @@ from tkinter import filedialog
 from types import FunctionType
 
 
-from quicksim_popup import QuicksimPopup
+from quicksim_result_popup import QuicksimResultPopup
+from quicksim_entry_popup import QuicksimEntryPopup
 import sim_utils
 import mc_plot
 from quicksim import QuicksimManager
 from secondary_parameters import SecondaryParameters
 
-def rgb(r: int, g: int, b: int) -> str:
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-
+from gui_colors import BLACK, WHITE, LIGHT_GREY, GREY, DARK_GREY
+from gui_styles import MENU_KWARGS, LABEL_KWARGS
 events = {"key": {"escape": "<Escape>", "enter": "<Return>"},
           "click": {"left": "<Button-1>", "right": "<Button-3>"}}
 
 PICKLE_FILE_LOCATION = "../output/TEST_REAL_STAUB"
 APPLICATION_NAME = "MCMC Visualization"
-WHITE = rgb(255, 255, 255)
-LIGHT_GREY = rgb(191, 191, 191)
-GREY = rgb(127, 127, 127)
-DARK_GREY = rgb(63, 63, 63)
-BLACK = rgb(0, 0, 0)
-RED = rgb(127, 0, 0)
-GREEN = rgb(0, 127, 0)
+
 
 PLOT_COLOR_CYCLE = rcParams['axes.prop_cycle'].by_key()['color']
-
-MENU_KWARGS = {"width": 10, "background": BLACK, "highlightbackground": BLACK, "foreground": WHITE}
-LABEL_KWARGS = {"width": 14, "background": LIGHT_GREY}
 
 DEFAULT_HIST_BINS = 96
 DEFAULT_THICKNESS = 2000
@@ -56,7 +46,8 @@ MAX_STATUS_MSGS = 11
 
 class Window:
     """ The main GUI object"""
-    qs_popup: QuicksimPopup
+    qsr_popup: QuicksimResultPopup
+    qse_popup: QuicksimEntryPopup
 
     class Panel:
         """ Creates the frames for 1) the plot, 2) the plot options, 3) the import/export buttons, etc..."""
@@ -378,9 +369,14 @@ class Window:
         self.status_msg.append(msg)
         self.base_panel.variables["status_msg"].set("\n".join(self.status_msg))
 
+    def do_quicksim_entry_popup(self) -> None:
+        """Collect quicksim settings"""
+        self.qse_popup = QuicksimEntryPopup(self, self.side_panel.widget)
+        self.widget.wait_window(self.qse_popup.toplevel)
+
     def do_quicksim_result_popup(self) -> None:
         """Show quicksim results"""
-        self.qs_popup = QuicksimPopup(self, self.side_panel.widget, LIGHT_GREY)
+        self.qsr_popup = QuicksimResultPopup(self, self.side_panel.widget)
 
     def query_quicksim(self, expected_num_sims : int) -> None:
         """Periodically check and plot completed quicksims"""
@@ -392,7 +388,7 @@ class Window:
 
         while self.q.qsize() > 0:
             sim_result = self.q.get(False)
-            self.qs_popup.plot(sim_result, PLOT_COLOR_CYCLE)
+            self.qsr_popup.plot(sim_result, PLOT_COLOR_CYCLE)
 
         self.status("Sim finished")
         self.qsm.join()
@@ -400,6 +396,8 @@ class Window:
     def quicksim(self) -> None:
         """Start a quicksim and periodically check for completion"""
         self.mini_panel.widgets["quicksim button"].configure(state=tk.DISABLED) # type: ignore
+        self.do_quicksim_entry_popup()
+
         self.do_quicksim_result_popup()
         sim_tasks = {"thickness": [2000, 2000, 2000],
                      "nx": [128, 128, 128],
