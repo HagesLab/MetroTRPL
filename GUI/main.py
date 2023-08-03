@@ -161,7 +161,8 @@ class Window:
         export_button = tk.Button(master=self.mini_panel.widget, width=10, text="Export",
                                   background=BLACK, foreground=WHITE, command=self.export, border=4)
         export_button.place(x=200, y=100, anchor="s")
-        self.mini_panel.widgets["export button"] = load_button
+        export_button.configure(state=tk.DISABLED)
+        self.mini_panel.widgets["export button"] = export_button
 
         # Refreshes the plot
         graph_button = tk.Button(master=self.mini_panel.widget, width=10, text="Graph",
@@ -174,6 +175,7 @@ class Window:
         qs_button = tk.Button(master=self.mini_panel.widget, width=10, text="Simulate",
                               background=BLACK, foreground=WHITE, command=self.quicksim, border=4)
         qs_button.place(x=380, y=100, anchor="se")
+        qs_button.configure(state=tk.DISABLED)
         self.mini_panel.widgets["quicksim button"] = qs_button
 
     def populate_side_panel(self) -> None:
@@ -398,6 +400,10 @@ class Window:
         self.mini_panel.widgets["quicksim button"].configure(state=tk.DISABLED) # type: ignore
         self.do_quicksim_entry_popup()
 
+        if not self.qse_popup.continue_:
+            self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL)
+            return
+
         self.do_quicksim_result_popup()
         sim_tasks = {"thickness": [2000, 2000, 2000],
                      "nx": [128, 128, 128],
@@ -482,10 +488,12 @@ class Window:
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_2"])
 
         self.side_panel.variables["variable_2"].trace("w", self.redraw)
+        self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL)
 
     def chartselect(self) -> None:
         """ Refresh on choosing a new type of plot """
         self.side_panel.loadstate(self.chart_type.get())
+        self.mini_panel.widgets["export button"].configure(state=tk.NORMAL)
         self.mini_panel.widgets["graph button"].configure(state=tk.NORMAL) # type: ignore
         self.chart.figure.clear()
         self.chart.canvas.draw()
