@@ -15,28 +15,25 @@ import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
-from matplotlib.pyplot import rcParams
 from tkinter import filedialog
 from types import FunctionType
 
 
 from quicksim_result_popup import QuicksimResultPopup
 from quicksim_entry_popup import QuicksimEntryPopup
+from activate_chain_popup import ActivateChainPopup
 import sim_utils
 import mc_plot
 from quicksim import QuicksimManager
 from secondary_parameters import SecondaryParameters
 
-from gui_colors import BLACK, WHITE, LIGHT_GREY, GREY, DARK_GREY
+from gui_colors import BLACK, WHITE, LIGHT_GREY, GREY, DARK_GREY, PLOT_COLOR_CYCLE
 from gui_styles import MENU_KWARGS, LABEL_KWARGS
 events = {"key": {"escape": "<Escape>", "enter": "<Return>"},
           "click": {"left": "<Button-1>", "right": "<Button-3>"}}
 
 PICKLE_FILE_LOCATION = "../output/TEST_REAL_STAUB"
 APPLICATION_NAME = "MCMC Visualization"
-
-
-PLOT_COLOR_CYCLE = rcParams['axes.prop_cycle'].by_key()['color']
 
 DEFAULT_HIST_BINS = 96
 DEFAULT_THICKNESS = 2000
@@ -48,6 +45,7 @@ class Window:
     """ The main GUI object"""
     qsr_popup: QuicksimResultPopup
     qse_popup: QuicksimEntryPopup
+    ac_popup: ActivateChainPopup
 
     class Panel:
         """ Creates the frames for 1) the plot, 2) the plot options, 3) the import/export buttons, etc..."""
@@ -343,22 +341,8 @@ class Window:
                                  )
 
     def do_select_chain_popup(self) -> None:
-        """Toggle the visibility of specific MCMC chains."""
-        toplevel = tk.Toplevel(self.side_panel.widget)
-        width = 200
-        height = 200
-        x_offset = (self.widget.winfo_screenwidth() - width) // 2
-        y_offset = (self.widget.winfo_screenheight() - height) // 2
-        toplevel.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
-        toplevel.configure(**{"background": LIGHT_GREY})
-        toplevel.attributes('-topmost', 'true')
-        tk.Label(toplevel, text="Display:", background=LIGHT_GREY).grid(row=0, column=0, columnspan=2)
-        for i, file_name in enumerate(self.file_names):
-            tk.Checkbutton(toplevel, text=os.path.basename(file_name),
-                           variable=self.file_names[file_name],
-                           onvalue=1, offvalue=0, background=LIGHT_GREY).grid(row=i+1, column=0)
-            
-            tk.Label(toplevel, width=4, height=2, background=PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]).grid(row=i+1,column=1)
+        self.side_panel.widgets["chain_vis"].configure(state=tk.DISABLED) # type: ignore
+        self.ac_popup = ActivateChainPopup(self, self.side_panel.widget)
 
     def mainloop(self) -> None:
         self.widget.mainloop()

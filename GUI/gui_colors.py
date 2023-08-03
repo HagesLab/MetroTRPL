@@ -1,4 +1,5 @@
 """List of standardized colors for GUI"""
+from matplotlib.pyplot import rcParams
 
 def rgb(r: int, g: int, b: int) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
@@ -10,3 +11,5 @@ DARK_GREY = rgb(63, 63, 63)
 BLACK = rgb(0, 0, 0)
 RED = rgb(127, 0, 0)
 GREEN = rgb(0, 127, 0)
+
+PLOT_COLOR_CYCLE = rcParams['axes.prop_cycle'].by_key()['color']
