@@ -345,7 +345,13 @@ class Window:
     def do_select_chain_popup(self) -> None:
         """Toggle the visibility of specific MCMC chains."""
         toplevel = tk.Toplevel(self.side_panel.widget)
+        width = 200
+        height = 200
+        x_offset = (self.widget.winfo_screenwidth() - width) // 2
+        y_offset = (self.widget.winfo_screenheight() - height) // 2
+        toplevel.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
         toplevel.configure(**{"background": LIGHT_GREY})
+        toplevel.attributes('-topmost', 'true')
         tk.Label(toplevel, text="Display:", background=LIGHT_GREY).grid(row=0, column=0, columnspan=2)
         for i, file_name in enumerate(self.file_names):
             tk.Checkbutton(toplevel, text=os.path.basename(file_name),
@@ -401,7 +407,7 @@ class Window:
         self.do_quicksim_entry_popup()
 
         if not self.qse_popup.continue_:
-            self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL)
+            self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL) # type: ignore
             return
 
         self.do_quicksim_result_popup()
@@ -467,7 +473,7 @@ class Window:
 
         self.file_names = {file_name: tk.IntVar(value=1) for file_name in file_names}
         for file_name in self.file_names:
-            self.file_names[file_name].trace("w", self.redraw)
+            self.file_names[file_name].trace("w", self.on_active_chain_update)
 
         # Generate a button for each parameter
         self.mini_panel.widgets["chart menu"].configure(state=tk.NORMAL) # type: ignore
@@ -488,15 +494,20 @@ class Window:
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_2"])
 
         self.side_panel.variables["variable_2"].trace("w", self.redraw)
-        self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL)
+        self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL) # type: ignore
 
     def chartselect(self) -> None:
         """ Refresh on choosing a new type of plot """
         self.side_panel.loadstate(self.chart_type.get())
-        self.mini_panel.widgets["export button"].configure(state=tk.NORMAL)
+        self.mini_panel.widgets["export button"].configure(state=tk.NORMAL) # type: ignore
         self.mini_panel.widgets["graph button"].configure(state=tk.NORMAL) # type: ignore
         self.chart.figure.clear()
         self.chart.canvas.draw()
+
+    def on_active_chain_update(self, *args) -> None:
+        self.redraw()
+        if self.qse_popup.is_open:
+            self.qse_popup.count_sims()
 
     def redraw(self, *args) -> None:
         """
