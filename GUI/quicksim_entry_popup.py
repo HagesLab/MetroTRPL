@@ -6,19 +6,14 @@ from popup import Popup
 from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY
 from gui_styles import LABEL_KWARGS
 
+WIDTH = 500
+HEIGHT = 500
+
 class QuicksimEntryPopup(Popup):
 
     def __init__(self, window, master) -> None:
+        super().__init__(window, master, WIDTH, HEIGHT)
         self.continue_ = False
-        self.is_open = True
-        self.window = window
-        self.toplevel = tk.Toplevel(master)
-        self.toplevel.configure(**{"background": LIGHT_GREY})
-        width = 500
-        height = 500
-        x_offset = (self.window.widget.winfo_screenwidth() - width) // 2
-        y_offset = (self.window.widget.winfo_screenheight() - height) // 2
-        self.toplevel.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
         self.toplevel.resizable(False, False)
         self.toplevel.title("Quicksim Settings")
         self.toplevel.protocol("WM_DELETE_WINDOW", partial(self.on_close, False))
@@ -43,7 +38,6 @@ class QuicksimEntryPopup(Popup):
                 n_chains += 1
 
         self.c_frame.variables["total_sims"].set(f"{n_sims * n_chains} total simulations")
-
 
     def on_close(self, continue_ : bool=False) -> None:
         self.continue_ = continue_

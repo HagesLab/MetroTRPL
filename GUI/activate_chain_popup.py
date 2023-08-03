@@ -7,21 +7,16 @@ import tkinter as tk
 
 from popup import Popup
 from gui_colors import LIGHT_GREY, PLOT_COLOR_CYCLE
+
+WIDTH = 280
+HEIGHT = 280
 class ActivateChainPopup(Popup):
 
     def __init__(self, window, master) -> None:
         """Toggle the visibility of specific MCMC chains."""
-        self.window = window
-        self.is_open = True
-        self.toplevel = tk.Toplevel(master)
-        width = 200
-        height = 200
-        x_offset = (self.window.widget.winfo_screenwidth() - width) // 2
-        y_offset = (self.window.widget.winfo_screenheight() - height) // 2
-        self.toplevel.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
-        self.toplevel.configure(**{"background": LIGHT_GREY})
+        super().__init__(window, master, WIDTH, HEIGHT)
         self.toplevel.attributes('-topmost', 'true')
-        self.toplevel.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.toplevel.title("Toggle MMC chains")
         tk.Label(self.toplevel, text="Display:", background=LIGHT_GREY).grid(row=0, column=0, columnspan=2)
         for i, file_name in enumerate(self.window.file_names):
             tk.Checkbutton(self.toplevel, text=os.path.basename(file_name),
