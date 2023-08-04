@@ -11,7 +11,7 @@ from popup import Popup
 from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY
 from gui_styles import LABEL_KWARGS
 
-WIDTH = 660
+WIDTH = 720
 HEIGHT = 600
 
 class QuicksimEntryPopup(Popup):
@@ -29,20 +29,19 @@ class QuicksimEntryPopup(Popup):
         self.ev_frame = self.window.Panel(self.toplevel, width=WIDTH, height=480,
                                          color=LIGHT_GREY)
 
+        self.n_sims = 1
         self.c_frame.variables["n_sims"] = tk.StringVar(value="1")
         self.c_frame.variables["n_sims"].trace("w", self.n_sim_trace)
         self.c_frame.variables["total_sims"] = tk.StringVar()
         self.draw_c_frame()
         self.c_frame.place(0, 0)
 
-        self.draw_ev_frame()
+        self.expand_ev_frame(0)
         self.ev_frame.place(0, 100)
 
     def n_sim_trace(self, *args):
-        self.count_sims()
-        self.draw_ev_frame()
-        print(f"{len(self.ev_frame.widgets)} widgets")
-        print(f"{len(self.ext_var)} variables")
+        self.calc_total_sims()
+        self.redraw_ev_frame()
 
     def parse_n_sims(self):
         try:
@@ -51,7 +50,8 @@ class QuicksimEntryPopup(Popup):
             n_sims = 0
         return n_sims
 
-    def count_sims(self, *args):
+    def calc_total_sims(self, *args):
+        """Calculate total number of sims, n_sims * number of chains"""
         n_sims = self.parse_n_sims()
         n_chains = 0
         for file_name in self.window.file_names:
@@ -66,7 +66,7 @@ class QuicksimEntryPopup(Popup):
         self.toplevel.destroy()
 
     def draw_c_frame(self) -> None:
-        self.count_sims()
+        self.calc_total_sims()
         self.c_frame.widgets["n_sims_label"] = tk.Label(master=self.c_frame.widget,
                                                 text="# Simulations", **LABEL_KWARGS)
         self.c_frame.widgets["n_sims_label"].place(x=20, y=20)
@@ -87,22 +87,38 @@ class QuicksimEntryPopup(Popup):
                                                      border=4)
         self.c_frame.widgets["continue"].place(x=360, y=40)
 
-    def draw_ev_frame(self) -> None:
-        self.clear_ev_frame()
+    def redraw_ev_frame(self) -> None:
         n_sims = self.parse_n_sims()
-        for i in range(n_sims):
-            self.ev_frame.widgets[f"Number-{i}"] = tk.Label(self.ev_frame.widget, text=f"{i+1}.", width=4, border=3,
-                                                            background=LIGHT_GREY)
-            self.ev_frame.widgets[f"Number-{i}"].place(x=0, y=60+30*i)
+        if n_sims > self.n_sims:
+            self.expand_ev_frame(n_sims-1)
+        elif n_sims < self.n_sims:
+            self.contract_ev_frame(n_sims)
+        self.n_sims = n_sims
 
+    def expand_ev_frame(self, i : int) -> None:
+        """
+        Add more widgets for the additional ith simulation
+        First simulation is i=0
+        """
+        self.ev_frame.widgets[f"Number-{i}"] = tk.Label(self.ev_frame.widget, text=f"{i+1}.", width=4, border=3,
+                                                            background=LIGHT_GREY)
+        self.ev_frame.widgets[f"Number-{i}"].place(x=0, y=60+30*i)
         for e, ev in enumerate(self.ext_var):
             tk.Label(self.ev_frame.widget, text=ev, **LABEL_KWARGS).place(x=60+100*e, y=20)
-            self.ext_var[ev] = []
-            for i in range(n_sims):
-                self.ext_var[ev].append(tk.StringVar())
-                self.ev_frame.widgets[f"{e}-{i}"] = tk.Entry(master=self.ev_frame.widget, width=16, border=3,
-                    textvariable=self.ext_var[ev][-1])
-                self.ev_frame.widgets[f"{e}-{i}"].place(x=60+100*e, y=60+30*i)
+            self.ext_var[ev].append(tk.StringVar())
+            self.ev_frame.widgets[f"{e}-{i}"] = tk.Entry(master=self.ev_frame.widget, width=16, border=3,
+                textvariable=self.ext_var[ev][-1])
+            self.ev_frame.widgets[f"{e}-{i}"].place(x=60+100*e, y=60+30*i)
+
+    def contract_ev_frame(self, i : int) -> None:
+        """Remove widgets belonging to the deleted ith simulation"""
+        self.ev_frame.widgets[f"Number-{i}"].destroy()
+        self.ev_frame.widgets.pop(f"Number-{i}")
+
+        for e, ev in enumerate(self.ext_var):
+            self.ext_var[ev].pop()
+            self.ev_frame.widgets[f"{e}-{i}"].destroy()
+            self.ev_frame.widgets.pop(f"{e}-{i}")
 
     def clear_ev_frame(self) -> None:
         for widget in self.ev_frame.widgets:
