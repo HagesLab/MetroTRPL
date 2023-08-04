@@ -395,16 +395,19 @@ class Window:
         if not self.qse_popup.continue_:
             self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL) # type: ignore
             return
+        
+        sim_tasks = {}
+        for ev in self.ext_variables:
+            sim_tasks[ev] = []
+            for i in range(self.qse_popup.n_sims):
+                if ev == "nx" or ev == "nt": # Number of steps must be int
+                    sim_tasks[ev].append(int(self.qse_popup.ext_var[ev][i].get()))
+                else:
+                    sim_tasks[ev].append(float(self.qse_popup.ext_var[ev][i].get()))
 
         self.do_quicksim_result_popup()
-        sim_tasks = {"thickness": [2000, 2000, 2000],
-                     "nx": [128, 128, 128],
-                     "final_time": [2000, 2000, 2000],
-                     "nt": [8000, 8000, 8000],
-                     "fluence": [1e11, 1e12, 1e13],
-                     "absp": [6e4, 6e4, 6e4],}
         self.widget.after(10, self.qsm.quicksim, sim_tasks)
-        self.widget.after(1000, self.query_quicksim, 3)
+        self.widget.after(1000, self.query_quicksim, self.qse_popup.n_sims)
 
 
     def loadfile(self) -> None:
@@ -493,7 +496,7 @@ class Window:
     def on_active_chain_update(self, *args) -> None:
         self.redraw()
         if self.qse_popup.is_open:
-            self.qse_popup.count_sims()
+            self.qse_popup.calc_total_sims()
 
     def redraw(self, *args) -> None:
         """
