@@ -7,10 +7,10 @@ import tkinter as tk
 from functools import partial
 
 from popup import Popup
-from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY
+from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY, RED
 from gui_styles import LABEL_KWARGS
 
-WIDTH = 720
+WIDTH = 750
 HEIGHT = 600
 
 class QuicksimEntryPopup(Popup):
@@ -63,6 +63,10 @@ class QuicksimEntryPopup(Popup):
 
     def on_close(self, continue_ : bool=False) -> None:
         self.continue_ = continue_
+        if self.continue_:
+            self.continue_ = self.validate_all()
+            if not self.continue_: # Validation fail
+                return
         self.is_open = False
         self.toplevel.destroy()
 
@@ -119,11 +123,11 @@ class QuicksimEntryPopup(Popup):
                                                             background=LIGHT_GREY)
         self.ev_frame.widgets[f"Number-{i}"].place(x=0, y=60+30*i)
         for e, ev in enumerate(self.ext_var):
-            tk.Label(self.ev_frame.widget, text=ev, **LABEL_KWARGS).place(x=60+100*e, y=20)
+            tk.Label(self.ev_frame.widget, text=ev, **LABEL_KWARGS).place(x=60+110*e, y=20)
             self.ext_var[ev].append(tk.StringVar())
             self.ev_frame.widgets[f"{e}-{i}"] = tk.Entry(master=self.ev_frame.widget, width=16, border=3,
-                textvariable=self.ext_var[ev][-1])
-            self.ev_frame.widgets[f"{e}-{i}"].place(x=60+100*e, y=60+30*i)
+                textvariable=self.ext_var[ev][-1], highlightthickness=2, highlightcolor=LIGHT_GREY)
+            self.ev_frame.widgets[f"{e}-{i}"].place(x=60+110*e, y=60+30*i)
 
     def contract_ev_frame(self, i : int) -> None:
         """Remove widgets belonging to the deleted ith simulation"""
@@ -146,6 +150,26 @@ class QuicksimEntryPopup(Popup):
         for ev in self.ext_var:
             for i in range(len(self.ext_var[ev])):
                 self.ext_var[ev][i].set("")
+
+    def validate_all(self) -> bool:
+        """
+        Validates all written values; highlights invalid ones
+        The continue button will not function while an invalid value exists
+        """
+        valid = True
+        for e, ev in enumerate(self.ext_var):
+            for i in range(len(self.ext_var[ev])):
+                try:
+                    test = self.ext_var[ev][i].get()
+                    if test == "":
+                        raise ValueError
+                    float(test)
+                    self.ev_frame.widgets[f"{e}-{i}"].config(highlightbackground=LIGHT_GREY)
+                except ValueError:
+                    valid = False
+                    self.ev_frame.widgets[f"{e}-{i}"].config(highlightbackground=RED)
+
+        return valid
 
     def clear_ev_frame(self) -> None:
         for widget in self.ev_frame.widgets:
