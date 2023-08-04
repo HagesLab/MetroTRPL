@@ -22,20 +22,21 @@ class QuicksimEntryPopup(Popup):
         self.toplevel.resizable(False, False)
         self.toplevel.title("Quicksim Settings")
         self.toplevel.protocol("WM_DELETE_WINDOW", partial(self.on_close, False))
+        self.toplevel.bind(";", self.DEBUG)
 
         self.c_frame = self.window.Panel(self.toplevel, width=WIDTH,
                                               height=100, color=DARK_GREY)
         self.ev_frame = self.window.Panel(self.toplevel, width=WIDTH, height=480,
                                          color=LIGHT_GREY)
 
-        self.n_sims = 1
-        self.c_frame.variables["n_sims"] = tk.StringVar(value="1")
+        self.n_sims = 3
+        self.c_frame.variables["n_sims"] = tk.StringVar(value=str(self.n_sims))
         self.c_frame.variables["n_sims"].trace("w", self.n_sim_trace)
         self.c_frame.variables["total_sims"] = tk.StringVar()
         self.draw_c_frame()
         self.c_frame.place(0, 0)
-
-        self.expand_ev_frame(0)
+        for i in range(self.n_sims):
+            self.expand_ev_frame(i)
         self.ev_frame.place(0, 100)
 
     def n_sim_trace(self, *args):
@@ -73,20 +74,32 @@ class QuicksimEntryPopup(Popup):
         self.c_frame.widgets["n_sims_label"].place(x=20, y=20)
         
         self.c_frame.widgets["n_sims_entry"] = tk.Spinbox(master=self.c_frame.widget, from_=1, to=12,
-                                                          state="readonly", width=15, border=3,
+                                                          state="readonly", width=14, border=3,
                                                           textvariable=self.c_frame.variables["n_sims"])
         self.c_frame.widgets["n_sims_entry"].place(x=20, y=48)
+
+        self.c_frame.widgets["copy down"] = tk.Button(master=self.c_frame.widget, width=12, text="Copy #1",
+                                                      background=BLACK, foreground=WHITE,
+                                                      command=self.duplicate,
+                                                      border=4)
+        self.c_frame.widgets["copy down"].place(x=180, y=48)
+
+        self.c_frame.widgets["clear all"] = tk.Button(master=self.c_frame.widget, width=12, text="Clear All",
+                                                      background=BLACK, foreground=WHITE,
+                                                      command=self.wipe,
+                                                      border=4)
+        self.c_frame.widgets["clear all"].place(x=300, y=48)
 
         self.c_frame.widgets["total_sims_label"] = tk.Label(master=self.c_frame.widget,
                                                             textvariable=self.c_frame.variables["total_sims"],
                                                             width=16, background=LIGHT_GREY)
-        self.c_frame.widgets["total_sims_label"].place(x=360, y=20)
+        self.c_frame.widgets["total_sims_label"].place(x=420, y=20)
 
         self.c_frame.widgets["continue"] = tk.Button(master=self.c_frame.widget, width=15, text="Continue",
                                                      background=BLACK, foreground=WHITE,
                                                      command=partial(self.on_close, True),
                                                      border=4)
-        self.c_frame.widgets["continue"].place(x=360, y=40)
+        self.c_frame.widgets["continue"].place(x=420, y=48)
 
     def redraw_ev_frame(self) -> None:
         """Adjust the large botton frame to accommodate number of sims"""
@@ -122,8 +135,43 @@ class QuicksimEntryPopup(Popup):
             self.ev_frame.widgets[f"{e}-{i}"].destroy()
             self.ev_frame.widgets.pop(f"{e}-{i}")
 
+    def duplicate(self) -> None:
+        """Copy the values written for the first sim into all other sims"""
+        for ev in self.ext_var:
+            for i in range(1, len(self.ext_var[ev])):
+                self.ext_var[ev][i].set(self.ext_var[ev][0].get())
+
+    def wipe(self) -> None:
+        """Clear all written values"""
+        for ev in self.ext_var:
+            for i in range(len(self.ext_var[ev])):
+                self.ext_var[ev][i].set("")
+
     def clear_ev_frame(self) -> None:
         for widget in self.ev_frame.widgets:
             self.ev_frame.widgets[widget].destroy()
 
         self.ev_frame.widgets.clear()
+
+    def DEBUG(self, *args) -> None:
+        """Popupate Sim #1 with specific external values"""
+        self.ext_var["thickness"][0].set(2000)
+        self.ext_var["nx"][0].set(128)
+        self.ext_var["final_time"][0].set(2000)
+        self.ext_var["nt"][0].set(8000)
+        self.ext_var["fluence"][0].set(2.75e13)
+        self.ext_var["absp"][0].set(6e4)
+
+        self.ext_var["thickness"][1].set(2000)
+        self.ext_var["nx"][1].set(128)
+        self.ext_var["final_time"][1].set(2000)
+        self.ext_var["nt"][1].set(8000)
+        self.ext_var["fluence"][1].set(1.92e12)
+        self.ext_var["absp"][1].set(6e4)
+
+        self.ext_var["thickness"][2].set(2000)
+        self.ext_var["nx"][2].set(128)
+        self.ext_var["final_time"][2].set(2000)
+        self.ext_var["nt"][2].set(8000)
+        self.ext_var["fluence"][2].set(2.12e11)
+        self.ext_var["absp"][2].set(6e4)
