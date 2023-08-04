@@ -6,7 +6,6 @@ This popup collects values for these "external variables".
 import tkinter as tk
 from functools import partial
 
-import mc_plot
 from popup import Popup
 from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY
 from gui_styles import LABEL_KWARGS
@@ -40,6 +39,7 @@ class QuicksimEntryPopup(Popup):
         self.ev_frame.place(0, 100)
 
     def n_sim_trace(self, *args):
+        """When the number of simulations slider is updated"""
         self.calc_total_sims()
         self.redraw_ev_frame()
 
@@ -66,6 +66,7 @@ class QuicksimEntryPopup(Popup):
         self.toplevel.destroy()
 
     def draw_c_frame(self) -> None:
+        """Draw the top frame with the # sims slider, continue button, etc"""
         self.calc_total_sims()
         self.c_frame.widgets["n_sims_label"] = tk.Label(master=self.c_frame.widget,
                                                 text="# Simulations", **LABEL_KWARGS)
@@ -88,6 +89,7 @@ class QuicksimEntryPopup(Popup):
         self.c_frame.widgets["continue"].place(x=360, y=40)
 
     def redraw_ev_frame(self) -> None:
+        """Adjust the large botton frame to accommodate number of sims"""
         n_sims = self.parse_n_sims()
         if n_sims > self.n_sims:
             self.expand_ev_frame(n_sims-1)
