@@ -403,7 +403,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
 
             # Verify accuracy of fit
             fit_y = fit_func(x, *fitted_coefs)
-            sol = np.array(fit_y)
+            sol = fit_func(tSteps, *fitted_coefs)
 
             # Make sure we compare logs regardless of fit choice
             logy = np.log10(y)
@@ -420,7 +420,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
                     logger.info(f"Sim {i}: err improved from {err} to {err2} by secondary fit")
                     fit_y = np.array(fit_y2)
 
-                    sol = 10 ** np.array(fit_y2)
+                    sol = fit_func(tSteps, *fitted_coefs2)
                     
         # if verbose:
         if verbose and logger is not None:
