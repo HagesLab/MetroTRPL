@@ -29,28 +29,29 @@ class NeuralNetwork():
         self.model_scales = np.load(scales_fname, allow_pickle=True)
         self.has_model = True
 
-    def preprocess(self, inputs : np.ndarray) -> None:
+    def preprocess(self, inputs : np.ndarray) -> np.ndarray:
         """Scales the log of all input features to (-0.5, 0.5)"""
         inputs = np.log10(inputs)
         inputs -= self.model_scales[0]
         inputs /= self.model_scales[1]
         inputs -= 0.5
+        return inputs
 
     def predict(self, t_steps : np.ndarray, inputs : np.ndarray) -> np.ndarray:
         """
         Predict TRPL measurement from given material parameters / initial excitation (inputs)
         at requested delay times (tSteps)
         """
-        self.preprocess(inputs)
+        inputs = self.preprocess(inputs)
 
         coefs = self.model.predict(tf.constant(inputs))[0]
 
-        self.postprocess(coefs)
+        coefs = self.postprocess(coefs)
 
         pl_from_nn = self.multiexp(t_steps, *coefs) # in [cm^-2 s^-1]
         return pl_from_nn
 
-    def postprocess(self, outputs : np.ndarray) -> None:
+    def postprocess(self, outputs : np.ndarray) -> np.ndarray:
         """
         Log of training outputs also scaled to (-0.5, 0.5), essentially
         Undo that here to get the actual outputs
@@ -60,7 +61,7 @@ class NeuralNetwork():
         outputs += self.model_scales[2]
         outputs[len(outputs)//2:] = 10 ** outputs[len(outputs)//2:]
         outputs[:len(outputs)//2] = -(10 ** outputs[:len(outputs)//2])
-
+        return outputs
 
     def multiexp(self, x : np.ndarray, *args) -> np.ndarray:
         """

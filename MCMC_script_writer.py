@@ -16,7 +16,7 @@ from bayes_io import generate_config_script_file
 if __name__ == "__main__":
     # Just some HiperGator-specific stuff
     # Set up jobid, script_head, init_dir, out_dir, etc... depending on your computer
-    on_hpg = 0
+    on_hpg = 1
     try:
         jobid = int(sys.argv[1])
         script_head = sys.argv[2]
@@ -26,6 +26,7 @@ if __name__ == "__main__":
 
     if on_hpg:
         init_dir = r"/blue/c.hages/cfai2304/Metro_in"
+        init_dir = r"Inputs"
         out_dir = r"/blue/c.hages/cfai2304/Metro_out"
 
     else:
@@ -33,9 +34,9 @@ if __name__ == "__main__":
         out_dir = r"bay_outputs"
 
     # Filenames
-    init_fname = "staub_MAPI_threepower_twothick_input.csv"
-    exp_fname = "staub_MAPI_threepower_twothick_renoised.csv"
-    out_fname = "sample_output"
+    init_fname = "staub_MAPI_threepower_twothick_fluences.csv"
+    exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
+    out_fname = "NN"
 
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
@@ -117,6 +118,9 @@ if __name__ == "__main__":
                      }
     # Proposal function search widths
     initial_variance = {param: 0.02 for param in param_names}
+    for name in param_names:
+        if active_params[name]:
+            initial_guesses[name] *= 10 ** np.random.uniform(-0.5, 0.5)
 
     param_info = {"names": param_names,
                   "active": active_params,
@@ -136,12 +140,13 @@ if __name__ == "__main__":
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
-                   "num_iters": 50,
-                   "solver": "solveivp",
+                   "num_iters": 8000,
+                   "solver": ("NN", "/blue/c.hages/Absorber_NN/Models/model_exp_all-reduced-6.h5",
+                              "/blue/c.hages/Absorber_NN/Models/model_exp_all-reduced-6-scales.npy"),
                    "likel2variance_ratio": 500,
                    "log_pl": 1,
                    "self_normalize": None,
-                   "scale_factor": ("ind", 1, 0.02),
+                   "scale_factor": None,
                    "irf_convolution": None,
                    "proposal_function": "box",
                    "one_param_at_a_time": 0,

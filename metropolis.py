@@ -140,7 +140,7 @@ def model(iniPar, g, p, meas="TRPL", solver=("solveivp",),
             nn.load_model(solver[1], solver[2])
 
         scaled_matPar = np.zeros((1, 14))
-        scaled_matPar[0] = [p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)),
+        scaled_matPar[0] = [p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, p.eps**-1,
                             iniPar[0], iniPar[1], g.thickness]
 
         pl_from_NN = nn.predict(g.tSteps, scaled_matPar)
