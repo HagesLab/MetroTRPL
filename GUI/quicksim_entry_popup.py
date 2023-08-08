@@ -12,6 +12,7 @@ from gui_styles import LABEL_KWARGS
 
 WIDTH = 750
 HEIGHT = 600
+DEFAULT_N_SIMS = 3
 
 class QuicksimEntryPopup(Popup):
 
@@ -29,7 +30,7 @@ class QuicksimEntryPopup(Popup):
         self.ev_frame = self.window.Panel(self.toplevel, width=WIDTH, height=480,
                                          color=LIGHT_GREY)
 
-        self.n_sims = 3
+        self.n_sims = DEFAULT_N_SIMS
         self.c_frame.variables["n_sims"] = tk.StringVar(value=str(self.n_sims))
         self.c_frame.variables["n_sims"].trace("w", self.n_sim_trace)
         self.c_frame.variables["total_sims"] = tk.StringVar()
@@ -54,10 +55,7 @@ class QuicksimEntryPopup(Popup):
     def calc_total_sims(self, *args):
         """Calculate total number of sims, n_sims * number of chains"""
         n_sims = self.parse_n_sims()
-        n_chains = 0
-        for file_name in self.window.file_names:
-            if self.window.file_names[file_name].get():
-                n_chains += 1
+        n_chains = self.window.get_n_chains()
 
         self.c_frame.variables["total_sims"].set(f"{n_sims * n_chains} total simulations")
 

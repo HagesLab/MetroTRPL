@@ -40,3 +40,4 @@ class QuicksimResultPopup(Popup):
         """Re-enable the simulate button"""
         self.toplevel.destroy()
         self.window.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL)
+        self.window.mini_panel.widgets["load button"].configure(state=tk.NORMAL)

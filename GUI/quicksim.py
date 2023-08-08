@@ -12,8 +12,8 @@ class QuicksimManager():
     proc : multiprocessing.Process
     queue : multiprocessing.Queue
 
-    def __init__(self, tk_gui, queue):
-        self.tk_gui = tk_gui # A Window object, from (currently) main.py
+    def __init__(self, window, queue):
+        self.window = window # A Window object, from (currently) main.py
         self.queue = queue
 
     def quicksim(self, sim_tasks):
@@ -30,29 +30,30 @@ class QuicksimManager():
         Multiple simulations (e.g. multiple TRPL curves) may be
         generated from a state based on the length of values in sim_tasks.
         """
-        # Currently this just uses the last state from the first chain
-        fname = next(iter(self.tk_gui.file_names.keys()))
-        param_info = {}
-        param_info["names"] = [x for x in self.tk_gui.data[fname] if x not in self.tk_gui.sp.func]
-        param_info["init_guess"] = {x: self.tk_gui.data[fname][x][True][-1] for x in param_info["names"]}
-        param_info["active"] = {x: True for x in param_info["names"]}
-        param_info["unit_conversions"] = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
-                        "mu_n": ((1e7) ** 2) / (1e9),
-                        "mu_p": ((1e7) ** 2) / (1e9),
-                        "ks": ((1e7) ** 3) / (1e9),
-                        "Cn": ((1e7) ** 6) / (1e9),
-                        "Cp": ((1e7) ** 6) / (1e9),
-                        "Sf": 1e-2, "Sb": 1e-2}
-        self.tk_gui.status("Simulating")
-        p = sim_utils.Parameters(param_info)
+        simulate = []
+        for fname in self.window.file_names:
+            if self.window.file_names[fname].get() == 0: # Don't simulate disabled chains
+                continue
+            param_info = {}
+            param_info["names"] = [x for x in self.window.data[fname] if x not in self.window.sp.func]
+            param_info["init_guess"] = {x: self.window.data[fname][x][True][-1] for x in param_info["names"]}
+            param_info["active"] = {x: True for x in param_info["names"]}
+            param_info["unit_conversions"] = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9),
+                            "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9),
+                            "Cn": ((1e7) ** 6) / (1e9),
+                            "Cp": ((1e7) ** 6) / (1e9),
+                            "Sf": 1e-2, "Sb": 1e-2}
+            p = sim_utils.Parameters(param_info)
 
-        thickness = sim_tasks["thickness"]
-        n_sims = len(thickness)
-        nx = sim_tasks["nx"]
-        iniPar = list(zip(sim_tasks["fluence"], sim_tasks["absp"]))
-        t_sim = [np.linspace(0, sim_tasks["final_time"][i], sim_tasks["nt"][i]) for i in range(n_sims)]
-        simulate = [partial(do_simulation, p, thickness[i], nx[i], iniPar[i], t_sim[i],
-                            hmax=4, meas="TRPL", solver=("solveivp",)) for i in range(n_sims)]
+            thickness = sim_tasks["thickness"]
+            n_sims = len(thickness)
+            nx = sim_tasks["nx"]
+            iniPar = list(zip(sim_tasks["fluence"], sim_tasks["absp"]))
+            t_sim = [np.linspace(0, sim_tasks["final_time"][i], sim_tasks["nt"][i]) for i in range(n_sims)]
+            simulate += [partial(do_simulation, p, thickness[i], nx[i], iniPar[i], t_sim[i],
+                                 hmax=4, meas="TRPL", solver=("solveivp",)) for i in range(n_sims)]
 
         self.proc = multiprocessing.Process(target=qs_simulate, args=(self.queue, simulate))
         self.proc.start()

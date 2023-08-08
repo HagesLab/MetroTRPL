@@ -345,6 +345,14 @@ class Window:
         self.side_panel.widgets["chain_vis"].configure(state=tk.DISABLED) # type: ignore
         self.ac_popup = ActivateChainPopup(self, self.side_panel.widget)
 
+    def get_n_chains(self) -> int:
+        """Count how many active chains, as set by to ActivateChainPopup"""
+        n_chains = 0
+        for file_name in self.file_names:
+            if self.file_names[file_name].get():
+                n_chains += 1
+        return n_chains
+
     def mainloop(self) -> None:
         self.widget.mainloop()
 
@@ -376,7 +384,7 @@ class Window:
         """Periodically check and plot completed quicksims"""
         print("Checking...")
         print(self.q.qsize())
-        if self.q.qsize() != expected_num_sims: # Not finished yet
+        if self.q.qsize() != expected_num_sims: # Tasks are not finished yet
             self.widget.after(1000, self.query_quicksim, expected_num_sims)
             return
 
@@ -390,10 +398,12 @@ class Window:
     def quicksim(self) -> None:
         """Start a quicksim and periodically check for completion"""
         self.mini_panel.widgets["quicksim button"].configure(state=tk.DISABLED) # type: ignore
+        self.mini_panel.widgets["load button"].configure(state=tk.DISABLED)  # type: ignore
         self.do_quicksim_entry_popup()
 
         if not self.qse_popup.continue_:
             self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL) # type: ignore
+            self.mini_panel.widgets["load button"].configure(state=tk.NORMAL)  # type: ignore
             return
         
         sim_tasks = {}
@@ -407,7 +417,7 @@ class Window:
 
         self.do_quicksim_result_popup()
         self.widget.after(10, self.qsm.quicksim, sim_tasks)
-        self.widget.after(1000, self.query_quicksim, self.qse_popup.n_sims)
+        self.widget.after(1000, self.query_quicksim, self.qse_popup.n_sims * self.get_n_chains())
 
 
     def loadfile(self) -> None:
