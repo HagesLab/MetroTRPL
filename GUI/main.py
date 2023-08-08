@@ -389,8 +389,9 @@ class Window:
             return
 
         while self.q.qsize() > 0:
-            sim_result = self.q.get(False)
-            self.qsr_popup.plot(sim_result, PLOT_COLOR_CYCLE)
+            self.qsr_popup.sim_results.append(self.q.get(False))
+            
+        self.qsr_popup.replot_sim_results(["black"])
 
         self.status("Sim finished")
         self.qsm.join()
@@ -405,7 +406,7 @@ class Window:
             self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL) # type: ignore
             self.mini_panel.widgets["load button"].configure(state=tk.NORMAL)  # type: ignore
             return
-        
+
         sim_tasks = {}
         for ev in self.ext_variables:
             sim_tasks[ev] = []
