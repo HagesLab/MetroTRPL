@@ -17,6 +17,7 @@ from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from tkinter import filedialog
 from types import FunctionType
+from queue import Empty
 
 
 from quicksim_result_popup import QuicksimResultPopup
@@ -389,13 +390,21 @@ class Window:
             self.widget.after(1000, self.query_quicksim, expected_num_sims)
             return
 
-        while self.q.qsize() > 0:
-            self.qsr_popup.sim_results.append(self.q.get(False))
-            
-        self.qsr_popup.replot_sim_results(["black"])
+        while True:
+            try:
+                sim_result = self.q.get(timeout=1)
+                self.qsr_popup.sim_results.append(sim_result)
+            except Empty:
+                pass
 
-        self.status("Sim finished")
+            if len(self.qsr_popup.sim_results) == expected_num_sims:
+                break
+            
         self.qsm.join()
+        self.qsr_popup.clear()
+        self.qsr_popup.replot_sim_results(["black"])
+        self.status("Sim finished")
+        
 
     def quicksim(self) -> None:
         """Start a quicksim and periodically check for completion"""

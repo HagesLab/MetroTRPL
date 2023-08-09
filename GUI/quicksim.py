@@ -51,7 +51,7 @@ class QuicksimManager():
             n_sims = len(thickness)
             nx = sim_tasks["nx"]
             iniPar = list(zip(sim_tasks["fluence"], sim_tasks["absp"]))
-            t_sim = [np.linspace(0, sim_tasks["final_time"][i], sim_tasks["nt"][i]) for i in range(n_sims)]
+            t_sim = [np.linspace(0, sim_tasks["final_time"][i], sim_tasks["nt"][i] + 1) for i in range(n_sims)]
             simulate += [partial(do_simulation, p, thickness[i], nx[i], iniPar[i], t_sim[i],
                                  hmax=4, meas="TRPL", solver=("solveivp",)) for i in range(n_sims)]
 
