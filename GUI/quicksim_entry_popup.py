@@ -24,6 +24,7 @@ class QuicksimEntryPopup(Popup):
         self.toplevel.title("Quicksim Settings")
         self.toplevel.protocol("WM_DELETE_WINDOW", partial(self.on_close, False))
         self.toplevel.bind(";", self.DEBUG)
+        self.toplevel.bind("v", self.DEBUG_CD3)
 
         self.c_frame = self.window.Panel(self.toplevel, width=WIDTH,
                                               height=100, color=DARK_GREY)
@@ -197,3 +198,38 @@ class QuicksimEntryPopup(Popup):
         self.ext_var["nt"][2].set(8000)
         self.ext_var["fluence"][2].set(2.12e11)
         self.ext_var["absp"][2].set(6e4)
+
+    def DEBUG_CD3(self, *args) -> None:
+        """Popupate Sim #1 with specific external values"""
+        for i in range(8):
+            self.ext_var["thickness"][i].set(3000)
+            self.ext_var["nx"][i].set(128)
+            self.ext_var["nt"][i].set(3000)
+        
+        
+        self.ext_var["final_time"][0].set(35)
+        self.ext_var["final_time"][1].set(35)
+        self.ext_var["final_time"][2].set(80)
+        self.ext_var["final_time"][3].set(170)
+        self.ext_var["final_time"][4].set(150)
+        self.ext_var["final_time"][5].set(70)
+        self.ext_var["final_time"][6].set(160)
+        self.ext_var["final_time"][7].set(300)
+
+        self.ext_var["fluence"][0].set(4.27e12)
+        self.ext_var["fluence"][1].set(3.34e12)
+        self.ext_var["fluence"][2].set(8.15e12)
+        self.ext_var["fluence"][3].set(2.25e13)
+        self.ext_var["fluence"][4].set(4.71e12)
+        self.ext_var["fluence"][5].set(4.00e12)
+        self.ext_var["fluence"][6].set(9.04e12)
+        self.ext_var["fluence"][7].set(2.51e13)
+
+        self.ext_var["absp"][0].set(117150)
+        self.ext_var["absp"][1].set(37215)
+        self.ext_var["absp"][2].set(37215)
+        self.ext_var["absp"][3].set(37215)
+        self.ext_var["absp"][4].set(117150)
+        self.ext_var["absp"][5].set(37215)
+        self.ext_var["absp"][6].set(37215)
+        self.ext_var["absp"][7].set(37215)
