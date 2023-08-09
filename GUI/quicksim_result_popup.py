@@ -10,7 +10,7 @@ from gui_styles import LABEL_KWARGS
 
 BASE_WIDTH = 480
 WIDTH_PER_CHAIN = 80
-HEIGHT = 500
+HEIGHT = 600
 PLOT_SIZE = 400
 
 class QuicksimResultPopup(Popup):
@@ -36,6 +36,7 @@ class QuicksimResultPopup(Popup):
                                      border=4)
         self.load_button.place(x=20, y=20)
 
+        self.qs_finished = False
         self.sim_results = []
         self.exp_data = []
         self.n_chains = n_chains
@@ -51,24 +52,42 @@ class QuicksimResultPopup(Popup):
         self.s_frame = self.window.Panel(self.toplevel, width=self.width-PLOT_SIZE, height=HEIGHT-100,
                                          color=LIGHT_GREY)
         self.s_frame.place(x=PLOT_SIZE, y=100)
-        self.scale_var = [[] for i in range(self.n_sims)]
-
-        for c, fname in enumerate(self.active_chain_names):
-            tk.Label(self.s_frame.widget, text=f"\"{os.path.basename(fname)[:4]}...\"\nScale", **LABEL_KWARGS).place(x=40+80*c, y=20)
+        self.scale_var = [[] for c in range(self.n_chains)] # chain-major ordering, like quicksim
 
         for i in range(self.n_sims):
             self.s_frame.widgets[f"Number-{i}"] = tk.Label(self.s_frame.widget, text=f"{i+1}.", width=4, border=3,
                                                                 background=LIGHT_GREY)
-            self.s_frame.widgets[f"Number-{i}"].place(x=0, y=60+30*i)
-            for c in range(self.n_chains):
-                self.scale_var[i].append(tk.StringVar())
+            self.s_frame.widgets[f"Number-{i}"].place(x=0, y=105+30*i)
+            
+        for c, fname in enumerate(self.active_chain_names):
+            tk.Label(self.s_frame.widget, text=f"\"{os.path.basename(fname)[:4]}...\"\nScale", **LABEL_KWARGS).place(x=38+80*c, y=20)
+            tk.Label(self.s_frame.widget, width=8, height=1, background=PLOT_COLOR_CYCLE[c % len(PLOT_COLOR_CYCLE)]).place(x=60+80*c, y=60)
+            for i in range(self.n_sims):
+                self.scale_var[c].append(tk.StringVar())
                 self.s_frame.widgets[f"{c}-{i}"] = tk.Entry(master=self.s_frame.widget, width=8, border=3,
-                    textvariable=self.scale_var[i][-1], highlightthickness=2, highlightcolor=LIGHT_GREY)
-                self.s_frame.widgets[f"{c}-{i}"].place(x=60+80*c, y=60+30*i)
+                    textvariable=self.scale_var[c][-1], highlightthickness=2, highlightcolor=LIGHT_GREY)
+                self.s_frame.widgets[f"{c}-{i}"].place(x=62+80*c, y=100+30*i)
+                self.s_frame.widgets[f"{c}-{i}"].bind("<FocusOut>", self.redraw)
+
+        self.populate_scale_factors()
+
+    def populate_scale_factors(self) -> None:
+        """Fill in s_frame with scale factors for each chain's final state"""
+        for i in range(self.n_sims):
+            for c in range(self.n_chains):
+                scale_f = self.window.data[self.active_chain_names[c]]
+                if f"_s{i}" in scale_f:
+                    scale_f = scale_f[f"_s{i}"][True][-1]
+                else:
+                    scale_f = 1
+                self.scale_var[c][i].set("{:.2e}".format(scale_f))
 
     def group_results_by_chain(self) -> None:
-        """Group results in self.sim_results according to which chain they originated from"""
-        new_sim_results = [[] for i in range(self.n_chains)]
+        """
+        Group results in self.sim_results according to which chain they originated from
+        This is designated "chain-major ordering"
+        """
+        new_sim_results = [[] for c in range(self.n_chains)]
 
         for i, sr in enumerate(self.sim_results):
             new_sim_results[i // self.n_sims].append(sr)
@@ -99,40 +118,55 @@ class QuicksimResultPopup(Popup):
             self.exp_data.append(ty)
 
         self.clear()
-        self.replot_sim_results(["black"] * self.n_chains)
-        self.replot_exp_results(PLOT_COLOR_CYCLE)
+        self.replot_exp_results()
+        self.replot_sim_results()
         return
 
-    def replot_sim_results(self, colors):
+    def replot_sim_results(self, colors=PLOT_COLOR_CYCLE):
         """
         Replot all stored quicksim results.
         Requires a "grouped" self.sim_results - see group_results_by_chain()
         """
         for c in range(self.n_chains):
-            for sr in self.sim_results[c]:
-                self.plot(sr, colors[c])
+            for i, sr in enumerate(self.sim_results[c]):
+                self.plot(sr[0], sr[1] * float(self.scale_var[c][i].get()), colors[c % len(PLOT_COLOR_CYCLE)])
         self.qs_chart.figure.tight_layout()
         self.qs_chart.canvas.draw()
 
-    def replot_exp_results(self, colors):
+    def replot_exp_results(self, color="black"):
         """Replot all loaded measurement data"""
         for ed in self.exp_data:
-            self.plot(ed, colors)
+            self.plot(ed[0], ed[1], color)
         self.qs_chart.figure.tight_layout()
         self.qs_chart.canvas.draw()
 
-    def plot(self, sim_result, color):
+    def plot(self, x, y, color):
         """Add a curve to the quicksim plot"""
         xlabel = "delay time [ns]"
         ylabel = "TRPL"
         scale = "log"
-        mc_plot.sim_plot(self.qs_axes, sim_result[0], sim_result[1], xlabel,
+        mc_plot.sim_plot(self.qs_axes, x, y, xlabel,
                          ylabel, scale, color)
+
+    def redraw(self, *args) -> None:
+        """Callback for scale_f change"""
+        if not self.qs_finished:
+            return
+        self.clear()
+        self.replot_exp_results()
+        self.replot_sim_results()
 
     def clear(self):
         """Reset the quicksim plot"""
         # clf() does not work - must use cla() on axis
         self.qs_chart.figure.gca().cla()
+
+    def finalize(self):
+        """End of quicksim callback"""
+        self.group_results_by_chain()
+        self.clear()
+        self.replot_sim_results()
+        self.qs_finished = True
 
     def on_close(self):
         """Re-enable the simulate button"""

@@ -405,9 +405,7 @@ class Window:
                 break
             
         self.qsm.join()
-        self.qsr_popup.group_results_by_chain()
-        self.qsr_popup.clear()
-        self.qsr_popup.replot_sim_results(['black'] * self.qsr_popup.n_chains)
+        self.qsr_popup.finalize()
         self.status("Sim finished")
         
 
