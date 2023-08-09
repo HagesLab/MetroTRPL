@@ -36,6 +36,7 @@ PICKLE_FILE_LOCATION = "../output/TEST_REAL_STAUB"
 APPLICATION_NAME = "MCMC Visualization"
 
 DEFAULT_HIST_BINS = 96
+ACC_BIN_SIZE = 100
 DEFAULT_THICKNESS = 2000
 MAX_STATUS_MSGS = 11
 
@@ -438,6 +439,34 @@ class Window:
             with open(file_name, "rb") as rfile:
                 metrostate: sim_utils.MetroState = pickle.load(rfile)
 
+            logl = getattr(metrostate.H, "loglikelihood")
+            if logl.ndim == 2 and logl.shape[0] == 1:
+                logl = logl[0]
+            elif logl.ndim == 1:
+                pass
+            else:
+                raise ValueError("Invalid chain states format - "
+                                    "must be 1D or 2D of size (1, num_states)")
+            
+            self.data[file_name]["log likelihood"] = {False: logl[1:], True: logl[1:]}
+
+            accept = getattr(metrostate.H, "accept")
+            if accept.ndim == 2 and accept.shape[0] == 1:
+                accept = accept[0]
+            elif accept.ndim == 1:
+                pass
+            else:
+                raise ValueError("Invalid chain states format - "
+                                    "must be 1D or 2D of size (1, num_states)")
+            
+            bins = np.arange(0, len(accept), int(ACC_BIN_SIZE))
+            accepted_subs = np.split(accept, bins)
+            num_bins = len(accepted_subs)
+            sub_means = np.zeros((num_bins))
+            for s, sub in enumerate(accepted_subs):
+                sub_means[s] = np.mean(sub)
+            self.data[file_name]["accept"] = {False: sub_means, True: sub_means}
+
             try:
                 for key in metrostate.param_info["names"]:
                     # if metrostate.param_info["active"][key]:
@@ -532,7 +561,7 @@ class Window:
             return
 
         if scale == "Logarithmic":
-            scale = "log"
+            scale = "symlog"
         else:
             scale = "linear"
 
