@@ -30,6 +30,15 @@ class QuicksimResultPopup(Popup):
         self.sim_results = []
         self.exp_data = []
 
+    def group_results_by_chain(self, n_chains : int, sims_per_chain : int) -> None:
+        """Group results in self.sim_results according to which chain they originated from"""
+        new_sim_results = [[] for i in range(n_chains)]
+
+        for i, sr in enumerate(self.sim_results):
+            new_sim_results[i // sims_per_chain].append(sr)
+
+        self.sim_results = new_sim_results
+
     def load_exp_data(self):
         """
         Loads a measurement data file (same as input for MMC)
@@ -54,14 +63,18 @@ class QuicksimResultPopup(Popup):
             self.exp_data.append(ty)
 
         self.clear()
-        self.replot_sim_results(["black"])
+        self.replot_sim_results(["black"] * len(self.sim_results))
         self.replot_exp_results(PLOT_COLOR_CYCLE)
         return
 
     def replot_sim_results(self, colors):
-        """Replot all stored quicksim results"""
-        for sr in self.sim_results:
-            self.plot(sr, colors)
+        """
+        Replot all stored quicksim results.
+        Requires a "grouped" self.sim_results - see group_results_by_chain()
+        """
+        for i in range(len(self.sim_results)):
+            for sr in self.sim_results[i]:
+                self.plot(sr, colors[i])
         self.qs_chart.figure.tight_layout()
         self.qs_chart.canvas.draw()
 
@@ -72,12 +85,11 @@ class QuicksimResultPopup(Popup):
         self.qs_chart.figure.tight_layout()
         self.qs_chart.canvas.draw()
 
-    def plot(self, sim_result, colors):
+    def plot(self, sim_result, color):
         """Add a curve to the quicksim plot"""
         xlabel = "delay time [ns]"
         ylabel = "TRPL"
         scale = "log"
-        color = colors[0]
         mc_plot.sim_plot(self.qs_axes, sim_result[0], sim_result[1], xlabel,
                          ylabel, scale, color)
 

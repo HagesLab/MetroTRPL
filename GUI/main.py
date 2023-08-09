@@ -384,8 +384,7 @@ class Window:
 
     def query_quicksim(self, expected_num_sims : int) -> None:
         """Periodically check and plot completed quicksims"""
-        print("Checking...")
-        print(self.q.qsize())
+        self.status(f"Sims: {self.q.qsize()} of {expected_num_sims} complete")
         if self.q.qsize() != expected_num_sims: # Tasks are not finished yet
             self.widget.after(1000, self.query_quicksim, expected_num_sims)
             return
@@ -401,8 +400,9 @@ class Window:
                 break
             
         self.qsm.join()
+        self.qsr_popup.group_results_by_chain(expected_num_sims // self.qse_popup.n_sims, self.qse_popup.n_sims)
         self.qsr_popup.clear()
-        self.qsr_popup.replot_sim_results(["black"])
+        self.qsr_popup.replot_sim_results(['black'] * (expected_num_sims // self.qse_popup.n_sims))
         self.status("Sim finished")
         
 
