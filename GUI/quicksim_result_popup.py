@@ -1,41 +1,77 @@
 import tkinter as tk
 from tkinter import filedialog
+import os
 
 import mc_plot
 from popup import Popup
 from bayes_io import get_data
-from gui_colors import BLACK, WHITE, PLOT_COLOR_CYCLE
+from gui_colors import BLACK, WHITE, PLOT_COLOR_CYCLE, LIGHT_GREY, DARK_GREY
+from gui_styles import LABEL_KWARGS
 
-WIDTH = 600
+BASE_WIDTH = 480
+WIDTH_PER_CHAIN = 80
 HEIGHT = 500
+PLOT_SIZE = 400
 
 class QuicksimResultPopup(Popup):
 
-    def __init__(self, window, master):
-        super().__init__(window, master, WIDTH, HEIGHT)
+    def __init__(self, window, master, n_chains, n_sims, active_chain_names):
+        self.width = int(BASE_WIDTH + WIDTH_PER_CHAIN * n_chains)
+        super().__init__(window, master, self.width, HEIGHT)
         self.toplevel.resizable(False, False)
         self.toplevel.title("Quicksim result")
         self.toplevel.attributes('-topmost', 'true')
-        self.qs_chart = self.window.Chart(self.toplevel, 400, 400)
+        self.qs_chart = self.window.Chart(self.toplevel, PLOT_SIZE, PLOT_SIZE)
         self.qs_chart.place(0, 0)
         self.qs_chart.figure.clear()
         self.qs_axes = self.qs_chart.figure.add_subplot()
 
-        self.load_button = tk.Button(master=self.toplevel, width=12, text="Load",
+        self.c_frame = self.window.Panel(self.toplevel, width=self.width-PLOT_SIZE,
+                                         height=100, color=DARK_GREY)
+        self.c_frame.place(x=PLOT_SIZE, y=0)
+
+        self.load_button = tk.Button(master=self.c_frame.widget, width=12, text="Load",
                                      background=BLACK, foreground=WHITE,
                                      command=self.load_exp_data,
                                      border=4)
-        self.load_button.place(x=460, y=20)
+        self.load_button.place(x=20, y=20)
 
         self.sim_results = []
         self.exp_data = []
+        self.n_chains = n_chains
+        self.n_sims = n_sims
+        self.active_chain_names = active_chain_names
 
-    def group_results_by_chain(self, n_chains : int, sims_per_chain : int) -> None:
+        self.draw_s_frame()
+        
+    def draw_s_frame(self):
+        """
+        Grid of entryboxes for each sim's scale factor
+        """
+        self.s_frame = self.window.Panel(self.toplevel, width=self.width-PLOT_SIZE, height=HEIGHT-100,
+                                         color=LIGHT_GREY)
+        self.s_frame.place(x=PLOT_SIZE, y=100)
+        self.scale_var = [[] for i in range(self.n_sims)]
+
+        for c, fname in enumerate(self.active_chain_names):
+            tk.Label(self.s_frame.widget, text=f"\"{os.path.basename(fname)[:4]}...\"\nScale", **LABEL_KWARGS).place(x=40+80*c, y=20)
+
+        for i in range(self.n_sims):
+            self.s_frame.widgets[f"Number-{i}"] = tk.Label(self.s_frame.widget, text=f"{i+1}.", width=4, border=3,
+                                                                background=LIGHT_GREY)
+            self.s_frame.widgets[f"Number-{i}"].place(x=0, y=60+30*i)
+            for c in range(self.n_chains):
+                self.scale_var[i].append(tk.StringVar())
+                self.s_frame.widgets[f"{c}-{i}"] = tk.Entry(master=self.s_frame.widget, width=8, border=3,
+                    textvariable=self.scale_var[i][-1], highlightthickness=2, highlightcolor=LIGHT_GREY)
+                self.s_frame.widgets[f"{c}-{i}"].place(x=60+80*c, y=60+30*i)
+
+    def group_results_by_chain(self) -> None:
         """Group results in self.sim_results according to which chain they originated from"""
-        new_sim_results = [[] for i in range(n_chains)]
+        new_sim_results = [[] for i in range(self.n_chains)]
 
         for i, sr in enumerate(self.sim_results):
-            new_sim_results[i // sims_per_chain].append(sr)
+            new_sim_results[i // self.n_sims].append(sr)
 
         self.sim_results = new_sim_results
 
@@ -63,7 +99,7 @@ class QuicksimResultPopup(Popup):
             self.exp_data.append(ty)
 
         self.clear()
-        self.replot_sim_results(["black"] * len(self.sim_results))
+        self.replot_sim_results(["black"] * self.n_chains)
         self.replot_exp_results(PLOT_COLOR_CYCLE)
         return
 
@@ -72,9 +108,9 @@ class QuicksimResultPopup(Popup):
         Replot all stored quicksim results.
         Requires a "grouped" self.sim_results - see group_results_by_chain()
         """
-        for i in range(len(self.sim_results)):
-            for sr in self.sim_results[i]:
-                self.plot(sr, colors[i])
+        for c in range(self.n_chains):
+            for sr in self.sim_results[c]:
+                self.plot(sr, colors[c])
         self.qs_chart.figure.tight_layout()
         self.qs_chart.canvas.draw()
 

@@ -378,9 +378,14 @@ class Window:
                                             self.ext_variables)
         self.widget.wait_window(self.qse_popup.toplevel)
 
-    def do_quicksim_result_popup(self) -> None:
+    def do_quicksim_result_popup(self, n_chains, n_sims) -> None:
         """Show quicksim results"""
-        self.qsr_popup = QuicksimResultPopup(self, self.side_panel.widget)
+        active_chain_names = []
+        for fname in self.file_names:
+            if self.file_names[fname].get() != 0:
+                active_chain_names.append(fname)
+        self.qsr_popup = QuicksimResultPopup(self, self.side_panel.widget, n_chains, n_sims,
+                                             active_chain_names)
 
     def query_quicksim(self, expected_num_sims : int) -> None:
         """Periodically check and plot completed quicksims"""
@@ -400,9 +405,9 @@ class Window:
                 break
             
         self.qsm.join()
-        self.qsr_popup.group_results_by_chain(expected_num_sims // self.qse_popup.n_sims, self.qse_popup.n_sims)
+        self.qsr_popup.group_results_by_chain()
         self.qsr_popup.clear()
-        self.qsr_popup.replot_sim_results(['black'] * (expected_num_sims // self.qse_popup.n_sims))
+        self.qsr_popup.replot_sim_results(['black'] * self.qsr_popup.n_chains)
         self.status("Sim finished")
         
 
@@ -426,7 +431,7 @@ class Window:
                 else:
                     sim_tasks[ev].append(float(self.qse_popup.ext_var[ev][i].get()))
 
-        self.do_quicksim_result_popup()
+        self.do_quicksim_result_popup(self.get_n_chains(), self.qse_popup.n_sims)
         self.widget.after(10, self.qsm.quicksim, sim_tasks)
         self.widget.after(1000, self.query_quicksim, self.qse_popup.n_sims * self.get_n_chains())
 
@@ -544,7 +549,7 @@ class Window:
 
     def on_active_chain_update(self, *args) -> None:
         self.redraw()
-        if self.qse_popup.is_open:
+        if hasattr(self, "qse_popup") and self.qse_popup.is_open:
             self.qse_popup.calc_total_sims()
 
     def redraw(self, *args) -> None:
