@@ -585,7 +585,7 @@ class Window:
             return
 
         if scale == "Logarithmic":
-            scale = "symlog"
+            scale = "log"
         else:
             scale = "linear"
 
