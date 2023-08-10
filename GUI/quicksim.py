@@ -59,9 +59,13 @@ class QuicksimManager():
         self.proc.start()
 
     def join(self):
-        """Terminate quicksim process"""
+        """Join quicksim process"""
         if self.proc.is_alive():
             self.proc.join()
+
+    def terminate(self):
+        """Abort quicksim process"""
+        self.proc.terminate()
 
 def qs_simulate(queue, tasks) -> None:
     """

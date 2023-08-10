@@ -44,6 +44,7 @@ class QuicksimResultPopup(Popup):
         self.active_chain_names = active_chain_names
 
         self.draw_s_frame()
+        self.is_open = True
         
     def draw_s_frame(self):
         """
@@ -169,7 +170,11 @@ class QuicksimResultPopup(Popup):
         self.qs_finished = True
 
     def on_close(self):
-        """Re-enable the simulate button"""
+        """
+        Re-enable the simulate button
+        Stop query_quicksim if still running
+        """
         self.toplevel.destroy()
         self.window.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL)
         self.window.mini_panel.widgets["load button"].configure(state=tk.NORMAL)
+        self.is_open = False

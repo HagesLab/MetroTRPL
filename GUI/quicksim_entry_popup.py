@@ -41,6 +41,8 @@ class QuicksimEntryPopup(Popup):
             self.expand_ev_frame(i)
         self.ev_frame.place(0, 100)
 
+        self.is_open = True
+
     def n_sim_trace(self, *args):
         """When the number of simulations slider is updated"""
         self.calc_total_sims()
