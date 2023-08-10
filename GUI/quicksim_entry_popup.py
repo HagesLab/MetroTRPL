@@ -10,7 +10,7 @@ from popup import Popup
 from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY, RED
 from gui_styles import LABEL_KWARGS
 
-WIDTH = 860
+WIDTH = 970
 HEIGHT = 600
 DEFAULT_N_SIMS = 3
 
@@ -188,6 +188,7 @@ class QuicksimEntryPopup(Popup):
         self.ext_var["fluence"][0].set(2.75e13)
         self.ext_var["absp"][0].set(6e4)
         self.ext_var["direction"][0].set(1)
+        self.ext_var["wavelength"][0].set(496)
 
         self.ext_var["thickness"][1].set(2000)
         self.ext_var["nx"][1].set(128)
@@ -196,6 +197,7 @@ class QuicksimEntryPopup(Popup):
         self.ext_var["fluence"][1].set(1.92e12)
         self.ext_var["absp"][1].set(6e4)
         self.ext_var["direction"][1].set(1)
+        self.ext_var["wavelength"][1].set(496)
 
         self.ext_var["thickness"][2].set(2000)
         self.ext_var["nx"][2].set(128)
@@ -204,6 +206,7 @@ class QuicksimEntryPopup(Popup):
         self.ext_var["fluence"][2].set(2.12e11)
         self.ext_var["absp"][2].set(6e4)
         self.ext_var["direction"][2].set(1)
+        self.ext_var["wavelength"][2].set(496)
 
     def DEBUG_CD3(self, *args) -> None:
         """Popupate Sim #1 with specific external values"""
@@ -249,6 +252,15 @@ class QuicksimEntryPopup(Popup):
         self.ext_var["direction"][6].set(-1)
         self.ext_var["direction"][7].set(-1)
 
+        self.ext_var["wavelength"][0].set(520)
+        self.ext_var["wavelength"][1].set(745)
+        self.ext_var["wavelength"][2].set(745)
+        self.ext_var["wavelength"][3].set(745)
+        self.ext_var["wavelength"][4].set(520)
+        self.ext_var["wavelength"][5].set(745)
+        self.ext_var["wavelength"][6].set(745)
+        self.ext_var["wavelength"][7].set(745)
+
     def DEBUG_CD0(self, *args) -> None:
         """Popupate Sim #1 with specific external values"""
         for i in range(8):
@@ -292,3 +304,12 @@ class QuicksimEntryPopup(Popup):
         self.ext_var["direction"][5].set(-1)
         self.ext_var["direction"][6].set(-1)
         self.ext_var["direction"][7].set(-1)
+
+        self.ext_var["wavelength"][0].set(520)
+        self.ext_var["wavelength"][1].set(745)
+        self.ext_var["wavelength"][2].set(745)
+        self.ext_var["wavelength"][3].set(745)
+        self.ext_var["wavelength"][4].set(520)
+        self.ext_var["wavelength"][5].set(745)
+        self.ext_var["wavelength"][6].set(745)
+        self.ext_var["wavelength"][7].set(745)

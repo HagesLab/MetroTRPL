@@ -3,11 +3,15 @@ For handling all calculations done by the quicksim feature, which
 recreates the simulation seen by MMC at a specific state.
 """
 import multiprocessing
+import os
 from functools import partial
 import numpy as np
+from scipy.interpolate import griddata
 from metropolis import do_simulation
+from laplace import make_I_tables, do_irf_convolution, post_conv_trim
 import sim_utils
 
+IRF_PATH = os.path.join("..", "IRFs")
 class QuicksimManager():
     proc : multiprocessing.Process
     queue : multiprocessing.Queue
@@ -30,6 +34,14 @@ class QuicksimManager():
         Multiple simulations (e.g. multiple TRPL curves) may be
         generated from a state based on the length of values in sim_tasks.
         """
+        irfs = {}
+        for i in sim_tasks["wavelength"]:
+            if i > 0 and i not in irfs:
+                irfs[int(i)] = np.loadtxt(os.path.join(IRF_PATH, "irf_{}nm.csv".format(int(i))),
+                                            delimiter=",")
+
+        IRF_tables = make_I_tables(irfs)
+
         simulate = []
         for fname in self.window.file_names:
             if self.window.file_names[fname].get() == 0: # Don't simulate disabled chains
@@ -48,12 +60,14 @@ class QuicksimManager():
             p = sim_utils.Parameters(param_info)
 
             thickness = sim_tasks["thickness"]
+            wavelength = sim_tasks["wavelength"]
             n_sims = len(thickness)
             nx = sim_tasks["nx"]
             iniPar = list(zip(sim_tasks["fluence"], sim_tasks["absp"], sim_tasks["direction"]))
             t_sim = [np.linspace(0, sim_tasks["final_time"][i], sim_tasks["nt"][i] + 1) for i in range(n_sims)]
-            simulate += [partial(do_simulation, p, thickness[i], nx[i], iniPar[i], t_sim[i],
-                                 hmax=4, meas="TRPL", solver=("solveivp",)) for i in range(n_sims)]
+            simulate += [partial(task, p, thickness[i], nx[i], iniPar[i], t_sim[i],
+                                 hmax=4, meas="TRPL", solver=("solveivp",),
+                                 wavelength=wavelength[i], IRF_tables=IRF_tables) for i in range(n_sims)]
 
         self.proc = multiprocessing.Process(target=qs_simulate, args=(self.queue, simulate))
         self.proc.start()
@@ -66,6 +80,21 @@ class QuicksimManager():
     def terminate(self):
         """Abort quicksim process"""
         self.proc.terminate()
+
+def task(p, thickness, nx, iniPar, times, hmax, meas, solver, wavelength, IRF_tables):
+    """What each task needs to do - simulate then optionally convolve"""
+    t, sol = do_simulation(p, thickness, nx, iniPar, times, hmax, meas, solver)
+    if wavelength != 0:
+        t, sol, success = do_irf_convolution(
+            t, sol, IRF_tables[int(wavelength)], time_max_shift=True)
+        if not success:
+            raise ValueError("Error: Interpolation for conv failed. Check measurement data"
+                             " times for floating-point inaccuracies.")
+        
+        conv_cutoff = np.where(times < np.nanmax(t))[0][-1]
+        sol = griddata(t, sol, times[:conv_cutoff+1])
+        t = times[:conv_cutoff+1]
+    return t, sol
 
 def qs_simulate(queue, tasks) -> None:
     """
