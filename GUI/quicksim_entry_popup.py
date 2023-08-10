@@ -10,7 +10,7 @@ from popup import Popup
 from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY, RED
 from gui_styles import LABEL_KWARGS
 
-WIDTH = 750
+WIDTH = 860
 HEIGHT = 600
 DEFAULT_N_SIMS = 3
 
@@ -184,6 +184,7 @@ class QuicksimEntryPopup(Popup):
         self.ext_var["nt"][0].set(8000)
         self.ext_var["fluence"][0].set(2.75e13)
         self.ext_var["absp"][0].set(6e4)
+        self.ext_var["direction"][0].set(1)
 
         self.ext_var["thickness"][1].set(2000)
         self.ext_var["nx"][1].set(128)
@@ -191,6 +192,7 @@ class QuicksimEntryPopup(Popup):
         self.ext_var["nt"][1].set(8000)
         self.ext_var["fluence"][1].set(1.92e12)
         self.ext_var["absp"][1].set(6e4)
+        self.ext_var["direction"][1].set(1)
 
         self.ext_var["thickness"][2].set(2000)
         self.ext_var["nx"][2].set(128)
@@ -198,6 +200,7 @@ class QuicksimEntryPopup(Popup):
         self.ext_var["nt"][2].set(8000)
         self.ext_var["fluence"][2].set(2.12e11)
         self.ext_var["absp"][2].set(6e4)
+        self.ext_var["direction"][2].set(1)
 
     def DEBUG_CD3(self, *args) -> None:
         """Popupate Sim #1 with specific external values"""
@@ -233,3 +236,12 @@ class QuicksimEntryPopup(Popup):
         self.ext_var["absp"][5].set(37215)
         self.ext_var["absp"][6].set(37215)
         self.ext_var["absp"][7].set(37215)
+
+        self.ext_var["direction"][0].set(1)
+        self.ext_var["direction"][1].set(1)
+        self.ext_var["direction"][2].set(1)
+        self.ext_var["direction"][3].set(1)
+        self.ext_var["direction"][4].set(-1)
+        self.ext_var["direction"][5].set(-1)
+        self.ext_var["direction"][6].set(-1)
+        self.ext_var["direction"][7].set(-1)

@@ -104,7 +104,7 @@ class Window:
         # accepted - 0 for all proposed states, 1 for only accepted states
         self.data = dict[str, dict[str, dict[bool, np.ndarray]]]()
         self.file_names = dict[str, tk.IntVar]()
-        self.ext_variables = ["thickness", "nx", "final_time", "nt", "fluence", "absp"]
+        self.ext_variables = ["thickness", "nx", "final_time", "nt", "fluence", "absp", "direction"]
 
         self.chart.place(0, 0)
         self.side_panel = self.Panel(self.widget, 400, 430, GREY)
