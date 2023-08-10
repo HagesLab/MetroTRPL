@@ -24,6 +24,7 @@ class QuicksimEntryPopup(Popup):
         self.toplevel.title("Quicksim Settings")
         self.toplevel.protocol("WM_DELETE_WINDOW", partial(self.on_close, False))
         self.toplevel.bind(";", self.DEBUG)
+        self.toplevel.bind("z", self.DEBUG_CD0)
         self.toplevel.bind("v", self.DEBUG_CD3)
 
         self.c_frame = self.window.Panel(self.toplevel, width=WIDTH,
@@ -238,6 +239,50 @@ class QuicksimEntryPopup(Popup):
         self.ext_var["absp"][5].set(37215)
         self.ext_var["absp"][6].set(37215)
         self.ext_var["absp"][7].set(37215)
+
+        self.ext_var["direction"][0].set(1)
+        self.ext_var["direction"][1].set(1)
+        self.ext_var["direction"][2].set(1)
+        self.ext_var["direction"][3].set(1)
+        self.ext_var["direction"][4].set(-1)
+        self.ext_var["direction"][5].set(-1)
+        self.ext_var["direction"][6].set(-1)
+        self.ext_var["direction"][7].set(-1)
+
+    def DEBUG_CD0(self, *args) -> None:
+        """Popupate Sim #1 with specific external values"""
+        for i in range(8):
+            self.ext_var["thickness"][i].set(3000)
+            self.ext_var["nx"][i].set(128)
+            self.ext_var["nt"][i].set(3000)
+        
+        
+        self.ext_var["final_time"][0].set(20)
+        self.ext_var["final_time"][1].set(20)
+        self.ext_var["final_time"][2].set(30)
+        self.ext_var["final_time"][3].set(90)
+        self.ext_var["final_time"][4].set(15)
+        self.ext_var["final_time"][5].set(15)
+        self.ext_var["final_time"][6].set(30)
+        self.ext_var["final_time"][7].set(90)
+
+        self.ext_var["fluence"][0].set(4.27e12)
+        self.ext_var["fluence"][1].set(3.37e12)
+        self.ext_var["fluence"][2].set(8.15e12)
+        self.ext_var["fluence"][3].set(2.24e13)
+        self.ext_var["fluence"][4].set(4.74e12)
+        self.ext_var["fluence"][5].set(3.89e12)
+        self.ext_var["fluence"][6].set(8.89e12)
+        self.ext_var["fluence"][7].set(2.47e13)
+
+        self.ext_var["absp"][0].set(80000)
+        self.ext_var["absp"][1].set(30500)
+        self.ext_var["absp"][2].set(30500)
+        self.ext_var["absp"][3].set(30500)
+        self.ext_var["absp"][4].set(80000)
+        self.ext_var["absp"][5].set(30500)
+        self.ext_var["absp"][6].set(30500)
+        self.ext_var["absp"][7].set(30500)
 
         self.ext_var["direction"][0].set(1)
         self.ext_var["direction"][1].set(1)
