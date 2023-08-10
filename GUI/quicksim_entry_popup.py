@@ -3,7 +3,10 @@ Simulations require info that isn't necessarily part of the state -
 such as fluence, thickness, and absorption coefficient.
 This popup collects values for these "external variables".
 """
+import os
 import tkinter as tk
+import numpy as np
+from tkinter import filedialog
 from functools import partial
 
 from popup import Popup
@@ -13,6 +16,7 @@ from gui_styles import LABEL_KWARGS
 WIDTH = 970
 HEIGHT = 600
 DEFAULT_N_SIMS = 3
+KEYBIND_DIR = "keybinds"
 
 class QuicksimEntryPopup(Popup):
 
@@ -22,10 +26,11 @@ class QuicksimEntryPopup(Popup):
         self.continue_ = False
         self.toplevel.resizable(False, False)
         self.toplevel.title("Quicksim Settings")
+        self.toplevel.attributes('-topmost', 'true')
         self.toplevel.protocol("WM_DELETE_WINDOW", partial(self.on_close, False))
         self.toplevel.bind(";", self.DEBUG)
-        self.toplevel.bind("z", self.DEBUG_CD0)
-        self.toplevel.bind("v", self.DEBUG_CD3)
+        self.toplevel.bind("q", self.DEBUG_CD0)
+        self.toplevel.bind("r", self.DEBUG_CD3)
 
         self.c_frame = self.window.Panel(self.toplevel, width=WIDTH,
                                               height=100, color=DARK_GREY)
@@ -107,6 +112,12 @@ class QuicksimEntryPopup(Popup):
                                                      border=4)
         self.c_frame.widgets["continue"].place(x=420, y=48)
 
+        self.c_frame.widgets["save_keybind"] = tk.Button(master=self.c_frame.widget, width=15, text="Save All as Keybind",
+                                                     background=BLACK, foreground=WHITE,
+                                                     command=partial(self.save_keybind),
+                                                     border=4)
+        self.c_frame.widgets["save_keybind"].place(x=560, y=48)
+
     def redraw_ev_frame(self) -> None:
         """Adjust the large botton frame to accommodate number of sims"""
         n_sims = self.parse_n_sims()
@@ -141,6 +152,12 @@ class QuicksimEntryPopup(Popup):
             self.ev_frame.widgets[f"{e}-{i}"].destroy()
             self.ev_frame.widgets.pop(f"{e}-{i}")
 
+    def clear_ev_frame(self) -> None:
+        for widget in self.ev_frame.widgets:
+            self.ev_frame.widgets[widget].destroy()
+
+        self.ev_frame.widgets.clear()
+
     def duplicate(self) -> None:
         """Copy the values written for the first sim into all other sims"""
         for ev in self.ext_var:
@@ -173,11 +190,30 @@ class QuicksimEntryPopup(Popup):
 
         return valid
 
-    def clear_ev_frame(self) -> None:
-        for widget in self.ev_frame.widgets:
-            self.ev_frame.widgets[widget].destroy()
+    def save_keybind(self) -> None:
+        if not self.validate_all():
+            return
+        
+        if not os.path.exists(KEYBIND_DIR):
+            os.makedirs(KEYBIND_DIR, exist_ok=True)
 
-        self.ev_frame.widgets.clear()
+        self.toplevel.attributes('-topmost', 'false')
+        fname = filedialog.asksaveasfilename(filetypes=[("Text", "*.txt")],
+                                             defaultextension=".txt",
+                                             title="Save keybind",
+                                             initialdir=KEYBIND_DIR)
+        self.toplevel.attributes('-topmost', 'true')
+        if fname == "":
+            return
+
+        vals = np.zeros((len(self.ext_var), self.n_sims))
+        ext_vars = []
+        for e, ev in enumerate(self.ext_var):
+            ext_vars.append(ev)
+            for i in range(self.n_sims):
+                vals[e, i] = float(self.ext_var[ev][i].get())
+
+        np.savetxt(fname, vals.T, delimiter="\t", header="\t".join(ext_vars))
 
     def DEBUG(self, *args) -> None:
         """Popupate Sim #1 with specific external values"""
