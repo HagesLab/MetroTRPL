@@ -28,9 +28,7 @@ class QuicksimEntryPopup(Popup):
         self.toplevel.title("Quicksim Settings")
         self.toplevel.attributes('-topmost', 'true')
         self.toplevel.protocol("WM_DELETE_WINDOW", partial(self.on_close, False))
-        self.toplevel.bind(";", self.DEBUG)
-        self.toplevel.bind("q", self.DEBUG_CD0)
-        self.toplevel.bind("r", self.DEBUG_CD3)
+        self.load_keybinds()
 
         self.c_frame = self.window.Panel(self.toplevel, width=WIDTH,
                                               height=100, color=DARK_GREY)
@@ -215,137 +213,23 @@ class QuicksimEntryPopup(Popup):
 
         np.savetxt(fname, vals.T, delimiter="\t", header="\t".join(ext_vars))
 
-    def DEBUG(self, *args) -> None:
-        """Popupate Sim #1 with specific external values"""
-        self.ext_var["thickness"][0].set(2000)
-        self.ext_var["nx"][0].set(128)
-        self.ext_var["final_time"][0].set(2000)
-        self.ext_var["nt"][0].set(8000)
-        self.ext_var["fluence"][0].set(2.75e13)
-        self.ext_var["absp"][0].set(6e4)
-        self.ext_var["direction"][0].set(1)
-        self.ext_var["wavelength"][0].set(496)
+    def load_keybinds(self) -> None:
+        keybinds = []
+        for f in os.listdir(KEYBIND_DIR):
+            kb = f[:f.find(".txt")]
+            if len(kb) > 1:
+                self.window.status(f"Warning: {kb} invalid keybind not loaded")
+            else:
+                keybinds.append(kb)
 
-        self.ext_var["thickness"][1].set(2000)
-        self.ext_var["nx"][1].set(128)
-        self.ext_var["final_time"][1].set(2000)
-        self.ext_var["nt"][1].set(8000)
-        self.ext_var["fluence"][1].set(1.92e12)
-        self.ext_var["absp"][1].set(6e4)
-        self.ext_var["direction"][1].set(1)
-        self.ext_var["wavelength"][1].set(496)
+        for kb in keybinds:
+            def keybind(kb, *args) -> None:
+                vals = np.loadtxt(os.path.join(KEYBIND_DIR, f"{kb}.txt")).T
+                for i in range(self.n_sims):
+                    for e, ev in enumerate(self.ext_var):
+                        try:
+                            self.ext_var[ev][i].set(str(vals[e, i]))
+                        except IndexError:
+                            continue
 
-        self.ext_var["thickness"][2].set(2000)
-        self.ext_var["nx"][2].set(128)
-        self.ext_var["final_time"][2].set(2000)
-        self.ext_var["nt"][2].set(8000)
-        self.ext_var["fluence"][2].set(2.12e11)
-        self.ext_var["absp"][2].set(6e4)
-        self.ext_var["direction"][2].set(1)
-        self.ext_var["wavelength"][2].set(496)
-
-    def DEBUG_CD3(self, *args) -> None:
-        """Popupate Sim #1 with specific external values"""
-        for i in range(8):
-            self.ext_var["thickness"][i].set(3000)
-            self.ext_var["nx"][i].set(128)
-            self.ext_var["nt"][i].set(3000)
-        
-        
-        self.ext_var["final_time"][0].set(35)
-        self.ext_var["final_time"][1].set(35)
-        self.ext_var["final_time"][2].set(80)
-        self.ext_var["final_time"][3].set(170)
-        self.ext_var["final_time"][4].set(150)
-        self.ext_var["final_time"][5].set(70)
-        self.ext_var["final_time"][6].set(160)
-        self.ext_var["final_time"][7].set(300)
-
-        self.ext_var["fluence"][0].set(4.27e12)
-        self.ext_var["fluence"][1].set(3.34e12)
-        self.ext_var["fluence"][2].set(8.15e12)
-        self.ext_var["fluence"][3].set(2.25e13)
-        self.ext_var["fluence"][4].set(4.71e12)
-        self.ext_var["fluence"][5].set(4.00e12)
-        self.ext_var["fluence"][6].set(9.04e12)
-        self.ext_var["fluence"][7].set(2.51e13)
-
-        self.ext_var["absp"][0].set(117150)
-        self.ext_var["absp"][1].set(37215)
-        self.ext_var["absp"][2].set(37215)
-        self.ext_var["absp"][3].set(37215)
-        self.ext_var["absp"][4].set(117150)
-        self.ext_var["absp"][5].set(37215)
-        self.ext_var["absp"][6].set(37215)
-        self.ext_var["absp"][7].set(37215)
-
-        self.ext_var["direction"][0].set(1)
-        self.ext_var["direction"][1].set(1)
-        self.ext_var["direction"][2].set(1)
-        self.ext_var["direction"][3].set(1)
-        self.ext_var["direction"][4].set(-1)
-        self.ext_var["direction"][5].set(-1)
-        self.ext_var["direction"][6].set(-1)
-        self.ext_var["direction"][7].set(-1)
-
-        self.ext_var["wavelength"][0].set(520)
-        self.ext_var["wavelength"][1].set(745)
-        self.ext_var["wavelength"][2].set(745)
-        self.ext_var["wavelength"][3].set(745)
-        self.ext_var["wavelength"][4].set(520)
-        self.ext_var["wavelength"][5].set(745)
-        self.ext_var["wavelength"][6].set(745)
-        self.ext_var["wavelength"][7].set(745)
-
-    def DEBUG_CD0(self, *args) -> None:
-        """Popupate Sim #1 with specific external values"""
-        for i in range(8):
-            self.ext_var["thickness"][i].set(3000)
-            self.ext_var["nx"][i].set(128)
-            self.ext_var["nt"][i].set(3000)
-        
-        
-        self.ext_var["final_time"][0].set(20)
-        self.ext_var["final_time"][1].set(20)
-        self.ext_var["final_time"][2].set(30)
-        self.ext_var["final_time"][3].set(90)
-        self.ext_var["final_time"][4].set(15)
-        self.ext_var["final_time"][5].set(15)
-        self.ext_var["final_time"][6].set(30)
-        self.ext_var["final_time"][7].set(90)
-
-        self.ext_var["fluence"][0].set(4.27e12)
-        self.ext_var["fluence"][1].set(3.37e12)
-        self.ext_var["fluence"][2].set(8.15e12)
-        self.ext_var["fluence"][3].set(2.24e13)
-        self.ext_var["fluence"][4].set(4.74e12)
-        self.ext_var["fluence"][5].set(3.89e12)
-        self.ext_var["fluence"][6].set(8.89e12)
-        self.ext_var["fluence"][7].set(2.47e13)
-
-        self.ext_var["absp"][0].set(80000)
-        self.ext_var["absp"][1].set(30500)
-        self.ext_var["absp"][2].set(30500)
-        self.ext_var["absp"][3].set(30500)
-        self.ext_var["absp"][4].set(80000)
-        self.ext_var["absp"][5].set(30500)
-        self.ext_var["absp"][6].set(30500)
-        self.ext_var["absp"][7].set(30500)
-
-        self.ext_var["direction"][0].set(1)
-        self.ext_var["direction"][1].set(1)
-        self.ext_var["direction"][2].set(1)
-        self.ext_var["direction"][3].set(1)
-        self.ext_var["direction"][4].set(-1)
-        self.ext_var["direction"][5].set(-1)
-        self.ext_var["direction"][6].set(-1)
-        self.ext_var["direction"][7].set(-1)
-
-        self.ext_var["wavelength"][0].set(520)
-        self.ext_var["wavelength"][1].set(745)
-        self.ext_var["wavelength"][2].set(745)
-        self.ext_var["wavelength"][3].set(745)
-        self.ext_var["wavelength"][4].set(520)
-        self.ext_var["wavelength"][5].set(745)
-        self.ext_var["wavelength"][6].set(745)
-        self.ext_var["wavelength"][7].set(745)
+            self.toplevel.bind(kb, partial(keybind, kb))
