@@ -389,8 +389,9 @@ class Window:
 
     def query_quicksim(self, expected_num_sims : int) -> None:
         """Periodically check and plot completed quicksims"""
-        self.status(f"Sims: {self.q.qsize()} of {expected_num_sims} complete")
-        if not self.qsr_popup.is_open:
+        self.qsr_popup.progress_text.set(f"{self.q.qsize()} of {expected_num_sims} complete")
+        self.qsr_popup.progress.set(self.q.qsize())
+        if not self.qsr_popup.is_open: # Closing the popup aborts the simulations
             while True:
                 try:
                     # Flush the queue

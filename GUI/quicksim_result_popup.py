@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import filedialog
+from tkinter.ttk import Progressbar
 import os
+from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 
 import mc_plot
 from popup import Popup
@@ -51,6 +53,23 @@ class QuicksimResultPopup(Popup):
         self.active_chain_names = active_chain_names
 
         self.draw_s_frame()
+
+        self.o_frame = self.window.Panel(self.toplevel, width=PLOT_SIZE, height=HEIGHT-PLOT_SIZE,
+                                         color=LIGHT_GREY)
+        self.o_frame.place(x=0, y=PLOT_SIZE)
+
+        toolbar = NavigationToolbar2Tk(self.qs_chart.canvas, self.o_frame.widget, pack_toolbar=False)
+        toolbar.place(x=0, y=0, width=PLOT_SIZE-10)
+
+        self.progress_text = tk.StringVar(value=f"0 of {self.n_chains*self.n_sims} complete")
+        self.progress_bar_text = tk.Label(self.o_frame.widget, textvariable=self.progress_text, **LABEL_KWARGS)
+        self.progress_bar_text.place(x=150, y=80)
+
+        self.progress = tk.IntVar(value=0)
+        self.progress_bar = Progressbar(self.o_frame.widget, mode="determinate", length=PLOT_SIZE-30,
+                                        maximum=(self.n_chains*self.n_sims), variable=self.progress)
+        self.progress_bar.place(x=10, y=100)
+
         self.is_open = True
         
     def draw_s_frame(self):
