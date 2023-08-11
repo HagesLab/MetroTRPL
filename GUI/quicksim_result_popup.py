@@ -36,6 +36,13 @@ class QuicksimResultPopup(Popup):
                                      border=4)
         self.load_button.place(x=20, y=20)
 
+        self.sim_vis = tk.IntVar(value=1)
+        self.sim_vis_cb = tk.Checkbutton(self.c_frame.widget, text="Toggle Sim Vis.",
+                                             variable=self.sim_vis,
+                                             **{"width": 10, "background": LIGHT_GREY})
+        self.sim_vis.trace("w", self.redraw)
+        self.sim_vis_cb.place(x=20, y=60)
+
         self.qs_finished = False
         self.sim_results = []
         self.exp_data = []
@@ -155,7 +162,8 @@ class QuicksimResultPopup(Popup):
             return
         self.clear()
         self.replot_exp_results()
-        self.replot_sim_results()
+        if self.sim_vis.get():
+            self.replot_sim_results()
 
     def clear(self):
         """Reset the quicksim plot"""
