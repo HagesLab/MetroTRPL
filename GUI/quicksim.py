@@ -8,7 +8,7 @@ from functools import partial
 import numpy as np
 from scipy.interpolate import griddata
 from metropolis import do_simulation
-from laplace import make_I_tables, do_irf_convolution, post_conv_trim
+from laplace import make_I_tables, do_irf_convolution
 import sim_utils
 
 IRF_PATH = os.path.join("..", "IRFs")
@@ -102,6 +102,11 @@ def qs_simulate(queue, tasks) -> None:
     A task is any simulation call that returns two arrays (e.g. delay times and signal)
     This cannot be a GUI method - as the GUI instance is not pickleable.
     """
-    for task in tasks:
-        t, sol = task()
+    for i, task_f in enumerate(tasks):
+        try:
+            t, sol = task_f()
+        except AttributeError:
+            print(f"Warning: simulation {i} failed")
+            t = np.zeros(0)
+            sol = np.zeros(0)
         queue.put((t, sol))
