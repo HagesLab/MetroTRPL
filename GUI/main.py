@@ -419,6 +419,8 @@ class Window:
         self.qsm.join()
         self.qsr_popup.finalize()
         self.status("Sims finished")
+        self.qsr_popup.toplevel.attributes('-topmost', 'true')
+        self.qsr_popup.toplevel.attributes('-topmost', 'false')
         
 
     def quicksim(self) -> None:
@@ -437,11 +439,12 @@ class Window:
             sim_tasks[ev] = []
             for i in range(self.qse_popup.n_sims):
                 if ev == "nx" or ev == "nt": # Number of steps must be int
-                    sim_tasks[ev].append(int(self.qse_popup.ext_var[ev][i].get()))
+                    sim_tasks[ev].append(int(float(self.qse_popup.ext_var[ev][i].get())))
                 else:
                     sim_tasks[ev].append(float(self.qse_popup.ext_var[ev][i].get()))
 
         self.do_quicksim_result_popup(self.get_n_chains(), self.qse_popup.n_sims)
+        self.qsr_popup.toplevel.attributes('-topmost', 'false')
         self.widget.after(10, self.qsm.quicksim, sim_tasks)
         self.widget.after(1000, self.query_quicksim, self.qse_popup.n_sims * self.get_n_chains())
 
