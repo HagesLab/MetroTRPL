@@ -25,6 +25,7 @@ class QuicksimResultPopup(Popup):
         self.toplevel.resizable(False, False)
         self.toplevel.title("Quicksim result")
         self.toplevel.attributes('-topmost', 'true')
+        self.toplevel.attributes('-topmost', 'false')
         self.qs_chart = self.window.Chart(self.toplevel, PLOT_SIZE, PLOT_SIZE)
         self.qs_chart.place(0, 0)
         self.qs_chart.figure.clear()
@@ -147,6 +148,7 @@ class QuicksimResultPopup(Popup):
         fname = filedialog.askopenfilename(filetypes=[("CSV File", "*.csv")],
                                            title="Select Measurement Data", initialdir=".")
         self.toplevel.attributes('-topmost', 'true')
+        self.toplevel.attributes('-topmost', 'false')
         if fname == "":
             return
 
@@ -170,6 +172,7 @@ class QuicksimResultPopup(Popup):
                                              defaultextension=".csv",
                                              title="Export sims", initialdir=".")
         self.toplevel.attributes('-topmost', 'true')
+        self.toplevel.attributes('-topmost', 'false')
         if fname == "":
             self.load_button.configure(state=tk.NORMAL)
             self.export_button.configure(state=tk.NORMAL)

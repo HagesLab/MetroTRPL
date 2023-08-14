@@ -27,6 +27,7 @@ class QuicksimEntryPopup(Popup):
         self.toplevel.resizable(False, False)
         self.toplevel.title("Quicksim Settings")
         self.toplevel.attributes('-topmost', 'true')
+        self.toplevel.attributes('-topmost', 'false')
         self.toplevel.protocol("WM_DELETE_WINDOW", partial(self.on_close, False))
         self.load_keybinds()
 
@@ -201,6 +202,7 @@ class QuicksimEntryPopup(Popup):
                                              title="Save keybind",
                                              initialdir=KEYBIND_DIR)
         self.toplevel.attributes('-topmost', 'true')
+        self.toplevel.attributes('-topmost', 'false')
         if fname == "":
             return
 
