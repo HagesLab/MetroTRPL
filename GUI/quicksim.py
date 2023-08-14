@@ -35,12 +35,23 @@ class QuicksimManager():
         generated from a state based on the length of values in sim_tasks.
         """
         irfs = {}
+        missing_irfs = []
         for i in sim_tasks["wavelength"]:
             if i > 0 and i not in irfs:
-                irfs[int(i)] = np.loadtxt(os.path.join(IRF_PATH, "irf_{}nm.csv".format(int(i))),
-                                            delimiter=",")
+                try:
+                    irfs[int(i)] = np.loadtxt(os.path.join(IRF_PATH, "irf_{}nm.csv".format(int(i))),
+                                                delimiter=",")
+                except FileNotFoundError:
+                    if i not in missing_irfs:
+                        missing_irfs.append(i)
+                        self.window.status(f"Warning: no IRF for wavelength {i}")
+                    continue
 
-        IRF_tables = make_I_tables(irfs)
+        if len(irfs) > 0:
+            IRF_tables = make_I_tables(irfs)
+        else:
+            self.window.status("Warning: no IRFs found")
+            IRF_tables = dict()
 
         simulate = []
         for fname in self.window.file_names:
@@ -84,7 +95,7 @@ class QuicksimManager():
 def task(p, thickness, nx, iniPar, times, hmax, meas, solver, wavelength, IRF_tables):
     """What each task needs to do - simulate then optionally convolve"""
     t, sol = do_simulation(p, thickness, nx, iniPar, times, hmax, meas, solver)
-    if wavelength != 0:
+    if wavelength != 0 and int(wavelength) in IRF_tables:
         t, sol, success = do_irf_convolution(
             t, sol, IRF_tables[int(wavelength)], time_max_shift=True)
         if not success:
