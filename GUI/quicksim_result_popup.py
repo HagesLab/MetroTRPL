@@ -38,13 +38,6 @@ class QuicksimResultPopup(Popup):
                                      border=4)
         self.load_button.place(x=20, y=20)
 
-        self.sim_vis = tk.IntVar(value=1)
-        self.sim_vis_cb = tk.Checkbutton(self.c_frame.widget, text="Toggle Sim Vis.",
-                                             variable=self.sim_vis,
-                                             **{"width": 10, "background": LIGHT_GREY})
-        self.sim_vis.trace("w", self.redraw)
-        self.sim_vis_cb.place(x=20, y=60)
-
         self.qs_finished = False
         self.sim_results = []
         self.exp_data = []
@@ -69,6 +62,13 @@ class QuicksimResultPopup(Popup):
         self.progress_bar = Progressbar(self.o_frame.widget, mode="determinate", length=PLOT_SIZE-30,
                                         maximum=(self.n_chains*self.n_sims), variable=self.progress)
         self.progress_bar.place(x=10, y=100)
+
+        self.sim_vis = tk.IntVar(value=1)
+        self.sim_vis_cb = tk.Checkbutton(self.o_frame.widget, text="Toggle Sim Vis.",
+                                             variable=self.sim_vis,
+                                             **{"width": 10, "background": LIGHT_GREY})
+        self.sim_vis.trace("w", self.redraw)
+        self.sim_vis_cb.place(x=10, y=140)
 
         self.is_open = True
         
