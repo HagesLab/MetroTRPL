@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter.ttk import Progressbar
 import os
+import itertools
+import numpy as np
 from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 
 import mc_plot
@@ -36,7 +38,15 @@ class QuicksimResultPopup(Popup):
                                      background=BLACK, foreground=WHITE,
                                      command=self.load_exp_data,
                                      border=4)
-        self.load_button.place(x=20, y=20)
+        self.load_button.place(x=20, y=10)
+        self.load_button.configure(state=tk.DISABLED)
+
+        self.export_button = tk.Button(master=self.c_frame.widget, width=12, text="Export sims",
+                                       background=BLACK, foreground=WHITE,
+                                       command=self.export_sims,
+                                       border=4)
+        self.export_button.place(x=20, y=50)
+        self.export_button.configure(state=tk.DISABLED)
 
         self.qs_finished = False
         self.sim_results = []
@@ -149,6 +159,37 @@ class QuicksimResultPopup(Popup):
         self.replot_sim_results()
         return
 
+    def export_sims(self):
+        """
+        Save quicksim results to file
+        """
+        self.export_button.configure(state=tk.DISABLED)
+        self.load_button.configure(state=tk.DISABLED)
+        self.toplevel.attributes('-topmost', 'false')
+        fname = filedialog.asksaveasfilename(filetypes=[("CSV file", "*.csv")],
+                                             defaultextension=".csv",
+                                             title="Export sims", initialdir=".")
+        self.toplevel.attributes('-topmost', 'true')
+        if fname == "":
+            self.load_button.configure(state=tk.NORMAL)
+            self.export_button.configure(state=tk.NORMAL)
+            return
+
+        result = []
+        header = []
+        for c in range(self.n_chains):
+            for i, sr in enumerate(self.sim_results[c]):
+                result.append(sr[0])
+                result.append(sr[1] * float(self.scale_var[c][i].get()))
+                header.append(f"{os.path.basename(self.active_chain_names[c])} - {i} - time")
+                header.append(f"{os.path.basename(self.active_chain_names[c])} - {i} - y")
+
+        result = np.array(list(map(list, itertools.zip_longest(*result, fillvalue=-1))))
+        np.savetxt(fname, result, header=",".join(header), delimiter=",")
+        self.export_button.configure(state=tk.NORMAL)
+        self.load_button.configure(state=tk.NORMAL)
+        self.window.status(f"Sims exported to {fname}")
+
     def replot_sim_results(self, colors=PLOT_COLOR_CYCLE):
         """
         Replot all stored quicksim results.
@@ -194,6 +235,8 @@ class QuicksimResultPopup(Popup):
         self.group_results_by_chain()
         self.clear()
         self.replot_sim_results()
+        self.load_button.configure(state=tk.NORMAL)
+        self.export_button.configure(state=tk.NORMAL)
         self.qs_finished = True
 
     def on_close(self):
