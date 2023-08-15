@@ -3,15 +3,20 @@ Simulations require info that isn't necessarily part of the state -
 such as fluence, thickness, and absorption coefficient.
 This popup collects values for these "external variables".
 """
+import os
 import tkinter as tk
+import numpy as np
+from tkinter import filedialog
 from functools import partial
 
 from popup import Popup
 from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY, RED
 from gui_styles import LABEL_KWARGS
 
-WIDTH = 750
+WIDTH = 970
 HEIGHT = 600
+DEFAULT_N_SIMS = 3
+KEYBIND_DIR = "keybinds"
 
 class QuicksimEntryPopup(Popup):
 
@@ -21,15 +26,17 @@ class QuicksimEntryPopup(Popup):
         self.continue_ = False
         self.toplevel.resizable(False, False)
         self.toplevel.title("Quicksim Settings")
+        self.toplevel.attributes('-topmost', 'true')
+        self.toplevel.attributes('-topmost', 'false')
         self.toplevel.protocol("WM_DELETE_WINDOW", partial(self.on_close, False))
-        self.toplevel.bind(";", self.DEBUG)
+        self.load_keybinds()
 
         self.c_frame = self.window.Panel(self.toplevel, width=WIDTH,
                                               height=100, color=DARK_GREY)
         self.ev_frame = self.window.Panel(self.toplevel, width=WIDTH, height=480,
                                          color=LIGHT_GREY)
 
-        self.n_sims = 3
+        self.n_sims = DEFAULT_N_SIMS
         self.c_frame.variables["n_sims"] = tk.StringVar(value=str(self.n_sims))
         self.c_frame.variables["n_sims"].trace("w", self.n_sim_trace)
         self.c_frame.variables["total_sims"] = tk.StringVar()
@@ -38,6 +45,8 @@ class QuicksimEntryPopup(Popup):
         for i in range(self.n_sims):
             self.expand_ev_frame(i)
         self.ev_frame.place(0, 100)
+
+        self.is_open = True
 
     def n_sim_trace(self, *args):
         """When the number of simulations slider is updated"""
@@ -54,10 +63,7 @@ class QuicksimEntryPopup(Popup):
     def calc_total_sims(self, *args):
         """Calculate total number of sims, n_sims * number of chains"""
         n_sims = self.parse_n_sims()
-        n_chains = 0
-        for file_name in self.window.file_names:
-            if self.window.file_names[file_name].get():
-                n_chains += 1
+        n_chains = self.window.get_n_chains()
 
         self.c_frame.variables["total_sims"].set(f"{n_sims * n_chains} total simulations")
 
@@ -105,6 +111,12 @@ class QuicksimEntryPopup(Popup):
                                                      border=4)
         self.c_frame.widgets["continue"].place(x=420, y=48)
 
+        self.c_frame.widgets["save_keybind"] = tk.Button(master=self.c_frame.widget, width=15, text="Save All as Keybind",
+                                                     background=BLACK, foreground=WHITE,
+                                                     command=partial(self.save_keybind),
+                                                     border=4)
+        self.c_frame.widgets["save_keybind"].place(x=560, y=48)
+
     def redraw_ev_frame(self) -> None:
         """Adjust the large botton frame to accommodate number of sims"""
         n_sims = self.parse_n_sims()
@@ -139,6 +151,12 @@ class QuicksimEntryPopup(Popup):
             self.ev_frame.widgets[f"{e}-{i}"].destroy()
             self.ev_frame.widgets.pop(f"{e}-{i}")
 
+    def clear_ev_frame(self) -> None:
+        for widget in self.ev_frame.widgets:
+            self.ev_frame.widgets[widget].destroy()
+
+        self.ev_frame.widgets.clear()
+
     def duplicate(self) -> None:
         """Copy the values written for the first sim into all other sims"""
         for ev in self.ext_var:
@@ -171,31 +189,49 @@ class QuicksimEntryPopup(Popup):
 
         return valid
 
-    def clear_ev_frame(self) -> None:
-        for widget in self.ev_frame.widgets:
-            self.ev_frame.widgets[widget].destroy()
+    def save_keybind(self) -> None:
+        if not self.validate_all():
+            return
+        
+        if not os.path.exists(KEYBIND_DIR):
+            os.makedirs(KEYBIND_DIR, exist_ok=True)
 
-        self.ev_frame.widgets.clear()
+        self.toplevel.attributes('-topmost', 'false')
+        fname = filedialog.asksaveasfilename(filetypes=[("Text", "*.txt")],
+                                             defaultextension=".txt",
+                                             title="Save keybind",
+                                             initialdir=KEYBIND_DIR)
+        self.toplevel.attributes('-topmost', 'true')
+        self.toplevel.attributes('-topmost', 'false')
+        if fname == "":
+            return
 
-    def DEBUG(self, *args) -> None:
-        """Popupate Sim #1 with specific external values"""
-        self.ext_var["thickness"][0].set(2000)
-        self.ext_var["nx"][0].set(128)
-        self.ext_var["final_time"][0].set(2000)
-        self.ext_var["nt"][0].set(8000)
-        self.ext_var["fluence"][0].set(2.75e13)
-        self.ext_var["absp"][0].set(6e4)
+        vals = np.zeros((len(self.ext_var), self.n_sims))
+        ext_vars = []
+        for e, ev in enumerate(self.ext_var):
+            ext_vars.append(ev)
+            for i in range(self.n_sims):
+                vals[e, i] = float(self.ext_var[ev][i].get())
 
-        self.ext_var["thickness"][1].set(2000)
-        self.ext_var["nx"][1].set(128)
-        self.ext_var["final_time"][1].set(2000)
-        self.ext_var["nt"][1].set(8000)
-        self.ext_var["fluence"][1].set(1.92e12)
-        self.ext_var["absp"][1].set(6e4)
+        np.savetxt(fname, vals.T, delimiter="\t", header="\t".join(ext_vars))
 
-        self.ext_var["thickness"][2].set(2000)
-        self.ext_var["nx"][2].set(128)
-        self.ext_var["final_time"][2].set(2000)
-        self.ext_var["nt"][2].set(8000)
-        self.ext_var["fluence"][2].set(2.12e11)
-        self.ext_var["absp"][2].set(6e4)
+    def load_keybinds(self) -> None:
+        keybinds = []
+        for f in os.listdir(KEYBIND_DIR):
+            kb = f[:f.find(".txt")]
+            if len(kb) > 1:
+                self.window.status(f"Warning: {kb} invalid keybind not loaded")
+            else:
+                keybinds.append(kb)
+
+        for kb in keybinds:
+            def keybind(kb, *args) -> None:
+                vals = np.loadtxt(os.path.join(KEYBIND_DIR, f"{kb}.txt")).T
+                for i in range(self.n_sims):
+                    for e, ev in enumerate(self.ext_var):
+                        try:
+                            self.ext_var[ev][i].set(str(vals[e, i]))
+                        except IndexError:
+                            continue
+
+            self.toplevel.bind(kb, partial(keybind, kb))

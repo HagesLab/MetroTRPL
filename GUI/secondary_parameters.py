@@ -28,9 +28,10 @@ class SecondaryParameters():
                      "LI_tau_srh": (self.li_tau_srh, ("tauN", "Sf", "Sb", "thickness", "mu_n", "mu_p")),
                      "HI_tau_srh": (self.hi_tau_srh, ("tauN", "tauP", "Sf", "Sb", "thickness", "mu_n", "mu_p")),
                      "Sf+Sb": (self.s_eff, ("Sf", "Sb")),
+                     "Cn+Cp": (self.c_eff, ("Cn", "Cp")),
                      "mu_ambi": (self.mu_eff, ("mu_n", "mu_p")),
                      "epsilon": (self.epsilon, ("lambda",))}
-        
+
         # Most recent thickness used to calculate; determines if recalculation needed when thickness updated
         self.last_thickness = {name: -1 for name in self.func if "thickness" in self.func[name][1]}
 
@@ -102,6 +103,10 @@ class SecondaryParameters():
     def s_eff(self, p: dict[str, np.ndarray | float]) -> np.ndarray | float:
         """Total surface recombination, in cm s^-1"""
         return p["Sf"] + p["Sb"]
+    
+    def c_eff(self, p: dict[str, np.ndarray | float]) -> np.ndarray | float:
+        """Effective Auger recombination rate, in cm^6 s^-1"""
+        return p["Cn"] + p["Cp"]
 
     def mu_eff(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
         """Ambipolar mobility, in cm^2 V^-1 s^-1"""

@@ -67,7 +67,7 @@ def model(iniPar, g, p, meas="TRPL", solver=("solveivp",),
     ----------
     iniPar : np.ndarray
         Initial conditions - either an array of one initial value per g.nx, or an array
-        of parameters (e.g. [fluence, alpha]) usable to generate the initial condition.
+        of parameters (e.g. [fluence, alpha, direction]) usable to generate the initial condition.
     g : Grid
         Object containing space and time grid information.
     p : Parameters
@@ -104,6 +104,10 @@ def model(iniPar, g, p, meas="TRPL", solver=("solveivp",),
             fluence = iniPar[0] * 1e-14 # [cm^-2] to [nm^-2]
             alpha = iniPar[1] * 1e-7    # [cm^-1] to [nm^-1]
             init_dN = fluence * alpha * np.exp(-alpha * g.xSteps)
+            try:
+                init_dN = init_dN[::np.sign(int(iniPar[2]))]
+            except (IndexError, ValueError):
+                pass
 
         p.apply_unit_conversions()
         N = init_dN + p.n0
@@ -150,7 +154,7 @@ def model(iniPar, g, p, meas="TRPL", solver=("solveivp",),
             nn.load_model(solver[1], solver[2])
 
         scaled_matPar = np.zeros((1, 14))
-        scaled_matPar[0] = [p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)),
+        scaled_matPar[0] = [p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, p.eps**-1,
                             iniPar[0], iniPar[1], g.thickness]
 
         pl_from_NN = nn.predict(g.tSteps, scaled_matPar)

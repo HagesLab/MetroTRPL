@@ -1,6 +1,19 @@
 # Output files
 *.pik
 
+# IRF files, except for the examples and readme
+!IRFs/readme.txt
+IRFs/*
+!IRFs/Examples/
+
+# GUI Keybinds, except for the example
+!GUI/keybinds/;.txt
+GUI/keybinds/*
+
+# Any lingering data files
+*.csv
+*.xlsx
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -116,6 +129,10 @@ venv.bak/
 # Spyder project settings
 .spyderproject
 .spyproject
+
+# VS code settings
+.vscode/
+.pylintrc
 
 # Rope project settings
 .ropeproject

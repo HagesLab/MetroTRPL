@@ -17,6 +17,7 @@ from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from tkinter import filedialog
 from types import FunctionType
+from queue import Empty
 
 
 from quicksim_result_popup import QuicksimResultPopup
@@ -36,6 +37,7 @@ PICKLE_FILE_LOCATION = "../output/TEST_REAL_STAUB"
 APPLICATION_NAME = "MCMC Visualization"
 
 DEFAULT_HIST_BINS = 96
+ACC_BIN_SIZE = 100
 DEFAULT_THICKNESS = 2000
 MAX_STATUS_MSGS = 11
 
@@ -102,7 +104,8 @@ class Window:
         # accepted - 0 for all proposed states, 1 for only accepted states
         self.data = dict[str, dict[str, dict[bool, np.ndarray]]]()
         self.file_names = dict[str, tk.IntVar]()
-        self.ext_variables = ["thickness", "nx", "final_time", "nt", "fluence", "absp"]
+
+        self.ext_variables = ["thickness", "nx", "final_time", "nt", "fluence", "absp", "direction", "wavelength"]
 
         self.chart.place(0, 0)
         self.side_panel = self.Panel(self.widget, 400, 430, GREY)
@@ -345,6 +348,14 @@ class Window:
         self.side_panel.widgets["chain_vis"].configure(state=tk.DISABLED) # type: ignore
         self.ac_popup = ActivateChainPopup(self, self.side_panel.widget)
 
+    def get_n_chains(self) -> int:
+        """Count how many active chains, as set by to ActivateChainPopup"""
+        n_chains = 0
+        for file_name in self.file_names:
+            if self.file_names[file_name].get():
+                n_chains += 1
+        return n_chains
+
     def mainloop(self) -> None:
         self.widget.mainloop()
 
@@ -368,47 +379,76 @@ class Window:
                                             self.ext_variables)
         self.widget.wait_window(self.qse_popup.toplevel)
 
-    def do_quicksim_result_popup(self) -> None:
+    def do_quicksim_result_popup(self, n_chains, n_sims) -> None:
         """Show quicksim results"""
-        self.qsr_popup = QuicksimResultPopup(self, self.side_panel.widget)
+        active_chain_names = []
+        for fname in self.file_names:
+            if self.file_names[fname].get() != 0:
+                active_chain_names.append(fname)
+        self.qsr_popup = QuicksimResultPopup(self, self.side_panel.widget, n_chains, n_sims,
+                                             active_chain_names)
 
     def query_quicksim(self, expected_num_sims : int) -> None:
         """Periodically check and plot completed quicksims"""
-        print("Checking...")
-        print(self.q.qsize())
-        if self.q.qsize() != expected_num_sims: # Not finished yet
+        self.qsr_popup.progress_text.set(f"{self.q.qsize()} of {expected_num_sims} complete")
+        self.qsr_popup.progress.set(self.q.qsize())
+        if not self.qsr_popup.is_open: # Closing the popup aborts the simulations
+            while True:
+                try:
+                    # Flush the queue
+                    self.q.get(timeout=1)
+                except Empty:
+                    break
+
+            self.qsm.terminate()
+            self.status("Sims canceled")
+            return
+
+        if self.q.qsize() != expected_num_sims: # Tasks are not finished yet
             self.widget.after(1000, self.query_quicksim, expected_num_sims)
             return
 
-        while self.q.qsize() > 0:
-            sim_result = self.q.get(False)
-            self.qsr_popup.plot(sim_result, PLOT_COLOR_CYCLE)
+        while True:
+            try:
+                sim_result = self.q.get(timeout=1)
+                self.qsr_popup.sim_results.append(sim_result)
+            except Empty:
+                pass
 
-        self.status("Sim finished")
+            if len(self.qsr_popup.sim_results) == expected_num_sims:
+                break
+            
         self.qsm.join()
+        self.qsr_popup.finalize()
+        self.status("Sims finished")
+        self.qsr_popup.toplevel.attributes('-topmost', 'true')
+        self.qsr_popup.toplevel.attributes('-topmost', 'false')
 
     def quicksim(self) -> None:
         """Start a quicksim and periodically check for completion"""
         self.mini_panel.widgets["quicksim button"].configure(state=tk.DISABLED) # type: ignore
+        self.mini_panel.widgets["load button"].configure(state=tk.DISABLED)  # type: ignore
+
         self.do_quicksim_entry_popup()
 
         if not self.qse_popup.continue_:
             self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL) # type: ignore
+            self.mini_panel.widgets["load button"].configure(state=tk.NORMAL)  # type: ignore
             return
-        
+
         sim_tasks = {}
         for ev in self.ext_variables:
             sim_tasks[ev] = []
             for i in range(self.qse_popup.n_sims):
                 if ev == "nx" or ev == "nt": # Number of steps must be int
-                    sim_tasks[ev].append(int(self.qse_popup.ext_var[ev][i].get()))
+                    sim_tasks[ev].append(int(float(self.qse_popup.ext_var[ev][i].get())))
                 else:
                     sim_tasks[ev].append(float(self.qse_popup.ext_var[ev][i].get()))
 
-        self.do_quicksim_result_popup()
+        self.do_quicksim_result_popup(self.get_n_chains(), self.qse_popup.n_sims)
+        self.qsr_popup.toplevel.attributes('-topmost', 'false')
         self.widget.after(10, self.qsm.quicksim, sim_tasks)
-        self.widget.after(1000, self.query_quicksim, self.qse_popup.n_sims)
-
+        self.widget.after(1000, self.query_quicksim, self.qse_popup.n_sims * self.get_n_chains())
 
     def loadfile(self) -> None:
         file_names = filedialog.askopenfilenames(filetypes=[("Pickle File", "*.pik")],
@@ -426,6 +466,34 @@ class Window:
             self.data[file_name] = {}
             with open(file_name, "rb") as rfile:
                 metrostate: sim_utils.MetroState = pickle.load(rfile)
+
+            logl = getattr(metrostate.H, "loglikelihood")
+            if logl.ndim == 2 and logl.shape[0] == 1:
+                logl = logl[0]
+            elif logl.ndim == 1:
+                pass
+            else:
+                raise ValueError("Invalid chain states format - "
+                                    "must be 1D or 2D of size (1, num_states)")
+            
+            self.data[file_name]["log likelihood"] = {False: logl[1:], True: logl[1:]}
+
+            accept = getattr(metrostate.H, "accept")
+            if accept.ndim == 2 and accept.shape[0] == 1:
+                accept = accept[0]
+            elif accept.ndim == 1:
+                pass
+            else:
+                raise ValueError("Invalid chain states format - "
+                                    "must be 1D or 2D of size (1, num_states)")
+            
+            bins = np.arange(0, len(accept), int(ACC_BIN_SIZE))
+            accepted_subs = np.split(accept, bins)
+            num_bins = len(accepted_subs)
+            sub_means = np.zeros((num_bins))
+            for s, sub in enumerate(accepted_subs):
+                sub_means[s] = np.mean(sub)
+            self.data[file_name]["accept"] = {False: sub_means, True: sub_means}
 
             try:
                 for key in metrostate.param_info["names"]:
@@ -495,7 +563,7 @@ class Window:
 
     def on_active_chain_update(self, *args) -> None:
         self.redraw()
-        if self.qse_popup.is_open:
+        if hasattr(self, "qse_popup") and self.qse_popup.is_open:
             self.qse_popup.calc_total_sims()
 
     def redraw(self, *args) -> None:
