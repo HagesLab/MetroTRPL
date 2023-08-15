@@ -7,6 +7,7 @@ Created on Mon Jan 31 22:13:26 2022
 import numpy as np
 from scipy.integrate import solve_ivp, odeint
 from scipy.interpolate import griddata
+from scipy.optimize import curve_fit
 import os
 import sys
 import signal
@@ -17,7 +18,7 @@ from sim_utils import MetroState, Grid, Solution
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import make_dir, clear_checkpoint_dir
 from laplace import make_I_tables, do_irf_convolution, post_conv_trim
-
+from curve_fitting import expfit
 try:
     from nn_features import NeuralNetwork
     HAS_NN_LIB = True
@@ -35,6 +36,14 @@ DEFAULT_RTOL = 1e-7
 DEFAULT_ATOL = 1e-10
 DEFAULT_HMAX = 4
 MAX_PROPOSALS = 100
+fit_order = 5
+def sec_fit(x, *args):
+    k = args[:fit_order]
+    C = args[fit_order:]
+    y = 0
+    for i in range(fit_order):
+        y += 10 ** C[i] * np.exp(k[i] * x)
+    return np.log10(y)
 
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
@@ -88,7 +97,7 @@ def model(iniPar, g, p, meas="TRPL", solver=("solveivp",),
         Values (e.g. the electron profile) at the final time of the simulation.
 
     """
-    if solver[0] == "solveivp" or solver[0] == "odeint":
+    if solver[0] == "solveivp" or solver[0] == "odeint" or solver[0] == "diagnostic":
         if len(iniPar) == g.nx:         # If list of initial values
             init_dN = iniPar * 1e-21    # [cm^-3] to [nm^-3]
         else:                           # List of parameters
@@ -108,7 +117,7 @@ def model(iniPar, g, p, meas="TRPL", solver=("solveivp",),
         init_condition = np.concatenate([N, P, E_f], axis=None)
         args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
                 p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
-        if solver[0] == "solveivp":
+        if solver[0] == "solveivp" or solver[0] == "diagnostic":
             sol = solve_ivp(dydt_numba, [g.start_time, g.time], init_condition,
                             args=args, t_eval=g.tSteps, method='LSODA',
                             max_step=g.hmax, rtol=RTOL, atol=ATOL)
@@ -123,6 +132,7 @@ def model(iniPar, g, p, meas="TRPL", solver=("solveivp",),
             next_init = s.N[-1] - p.n0
             p.apply_unit_conversions(reverse=True)  # [nm, V, ns] to [cm, V, s]
             s.PL *= 1e23                            # [nm^-2 ns^-1] to [cm^-2 s^-1]
+
             return s.PL, next_init
         elif meas == "TRTS":
             s.calculate_TRTS(g, p)
@@ -360,7 +370,62 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
                                     meas=meas_type,
                                     solver=MCMC_fields["solver"],
                                     rtol=RTOL, atol=ATOL)
+        
+        if MCMC_fields["solver"][0] == "diagnostic":
+            x, y = np.array(tSteps), np.array(sol)
 
+            cutoff = np.argmax(y < 1e15)
+            if cutoff == 0:
+                cutoff = None
+            x = x[:cutoff]
+            y = y[:cutoff]
+
+            # Taylor series or multiexponential fit
+            try:
+                fitted_coefs, fit_func, success = expfit(x, y, order=fit_order)
+                fitted_coefs = np.real(fitted_coefs)
+            except Exception as e:
+                success = False
+                logger.warning(f"Warning: Sim {i} fitting failed: {e}")
+                break
+
+            if not success:
+                logger.warning(f"Warning: Sim {i} fitting failed (non-exception)")
+
+            secondary_fit_success = False
+            try:
+                fitted_coefs2 = np.array(fitted_coefs)
+                fitted_coefs2[5:] = np.log10(np.abs(fitted_coefs2[5:]))
+                fitted_coefs2 = curve_fit(sec_fit, x, np.log10(y), p0=fitted_coefs2)[0]
+                fitted_coefs2[5:] = 10 ** fitted_coefs2[5:]
+            except Exception:
+                logger.warning(f"Warning: Sim {i} secondary fitting failed")
+            else:
+                logger.info(f"Sim {i} secondary fitting success")
+                secondary_fit_success = True
+                success = True
+
+            # Verify accuracy of fit
+            fit_y = fit_func(x, *fitted_coefs)
+            sol = fit_func(tSteps, *fitted_coefs)
+
+            # Make sure we compare logs regardless of fit choice
+            logy = np.log10(y)
+            fit_y = np.log10(fit_y)
+
+            err = np.nansum(np.abs(logy - fit_y) / logy)
+
+            if secondary_fit_success:
+                fit_y2 = fit_func(x, *fitted_coefs2)
+                fit_y2 = np.log10(fit_y2)
+                err2 = np.nansum(np.abs(logy - fit_y2) / logy)
+
+                if err2 < err:
+                    logger.info(f"Sim {i}: err improved from {err} to {err2} by secondary fit")
+                    fit_y = np.array(fit_y2)
+
+                    sol = fit_func(tSteps, *fitted_coefs2)
+                    
         # if verbose:
         if verbose and logger is not None:
             logger.info("{}: Simulation complete hmax={}; t {}-{}; x {}".format(i,

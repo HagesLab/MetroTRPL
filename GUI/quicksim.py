@@ -12,6 +12,7 @@ from laplace import make_I_tables, do_irf_convolution
 import sim_utils
 
 IRF_PATH = os.path.join("..", "IRFs")
+
 class QuicksimManager():
     proc : multiprocessing.Process
     queue : multiprocessing.Queue

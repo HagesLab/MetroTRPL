@@ -980,7 +980,7 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
 
 
 def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
-                         supported_solvers=("odeint", "solveivp", "NN"),
+                         supported_solvers=("odeint", "solveivp", "NN", "diagnostic"),
                          supported_prop_funcs=("box", "gauss", "None")):
     if not isinstance(MCMC_fields, dict):
         raise TypeError("MCMC control flags must be type 'dict'")

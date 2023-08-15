@@ -104,6 +104,7 @@ class Window:
         # accepted - 0 for all proposed states, 1 for only accepted states
         self.data = dict[str, dict[str, dict[bool, np.ndarray]]]()
         self.file_names = dict[str, tk.IntVar]()
+
         self.ext_variables = ["thickness", "nx", "final_time", "nt", "fluence", "absp", "direction", "wavelength"]
 
         self.chart.place(0, 0)
@@ -422,12 +423,12 @@ class Window:
         self.status("Sims finished")
         self.qsr_popup.toplevel.attributes('-topmost', 'true')
         self.qsr_popup.toplevel.attributes('-topmost', 'false')
-        
 
     def quicksim(self) -> None:
         """Start a quicksim and periodically check for completion"""
         self.mini_panel.widgets["quicksim button"].configure(state=tk.DISABLED) # type: ignore
         self.mini_panel.widgets["load button"].configure(state=tk.DISABLED)  # type: ignore
+
         self.do_quicksim_entry_popup()
 
         if not self.qse_popup.continue_:
@@ -448,7 +449,6 @@ class Window:
         self.qsr_popup.toplevel.attributes('-topmost', 'false')
         self.widget.after(10, self.qsm.quicksim, sim_tasks)
         self.widget.after(1000, self.query_quicksim, self.qse_popup.n_sims * self.get_n_chains())
-
 
     def loadfile(self) -> None:
         file_names = filedialog.askopenfilenames(filetypes=[("Pickle File", "*.pik")],
