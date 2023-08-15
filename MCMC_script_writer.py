@@ -16,7 +16,7 @@ from bayes_io import generate_config_script_file
 if __name__ == "__main__":
     # Just some HiperGator-specific stuff
     # Set up jobid, script_head, init_dir, out_dir, etc... depending on your computer
-    on_hpg = 1
+    on_hpg = 0
     try:
         jobid = int(sys.argv[1])
         script_head = sys.argv[2]
@@ -26,7 +26,6 @@ if __name__ == "__main__":
 
     if on_hpg:
         init_dir = r"/blue/c.hages/cfai2304/Metro_in"
-        init_dir = r"Inputs"
         out_dir = r"/blue/c.hages/cfai2304/Metro_out"
 
     else:
@@ -36,7 +35,7 @@ if __name__ == "__main__":
     # Filenames
     init_fname = "staub_MAPI_threepower_twothick_fluences.csv"
     exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
-    out_fname = "NN"
+    out_fname = "sample_output"
 
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
@@ -118,6 +117,8 @@ if __name__ == "__main__":
                      }
     # Proposal function search widths
     initial_variance = {param: 0.02 for param in param_names}
+
+    # Randomize the initial guess a little
     for name in param_names:
         if active_params[name]:
             initial_guesses[name] *= 10 ** np.random.uniform(-0.5, 0.5)
@@ -141,8 +142,7 @@ if __name__ == "__main__":
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
                    "num_iters": 8000,
-                   "solver": ("NN", "/blue/c.hages/Absorber_NN/Models/model_exp_all-reduced-6.h5",
-                              "/blue/c.hages/Absorber_NN/Models/model_exp_all-reduced-6-scales.npy"),
+                   "solver": ("solveivp",),
                    "likel2variance_ratio": 500,
                    "log_pl": 1,
                    "self_normalize": None,
