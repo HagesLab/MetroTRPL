@@ -7,6 +7,7 @@ Created on Thu Mar 30 12:05:40 2022
 
 import pickle
 import os
+import multiprocessing
 import sys
 sys.path.append("..")
 import tkinter as tk
@@ -14,62 +15,39 @@ import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
-from matplotlib.pyplot import rcParams
 from tkinter import filedialog
 from types import FunctionType
+from queue import Empty
 
+
+from quicksim_result_popup import QuicksimResultPopup
+from quicksim_entry_popup import QuicksimEntryPopup
+from activate_chain_popup import ActivateChainPopup
 import sim_utils
 import mc_plot
+from quicksim import QuicksimManager
 from secondary_parameters import SecondaryParameters
-sp = SecondaryParameters()
 
-def rgb(r: int, g: int, b: int) -> str:
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-
+from gui_colors import BLACK, WHITE, LIGHT_GREY, GREY, DARK_GREY, PLOT_COLOR_CYCLE
+from gui_styles import MENU_KWARGS, LABEL_KWARGS
 events = {"key": {"escape": "<Escape>", "enter": "<Return>"},
           "click": {"left": "<Button-1>", "right": "<Button-3>"}}
 
 PICKLE_FILE_LOCATION = "../output/TEST_REAL_STAUB"
 APPLICATION_NAME = "MCMC Visualization"
-WHITE = rgb(255, 255, 255)
-LIGHT_GREY = rgb(191, 191, 191)
-GREY = rgb(127, 127, 127)
-DARK_GREY = rgb(63, 63, 63)
-BLACK = rgb(0, 0, 0)
-RED = rgb(127, 0, 0)
-GREEN = rgb(0, 127, 0)
-
-PLOT_COLOR_CYCLE = rcParams['axes.prop_cycle'].by_key()['color']
-
-MENU_KWARGS = {"width": 10, "background": BLACK, "highlightbackground": BLACK, "foreground": WHITE}
-LABEL_KWARGS = {"width": 14, "background": LIGHT_GREY}
 
 DEFAULT_HIST_BINS = 96
+ACC_BIN_SIZE = 100
 DEFAULT_THICKNESS = 2000
 MAX_STATUS_MSGS = 11
 
+
+
 class Window:
     """ The main GUI object"""
-
-    class Popup:
-        """
-        For popups?
-        TODO: Is this class needed? 
-        """
-        def __init__(self, master: tk.Tk, width: int, height: int, text: str,
-                     colors: tuple[str, str]) -> None:
-            self.widget = tk.Toplevel(master=master)
-            x_offset = (self.widget.winfo_screenwidth() - width) // 2
-            y_offset = (self.widget.winfo_screenheight() - height) // 2
-            self.widget.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
-            self.widget.resizable(False, False)
-            self.widget.title("")
-            label = tk.Label(master=self.widget, width=width, height=height, text=text,
-                             background=colors[0], foreground=colors[1])
-            label.pack()
-            self.widget.grab_set()
-            self.widget.bind(events["click"]["left"], lambda code: self.widget.destroy())
+    qsr_popup: QuicksimResultPopup
+    qse_popup: QuicksimEntryPopup
+    ac_popup: ActivateChainPopup
 
     class Panel:
         """ Creates the frames for 1) the plot, 2) the plot options, 3) the import/export buttons, etc..."""
@@ -98,7 +76,7 @@ class Window:
 
     class Chart:
         """ tk embedded matplotlib Figure """
-        def __init__(self, master: tk.Tk, width: int, height: int) -> None:
+        def __init__(self, master: tk.Tk | tk.Toplevel, width: int, height: int) -> None:
             self.figure = Figure(figsize=(4, 4))
             self.canvas = FigureCanvasTkAgg(master=master, figure=self.figure)
             self.widget = self.canvas.get_tk_widget()
@@ -117,12 +95,16 @@ class Window:
         self.widget.title(title)
         self.widget.option_add("*tearOff", False)
         self.chart = self.Chart(self.widget, 600, 600)
+        self.q = multiprocessing.Queue()
+        self.sp = SecondaryParameters()
+        self.qsm = QuicksimManager(self, self.q)
 
         # Stores all MCMC states - self.data[fname][param_name][accepted]
         # param_name e.g. p0, mu_n, mu_p
         # accepted - 0 for all proposed states, 1 for only accepted states
         self.data = dict[str, dict[str, dict[bool, np.ndarray]]]()
         self.file_names = dict[str, tk.IntVar]()
+        self.ext_variables = ["thickness", "nx", "final_time", "nt", "fluence", "absp", "direction", "wavelength"]
 
         self.chart.place(0, 0)
         self.side_panel = self.Panel(self.widget, 400, 430, GREY)
@@ -180,7 +162,8 @@ class Window:
         export_button = tk.Button(master=self.mini_panel.widget, width=10, text="Export",
                                   background=BLACK, foreground=WHITE, command=self.export, border=4)
         export_button.place(x=200, y=100, anchor="s")
-        self.mini_panel.widgets["export button"] = load_button
+        export_button.configure(state=tk.DISABLED)
+        self.mini_panel.widgets["export button"] = export_button
 
         # Refreshes the plot
         graph_button = tk.Button(master=self.mini_panel.widget, width=10, text="Graph",
@@ -188,6 +171,13 @@ class Window:
         graph_button.place(x=380, y=40, anchor="se")
         graph_button.configure(state=tk.DISABLED)
         self.mini_panel.widgets["graph button"] = graph_button
+
+        # Does a simulation using the state data
+        qs_button = tk.Button(master=self.mini_panel.widget, width=10, text="Simulate",
+                              background=BLACK, foreground=WHITE, command=self.quicksim, border=4)
+        qs_button.place(x=380, y=100, anchor="se")
+        qs_button.configure(state=tk.DISABLED)
+        self.mini_panel.widgets["quicksim button"] = qs_button
 
     def populate_side_panel(self) -> None:
         """ Build the plot control panel to the right of the plotting frame. """
@@ -267,7 +257,7 @@ class Window:
         widgets["thickness"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["thickness"])
         widgets["thickness"].bind("<FocusOut>", self.redraw)
 
-    def mount_side_panel_states(self):
+    def mount_side_panel_states(self) -> None:
         """Add a map of widget locations for each of the four plotting states"""
         widgets = self.side_panel.widgets
 
@@ -354,16 +344,16 @@ class Window:
                                  )
 
     def do_select_chain_popup(self) -> None:
-        """Toggle the visibility of specific MCMC chains."""
-        toplevel = tk.Toplevel(self.side_panel.widget)
-        toplevel.configure(**{"background": LIGHT_GREY})
-        tk.Label(toplevel, text="Display:", background=LIGHT_GREY).grid(row=0, column=0, columnspan=2)
-        for i, file_name in enumerate(self.file_names):
-            tk.Checkbutton(toplevel, text=os.path.basename(file_name),
-                           variable=self.file_names[file_name],
-                           onvalue=1, offvalue=0, background=LIGHT_GREY).grid(row=i+1, column=0)
-            
-            tk.Label(toplevel, width=4, height=2, background=PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]).grid(row=i+1,column=1)
+        self.side_panel.widgets["chain_vis"].configure(state=tk.DISABLED) # type: ignore
+        self.ac_popup = ActivateChainPopup(self, self.side_panel.widget)
+
+    def get_n_chains(self) -> int:
+        """Count how many active chains, as set by to ActivateChainPopup"""
+        n_chains = 0
+        for file_name in self.file_names:
+            if self.file_names[file_name].get():
+                n_chains += 1
+        return n_chains
 
     def mainloop(self) -> None:
         self.widget.mainloop()
@@ -371,7 +361,7 @@ class Window:
     def bind(self, event: str, command: FunctionType) -> None:
         self.widget.bind(event, command)
 
-    def status(self, msg: str, clear=False):
+    def status(self, msg: str, clear=False) -> None:
         """Append a new message to the status panel"""
         if clear:
             self.status_msg = list[str]()
@@ -381,6 +371,84 @@ class Window:
 
         self.status_msg.append(msg)
         self.base_panel.variables["status_msg"].set("\n".join(self.status_msg))
+
+    def do_quicksim_entry_popup(self) -> None:
+        """Collect quicksim settings"""
+        self.qse_popup = QuicksimEntryPopup(self, self.side_panel.widget,
+                                            self.ext_variables)
+        self.widget.wait_window(self.qse_popup.toplevel)
+
+    def do_quicksim_result_popup(self, n_chains, n_sims) -> None:
+        """Show quicksim results"""
+        active_chain_names = []
+        for fname in self.file_names:
+            if self.file_names[fname].get() != 0:
+                active_chain_names.append(fname)
+        self.qsr_popup = QuicksimResultPopup(self, self.side_panel.widget, n_chains, n_sims,
+                                             active_chain_names)
+
+    def query_quicksim(self, expected_num_sims : int) -> None:
+        """Periodically check and plot completed quicksims"""
+        self.qsr_popup.progress_text.set(f"{self.q.qsize()} of {expected_num_sims} complete")
+        self.qsr_popup.progress.set(self.q.qsize())
+        if not self.qsr_popup.is_open: # Closing the popup aborts the simulations
+            while True:
+                try:
+                    # Flush the queue
+                    self.q.get(timeout=1)
+                except Empty:
+                    break
+
+            self.qsm.terminate()
+            self.status("Sims canceled")
+            return
+
+        if self.q.qsize() != expected_num_sims: # Tasks are not finished yet
+            self.widget.after(1000, self.query_quicksim, expected_num_sims)
+            return
+
+        while True:
+            try:
+                sim_result = self.q.get(timeout=1)
+                self.qsr_popup.sim_results.append(sim_result)
+            except Empty:
+                pass
+
+            if len(self.qsr_popup.sim_results) == expected_num_sims:
+                break
+            
+        self.qsm.join()
+        self.qsr_popup.finalize()
+        self.status("Sims finished")
+        self.qsr_popup.toplevel.attributes('-topmost', 'true')
+        self.qsr_popup.toplevel.attributes('-topmost', 'false')
+        
+
+    def quicksim(self) -> None:
+        """Start a quicksim and periodically check for completion"""
+        self.mini_panel.widgets["quicksim button"].configure(state=tk.DISABLED) # type: ignore
+        self.mini_panel.widgets["load button"].configure(state=tk.DISABLED)  # type: ignore
+        self.do_quicksim_entry_popup()
+
+        if not self.qse_popup.continue_:
+            self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL) # type: ignore
+            self.mini_panel.widgets["load button"].configure(state=tk.NORMAL)  # type: ignore
+            return
+
+        sim_tasks = {}
+        for ev in self.ext_variables:
+            sim_tasks[ev] = []
+            for i in range(self.qse_popup.n_sims):
+                if ev == "nx" or ev == "nt": # Number of steps must be int
+                    sim_tasks[ev].append(int(float(self.qse_popup.ext_var[ev][i].get())))
+                else:
+                    sim_tasks[ev].append(float(self.qse_popup.ext_var[ev][i].get()))
+
+        self.do_quicksim_result_popup(self.get_n_chains(), self.qse_popup.n_sims)
+        self.qsr_popup.toplevel.attributes('-topmost', 'false')
+        self.widget.after(10, self.qsm.quicksim, sim_tasks)
+        self.widget.after(1000, self.query_quicksim, self.qse_popup.n_sims * self.get_n_chains())
+
 
     def loadfile(self) -> None:
         file_names = filedialog.askopenfilenames(filetypes=[("Pickle File", "*.pik")],
@@ -399,32 +467,60 @@ class Window:
             with open(file_name, "rb") as rfile:
                 metrostate: sim_utils.MetroState = pickle.load(rfile)
 
+            logl = getattr(metrostate.H, "loglikelihood")
+            if logl.ndim == 2 and logl.shape[0] == 1:
+                logl = logl[0]
+            elif logl.ndim == 1:
+                pass
+            else:
+                raise ValueError("Invalid chain states format - "
+                                    "must be 1D or 2D of size (1, num_states)")
+            
+            self.data[file_name]["log likelihood"] = {False: logl[1:], True: logl[1:]}
+
+            accept = getattr(metrostate.H, "accept")
+            if accept.ndim == 2 and accept.shape[0] == 1:
+                accept = accept[0]
+            elif accept.ndim == 1:
+                pass
+            else:
+                raise ValueError("Invalid chain states format - "
+                                    "must be 1D or 2D of size (1, num_states)")
+            
+            bins = np.arange(0, len(accept), int(ACC_BIN_SIZE))
+            accepted_subs = np.split(accept, bins)
+            num_bins = len(accepted_subs)
+            sub_means = np.zeros((num_bins))
+            for s, sub in enumerate(accepted_subs):
+                sub_means[s] = np.mean(sub)
+            self.data[file_name]["accept"] = {False: sub_means, True: sub_means}
+
             try:
                 for key in metrostate.param_info["names"]:
-                    if metrostate.param_info["active"][key]:
-                        states = getattr(metrostate.H, key)
-                        # Always downcast to 1D
-                        if states.ndim == 2 and states.shape[0] == 1:
-                            states = states[0]
-                        elif states.ndim == 1:
-                            pass
-                        else:
-                            raise ValueError("Invalid chain states format - "
-                                             "must be 1D or 2D of size (1, num_states)")
+                    # if metrostate.param_info["active"][key]:
+                    states = getattr(metrostate.H, key)
+                    # Always downcast to 1D
+                    if states.ndim == 2 and states.shape[0] == 1:
+                        states = states[0]
+                    elif states.ndim == 1:
+                        pass
+                    else:
+                        raise ValueError("Invalid chain states format - "
+                                            "must be 1D or 2D of size (1, num_states)")
 
-                        mean_states = getattr(metrostate.H, f"mean_{key}")
-                        if mean_states.ndim == 2 and mean_states.shape[0] == 1:
-                            mean_states = mean_states[0]
-                        elif mean_states.ndim == 1:
-                            pass
-                        else:
-                            raise ValueError("Invalid chain states format - "
-                                             "must be 1D or 2D of size (1, num_states)")
+                    mean_states = getattr(metrostate.H, f"mean_{key}")
+                    if mean_states.ndim == 2 and mean_states.shape[0] == 1:
+                        mean_states = mean_states[0]
+                    elif mean_states.ndim == 1:
+                        pass
+                    else:
+                        raise ValueError("Invalid chain states format - "
+                                            "must be 1D or 2D of size (1, num_states)")
 
-                        self.data[file_name][key] = {False: states,
-                                                     True: mean_states}
+                    self.data[file_name][key] = {False: states,
+                                                    True: mean_states}
                         
-                for key in sp.func:
+                for key in self.sp.func:
                     # TODO: Option to precalculate all of these
                     self.data[file_name][key] = {False: np.zeros(0),
                                                  True: np.zeros(0)}
@@ -434,7 +530,7 @@ class Window:
 
         self.file_names = {file_name: tk.IntVar(value=1) for file_name in file_names}
         for file_name in self.file_names:
-            self.file_names[file_name].trace("w", self.redraw)
+            self.file_names[file_name].trace("w", self.on_active_chain_update)
 
         # Generate a button for each parameter
         self.mini_panel.widgets["chart menu"].configure(state=tk.NORMAL) # type: ignore
@@ -455,13 +551,20 @@ class Window:
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_2"])
 
         self.side_panel.variables["variable_2"].trace("w", self.redraw)
+        self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL) # type: ignore
 
     def chartselect(self) -> None:
         """ Refresh on choosing a new type of plot """
         self.side_panel.loadstate(self.chart_type.get())
+        self.mini_panel.widgets["export button"].configure(state=tk.NORMAL) # type: ignore
         self.mini_panel.widgets["graph button"].configure(state=tk.NORMAL) # type: ignore
         self.chart.figure.clear()
         self.chart.canvas.draw()
+
+    def on_active_chain_update(self, *args) -> None:
+        self.redraw()
+        if hasattr(self, "qse_popup") and self.qse_popup.is_open:
+            self.qse_popup.calc_total_sims()
 
     def redraw(self, *args) -> None:
         """
@@ -538,10 +641,10 @@ class Window:
                     color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
                     y = self.data[file_name][x_val][accepted]
-                    if (len(y) == 0 or thickness != sp.last_thickness.get(x_val, thickness)) and x_val in sp.func:
+                    if (len(y) == 0 or thickness != self.sp.last_thickness.get(x_val, thickness)) and x_val in self.sp.func:
                         # Calculate and cache the secondary parameter
                         try:
-                            sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": accepted}, thickness)
+                            self.sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": accepted}, thickness)
                         except (ValueError, KeyError) as err:
                             self.status(str(err))
                     mc_plot.traceplot1d(axes, self.data[file_name][x_val][accepted],
@@ -558,9 +661,9 @@ class Window:
                     success = {"x": False, "y": False}
                     for s, val in xy_val.items():
                         y =  self.data[file_name][val][True]
-                        if (len(y) == 0 or thickness != sp.last_thickness.get(val, thickness)) and val in sp.func:
+                        if (len(y) == 0 or thickness != self.sp.last_thickness.get(val, thickness)) and val in self.sp.func:
                             try:
-                                sp.get(self.data, {"file_name": file_name, "value": val, "accepted": True}, thickness)
+                                self.sp.get(self.data, {"file_name": file_name, "value": val, "accepted": True}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
@@ -581,9 +684,9 @@ class Window:
                             continue
 
                         y = self.data[file_name][x_val][True]
-                        if (len(y) == 0 or thickness != sp.last_thickness.get(x_val, thickness)) and x_val in sp.func:
+                        if (len(y) == 0 or thickness != self.sp.last_thickness.get(x_val, thickness)) and x_val in self.sp.func:
                             try:
-                                sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": True}, thickness)
+                                self.sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": True}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
@@ -604,9 +707,9 @@ class Window:
                         color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
                         y = self.data[file_name][x_val][True]
-                        if (len(y) == 0 or thickness != sp.last_thickness.get(x_val, thickness)) and x_val in sp.func:
+                        if (len(y) == 0 or thickness != self.sp.last_thickness.get(x_val, thickness)) and x_val in self.sp.func:
                             try:
-                                sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": True}, thickness)
+                                self.sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": True}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
@@ -627,9 +730,9 @@ class Window:
                     success = {"x": False, "y": False}
                     for s, val in xy_val.items():
                         y = self.data[file_name][val][True]
-                        if (len(y) == 0 or thickness != sp.last_thickness.get(val, thickness)) and val in sp.func:
+                        if (len(y) == 0 or thickness != self.sp.last_thickness.get(val, thickness)) and val in self.sp.func:
                             try:
-                                sp.get(self.data, {"file_name": file_name, "value": val, "accepted": True}, thickness)
+                                self.sp.get(self.data, {"file_name": file_name, "value": val, "accepted": True}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
@@ -644,11 +747,11 @@ class Window:
                 # self.chart.figure.colorbar(colorbar, ax=axes, fraction=0.04)
 
         # Record most recently used thickness
-        if x_val in sp.last_thickness:
-            sp.last_thickness[x_val] = thickness
+        if x_val in self.sp.last_thickness:
+            self.sp.last_thickness[x_val] = thickness
 
-        if "2D" in self.side_panel.state and y_val in sp.last_thickness:
-            sp.last_thickness[y_val] = thickness
+        if "2D" in self.side_panel.state and y_val in self.sp.last_thickness:
+            self.sp.last_thickness[y_val] = thickness
 
         self.chart.figure.tight_layout()
         self.chart.canvas.draw()
@@ -896,7 +999,9 @@ class Window:
 
                 self.status(f"Export complete - {out_name}")
 
-window = Window(1000, 800, APPLICATION_NAME)
-window.bind(events["key"]["escape"], sys.exit) # type: ignore
 
-window.mainloop()
+if __name__ == "__main__":
+    window = Window(1000, 800, APPLICATION_NAME)
+    window.bind(events["key"]["escape"], sys.exit) # type: ignore
+
+    window.mainloop()

@@ -45,9 +45,16 @@ def histogram1d(axes: Axes, x_list: np.ndarray, title: str, x_label: str, scale:
 def histogram2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
                 x_label: str, y_label: str, scale: str, bins: int) -> None:
     """2D histogram, showing distribution of visited values for two parameters"""
-    data = axes.hist2d(x_list, y_list, bins, cmap="Blues")[0]
+    axes.hist2d(x_list, y_list, bins, cmap="Blues")
     axes.set_xscale(scale)
     axes.set_yscale(scale)
     axes.set_xlabel(f"Accepted {x_label}")
     axes.set_ylabel(f"Accepted {y_label}")
-    return data
+
+def sim_plot(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
+                  x_label: str, y_label: str, scale: str, color: str) -> None:
+    """Ordinary plot of TRPL, TRTS, etc... decay, e.g. for quicksim feature"""
+    axes.plot(x_list, y_list, color=color)
+    axes.set_yscale(scale)
+    axes.set_xlabel(x_label)
+    axes.set_ylabel(y_label)
