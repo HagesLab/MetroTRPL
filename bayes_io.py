@@ -31,29 +31,31 @@ def extract_values(string, delimiter, dtype=float):
     return values
 
 
-def extract_tuples(string, delimiter):
-    """ Converts a string of tuples separated by delimiter into a list of
-    tuples"""
+def extract_tuples(string, delimiter, dtype=float):
+    """
+    Converts a string of arbitrary lengthed tuples
+    separated by delimiter into a list of tuples
+    This one supports inf and -inf as values
+    """
     tuples_as_str = string.split(delimiter)
     tuples = []
 
     for ts in tuples_as_str:
-        first_value = ts[ts.find("(")+1:ts.find(", ")]
-        second_value = ts[ts.find(", ")+2:ts.find(")")]
-        if first_value == "-inf":
-            first_value = -np.inf
-        else:
-            first_value = float(first_value)
-
-        if second_value == "inf":
-            second_value = np.inf
-        else:
-            second_value = float(second_value)
-
-        tuples.append((first_value, second_value))
-
+        ts = ts.strip("()")
+        vals = ts.split(", ")
+        for i in range(len(vals)):
+            if vals[i] == "-inf":
+                vals[i] = -np.inf
+            elif vals[i] == "inf":
+                vals[i] = np.inf
+            elif dtype == float:
+                vals[i] = float(vals[i])
+            elif dtype == int:
+                vals[i] = int(vals[i])
+            else:
+                continue
+        tuples.append(tuple(vals))
     return tuples
-
 
 def check_valid_filename(file_name):
     """Screens file_name for prohibited characters
@@ -326,6 +328,22 @@ def read_config_script_file(path):
                     elif line.startswith("Resample"):
                         meas_flags["resample"] = int(line_split[1])
 
+                    elif line.startswith("Fittable fluences"):
+                        if line_split[1] == "None":
+                            meas_flags["fittable_fluences"] = None
+                        else:
+                            init_var, inds, c_grps = line_split[1].split("\t")
+
+                            init_var = float(init_var)
+
+                            inds = inds.strip("[]")
+                            inds = extract_values(inds, delimiter=", ", dtype=int)
+
+                            c_grps = c_grps.strip("[]")
+                            c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
+
+                            meas_flags["fittable_fluences"] = (init_var, inds, c_grps)
+                            
                 if (init_flag == 's'):
                     if line.startswith("Num iters"):
                         MCMC_fields["num_iters"] = int(line_split[1])
@@ -542,6 +560,34 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             for s in select[1:]:
                 ofstream.write(f"\t{s}")
             ofstream.write("\n")
+
+        if "fittable_fluences" in measurement_flags:
+            if verbose:
+                ofstream.write("# Whether to try inferring the fluences. None means it will keep"
+                               " the fluence values as entered;\n# otherwise, a tuple of three elements:\n"
+                               "# 1. An initial variance value, as in initial_variance.\n"
+                               "# All fluences are fitted by log scale and will use the same variance.\n"
+                               "# 2. A list of indices for measurements for which fluences will be fitted.\n"
+                               "# e.g. [0, 1, 2] means vary the fluences for the first, second, and third measurements.\n"
+                               "# Additional parameters named _f0, _f1, _f2... will be created for such measurements.\n"
+                               "# 3. Either None, in which all fluences will be independently fitted, or\n"
+                               "# A list of constraint groups, in which each measurement in a group will share a fluence\n"
+                               "# with all other members. E.g. [(0, 2, 4), (1, 3, 5)] means that the third and fifth\n"
+                               "# measurments will share a fluence value with the first, \n"
+                               "# while the fourth and sixth measurements will share a fluence value with the second.\n")
+                ff = measurement_flags["fittable_fluences"]
+                if ff is None:
+                    ofstream.write(f"Fittable fluences: {ff}\n")
+                else:
+                    ofstream.write(f"Fittable fluences: {ff[0]}\t")
+                    ofstream.write(f"{ff[1]}\t")
+                    if ff[2] is None:
+                        ofstream.write(f"{ff[2]}")
+                    else:
+                        ofstream.write(f"{ff[2][0]}")
+                        for c_grp in ff[2][1:]:
+                            ofstream.write(f"|{c_grp}")
+                    ofstream.write("\n")
 
         if "noise_level" in measurement_flags:
             if verbose:
@@ -976,8 +1022,43 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
         else:
             raise ValueError("Invalid resample - must be positive")
 
+    if "fittable_fluences" in meas_flags:
+        ff = meas_flags["fittable_fluences"]
+        success = check_fittable_fluence(ff)
+        if not success:
+            raise ValueError("Invalid fittable_fluence - must be None, or tuple"
+                             "(see printed description when verbose=True)")
     return
 
+def check_fittable_fluence(ff : None | tuple | list) -> bool:
+    """Validates fittable_fluence entry in meas_flags"""
+    if ff is None:
+        pass
+    elif isinstance(ff, (list, tuple)):
+        if len(ff) != 3:
+            return False
+        if not isinstance(ff[0], (float, int)):
+            return False
+        if not isinstance(ff[1], (list, tuple, np.ndarray)):
+            return False
+        if ff[2] is not None or not isinstance(ff[2], (list, tuple)):
+            return False
+
+        for i_fittable in ff[1]:
+            if not isinstance(i_fittable, (int, np.integer)) or i_fittable < 0:
+                return False
+
+        if ff[2] is not None:
+            for constraint_grp in ff[2]:
+                if not isinstance(constraint_grp, (list, tuple)):
+                    return False
+                for c in constraint_grp:
+                    if not isinstance(c, (int, np.integer)) or c < 0:
+                        return False
+    else:
+        return False
+
+    return True
 
 def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
                          supported_solvers=("odeint", "solveivp", "NN", "diagnostic"),
