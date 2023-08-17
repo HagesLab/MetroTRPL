@@ -205,6 +205,73 @@ def insert_scale_factors(grid, param_info, meas_fields, MCMC_fields):
             param_info["active"][f"_s{i}"] = 1
     return
 
+def insert_fluences(grid, param_info, meas_fields, MCMC_fields):
+    ff = MCMC_fields.get("fittable_fluences", None)
+    if ff is None:
+        return
+
+    f_var = ff[0]
+
+    if meas_fields["select_obs_sets"] is not None:
+        num_meas = len(meas_fields["select_obs_sets"])
+    else:
+        num_meas = grid["num_meas"]
+    for i in range(num_meas):
+        param_info["names"].append(f"_f{i}")
+        param_info["do_log"][f"_f{i}"] = 1
+        param_info["prior_dist"][f"_f{i}"] = (0, np.inf)
+        param_info["init_guess"][f"_f{i}"] = scale_init 
+        param_info["init_variance"][f"_f{i}"] = f_var
+        param_info["active"][f"_f{i}"] = 1
+    return
+
+def remap_fittable_inds(fittables : np.ndarray, select_obs_sets : list) -> np.ndarray:
+    """
+    Reassign new fittable indices (e.g. for fittable_fluence's 2nd argument)
+    according to subset of measurements requested by select_obs_sets
+
+    E.g.: select_obs_sets = [0, 2, 4]; fittables = [0, 1, 3, 4]
+    MMC will refer to the remaining three measurements as "0", "1", and "2",
+    i.e. 0 -> 0, 2 -> 1, 4 -> 2
+    so a new_fittables of [0, 2] is required to correspond with the originally
+    requested 0 and 4.
+    Meanwhile, measurements 1 and 3 are omitted by select_obs_sets, so they should
+    be absent from new_fittables.
+    """
+    new_fittables = []
+    for i, s in enumerate(select_obs_sets):
+        if s in fittables:
+            new_fittables.append(i)
+
+    return np.array(new_fittables)
+
+def remap_constraint_grps(c_grps : list[tuple], select_obs_sets : list) -> list[tuple]:
+    """
+    Reassign new constraint groups (e.g. for fittable_fluence's 3rd argument)
+    according to subset of measurements requested by select_obs_sets
+
+    E.g.: select_obs_sets = [0, 2, 4]; c_grps = [(0, 1, 2), (3, 4, 5)]
+    MMC will refer to the remaining three measurements as "0", "1", and "2",
+    i.e. 0 -> 0, 2 -> 1, 4 -> 2
+    so every occurence of 0, 2, and 4 in c_grps must be replaced with 0, 1, and 2 respectively.
+    Measurements 1, 3, and 5 are omitted by select_obs_sets, so they should be removed from
+    c_grps.
+    This leaves [(0, 1), (2, )]
+    However, constraint groups of size 1 are meaningless (such a measurement will not share a
+    fittable fluence with any other measurement), so they too can be removed.
+    This leaves [(0, 1)]
+    """
+    new_c_grps = []
+    for grp in c_grps:
+        new_c_grp = []
+        for val in grp:
+            if val in select_obs_sets:
+                new_c_grp.append(select_obs_sets.index(val))
+
+        if len(new_c_grp) > 1:
+            new_c_grps.append(tuple(new_c_grp))
+        
+    return new_c_grps
 
 def read_config_script_file(path):
     with open(path, 'r') as ifstream:
