@@ -225,10 +225,13 @@ def insert_fluences(grid, param_info, meas_fields, MCMC_fields):
         param_info["active"][f"_f{i}"] = 1
     return
 
-def remap_fittable_inds(fittables : np.ndarray, select_obs_sets : list) -> np.ndarray:
+def remap_fittable_inds(fittables : np.ndarray | list[int], select_obs_sets : list) -> np.ndarray:
     """
     Reassign new fittable indices (e.g. for fittable_fluence's 2nd argument)
     according to subset of measurements requested by select_obs_sets
+
+    This is essentially the intersection of fittables and select_obs_sets,
+    but working on ordered lists rather than sets
 
     E.g.: select_obs_sets = [0, 2, 4]; fittables = [0, 1, 3, 4]
     MMC will refer to the remaining three measurements as "0", "1", and "2",
