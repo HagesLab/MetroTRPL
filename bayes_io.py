@@ -205,22 +205,30 @@ def insert_scale_factors(grid, param_info, meas_fields, MCMC_fields):
             param_info["active"][f"_s{i}"] = 1
     return
 
-def insert_fluences(grid, param_info, meas_fields, MCMC_fields):
-    ff = MCMC_fields.get("fittable_fluences", None)
+def insert_fluences(param_info, meas_fields, fluences):
+    ff = meas_fields.get("fittable_fluences", None)
     if ff is None:
         return
 
     f_var = ff[0]
 
-    if meas_fields["select_obs_sets"] is not None:
-        num_meas = len(meas_fields["select_obs_sets"])
+    # The FIRST value in each c_grp determines the name
+    # of the fluence parameter used by all in the c_grp
+    # All subsequent values do not need their own fluence parameters
+    c_grp_dependents = []
+    if ff[2] is None or len(ff[2]) == 0:
+        pass
     else:
-        num_meas = grid["num_meas"]
-    for i in range(num_meas):
+        for c_grp in ff[2]:
+            c_grp_dependents += list(c_grp)[1:]
+
+    for i in ff[1]:
+        if i in c_grp_dependents:
+            continue
         param_info["names"].append(f"_f{i}")
         param_info["do_log"][f"_f{i}"] = 1
         param_info["prior_dist"][f"_f{i}"] = (0, np.inf)
-        param_info["init_guess"][f"_f{i}"] = scale_init 
+        param_info["init_guess"][f"_f{i}"] = fluences[i]
         param_info["init_variance"][f"_f{i}"] = f_var
         param_info["active"][f"_f{i}"] = 1
     return
@@ -484,13 +492,11 @@ def read_config_script_file(path):
     insert_scale_factors(grid, param_info, meas_flags, MCMC_fields)
 
     # Keep fittable_fluence indices consistent after subsetting with select_obs_sets
-    # if meas_flags["fittable_fluences"] is not None and meas_flags["select_obs_sets"] is not None:
-    #     meas_flags["fittable_fluences"][1] = remap_fittable_inds(meas_flags["fittable_fluences"][1],
-    #                                                              meas_flags["select_obs_sets"])
-    #     meas_flags["fittable_fluences"][2] = remap_constraint_grps(meas_flags["fittable_fluences"][2],
-    #                                                                meas_flags["select_obs_sets"])
-        
-    # insert_fluences(grid, param_info, meas_flags, MCMC_fields)
+    if meas_flags["fittable_fluences"] is not None and meas_flags["select_obs_sets"] is not None:
+        meas_flags["fittable_fluences"][1] = remap_fittable_inds(meas_flags["fittable_fluences"][1],
+                                                                 meas_flags["select_obs_sets"])
+        meas_flags["fittable_fluences"][2] = remap_constraint_grps(meas_flags["fittable_fluences"][2],
+                                                                   meas_flags["select_obs_sets"])
 
     return grid, param_info, meas_flags, MCMC_fields
 

@@ -11,11 +11,12 @@ from time import perf_counter
 
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import get_data, get_initpoints, read_config_script_file
+from bayes_io import insert_fluences
 from metropolis import metro
 
 if __name__ == "__main__":
     # Some HiperGator specific stuff
-    on_hpg = 1
+    on_hpg = 0
     if on_hpg:
         jobid = int(os.getenv('SLURM_ARRAY_TASK_ID'))
         script_head = sys.argv[1]
@@ -33,6 +34,9 @@ if __name__ == "__main__":
         sys.exit()
     np.random.seed(jobid)
 
+    logger, handler = start_logging(
+        log_dir=MCMC_fields["output_path"], name=f"CPU{jobid}")
+
     # Get observations and initial condition
     iniPar = get_initpoints(MCMC_fields["init_cond_path"], meas_fields)
 
@@ -40,6 +44,14 @@ if __name__ == "__main__":
 
     e_data = get_data(MCMC_fields["measurement_path"], measurement_types,
                       meas_fields, MCMC_fields)
+
+    # If fittable fluences, use the initial condition to setup fittable fluence parameters
+    # (Only if the initial condition supplies fluences instead of the entire profile)
+    if meas_fields["fittable_fluences"] is not None:
+        if len(iniPar) != sim_info["nx"][0]:
+            insert_fluences(param_info, meas_fields, iniPar[:, 0])
+        else:
+            logger.warning("No fluences found in Input file - fittable_fluences ignored!")
 
     # Make simulation info consistent with actual number of selected measurements
     if meas_fields.get("select_obs_sets", None) is not None:
@@ -52,8 +64,6 @@ if __name__ == "__main__":
             MCMC_fields["irf_convolution"] = [MCMC_fields["irf_convolution"][i]
                                               for i in meas_fields["select_obs_sets"]]
 
-    logger, handler = start_logging(
-        log_dir=MCMC_fields["output_path"], name=f"CPU{jobid}")
     logger.info("Measurement handling fields: {}".format(meas_fields))
     logger.info("E data: {}".format(
         ["[{}...{}]".format(e_data[1][i][0], e_data[1][i][-1]) for i in range(len(e_data[1]))]))
