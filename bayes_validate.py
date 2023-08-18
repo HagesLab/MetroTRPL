@@ -113,12 +113,12 @@ def validate_param_info(param_info: dict):
             raise ValueError(f"Param name {k} is invalid \n"
                              " Names must be alphanumeric")
         
-    # Disallow names starting with _s, which is reserved for scale_factors
+    # Disallow names starting with _, which is reserved for scale_factors, fittable fluences, etc
     # Alphanumeric + underscore only
     for k in names:
-        if k.startswith("_s"):
+        if k.startswith("_"):
             raise ValueError(f"Param name {k} is invalid \n"
-                             " Names must not start with _s")
+                             " Names must not start with _")
 
     # Unit conversions CAN be missing entries - these are defaulted to 1
     for k, v in param_info["unit_conversions"].items():
