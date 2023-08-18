@@ -205,8 +205,8 @@ def insert_scale_factors(grid, param_info, meas_fields, MCMC_fields):
             param_info["active"][f"_s{i}"] = 1
     return
 
-def insert_fluences(param_info, meas_fields, fluences):
-    ff = meas_fields.get("fittable_fluences", None)
+def insert_fluences(param_info, MCMC_fields, fluences):
+    ff = MCMC_fields.get("fittable_fluences", None)
     if ff is None:
         return
 
@@ -396,22 +396,6 @@ def read_config_script_file(path):
 
                     elif line.startswith("Resample"):
                         meas_flags["resample"] = int(line_split[1])
-
-                    elif line.startswith("Fittable fluences"):
-                        if line_split[1] == "None":
-                            meas_flags["fittable_fluences"] = None
-                        else:
-                            init_var, inds, c_grps = line_split[1].split("\t")
-
-                            init_var = float(init_var)
-
-                            inds = inds.strip("[]")
-                            inds = extract_values(inds, delimiter=", ", dtype=int)
-
-                            c_grps = c_grps.strip("[]")
-                            c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
-
-                            meas_flags["fittable_fluences"] = [init_var, inds, c_grps]
                             
                 if (init_flag == 's'):
                     if line.startswith("Num iters"):
@@ -445,6 +429,21 @@ def read_config_script_file(path):
                             MCMC_fields["scale_factor"] = line_split[1].split('\t')
                             MCMC_fields["scale_factor"][1] = float(MCMC_fields["scale_factor"][1]) # type: ignore
                             MCMC_fields["scale_factor"][2] = float(MCMC_fields["scale_factor"][2]) # type: ignore
+                    elif line.startswith("Fittable fluences"):
+                        if line_split[1] == "None":
+                            meas_flags["fittable_fluences"] = None
+                        else:
+                            init_var, inds, c_grps = line_split[1].split("\t")
+
+                            init_var = float(init_var)
+
+                            inds = inds.strip("[]")
+                            inds = extract_values(inds, delimiter=", ", dtype=int)
+
+                            c_grps = c_grps.strip("[]")
+                            c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
+
+                            meas_flags["fittable_fluences"] = [init_var, inds, c_grps]
                     elif line.startswith("Normalize these meas and sim types"):
                         if line_split[1] == "None":
                             MCMC_fields["self_normalize"] = None
@@ -492,10 +491,10 @@ def read_config_script_file(path):
     insert_scale_factors(grid, param_info, meas_flags, MCMC_fields)
 
     # Keep fittable_fluence indices consistent after subsetting with select_obs_sets
-    if meas_flags["fittable_fluences"] is not None and meas_flags["select_obs_sets"] is not None:
-        meas_flags["fittable_fluences"][1] = remap_fittable_inds(meas_flags["fittable_fluences"][1],
-                                                                 meas_flags["select_obs_sets"])
-        meas_flags["fittable_fluences"][2] = remap_constraint_grps(meas_flags["fittable_fluences"][2],
+    if MCMC_fields.get("fittable_fluences", None) is not None and meas_flags["select_obs_sets"] is not None:
+        MCMC_fields["fittable_fluences"][1] = remap_fittable_inds(MCMC_fields["fittable_fluences"][1],
+                                                                  meas_flags["select_obs_sets"])
+        MCMC_fields["fittable_fluences"][2] = remap_constraint_grps(MCMC_fields["fittable_fluences"][2],
                                                                    meas_flags["select_obs_sets"])
 
     return grid, param_info, meas_flags, MCMC_fields
@@ -636,34 +635,6 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                 ofstream.write(f"\t{s}")
             ofstream.write("\n")
 
-        if "fittable_fluences" in measurement_flags:
-            if verbose:
-                ofstream.write("# Whether to try inferring the fluences. None means it will keep"
-                               " the fluence values as entered;\n# otherwise, a list of three elements:\n"
-                               "# 1. An initial variance value, as in initial_variance.\n"
-                               "# All fluences are fitted by log scale and will use the same variance.\n"
-                               "# 2. A list of indices for measurements for which fluences will be fitted.\n"
-                               "# e.g. [0, 1, 2] means vary the fluences for the first, second, and third measurements.\n"
-                               "# Additional parameters named _f0, _f1, _f2... will be created for such measurements.\n"
-                               "# 3. Either None, in which all fluences will be independently fitted, or\n"
-                               "# A list of constraint groups, in which each measurement in a group will share a fluence\n"
-                               "# with all other members. E.g. [(0, 2, 4), (1, 3, 5)] means that the third and fifth\n"
-                               "# measurments will share a fluence value with the first, \n"
-                               "# while the fourth and sixth measurements will share a fluence value with the second.\n")
-                ff = measurement_flags["fittable_fluences"]
-                if ff is None:
-                    ofstream.write(f"Fittable fluences: {ff}\n")
-                else:
-                    ofstream.write(f"Fittable fluences: {ff[0]}\t")
-                    ofstream.write(f"{ff[1]}\t")
-                    if ff[2] is None:
-                        ofstream.write(f"{ff[2]}")
-                    else:
-                        ofstream.write(f"{ff[2][0]}")
-                        for c_grp in ff[2][1:]:
-                            ofstream.write(f"|{c_grp}")
-                    ofstream.write("\n")
-
         if "noise_level" in measurement_flags:
             if verbose:
                 ofstream.write("# Whether to add Gaussian noise of the indicated magnitude to "
@@ -784,6 +755,34 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                 else:
                     ofstream.write(f"Scale factor: {scale_f[0]}\t{scale_f[1]}\t{scale_f[2]}")
             ofstream.write('\n')
+
+        if "fittable_fluences" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Whether to try inferring the fluences. None means it will keep"
+                               " the fluence values as entered;\n# otherwise, a list of three elements:\n"
+                               "# 1. An initial variance value, as in initial_variance.\n"
+                               "# All fluences are fitted by log scale and will use the same variance.\n"
+                               "# 2. A list of indices for measurements for which fluences will be fitted.\n"
+                               "# e.g. [0, 1, 2] means vary the fluences for the first, second, and third measurements.\n"
+                               "# Additional parameters named _f0, _f1, _f2... will be created for such measurements.\n"
+                               "# 3. Either None, in which all fluences will be independently fitted, or\n"
+                               "# A list of constraint groups, in which each measurement in a group will share a fluence\n"
+                               "# with all other members. E.g. [(0, 2, 4), (1, 3, 5)] means that the third and fifth\n"
+                               "# measurments will share a fluence value with the first, \n"
+                               "# while the fourth and sixth measurements will share a fluence value with the second.\n")
+                ff = MCMC_fields["fittable_fluences"]
+                if ff is None:
+                    ofstream.write(f"Fittable fluences: {ff}\n")
+                else:
+                    ofstream.write(f"Fittable fluences: {ff[0]}\t")
+                    ofstream.write(f"{ff[1]}\t")
+                    if ff[2] is None:
+                        ofstream.write(f"{ff[2]}")
+                    else:
+                        ofstream.write(f"{ff[2][0]}")
+                        for c_grp in ff[2][1:]:
+                            ofstream.write(f"|{c_grp}")
+                    ofstream.write("\n")
 
         if verbose:
             ofstream.write("# Proposal function used to generate new states. "

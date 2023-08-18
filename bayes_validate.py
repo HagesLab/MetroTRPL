@@ -22,7 +22,7 @@ def check_fittable_fluence(ff : None | tuple | list) -> bool:
             return False
         if not isinstance(ff[1], (list, tuple, np.ndarray)):
             return False
-        if ff[2] is not None or not isinstance(ff[2], (list, tuple)):
+        if ff[2] is not None and not isinstance(ff[2], (list, tuple)):
             return False
         
         if len(ff[1]) == 0:
@@ -276,13 +276,6 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
             pass
         else:
             raise ValueError("Invalid resample - must be positive")
-
-    if "fittable_fluences" in meas_flags:
-        ff = meas_flags["fittable_fluences"]
-        success = check_fittable_fluence(ff)
-        if not success:
-            raise ValueError("Invalid fittable_fluence - must be None, or tuple"
-                             "(see printed description when verbose=True)")
     return
 
 def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
@@ -433,7 +426,14 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
                 raise ValueError("scale_factor second value (initial guess) invalid - must be numeric")
             if not isinstance(scale_f[2], (int, float, np.integer)) or scale_f[2] < 0:
                 raise ValueError("scale_factor third value (initial variance) invalid - must be nonnegative")
-    
+
+    if "fittable_fluences" in MCMC_fields:
+        ff = MCMC_fields["fittable_fluences"]
+        success = check_fittable_fluence(ff)
+        if not success:
+            raise ValueError("Invalid fittable_fluence - must be None, or tuple"
+                             "(see printed description when verbose=True)")
+
     norm = MCMC_fields["self_normalize"]
     if norm is None:
         pass
