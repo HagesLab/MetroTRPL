@@ -24,6 +24,9 @@ def check_fittable_fluence(ff : None | tuple | list) -> bool:
             return False
         if ff[2] is not None or not isinstance(ff[2], (list, tuple)):
             return False
+        
+        if len(ff[1]) == 0:
+            return False
 
         for i_fittable in ff[1]:
             if not isinstance(i_fittable, (int, np.integer)) or i_fittable < 0:
