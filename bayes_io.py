@@ -440,8 +440,11 @@ def read_config_script_file(path):
                             inds = inds.strip("[]")
                             inds = extract_values(inds, delimiter=", ", dtype=int)
 
-                            c_grps = c_grps.strip("[]")
-                            c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
+                            if c_grps == "None":
+                                c_grps = None
+                            else:
+                                c_grps = c_grps.strip("[]")
+                                c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
 
                             meas_flags["fittable_fluences"] = [init_var, inds, c_grps]
                     elif line.startswith("Normalize these meas and sim types"):
