@@ -431,7 +431,7 @@ def read_config_script_file(path):
                             MCMC_fields["scale_factor"][2] = float(MCMC_fields["scale_factor"][2]) # type: ignore
                     elif line.startswith("Fittable fluences"):
                         if line_split[1] == "None":
-                            meas_flags["fittable_fluences"] = None
+                            MCMC_fields["fittable_fluences"] = None
                         else:
                             init_var, inds, c_grps = line_split[1].split("\t")
 
@@ -446,7 +446,7 @@ def read_config_script_file(path):
                                 c_grps = c_grps.strip("[]")
                                 c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
 
-                            meas_flags["fittable_fluences"] = [init_var, inds, c_grps]
+                            MCMC_fields["fittable_fluences"] = [init_var, inds, c_grps]
                     elif line.startswith("Normalize these meas and sim types"):
                         if line_split[1] == "None":
                             MCMC_fields["self_normalize"] = None

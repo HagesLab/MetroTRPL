@@ -47,9 +47,9 @@ if __name__ == "__main__":
 
     # If fittable fluences, use the initial condition to setup fittable fluence parameters
     # (Only if the initial condition supplies fluences instead of the entire profile)
-    if meas_fields["fittable_fluences"] is not None:
+    if MCMC_fields["fittable_fluences"] is not None:
         if len(iniPar) != sim_info["nx"][0]:
-            insert_fluences(param_info, meas_fields, iniPar[:, 0])
+            insert_fluences(param_info, MCMC_fields, iniPar[:, 0])
         else:
             logger.warning("No fluences found in Input file - fittable_fluences ignored!")
 
