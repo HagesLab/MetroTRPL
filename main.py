@@ -11,7 +11,7 @@ from time import perf_counter
 
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import get_data, get_initpoints, read_config_script_file
-from bayes_io import insert_fluences
+from bayes_io import insert_param
 from metropolis import metro
 
 if __name__ == "__main__":
@@ -47,11 +47,16 @@ if __name__ == "__main__":
 
     # If fittable fluences, use the initial condition to setup fittable fluence parameters
     # (Only if the initial condition supplies fluences instead of the entire profile)
-    if MCMC_fields["fittable_fluences"] is not None:
+    if MCMC_fields.get("fittable_fluences", None) is not None:
         if len(iniPar) != sim_info["nx"][0]:
-            insert_fluences(param_info, MCMC_fields, iniPar[:, 0])
+            insert_param(param_info, MCMC_fields, iniPar[:, 0], mode="fluences")
         else:
             logger.warning("No fluences found in Input file - fittable_fluences ignored!")
+    if MCMC_fields.get("fittable_absps", None) is not None:
+        if len(iniPar) != sim_info["nx"][0]:
+            insert_param(param_info, MCMC_fields, iniPar[:, 1], mode="absorptions")
+        else:
+            logger.warning("No absorptions found in Input file - fittable_absps ignored!")
 
     # Make simulation info consistent with actual number of selected measurements
     if meas_fields.get("select_obs_sets", None) is not None:

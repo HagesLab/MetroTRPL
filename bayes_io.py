@@ -205,8 +205,15 @@ def insert_scale_factors(grid, param_info, meas_fields, MCMC_fields):
             param_info["active"][f"_s{i}"] = 1
     return
 
-def insert_fluences(param_info, MCMC_fields, fluences):
-    ff = MCMC_fields.get("fittable_fluences", None)
+def insert_param(param_info, MCMC_fields, guesses, mode="fluences"):
+    if mode == "fluences":
+        ff = MCMC_fields.get("fittable_fluences", None)
+        name_base = "_f"
+    elif mode == "absorptions":
+        ff = MCMC_fields.get("fittable_absps", None)
+        name_base = "_a"
+    else:
+        raise NotImplementedError("Unsupported mode for insert_param()")
     if ff is None:
         return
 
@@ -225,12 +232,12 @@ def insert_fluences(param_info, MCMC_fields, fluences):
     for i in ff[1]:
         if i in c_grp_dependents:
             continue
-        param_info["names"].append(f"_f{i}")
-        param_info["do_log"][f"_f{i}"] = 1
-        param_info["prior_dist"][f"_f{i}"] = (0, np.inf)
-        param_info["init_guess"][f"_f{i}"] = fluences[i]
-        param_info["init_variance"][f"_f{i}"] = f_var
-        param_info["active"][f"_f{i}"] = 1
+        param_info["names"].append(f"{name_base}{i}")
+        param_info["do_log"][f"{name_base}{i}"] = 1
+        param_info["prior_dist"][f"{name_base}{i}"] = (0, np.inf)
+        param_info["init_guess"][f"{name_base}{i}"] = guesses[i]
+        param_info["init_variance"][f"{name_base}{i}"] = f_var
+        param_info["active"][f"{name_base}{i}"] = 1
     return
 
 def remap_fittable_inds(fittables : np.ndarray | list[int], select_obs_sets : list) -> np.ndarray:
@@ -447,6 +454,24 @@ def read_config_script_file(path):
                                 c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
 
                             MCMC_fields["fittable_fluences"] = [init_var, inds, c_grps]
+                    elif line.startswith("Fittable absorptions"):
+                        if line_split[1] == "None":
+                            MCMC_fields["fittable_absps"] = None
+                        else:
+                            init_var, inds, c_grps = line_split[1].split("\t")
+
+                            init_var = float(init_var)
+
+                            inds = inds.strip("[]")
+                            inds = extract_values(inds, delimiter=", ", dtype=int)
+
+                            if c_grps == "None":
+                                c_grps = None
+                            else:
+                                c_grps = c_grps.strip("[]")
+                                c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
+
+                            MCMC_fields["fittable_absps"] = [init_var, inds, c_grps]
                     elif line.startswith("Normalize these meas and sim types"):
                         if line_split[1] == "None":
                             MCMC_fields["self_normalize"] = None
@@ -499,6 +524,12 @@ def read_config_script_file(path):
                                                                   meas_flags["select_obs_sets"])
         MCMC_fields["fittable_fluences"][2] = remap_constraint_grps(MCMC_fields["fittable_fluences"][2],
                                                                    meas_flags["select_obs_sets"])
+        
+    if MCMC_fields.get("fittable_absps", None) is not None and meas_flags["select_obs_sets"] is not None:
+        MCMC_fields["fittable_absps"][1] = remap_fittable_inds(MCMC_fields["fittable_absps"][1],
+                                                               meas_flags["select_obs_sets"])
+        MCMC_fields["fittable_absps"][2] = remap_constraint_grps(MCMC_fields["fittable_absps"][2],
+                                                                 meas_flags["select_obs_sets"])
 
     return grid, param_info, meas_flags, MCMC_fields
 
@@ -778,6 +809,24 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                     ofstream.write(f"Fittable fluences: {ff}\n")
                 else:
                     ofstream.write(f"Fittable fluences: {ff[0]}\t")
+                    ofstream.write(f"{ff[1]}\t")
+                    if ff[2] is None:
+                        ofstream.write(f"{ff[2]}")
+                    else:
+                        ofstream.write(f"{ff[2][0]}")
+                        for c_grp in ff[2][1:]:
+                            ofstream.write(f"|{c_grp}")
+                    ofstream.write("\n")
+
+        if "fittable_absps" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Whether to try inferring the absorption coefficients."
+                               " See fittable_fluences for further details\n")
+                ff = MCMC_fields["fittable_absps"]
+                if ff is None:
+                    ofstream.write(f"Fittable absorptions: {ff}\n")
+                else:
+                    ofstream.write(f"Fittable absorptions: {ff[0]}\t")
                     ofstream.write(f"{ff[1]}\t")
                     if ff[2] is None:
                         ofstream.write(f"{ff[2]}")

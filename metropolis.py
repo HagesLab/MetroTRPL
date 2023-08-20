@@ -528,6 +528,13 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
         else:
             iniPar[0] = getattr(p, f"_f{i}")
 
+    fa = MCMC_fields.get("fittable_absps", None)
+    if (fa is not None and i in fa[1]):
+        if fa[2] is not None and len(fa[2]) > 0:
+            iniPar[1] = getattr(p, f"_a{search_c_grps(fa[2], i)}")
+        else:
+            iniPar[1] = getattr(p, f"_a{i}")
+
     tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
                                                hmax, MCMC_fields, logger, verbose)
 
