@@ -444,13 +444,12 @@ def read_config_script_file(path):
 
                             init_var = float(init_var)
 
-                            inds = inds.strip("[]")
+                            inds = inds.strip("([])")
                             inds = extract_values(inds, delimiter=", ", dtype=int)
 
                             if c_grps == "None":
                                 c_grps = None
                             else:
-                                c_grps = c_grps.strip("[]")
                                 c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
 
                             MCMC_fields["fittable_fluences"] = [init_var, inds, c_grps]
@@ -462,13 +461,12 @@ def read_config_script_file(path):
 
                             init_var = float(init_var)
 
-                            inds = inds.strip("[]")
+                            inds = inds.strip("([])")
                             inds = extract_values(inds, delimiter=", ", dtype=int)
 
                             if c_grps == "None":
                                 c_grps = None
                             else:
-                                c_grps = c_grps.strip("[]")
                                 c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
 
                             MCMC_fields["fittable_absps"] = [init_var, inds, c_grps]
