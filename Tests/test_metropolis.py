@@ -1,6 +1,7 @@
 import unittest
 import logging
 import sys
+sys.path.append("..")
 import numpy as np
 from scipy.integrate import trapz
 from metropolis import all_signal_handler
@@ -9,6 +10,7 @@ from metropolis import do_simulation, roll_acceptance, unpack_simpar
 from metropolis import detect_sim_fail, detect_sim_depleted, almost_equal
 from metropolis import check_approved_param
 from metropolis import run_iteration
+from metropolis import search_c_grps
 from sim_utils import Parameters, Grid, Covariance
 q = 1.0  # [e]
 q_C = 1.602e-19  # [C]
@@ -21,7 +23,14 @@ class TestUtils(unittest.TestCase):
 
     def setUp(self):
         self.logger = logging.getLogger()
-        pass
+
+    def test_search_c_grps(self):
+        c_grps = [(0, 1, 2), (3, 4)]
+        self.assertEqual(search_c_grps(c_grps, 0), 0)
+        self.assertEqual(search_c_grps(c_grps, 1), 0)
+        self.assertEqual(search_c_grps(c_grps, 2), 0)
+        self.assertEqual(search_c_grps(c_grps, 3), 3)
+        self.assertEqual(search_c_grps(c_grps, 4), 3)
 
     def test_all_signal(self):
         def f(x): return x
@@ -985,3 +994,7 @@ class TestUtils(unittest.TestCase):
         #                  f"{i}: Carriers depleted!")
         # self.assertEqual(captured.records[2].getMessage(),
         #                  f"{i}: Retrying hmax={MIN_HMAX * 2}")
+
+if __name__ == "__main__":
+    t = TestUtils()
+    t.test_search_c_grps()

@@ -482,6 +482,16 @@ def unpack_simpar(sim_info, i):
     meas_type = sim_info["meas_types"][i]
     return thickness, nx, meas_type
 
+def search_c_grps(c_grps : list[tuple], i : int) -> int:
+    """
+    Find the constraint group that contains i
+    and return its first value
+    """
+    for c_grp in c_grps:
+        for c in c_grp:
+            if i == c:
+                return c_grp[0]
+    return -1
 
 def detect_sim_fail(sol, ref_vals):
     fail = len(sol) < len(ref_vals)
@@ -510,6 +520,20 @@ def almost_equal(x, x0, threshold=1e-10):
 def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbose, args):
     i, iniPar, times, vals, uncs = args
     irf_convolution = MCMC_fields.get("irf_convolution", None)
+
+    ff = MCMC_fields.get("fittable_fluences", None)
+    if (ff is not None and i in ff[1]):
+        if ff[2] is not None and len(ff[2]) > 0:
+            iniPar[0] = getattr(p, f"_f{search_c_grps(ff[2], i)}")
+        else:
+            iniPar[0] = getattr(p, f"_f{i}")
+
+    fa = MCMC_fields.get("fittable_absps", None)
+    if (fa is not None and i in fa[1]):
+        if fa[2] is not None and len(fa[2]) > 0:
+            iniPar[1] = getattr(p, f"_a{search_c_grps(fa[2], i)}")
+        else:
+            iniPar[1] = getattr(p, f"_a{i}")
 
     tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
                                                hmax, MCMC_fields, logger, verbose)

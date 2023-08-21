@@ -1,8 +1,7 @@
 import unittest
 import numpy as np
 import os
-
-from bayes_io import get_initpoints, get_data, insert_scale_factors
+from bayes_io import get_initpoints, get_data, insert_scale_factors, insert_param
 
 class TestUtils(unittest.TestCase):
 
@@ -111,6 +110,142 @@ class TestUtils(unittest.TestCase):
             self.assertEqual(param_info["init_variance"][f"_s{i}"], init_var)
 
         self.assertFalse(f"_s{len(meas_fields['select_obs_sets'])}" in param_info["names"])
+
+    def test_insert_fluences(self):
+        # Let's assume there are six measurements after select_obs_sets was applied
+        # After remapping, we are guaranteed a ff[1] with at least 1 val
+        # and constraint groups (if any) with vals occuring in ff[1]
+        # No constraint groups
+        num_meas = 6
+        param_info = {"names": [],
+                      "active": {},
+                      "unit_conversions": {},
+                      "do_log": {},
+                      "prior_dist": {},
+                      "init_guess": {},
+                      "init_variance": {}}
+        
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], None)}
+        expected_ffs = [0, 1, 2, 3, 4, 5]
+        fluences = np.random.random(size=num_meas)
+        insert_param(param_info, meas_fields, fluences)
+
+        for i in expected_ffs:
+            self.assertTrue(f"_f{i}" in param_info["names"])
+            self.assertEqual(param_info["active"][f"_f{i}"], 1)
+            self.assertEqual(param_info["do_log"][f"_f{i}"], 1)
+            self.assertEqual(param_info["prior_dist"][f"_f{i}"], (0, np.inf))
+            self.assertEqual(param_info["init_guess"][f"_f{i}"], fluences[i])
+            self.assertEqual(param_info["init_variance"][f"_f{i}"], 0.02)
+
+        # Null constraint groups
+        param_info = {"names": [],
+                      "active": {},
+                      "unit_conversions": {},
+                      "do_log": {},
+                      "prior_dist": {},
+                      "init_guess": {},
+                      "init_variance": {}}
+        
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [])}
+        expected_ffs = [0, 1, 2, 3, 4, 5]
+        fluences = np.random.random(size=num_meas)
+        insert_param(param_info, meas_fields, fluences)
+
+        for i in expected_ffs:
+            self.assertTrue(f"_f{i}" in param_info["names"])
+
+        # One constraint group
+        param_info = {"names": [],
+                      "active": {},
+                      "unit_conversions": {},
+                      "do_log": {},
+                      "prior_dist": {},
+                      "init_guess": {},
+                      "init_variance": {}}
+        
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(1, 2)])}
+        expected_ffs = [0, 1, 3, 4, 5]
+        fluences = np.random.random(size=num_meas)
+        insert_param(param_info, meas_fields, fluences)
+
+        for i in expected_ffs:
+            self.assertTrue(f"_f{i}" in param_info["names"])
+            self.assertEqual(param_info["init_guess"][f"_f{i}"], fluences[i])
+
+        param_info = {"names": [],
+                      "active": {},
+                      "unit_conversions": {},
+                      "do_log": {},
+                      "prior_dist": {},
+                      "init_guess": {},
+                      "init_variance": {}}
+        
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 1, 2, 3, 4, 5)])}
+        expected_ffs = [0]
+        fluences = np.random.random(size=num_meas)
+        insert_param(param_info, meas_fields, fluences)
+
+        for i in expected_ffs:
+            self.assertTrue(f"_f{i}" in param_info["names"])
+            self.assertEqual(param_info["init_guess"][f"_f{i}"], fluences[i])
+
+        # Two constraint grp
+        param_info = {"names": [],
+                      "active": {},
+                      "unit_conversions": {},
+                      "do_log": {},
+                      "prior_dist": {},
+                      "init_guess": {},
+                      "init_variance": {}}
+        
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (3, 4, 5)])}
+        expected_ffs = [0, 1, 3]
+        fluences = np.random.random(size=num_meas)
+        insert_param(param_info, meas_fields, fluences)
+
+        for i in expected_ffs:
+            self.assertTrue(f"_f{i}" in param_info["names"])
+            self.assertEqual(param_info["init_guess"][f"_f{i}"], fluences[i])
+
+        # Three constraint grp
+        param_info = {"names": [],
+                      "active": {},
+                      "unit_conversions": {},
+                      "do_log": {},
+                      "prior_dist": {},
+                      "init_guess": {},
+                      "init_variance": {}}
+        
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)])}
+        expected_ffs = [0, 1, 3]
+        fluences = np.random.random(size=num_meas)
+        insert_param(param_info, meas_fields, fluences)
+
+        for i in expected_ffs:
+            self.assertTrue(f"_f{i}" in param_info["names"])
+            self.assertEqual(param_info["init_guess"][f"_f{i}"], fluences[i])
+
+    def test_insert_absorption(self):
+        # Three constraint grp
+        # Should function the same as insert_fluences, but params are _a instead of _f
+        num_meas = 6
+        param_info = {"names": [],
+                      "active": {},
+                      "unit_conversions": {},
+                      "do_log": {},
+                      "prior_dist": {},
+                      "init_guess": {},
+                      "init_variance": {}}
+        
+        meas_fields = {"fittable_absps": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)])}
+        expected_ffs = [0, 1, 3]
+        alphas = np.random.random(size=num_meas)
+        insert_param(param_info, meas_fields, alphas, mode="absorptions")
+
+        for i in expected_ffs:
+            self.assertTrue(f"_a{i}" in param_info["names"])
+            self.assertEqual(param_info["init_guess"][f"_a{i}"], alphas[i])
 
     def test_get_data_basic(self):
         # Basic selection and cutting operations on dataset
@@ -225,3 +360,7 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(times, expected_times)
         np.testing.assert_equal(vals, expected_vals)
         np.testing.assert_equal(uncs, expected_uncs)
+
+if __name__ == "__main__":
+    t = TestUtils()
+    t.test_insert_fluences()
