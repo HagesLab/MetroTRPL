@@ -117,3 +117,49 @@ def dydt_numba(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL,
         dydt[L+i] = (-(Jp[i+1] - Jp[i]) / dx - recomb[i])
 
     return dydt
+
+@njit(cache=True)
+def dydt_numba_traps(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL,
+                     tauN, tauP, Lambda, Tm, kC, Nt, tauE, kB=8.61773e-5):
+    """ Numba translation of dydt() """
+    Jn = np.zeros((L+1))
+    Jp = np.zeros((L+1))
+    dydt = np.zeros(4*L+1)
+
+    N = y[0:L]
+    N_trap = y[L:2*L]
+    P = y[2*L:3*(L)]
+    E_field = y[3*(L):]
+
+    NP = (N * P - N0 * P0)
+
+    Sft = sr0 * NP[0] / (N[0] + P[0])
+    Sbt = srL * NP[-1] / (N[-1] + P[-1])
+
+    Jn[0] = Sft
+    Jn[L] = -Sbt
+    Jp[0] = -Sft
+    Jp[L] = Sbt
+
+    # DN = mu_n*kB*T/q
+    for i in range(1, len(Jn) - 1):
+        Jn[i] = mu_n*((N[i-1] + N[i]) / 2 * E_field[i]) + \
+            mu_n*kB*Tm*((N[i] - N[i-1]) / dx)
+        Jp[i] = mu_p*((P[i-1] + P[i]) / 2 * E_field[i]) - \
+            mu_p*kB*Tm*((P[i] - P[i-1]) / dx)
+
+    # Lambda = q / (eps * eps0)
+    for i in range(len(Jn)):
+        dydt[3*L+i] = -(Jn[i] + Jp[i]) * Lambda
+
+    # Auger + Radiative + Bulk SRH
+    recomb = ((CN * N + CP * P) + r_rad + 1 / ((tauN * P) + (tauP * N))) * NP
+    trap = kC * N * (Nt - N_trap)
+    detrap = N_trap / tauE
+
+    for i in range(len(Jn) - 1):
+        dydt[i] = ((Jn[i+1] - Jn[i]) / dx - recomb[i] + detrap[i] - trap[i])
+        dydt[L+i] = trap[i] - detrap[i]
+        dydt[2*L+i] = (-(Jp[i+1] - Jp[i]) / dx - recomb[i])
+
+    return dydt

@@ -57,7 +57,7 @@ if __name__ == "__main__":
     # which will shift the simulation output by x10**m before calculating
     # likelihood vs measurement
     param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp",
-                   "Sf", "Sb", "tauN", "tauP", "eps", "Tm"]
+                   "Sf", "Sb", "tauN", "tauP", "eps", "Tm", "kC", "Nt", "tauE"]
 
     unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
                         "mu_n": ((1e7) ** 2) / (1e9),
@@ -65,10 +65,13 @@ if __name__ == "__main__":
                         "ks": ((1e7) ** 3) / (1e9),
                         "Cn": ((1e7) ** 6) / (1e9),
                         "Cp": ((1e7) ** 6) / (1e9),
-                        "Sf": 1e-2, "Sb": 1e-2, "Tm": 1}
+                        "Sf": 1e-2, "Sb": 1e-2, "Tm": 1,
+                        "kC": ((1e7) ** 3) / (1e9),
+                        "Nt": ((1e-7) ** 3),}
 
     do_log = {"n0": 1, "p0": 1, "mu_n": 1, "mu_p": 1, "ks": 1, "Cn": 1, "Cp": 1,
-              "Sf": 1, "Sb": 1, "tauN": 1, "tauP": 1, "eps": 1, "Tm": 1,
+              "Sf": 1, "Sb": 1, "tauN": 1, "tauP": 1, "eps": 1, "Tm": 1, "kC": 1,
+              "Nt": 1, "tauE": 1
               }
 
     prior_dist = {"n0": (0, np.inf),
@@ -84,6 +87,9 @@ if __name__ == "__main__":
                   "tauP": (1, 3000),
                   "eps": (0, np.inf),
                   "Tm": (0, np.inf),
+                  "kC": (0, np.inf),
+                  "Nt": (0, np.inf),
+                  "tauE": (0, np.inf)
                   }
 
     initial_guesses = {"n0": 1e8,
@@ -99,6 +105,9 @@ if __name__ == "__main__":
                        "tauP": 871,
                        "eps": 10,
                        "Tm": 300,
+                       "kC": 1e-11,
+                       "Nt": 1e18,
+                       "tauE": 100
                        }
 
     active_params = {"n0": 0,
@@ -114,6 +123,9 @@ if __name__ == "__main__":
                      "tauP": 1,
                      "eps": 0,
                      "Tm": 0,
+                     "kC": 1,
+                     "Nt": 1,
+                     "tauE": 1
                      }
     # Proposal function search widths
     initial_variance = {param: 0.02 for param in param_names}
@@ -147,7 +159,7 @@ if __name__ == "__main__":
                    "log_pl": 1,
                    "self_normalize": None,
                    "scale_factor": None,
-                   "fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 1), (2, 3), (4, 5)]),
+                   "fittable_fluences": None,
                    "irf_convolution": None,
                    "proposal_function": "box",
                    "one_param_at_a_time": 0,
