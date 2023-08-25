@@ -537,7 +537,6 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
 
     tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
                                                hmax, MCMC_fields, logger, verbose)
-
     if irf_convolution is not None and irf_convolution[i] != 0:
         if verbose:
             logger.debug(f"Convolving with wavelength {irf_convolution[i]}")
@@ -574,15 +573,28 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
             scale_shift = p.get_scale_factor(MCMC_fields.get("scale_factor", None), i)
             
         # TODO: accomodate multiple experiments, just like bayes
+        # TRPL must be positive!
+        # Any simulation which results in depleted carrier is clearly incorrect
+        # A few negative values may also be introduced during convolution - 
+        # so we want to tolerate these, while too many suggests that depletion
+        # is happening instead
 
+        where_failed = sol < 0
+        n_fails = np.sum(where_failed)
+        success = n_fails < 0.2 * len(sol)
+        if not success:
+            raise ValueError(f"{i}: Simulation failed: too many negative vals")
+ 
+        if n_fails > 0:
+            logger.warning(f"{i}: {n_fails} / {len(sol)} non-positive vals")
+
+        sol[where_failed] *= -1
         err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
         likelihood = - \
             np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs_c**2))
 
-        # TRPL must be positive!
-        # Any simulation which results in depleted carrier is clearly incorrect
-        if not success or np.isnan(likelihood):
-            raise ValueError(f"{i}: Simulation failed!")
+        if np.isnan(likelihood):
+            raise ValueError(f"{i}: Simulation failed: invalid likelihood")
     except ValueError as e:
         logger.warning(e)
         likelihood = -np.inf
