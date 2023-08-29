@@ -831,6 +831,8 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                         ofstream.write(f"{ff[2][0]}")
                         for c_grp in ff[2][1:]:
                             ofstream.write(f"|{c_grp}")
+                    if len(ff) == 4:
+                        ofstream.write(f"\t{ff[3]}")
                     ofstream.write("\n")
 
         if "scale_factor" in MCMC_fields:
@@ -851,6 +853,8 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                         ofstream.write(f"{scale_f[2][0]}")
                         for c_grp in scale_f[2][1:]:
                             ofstream.write(f"|{c_grp}")
+                    if len(scale_f) == 4:
+                        ofstream.write(f"\t{scale_f[3]}")
                     ofstream.write('\n')
 
         if verbose:
