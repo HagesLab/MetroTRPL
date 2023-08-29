@@ -71,7 +71,7 @@ class TestUtils(unittest.TestCase):
         #     setattr(self.tasth, param, getattr(self.tasth, param) + 1)
         #     setattr(self.tasth, f"mean_{param}", getattr(self.tasth, f"mean_{param}") + 10)
 
-        # Test extend from 20 iters to 19 iters, which should result in no changes
+        # Test extend from 20 iters to 19 iters, which should result in a contraction
         extend_to = 19
         for param in self.dummy_names:
             setattr(self.tasth, param, np.arange(self.num_iters, dtype=float).reshape((1, self.num_iters)))
@@ -80,9 +80,9 @@ class TestUtils(unittest.TestCase):
         self.tasth.extend(extend_to, self.dummy_param_info)
         for param in self.dummy_names:
             np.testing.assert_equal(
-                getattr(self.tasth, param)[0], np.arange(self.num_iters, dtype=float))
+                getattr(self.tasth, param)[0], np.arange(extend_to, dtype=float))
             np.testing.assert_equal(getattr(self.tasth, f"mean_{param}")[0], np.arange(
-                self.num_iters, dtype=float)+10)
+                extend_to, dtype=float)+10)
 
         self.assertEqual(len(self.tasth.accept[0]), self.num_iters)
         self.assertEqual(len(self.tasth.loglikelihood[0]), self.num_iters)
