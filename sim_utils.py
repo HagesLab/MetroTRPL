@@ -319,8 +319,10 @@ class History():
     def extend(self, new_num_iters, param_info):
         """ Enlarge an existing MC chain to length new_num_iters, if needed """
         current_num_iters = len(self.accept[0])
-        if new_num_iters <= current_num_iters:  # No extension needed
+        if new_num_iters < current_num_iters:  # No extension needed
             self.truncate(new_num_iters, param_info)
+            return
+        if new_num_iters == current_num_iters:
             return
 
         addtl_iters = new_num_iters - current_num_iters

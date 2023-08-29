@@ -1,9 +1,8 @@
-from sim_utils import History
 import unittest
 import numpy as np
 import sys
 sys.path.append("..")
-
+from sim_utils import History
 
 class TestUtils(unittest.TestCase):
 
@@ -89,6 +88,7 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(len(self.tasth.proposed_loglikelihood[0]), extend_to)
 
         # Test extend from 20 iters to 20 iters, which should result in no changes
+        self.setUp()
         extend_to = 20
         for param in self.dummy_names:
             setattr(self.tasth, param, np.arange(self.num_iters, dtype=float).reshape((1, self.num_iters)))
@@ -106,8 +106,12 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(len(self.tasth.proposed_loglikelihood[0]), self.num_iters)
 
         # Test extend from 20 iters to 100 iters
+        self.setUp()
         extend_to = 100
-
+        for param in self.dummy_names:
+            setattr(self.tasth, param, np.arange(self.num_iters, dtype=float).reshape((1, self.num_iters)))
+            setattr(self.tasth, f"mean_{param}", np.arange(
+                self.num_iters, dtype=float).reshape((1, self.num_iters)) + 10)
         self.tasth.extend(extend_to, self.dummy_param_info)
 
         expected_p = np.concatenate(
