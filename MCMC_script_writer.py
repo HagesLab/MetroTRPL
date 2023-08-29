@@ -155,6 +155,7 @@ if __name__ == "__main__":
                    "output_path": output_path,
                    "num_iters": 50,
                    "solver": ("solveivp",),
+                   "model": "std",
                    "likel2variance_ratio": 500,
                    "log_pl": 1,
                    "self_normalize": None,
