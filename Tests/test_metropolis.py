@@ -767,7 +767,8 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": None,
-                     "solver": ("solveivp",), }
+                     "solver": ("solveivp",),
+                     "model": "std"}
 
         p = Parameters(param_info)
         p2 = Parameters(param_info)
@@ -840,7 +841,8 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": None,
-                     "solver": ("solveivp",), }
+                     "solver": ("solveivp",),
+                     "model": "std"}
 
         p = Parameters(param_info)
         p2 = Parameters(param_info)
@@ -901,7 +903,8 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": ["TRPL"],
-                     "solver": ("solveivp",), }
+                     "solver": ("solveivp",),
+                     "model": "std"}
 
         p = Parameters(param_info)
         p2 = Parameters(param_info)
@@ -963,7 +966,8 @@ class TestUtils(unittest.TestCase):
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": None,
                      "scale_factor": ("global", 1e-17, 0),
-                     "solver": ("solveivp",), }
+                     "solver": ("solveivp",),
+                     "model": "std"}
 
         p = Parameters(param_info)
         setattr(p, "_s", 2e-17 ** -1) # PL = thickness * ks * iniPar**2

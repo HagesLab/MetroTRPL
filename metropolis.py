@@ -13,7 +13,7 @@ import sys
 import signal
 import pickle
 
-from forward_solver import dydt_numba, dydt_numba_traps
+from forward_solver import MODELS
 from sim_utils import MetroState, Grid, Solution
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import make_dir, clear_checkpoint_dir
@@ -25,11 +25,6 @@ try:
     nn = NeuralNetwork()
 except ImportError:
     HAS_NN_LIB = False
-
-MODELS = {
-    "std": dydt_numba,
-    "traps": dydt_numba_traps
-}
 
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
@@ -311,7 +306,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
 
 
 def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
-                  solver=("solveivp",), rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
+                  solver=("solveivp",), model="std", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
     """ Set up one simulation. """
     g = Grid()
     g.thickness = thickness
@@ -331,7 +326,7 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
         g.tSteps = np.concatenate((np.arange(0, times[0], dt_estimate), g.tSteps))
 
     sol, next_init_condition = solve(
-        iniPar, g, p, meas=meas, solver=solver, RTOL=rtol, ATOL=atol)
+        iniPar, g, p, meas=meas, solver=solver, model=model, RTOL=rtol, ATOL=atol)
     return g.tSteps, sol
 
 
@@ -391,7 +386,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     while hmax[i] > MIN_HMAX:
         tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
                                     meas=meas_type,
-                                    solver=MCMC_fields["solver"],
+                                    solver=MCMC_fields["solver"], model=MCMC_fields["model"],
                                     rtol=RTOL, atol=ATOL)
         
         if MCMC_fields["solver"][0] == "diagnostic":
@@ -469,7 +464,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
             tSteps, sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
-                                         meas=meas_type, solver=MCMC_fields["solver"],
+                                         meas=meas_type, solver=MCMC_fields["solver"], model=MCMC_fields["model"],
                                          rtol=RTOL, atol=ATOL)
             if almost_equal(sol, sol2, threshold=RTOL):
                 logger.info("Success!")

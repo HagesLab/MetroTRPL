@@ -163,3 +163,8 @@ def dydt_numba_traps(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL,
         dydt[2*L+i] = (-(Jp[i+1] - Jp[i]) / dx - recomb[i])
 
     return dydt
+
+MODELS = {
+    "std": dydt_numba,
+    "traps": dydt_numba_traps
+}
