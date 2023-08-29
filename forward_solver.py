@@ -72,17 +72,17 @@ def dydt(t, y, g, p):
     dPdt = ((1/q) * -dJz - rad_rec - non_rad_rec - auger_rec)
 
     # Package results
-    dydt = np.concatenate([dNdt, dPdt, dEdt], axis=None)
-    return dydt
+    dy = np.concatenate([dNdt, dPdt, dEdt], axis=None)
+    return dy
 
 
 @njit(cache=True)
 def dydt_numba(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL,
-               tauN, tauP, Lambda, Tm, kB=8.61773e-5):
+               tauN, tauP, Lambda, Tm):
     """ Numba translation of dydt() """
     Jn = np.zeros((L+1))
     Jp = np.zeros((L+1))
-    dydt = np.zeros(3*L+1)
+    dy = np.zeros(3*L+1)
 
     N = y[0:L]
     P = y[L:2*(L)]
@@ -107,24 +107,24 @@ def dydt_numba(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL,
 
     # Lambda = q / (eps * eps0)
     for i in range(len(Jn)):
-        dydt[2*L+i] = -(Jn[i] + Jp[i]) * Lambda
+        dy[2*L+i] = -(Jn[i] + Jp[i]) * Lambda
 
     # Auger + Radiative + Bulk SRH
     recomb = ((CN * N + CP * P) + r_rad + 1 / ((tauN * P) + (tauP * N))) * NP
 
     for i in range(len(Jn) - 1):
-        dydt[i] = ((Jn[i+1] - Jn[i]) / dx - recomb[i])
-        dydt[L+i] = (-(Jp[i+1] - Jp[i]) / dx - recomb[i])
+        dy[i] = ((Jn[i+1] - Jn[i]) / dx - recomb[i])
+        dy[L+i] = (-(Jp[i+1] - Jp[i]) / dx - recomb[i])
 
-    return dydt
+    return dy
 
 @njit(cache=True)
 def dydt_numba_traps(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL,
-                     tauN, tauP, Lambda, Tm, kC, Nt, tauE, kB=8.61773e-5):
+                     tauN, tauP, Lambda, Tm, kC, Nt, tauE):
     """ Numba translation of dydt() """
     Jn = np.zeros((L+1))
     Jp = np.zeros((L+1))
-    dydt = np.zeros(4*L+1)
+    dy = np.zeros(4*L+1)
 
     N = y[0:L]
     N_trap = y[L:2*L]
@@ -150,7 +150,7 @@ def dydt_numba_traps(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL,
 
     # Lambda = q / (eps * eps0)
     for i in range(len(Jn)):
-        dydt[3*L+i] = -(Jn[i] + Jp[i]) * Lambda
+        dy[3*L+i] = -(Jn[i] + Jp[i]) * Lambda
 
     # Auger + Radiative + Bulk SRH
     recomb = ((CN * N + CP * P) + r_rad + 1 / ((tauN * P) + (tauP * N))) * NP
@@ -158,11 +158,11 @@ def dydt_numba_traps(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL,
     detrap = N_trap / tauE
 
     for i in range(len(Jn) - 1):
-        dydt[i] = ((Jn[i+1] - Jn[i]) / dx - recomb[i] + detrap[i] - trap[i])
-        dydt[L+i] = trap[i] - detrap[i]
-        dydt[2*L+i] = (-(Jp[i+1] - Jp[i]) / dx - recomb[i])
+        dy[i] = ((Jn[i+1] - Jn[i]) / dx - recomb[i] + detrap[i] - trap[i])
+        dy[L+i] = trap[i] - detrap[i]
+        dy[2*L+i] = (-(Jp[i+1] - Jp[i]) / dx - recomb[i])
 
-    return dydt
+    return dy
 
 MODELS = {
     "std": dydt_numba,
