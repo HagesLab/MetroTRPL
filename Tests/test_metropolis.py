@@ -5,7 +5,7 @@ sys.path.append("..")
 import numpy as np
 from scipy.integrate import trapz
 from metropolis import all_signal_handler
-from metropolis import E_field, model, select_next_params
+from metropolis import E_field, solve, select_next_params
 from metropolis import do_simulation, roll_acceptance, unpack_simpar
 from metropolis import detect_sim_fail, detect_sim_depleted, almost_equal
 from metropolis import check_approved_param
@@ -98,7 +98,7 @@ class TestUtils(unittest.TestCase):
 
         return
 
-    def test_model(self):
+    def test_solve(self):
         # A high-inj, rad-only sample problem
         g = Grid()
         g.nx = 100
@@ -142,7 +142,7 @@ class TestUtils(unittest.TestCase):
         init_dN = 1e20 * np.ones(g.nx) # [cm^-3]
 
         # with solveivp
-        test_PL, out_dN = model(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
                                 RTOL=1e-10, ATOL=1e-14)
         # Calculate expected output in simulation units
         pa.apply_unit_conversions()
@@ -153,7 +153,7 @@ class TestUtils(unittest.TestCase):
         self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]))
 
         # with odeint
-        test_PL, out_DN = model(init_dN, g, pa, meas="TRPL", solver=("odeint",),
+        test_PL, out_DN = solve(init_dN, g, pa, meas="TRPL", solver=("odeint",),
                                 RTOL=1e-10, ATOL=1e-14)
         pa.apply_unit_conversions()
         rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
@@ -184,7 +184,7 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"] = vals
         pa = Parameters(param_info)
 
-        test_TRTS, out_dN = model(
+        test_TRTS, out_dN = solve(
             init_dN, g, pa, meas="TRTS", solver=("solveivp",))
         pa.apply_unit_conversions()
         trts = q_C * (pa.mu_n * out_dN + pa.mu_p * out_dN)
@@ -198,15 +198,15 @@ class TestUtils(unittest.TestCase):
 
         # try an undefined measurement
         with self.assertRaises(NotImplementedError):
-            model(init_dN, g, pa, meas="something else")
+            solve(init_dN, g, pa, meas="something else")
 
         # try an undefined solver
         with self.assertRaises(NotImplementedError):
-            model(init_dN, g, pa, meas="TRPL", solver=("somethign else",))
+            solve(init_dN, g, pa, meas="TRPL", solver=("somethign else",))
 
         return
 
-    def test_model_iniPar(self):
+    def test_solve_iniPar(self):
         # A high-inj, rad-only sample problem
         g = Grid()
         g.nx = 100
@@ -255,10 +255,10 @@ class TestUtils(unittest.TestCase):
 
         init_dN = fluence * alpha * np.exp(-alpha * g.xSteps * 1e-7)  # In cm units
 
-        PL_by_initvals, out_dN = model(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+        PL_by_initvals, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
                                        RTOL=1e-10, ATOL=1e-14)
         
-        PL_by_initparams, out_dN = model([fluence, alpha], g, pa, meas="TRPL", solver=("solveivp",),
+        PL_by_initparams, out_dN = solve([fluence, alpha], g, pa, meas="TRPL", solver=("solveivp",),
                                          RTOL=1e-10, ATOL=1e-14)
         
         np.testing.assert_almost_equal(PL_by_initvals / np.amax(PL_by_initvals), PL_by_initparams / np.amax(PL_by_initvals))

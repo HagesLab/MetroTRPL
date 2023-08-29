@@ -57,7 +57,7 @@ def E_field(N, P, PA, dx, corner_E=0):
         E = np.concatenate((np.ones(shape=(num_tsteps, 1))*corner_E, E), axis=1)
     return E
 
-def model(iniPar, g, p, meas="TRPL", solver=("solveivp",),
+def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",),
           RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
     """
     Calculate one simulation. Outputs in same units as measurement data,
@@ -308,7 +308,7 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
         dt_estimate = times[1] - times[0]
         g.tSteps = np.concatenate((np.arange(0, times[0], dt_estimate), g.tSteps))
 
-    sol, next_init_condition = model(
+    sol, next_init_condition = solve(
         iniPar, g, p, meas=meas, solver=solver, RTOL=rtol, ATOL=atol)
     return g.tSteps, sol
 
