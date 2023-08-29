@@ -965,32 +965,23 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": None,
-                     "scale_factor": ("global", 1e-17, 0),
+                     "scale_factor": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2, 4), (1, 3, 5)]),
                      "solver": ("solveivp",),
                      "model": "std"}
 
         p = Parameters(param_info)
-        setattr(p, "_s", 2e-17 ** -1) # PL = thickness * ks * iniPar**2
-
+        # By setting individual scale factors in this simple case the likelihood can be made perfect
+        setattr(p, "_s0", 2e-17 ** -1)
+        setattr(p, "_s1", 2e-15 ** -1)
         nt = 1000
         running_hmax = [4] * len(iniPar)
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                                 running_hmax, sim_flags, verbose=True,
-                                 logger=self.logger, prev_p=None)
-
-        np.testing.assert_almost_equal(
-            p.likelihood, [0, -4004], decimal=0)  # rtol=1e-5
         
-        # By setting individual scale factors the likelihood can be made perfect
-        sim_flags["scale_factor"] = ("ind", 1e-17, 0)
-        setattr(p, "_s0", 2e-17 ** -1)
-        setattr(p, "_s1", 2e-15 ** -1)
-        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                                 running_hmax, sim_flags, verbose=True,
-                                 logger=self.logger, prev_p=None)
+        run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                      running_hmax, sim_flags, verbose=True,
+                      logger=self.logger, prev_p=None)
 
         np.testing.assert_almost_equal(
             p.likelihood, [0, 0], decimal=0)  # rtol=1e-5

@@ -588,7 +588,14 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
             scale_shift = 0
 
         else:
-            scale_shift = p.get_scale_factor(MCMC_fields.get("scale_factor", None), i)
+            fs = MCMC_fields.get("scale_factor", None)
+            if (fs is not None and i in fs[1]):
+                if fs[2] is not None and len(fs[2]) > 0:
+                    scale_shift = np.log10(getattr(p, f"_s{search_c_grps(fs[2], i)}"))
+                else:
+                    scale_shift = np.log10(getattr(p, f"_s{i}"))
+            else:
+                scale_shift = 0
             
         # TODO: accomodate multiple experiments, just like bayes
         # TRPL must be positive!

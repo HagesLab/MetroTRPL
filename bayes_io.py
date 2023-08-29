@@ -175,36 +175,6 @@ def put_into_param_info(param_info, vals, new_key):
                            for i in range(len(param_info["names"]))}
     return
 
-def insert_scale_factors(grid, param_info, meas_fields, MCMC_fields):
-    scale_f = MCMC_fields.get("scale_factor", None)
-    if scale_f is None:
-        return
-    
-    scale_type = scale_f[0]
-    scale_init = scale_f[1]
-    scale_var = scale_f[2]
-    if scale_type == "global":
-        param_info["names"].append("_s")
-        param_info["do_log"]["_s"] = 1
-        param_info["prior_dist"]["_s"] = (-np.inf, np.inf)
-        param_info["init_guess"]["_s"] = scale_init
-        param_info["init_variance"]["_s"] = scale_var
-        param_info["active"]["_s"] = 1
-
-    elif scale_type == "ind":
-        if meas_fields["select_obs_sets"] is not None:
-            num_meas = len(meas_fields["select_obs_sets"])
-        else:
-            num_meas = grid["num_meas"]
-        for i in range(num_meas):
-            param_info["names"].append(f"_s{i}")
-            param_info["do_log"][f"_s{i}"] = 1
-            param_info["prior_dist"][f"_s{i}"] = (-np.inf, np.inf)
-            param_info["init_guess"][f"_s{i}"] = scale_init
-            param_info["init_variance"][f"_s{i}"] = scale_var
-            param_info["active"][f"_s{i}"] = 1
-    return
-
 def insert_param(param_info, MCMC_fields, guesses, mode="fluences"):
     if mode == "fluences":
         ff = MCMC_fields.get("fittable_fluences", None)
@@ -212,6 +182,9 @@ def insert_param(param_info, MCMC_fields, guesses, mode="fluences"):
     elif mode == "absorptions":
         ff = MCMC_fields.get("fittable_absps", None)
         name_base = "_a"
+    elif mode == "scale_f":
+        ff = MCMC_fields.get("scale_factor", None)
+        name_base = "_s"
     else:
         raise NotImplementedError("Unsupported mode for insert_param()")
     if ff is None:
@@ -435,9 +408,19 @@ def read_config_script_file(path):
                         if line_split[1] == "None":
                             MCMC_fields["scale_factor"] = None
                         else:
-                            MCMC_fields["scale_factor"] = line_split[1].split('\t')
-                            MCMC_fields["scale_factor"][1] = float(MCMC_fields["scale_factor"][1]) # type: ignore
-                            MCMC_fields["scale_factor"][2] = float(MCMC_fields["scale_factor"][2]) # type: ignore
+                            init_var, inds, c_grps = line_split[1].split("\t")
+
+                            init_var = float(init_var)
+
+                            inds = inds.strip("([])")
+                            inds = extract_values(inds, delimiter=", ", dtype=int)
+
+                            if c_grps == "None":
+                                c_grps = None
+                            else:
+                                c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
+
+                            MCMC_fields["scale_factor"] = [init_var, inds, c_grps]
                     elif line.startswith("Fittable fluences"):
                         if line_split[1] == "None":
                             MCMC_fields["fittable_fluences"] = None
@@ -516,20 +499,15 @@ def read_config_script_file(path):
     validate_meas_flags(meas_flags, grid["num_meas"])
     validate_MCMC_fields(MCMC_fields, grid["num_meas"])
 
-    insert_scale_factors(grid, param_info, meas_flags, MCMC_fields)
+    insert_param(param_info, MCMC_fields, np.ones(grid["num_meas"]), mode="scale_f")
 
-    # Keep fittable_fluence indices consistent after subsetting with select_obs_sets
-    if MCMC_fields.get("fittable_fluences", None) is not None and meas_flags["select_obs_sets"] is not None:
-        MCMC_fields["fittable_fluences"][1] = remap_fittable_inds(MCMC_fields["fittable_fluences"][1],
-                                                                  meas_flags["select_obs_sets"])
-        MCMC_fields["fittable_fluences"][2] = remap_constraint_grps(MCMC_fields["fittable_fluences"][2],
-                                                                   meas_flags["select_obs_sets"])
-        
-    if MCMC_fields.get("fittable_absps", None) is not None and meas_flags["select_obs_sets"] is not None:
-        MCMC_fields["fittable_absps"][1] = remap_fittable_inds(MCMC_fields["fittable_absps"][1],
-                                                               meas_flags["select_obs_sets"])
-        MCMC_fields["fittable_absps"][2] = remap_constraint_grps(MCMC_fields["fittable_absps"][2],
-                                                                 meas_flags["select_obs_sets"])
+    # Keep fittable_fluence (and other such fittables) indices consistent after subsetting with select_obs_sets
+    if meas_flags["select_obs_sets"] is not None:
+        fittables = ["fittable_fluences", "fittable_absps", "scale_factor"]
+        for fi in fittables:
+            if MCMC_fields.get(fi, None) is not None:
+                MCMC_fields[fi][1] = remap_fittable_inds(MCMC_fields[fi][1], meas_flags["select_obs_sets"])
+                MCMC_fields[fi][2] = remap_constraint_grps(MCMC_fields[fi][2], meas_flags["select_obs_sets"])
 
     return grid, param_info, meas_flags, MCMC_fields
 
@@ -780,23 +758,6 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                 ofstream.write(f"\t{value}")
         ofstream.write('\n')
 
-        if "scale_factor" in MCMC_fields:
-            if verbose:
-                ofstream.write("# Add additional scale factors that MMC will attempt to apply on the simulations "
-                               "\n# to better fit measurement data curves. "
-                               "\n# Must be None, or a list/tuple of three elements: "
-                               "\n# First element \"global\", which will add a single scaling factor \"_s\" shared by all curves, "
-                               "\n# or \"ind\", which will add independent scaling factors \"_s0\", \"_s1\", \"_s2\", ... for each curve. "
-                               "\n# Second element an initial guess. 1 means no scaling is applied."
-                               "\n# Third element an initial variance, similar to the initial_variance parameter for other parameters."
-                               "\n# All scale factors will get the same initial guess and variance. \n")
-                scale_f = MCMC_fields["scale_factor"]
-                if scale_f is None:
-                    ofstream.write(f"Scale factor: {scale_f}")
-                else:
-                    ofstream.write(f"Scale factor: {scale_f[0]}\t{scale_f[1]}\t{scale_f[2]}")
-            ofstream.write('\n')
-
         if "fittable_fluences" in MCMC_fields:
             if verbose:
                 ofstream.write("# Whether to try inferring the fluences. None means it will keep"
@@ -842,6 +803,26 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                         for c_grp in ff[2][1:]:
                             ofstream.write(f"|{c_grp}")
                     ofstream.write("\n")
+
+        if "scale_factor" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Add additional scale factors that MMC will attempt to apply on the simulations "
+                               "\n# to better fit measurement data curves. "
+                               "\n# Must be None, in which no scaling will be done to the simulations, or a list of three elements. (see fittable_fluences)\n"
+                               )
+                scale_f = MCMC_fields["scale_factor"]
+                if scale_f is None:
+                    ofstream.write(f"Scale factor: {scale_f}\n")
+                else:
+                    ofstream.write(f"Scale factor: {scale_f[0]}\t")
+                    ofstream.write(f"{scale_f[1]}\t")
+                    if scale_f[2] is None:
+                        ofstream.write(f"{scale_f[2]}")
+                    else:
+                        ofstream.write(f"{scale_f[2][0]}")
+                        for c_grp in scale_f[2][1:]:
+                            ofstream.write(f"|{c_grp}")
+                    ofstream.write('\n')
 
         if verbose:
             ofstream.write("# Proposal function used to generate new states. "
