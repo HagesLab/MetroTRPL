@@ -13,7 +13,7 @@ import sys
 import signal
 import pickle
 
-from forward_solver import dydt_numba_traps
+from forward_solver import dydt_numba, dydt_numba_traps
 from sim_utils import MetroState, Grid, Solution
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import make_dir, clear_checkpoint_dir
@@ -25,6 +25,11 @@ try:
     nn = NeuralNetwork()
 except ImportError:
     HAS_NN_LIB = False
+
+MODELS = {
+    "std": dydt_numba,
+    "traps": dydt_numba_traps
+}
 
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
@@ -57,7 +62,7 @@ def E_field(N, P, PA, dx, corner_E=0):
         E = np.concatenate((np.ones(shape=(num_tsteps, 1))*corner_E, E), axis=1)
     return E
 
-def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",),
+def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
           RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
     """
     Calculate one simulation. Outputs in same units as measurement data,
@@ -114,20 +119,35 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",),
         P = init_dN + p.p0
         E_f = E_field(N, P, p, g.dx)
 
-        init_condition = np.concatenate([N, np.zeros_like(N), P, E_f], axis=None)
-        args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
+        # Depends on how many dependent variables and parameters are in the selected model
+        if model == "std":
+            init_condition = np.concatenate([N, P, E_f], axis=None)
+            args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
+                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm,)
+        elif model == "traps":
+            init_condition = np.concatenate([N, np.zeros_like(N), P, E_f], axis=None)
+            args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
                 p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm,
                 p.kC, p.Nt, p.tauE)
+        else:
+            raise ValueError(f"Invalid model {model}")
+
         if solver[0] == "solveivp" or solver[0] == "diagnostic":
-            sol = solve_ivp(dydt_numba_traps, [g.start_time, g.time], init_condition,
+            sol = solve_ivp(MODELS[model], [g.start_time, g.time], init_condition,
                             args=args, t_eval=g.tSteps, method='LSODA',
                             max_step=g.hmax, rtol=RTOL, atol=ATOL)
             data = sol.y.T
         else:
-            data = odeint(dydt_numba_traps, init_condition, g.tSteps, args=args,
+            data = odeint(MODELS[model], init_condition, g.tSteps, args=args,
                       hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
         s = Solution()
-        s.N, s.N_trap, s.P, E_f = np.split(data, [g.nx, 2*g.nx, 3*g.nx], axis=1)
+
+        # Also depends on how many dependent variables
+        if model == "std":
+            s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
+        elif model == "traps":
+            s.N, s.N_trap, s.P, E_f = np.split(data, [g.nx, 2*g.nx, 3*g.nx], axis=1)
+
         if meas == "TRPL":
             s.calculate_PL(g, p)
             next_init = s.N[-1] - p.n0
