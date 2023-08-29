@@ -68,7 +68,9 @@ class QuicksimManager():
                             "ks": ((1e7) ** 3) / (1e9),
                             "Cn": ((1e7) ** 6) / (1e9),
                             "Cp": ((1e7) ** 6) / (1e9),
-                            "Sf": 1e-2, "Sb": 1e-2}
+                            "Sf": 1e-2, "Sb": 1e-2, 
+                            "kC": ((1e7) ** 3) / (1e9),
+                            "Nt": ((1e-7) ** 3)}
             p = sim_utils.Parameters(param_info)
 
             thickness = sim_tasks["thickness"]

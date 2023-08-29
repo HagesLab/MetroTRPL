@@ -113,6 +113,7 @@ class TestUtils(unittest.TestCase):
                             "output_path": output_path,
                             "num_iters": 25000,
                             "solver": ("solveivp",),
+                            "model": "std",
                             "rtol": 1e-7,
                             "atol": 1e-10,
                             "hmax": 4,

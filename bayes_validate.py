@@ -1,4 +1,5 @@
 import numpy as np
+from forward_solver import MODELS # To verify that the chosen model exists
 
 def check_valid_filename(file_name):
     """Screens file_name for prohibited characters
@@ -285,7 +286,7 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         raise TypeError("MCMC control flags must be type 'dict'")
 
     required_keys = ("init_cond_path", "measurement_path", "output_path",
-                     "num_iters", "solver",
+                     "num_iters", "solver", "model",
                      "likel2variance_ratio",
                      "annealing",
                      "log_pl", "self_normalize",
@@ -323,6 +324,11 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         pass
     else:
         raise ValueError("Invalid number of iterations")
+    
+    if isinstance(MCMC_fields["model"], str) and MCMC_fields["model"] in MODELS:
+        pass
+    else:
+        raise ValueError(f"MCMC control 'model' must be one of the following solvers: {list(MODELS.keys())}")
     
     if isinstance(MCMC_fields["solver"], tuple):
         pass

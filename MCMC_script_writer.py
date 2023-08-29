@@ -65,10 +65,11 @@ if __name__ == "__main__":
                         "ks": ((1e7) ** 3) / (1e9),
                         "Cn": ((1e7) ** 6) / (1e9),
                         "Cp": ((1e7) ** 6) / (1e9),
-                        "Sf": 1e-2, "Sb": 1e-2, "Tm": 1}
+                        "Sf": 1e-2, "Sb": 1e-2, "Tm": 1,
+                        }
 
     do_log = {"n0": 1, "p0": 1, "mu_n": 1, "mu_p": 1, "ks": 1, "Cn": 1, "Cp": 1,
-              "Sf": 1, "Sb": 1, "tauN": 1, "tauP": 1, "eps": 1, "Tm": 1,
+              "Sf": 1, "Sb": 1, "tauN": 1, "tauP": 1, "eps": 1, "Tm": 1
               }
 
     prior_dist = {"n0": (0, np.inf),
@@ -143,11 +144,12 @@ if __name__ == "__main__":
                    "output_path": output_path,
                    "num_iters": 50,
                    "solver": ("solveivp",),
+                   "model": "std",
                    "likel2variance_ratio": 500,
                    "log_pl": 1,
                    "self_normalize": None,
                    "scale_factor": None,
-                   "fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 1), (2, 3), (4, 5)]),
+                   "fittable_fluences": None,
                    "irf_convolution": None,
                    "proposal_function": "box",
                    "one_param_at_a_time": 0,

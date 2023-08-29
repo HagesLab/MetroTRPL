@@ -409,6 +409,8 @@ def read_config_script_file(path):
                         MCMC_fields["num_iters"] = int(line_split[1])
                     elif line.startswith("Solver name"):
                         MCMC_fields["solver"] = tuple(line_split[1].split('\t'))
+                    elif line.startswith("Model name"):
+                        MCMC_fields["model"] = line_split[1]
                     elif line.startswith("Solver rtol"):
                         MCMC_fields["rtol"] = float(line_split[1])
                     elif line.startswith("Solver atol"):
@@ -697,6 +699,13 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         ofstream.write(f"Solver name: {solver[0]}")
         for value in solver[1:]:
             ofstream.write(f"\t{value}")
+        ofstream.write("\n")
+        if verbose:
+            ofstream.write(
+                "# Which model to use, as listed in forward_solver.MODELS\n"
+                "# Currently two options - std (ordinary absorber model), and traps (electron trapping)\n")
+        model = MCMC_fields["model"]
+        ofstream.write(f"Model name: {model}")
         ofstream.write("\n")
         if "rtol" in MCMC_fields:
             if verbose:

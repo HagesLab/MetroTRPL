@@ -13,7 +13,7 @@ import sys
 import signal
 import pickle
 
-from forward_solver import dydt_numba
+from forward_solver import MODELS
 from sim_utils import MetroState, Grid, Solution
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import make_dir, clear_checkpoint_dir
@@ -57,7 +57,7 @@ def E_field(N, P, PA, dx, corner_E=0):
         E = np.concatenate((np.ones(shape=(num_tsteps, 1))*corner_E, E), axis=1)
     return E
 
-def model(iniPar, g, p, meas="TRPL", solver=("solveivp",),
+def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
           RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
     """
     Calculate one simulation. Outputs in same units as measurement data,
@@ -85,7 +85,9 @@ def model(iniPar, g, p, meas="TRPL", solver=("solveivp",),
         a path to the NN weight file, the third element is a path
         to the corresponding NN scale factor file.
         The default is ("solveivp",).
-
+    model : str, optional
+        Physics model to be solved by the solver, chosen from MODELS.
+        The default is "std".
     RTOL, ATOL : float, optional
         Tolerance parameters for scipy solvers. See the solve_ivp() docs for details.
 
@@ -114,19 +116,35 @@ def model(iniPar, g, p, meas="TRPL", solver=("solveivp",),
         P = init_dN + p.p0
         E_f = E_field(N, P, p, g.dx)
 
-        init_condition = np.concatenate([N, P, E_f], axis=None)
-        args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
-                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
+        # Depends on how many dependent variables and parameters are in the selected model
+        if model == "std":
+            init_condition = np.concatenate([N, P, E_f], axis=None)
+            args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
+                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm,)
+        elif model == "traps":
+            init_condition = np.concatenate([N, np.zeros_like(N), P, E_f], axis=None)
+            args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
+                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm,
+                p.kC, p.Nt, p.tauE)
+        else:
+            raise ValueError(f"Invalid model {model}")
+
         if solver[0] == "solveivp" or solver[0] == "diagnostic":
-            sol = solve_ivp(dydt_numba, [g.start_time, g.time], init_condition,
+            sol = solve_ivp(MODELS[model], [g.start_time, g.time], init_condition,
                             args=args, t_eval=g.tSteps, method='LSODA',
                             max_step=g.hmax, rtol=RTOL, atol=ATOL)
             data = sol.y.T
         else:
-            data = odeint(dydt_numba, init_condition, g.tSteps, args=args,
+            data = odeint(MODELS[model], init_condition, g.tSteps, args=args,
                       hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
         s = Solution()
-        s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
+
+        # Also depends on how many dependent variables
+        if model == "std":
+            s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
+        elif model == "traps":
+            s.N, s.N_trap, s.P, E_f = np.split(data, [g.nx, 2*g.nx, 3*g.nx], axis=1)
+
         if meas == "TRPL":
             s.calculate_PL(g, p)
             next_init = s.N[-1] - p.n0
@@ -288,7 +306,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
 
 
 def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
-                  solver=("solveivp",), rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
+                  solver=("solveivp",), model="std", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
     """ Set up one simulation. """
     g = Grid()
     g.thickness = thickness
@@ -307,8 +325,8 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
         dt_estimate = times[1] - times[0]
         g.tSteps = np.concatenate((np.arange(0, times[0], dt_estimate), g.tSteps))
 
-    sol, next_init_condition = model(
-        iniPar, g, p, meas=meas, solver=solver, RTOL=rtol, ATOL=atol)
+    sol, next_init_condition = solve(
+        iniPar, g, p, meas=meas, solver=solver, model=model, RTOL=rtol, ATOL=atol)
     return g.tSteps, sol
 
 
@@ -368,7 +386,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     while hmax[i] > MIN_HMAX:
         tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
                                     meas=meas_type,
-                                    solver=MCMC_fields["solver"],
+                                    solver=MCMC_fields["solver"], model=MCMC_fields["model"],
                                     rtol=RTOL, atol=ATOL)
         
         if MCMC_fields["solver"][0] == "diagnostic":
@@ -446,7 +464,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
             tSteps, sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
-                                         meas=meas_type, solver=MCMC_fields["solver"],
+                                         meas=meas_type, solver=MCMC_fields["solver"], model=MCMC_fields["model"],
                                          rtol=RTOL, atol=ATOL)
             if almost_equal(sol, sol2, threshold=RTOL):
                 logger.info("Success!")

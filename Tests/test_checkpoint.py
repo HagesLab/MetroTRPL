@@ -103,6 +103,7 @@ class TestUtils(unittest.TestCase):
                        "output_path": "test-out",
                        "num_iters": num_iters,
                        "solver": ("solveivp",),
+                       "model": "std",
                        "likel2variance_ratio": 500,
                        "log_pl": 1,
                        "self_normalize": None,

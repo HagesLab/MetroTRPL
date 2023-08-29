@@ -5,7 +5,7 @@ sys.path.append("..")
 import numpy as np
 from scipy.integrate import trapz
 from metropolis import all_signal_handler
-from metropolis import E_field, model, select_next_params
+from metropolis import E_field, solve, select_next_params
 from metropolis import do_simulation, roll_acceptance, unpack_simpar
 from metropolis import detect_sim_fail, detect_sim_depleted, almost_equal
 from metropolis import check_approved_param
@@ -98,7 +98,7 @@ class TestUtils(unittest.TestCase):
 
         return
 
-    def test_model(self):
+    def test_solve(self):
         # A high-inj, rad-only sample problem
         g = Grid()
         g.nx = 100
@@ -142,7 +142,7 @@ class TestUtils(unittest.TestCase):
         init_dN = 1e20 * np.ones(g.nx) # [cm^-3]
 
         # with solveivp
-        test_PL, out_dN = model(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
                                 RTOL=1e-10, ATOL=1e-14)
         # Calculate expected output in simulation units
         pa.apply_unit_conversions()
@@ -153,7 +153,7 @@ class TestUtils(unittest.TestCase):
         self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]))
 
         # with odeint
-        test_PL, out_DN = model(init_dN, g, pa, meas="TRPL", solver=("odeint",),
+        test_PL, out_DN = solve(init_dN, g, pa, meas="TRPL", solver=("odeint",),
                                 RTOL=1e-10, ATOL=1e-14)
         pa.apply_unit_conversions()
         rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
@@ -184,7 +184,7 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"] = vals
         pa = Parameters(param_info)
 
-        test_TRTS, out_dN = model(
+        test_TRTS, out_dN = solve(
             init_dN, g, pa, meas="TRTS", solver=("solveivp",))
         pa.apply_unit_conversions()
         trts = q_C * (pa.mu_n * out_dN + pa.mu_p * out_dN)
@@ -198,15 +198,78 @@ class TestUtils(unittest.TestCase):
 
         # try an undefined measurement
         with self.assertRaises(NotImplementedError):
-            model(init_dN, g, pa, meas="something else")
+            solve(init_dN, g, pa, meas="something else")
 
         # try an undefined solver
         with self.assertRaises(NotImplementedError):
-            model(init_dN, g, pa, meas="TRPL", solver=("somethign else",))
+            solve(init_dN, g, pa, meas="TRPL", solver=("somethign else",))
+
+        return
+    
+    def test_solve_traps(self):
+        # A high-inj, rad-only sample problem using null parameters for the trap model
+        # which should be equivalent to the std model
+        g = Grid()
+        g.nx = 100
+        g.dx = 10
+        g.start_time = 0
+        g.time = 100
+        g.nt = 1000
+        g.hmax = 4
+        g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
+
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9),
+                            "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2,
+                            "kC": ((1e7) ** 3) / (1e9),
+                            "Nt": ((1e-7) ** 3)}
+
+        param_info = {"names": ["n0", "p0", "mu_n", "mu_p",
+                                "ks", "tauN", "tauP",
+                                "Cn", "Cp", "Sf", "Sb", "eps", "Tm",
+                                "kC", "Nt", "tauE"],
+                      "active": {"n0": 0, "p0": 1,
+                                 "mu_n": 0, "mu_p": 0,
+                                 "Cn": 0, "Cp": 0,
+                                 "ks": 1, "Sf": 1, "Sb": 1,
+                                 "tauN": 1, "tauP": 1, "eps": 0,
+                                 "Tm": 0,"kC": 1, "Nt": 1, "tauE": 1},
+                      "unit_conversions": unit_conversions}
+        vals = {"n0": 0,
+                "p0": 0,
+                "mu_n": 0,
+                "mu_p": 0,
+                "ks": 1e-11,
+                "Cn": 0, "Cp": 0,
+                "tauN": 1e99,
+                "tauP": 1e99,
+                "Sf": 0,
+                "Sb": 0,
+                "Tm": 300,
+                "eps": 1,
+                "kC": 0,
+                "Nt": 0,
+                "tauE": 1e99}
+
+        param_info["init_guess"] = vals
+        pa = Parameters(param_info)
+        init_dN = 1e20 * np.ones(g.nx) # [cm^-3]
+
+        # with solveivp
+        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",), model="traps",
+                                RTOL=1e-10, ATOL=1e-14)
+        # Calculate expected output in simulation units
+        pa.apply_unit_conversions()
+        rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
+        expected_out = trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2
+        expected_out *= 1e23
+        pa.apply_unit_conversions(reverse=True)
+        self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]))
 
         return
 
-    def test_model_iniPar(self):
+    def test_solve_iniPar(self):
         # A high-inj, rad-only sample problem
         g = Grid()
         g.nx = 100
@@ -255,10 +318,10 @@ class TestUtils(unittest.TestCase):
 
         init_dN = fluence * alpha * np.exp(-alpha * g.xSteps * 1e-7)  # In cm units
 
-        PL_by_initvals, out_dN = model(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+        PL_by_initvals, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
                                        RTOL=1e-10, ATOL=1e-14)
         
-        PL_by_initparams, out_dN = model([fluence, alpha], g, pa, meas="TRPL", solver=("solveivp",),
+        PL_by_initparams, out_dN = solve([fluence, alpha], g, pa, meas="TRPL", solver=("solveivp",),
                                          RTOL=1e-10, ATOL=1e-14)
         
         np.testing.assert_almost_equal(PL_by_initvals / np.amax(PL_by_initvals), PL_by_initparams / np.amax(PL_by_initvals))
@@ -704,7 +767,8 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": None,
-                     "solver": ("solveivp",), }
+                     "solver": ("solveivp",),
+                     "model": "std"}
 
         p = Parameters(param_info)
         p2 = Parameters(param_info)
@@ -777,7 +841,8 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": None,
-                     "solver": ("solveivp",), }
+                     "solver": ("solveivp",),
+                     "model": "std"}
 
         p = Parameters(param_info)
         p2 = Parameters(param_info)
@@ -838,7 +903,8 @@ class TestUtils(unittest.TestCase):
         sim_flags = {"current_sigma": 1,
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": ["TRPL"],
-                     "solver": ("solveivp",), }
+                     "solver": ("solveivp",),
+                     "model": "std"}
 
         p = Parameters(param_info)
         p2 = Parameters(param_info)
@@ -900,7 +966,8 @@ class TestUtils(unittest.TestCase):
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": None,
                      "scale_factor": ("global", 1e-17, 0),
-                     "solver": ("solveivp",), }
+                     "solver": ("solveivp",),
+                     "model": "std"}
 
         p = Parameters(param_info)
         setattr(p, "_s", 2e-17 ** -1) # PL = thickness * ks * iniPar**2
