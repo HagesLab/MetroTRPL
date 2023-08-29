@@ -84,9 +84,9 @@ class TestUtils(unittest.TestCase):
             np.testing.assert_equal(getattr(self.tasth, f"mean_{param}")[0], np.arange(
                 extend_to, dtype=float)+10)
 
-        self.assertEqual(len(self.tasth.accept[0]), self.num_iters)
-        self.assertEqual(len(self.tasth.loglikelihood[0]), self.num_iters)
-        self.assertEqual(len(self.tasth.proposed_loglikelihood[0]), self.num_iters)
+        self.assertEqual(len(self.tasth.accept[0]), extend_to)
+        self.assertEqual(len(self.tasth.loglikelihood[0]), extend_to)
+        self.assertEqual(len(self.tasth.proposed_loglikelihood[0]), extend_to)
 
         # Test extend from 20 iters to 20 iters, which should result in no changes
         extend_to = 20
