@@ -49,14 +49,14 @@ if __name__ == "__main__":
     # (Only if the initial condition supplies fluences instead of the entire profile)
     if MCMC_fields.get("fittable_fluences", None) is not None:
         if len(iniPar[0]) != sim_info["nx"][0]:
-            insert_param(param_info, MCMC_fields, iniPar[:, 0], mode="fluences")
+            insert_param(param_info, MCMC_fields, np.ones_like(iniPar[:, 0]), mode="fluences")
         else:
             logger.warning("No fluences found in Input file - fittable_fluences ignored!")
             MCMC_fields["fittable_fluences"] = None
 
     if MCMC_fields.get("fittable_absps", None) is not None:
         if len(iniPar[0]) != sim_info["nx"][0]:
-            insert_param(param_info, MCMC_fields, iniPar[:, 1], mode="absorptions")
+            insert_param(param_info, MCMC_fields, np.ones_like(iniPar[:, 1]), mode="absorptions")
         else:
             logger.warning("No absorptions found in Input file - fittable_absps ignored!")
             MCMC_fields["fittable_absps"] = None

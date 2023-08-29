@@ -542,16 +542,16 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
     ff = MCMC_fields.get("fittable_fluences", None)
     if (ff is not None and i in ff[1]):
         if ff[2] is not None and len(ff[2]) > 0:
-            iniPar[0] = getattr(p, f"_f{search_c_grps(ff[2], i)}")
+            iniPar[0] *= getattr(p, f"_f{search_c_grps(ff[2], i)}")
         else:
-            iniPar[0] = getattr(p, f"_f{i}")
+            iniPar[0] *= getattr(p, f"_f{i}")
 
     fa = MCMC_fields.get("fittable_absps", None)
     if (fa is not None and i in fa[1]):
         if fa[2] is not None and len(fa[2]) > 0:
-            iniPar[1] = getattr(p, f"_a{search_c_grps(fa[2], i)}")
+            iniPar[1] *= getattr(p, f"_a{search_c_grps(fa[2], i)}")
         else:
-            iniPar[1] = getattr(p, f"_a{i}")
+            iniPar[1] *= getattr(p, f"_a{i}")
 
     tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
                                                hmax, MCMC_fields, logger, verbose)
@@ -647,7 +647,7 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
         for i in range(len(iniPar)):
             p.likelihood[i], p.err_sq[i] = one_sim_likelihood(
                 p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbose,
-                (i, iniPar[i], times[i], vals[i], uncs[i]))
+                (i, np.array(iniPar[i]), times[i], vals[i], uncs[i]))
 
     if prev_p is not None:
         logger.info("Likelihood of proposed move: {}".format(np.sum(p.likelihood)))
