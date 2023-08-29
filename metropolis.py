@@ -90,7 +90,9 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
         a path to the NN weight file, the third element is a path
         to the corresponding NN scale factor file.
         The default is ("solveivp",).
-
+    model : str, optional
+        Physics model to be solved by the solver, chosen from MODELS.
+        The default is "std".
     RTOL, ATOL : float, optional
         Tolerance parameters for scipy solvers. See the solve_ivp() docs for details.
 

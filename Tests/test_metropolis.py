@@ -205,6 +205,69 @@ class TestUtils(unittest.TestCase):
             solve(init_dN, g, pa, meas="TRPL", solver=("somethign else",))
 
         return
+    
+    def test_solve_traps(self):
+        # A high-inj, rad-only sample problem using null parameters for the trap model
+        # which should be equivalent to the std model
+        g = Grid()
+        g.nx = 100
+        g.dx = 10
+        g.start_time = 0
+        g.time = 100
+        g.nt = 1000
+        g.hmax = 4
+        g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
+
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9),
+                            "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2,
+                            "kC": ((1e7) ** 3) / (1e9),
+                            "Nt": ((1e-7) ** 3)}
+
+        param_info = {"names": ["n0", "p0", "mu_n", "mu_p",
+                                "ks", "tauN", "tauP",
+                                "Cn", "Cp", "Sf", "Sb", "eps", "Tm",
+                                "kC", "Nt", "tauE"],
+                      "active": {"n0": 0, "p0": 1,
+                                 "mu_n": 0, "mu_p": 0,
+                                 "Cn": 0, "Cp": 0,
+                                 "ks": 1, "Sf": 1, "Sb": 1,
+                                 "tauN": 1, "tauP": 1, "eps": 0,
+                                 "Tm": 0,"kC": 1, "Nt": 1, "tauE": 1},
+                      "unit_conversions": unit_conversions}
+        vals = {"n0": 0,
+                "p0": 0,
+                "mu_n": 0,
+                "mu_p": 0,
+                "ks": 1e-11,
+                "Cn": 0, "Cp": 0,
+                "tauN": 1e99,
+                "tauP": 1e99,
+                "Sf": 0,
+                "Sb": 0,
+                "Tm": 300,
+                "eps": 1,
+                "kC": 0,
+                "Nt": 0,
+                "tauE": 1e99}
+
+        param_info["init_guess"] = vals
+        pa = Parameters(param_info)
+        init_dN = 1e20 * np.ones(g.nx) # [cm^-3]
+
+        # with solveivp
+        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",), model="traps",
+                                RTOL=1e-10, ATOL=1e-14)
+        # Calculate expected output in simulation units
+        pa.apply_unit_conversions()
+        rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
+        expected_out = trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2
+        expected_out *= 1e23
+        pa.apply_unit_conversions(reverse=True)
+        self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]))
+
+        return
 
     def test_solve_iniPar(self):
         # A high-inj, rad-only sample problem
