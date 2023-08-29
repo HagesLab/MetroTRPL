@@ -17,7 +17,7 @@ def check_fittable_fluence(ff : None | tuple | list) -> bool:
     if ff is None:
         pass
     elif isinstance(ff, (list, tuple)):
-        if len(ff) != 3:
+        if len(ff) < 3 or len(ff) > 4:
             return False
         if not isinstance(ff[0], (float, int)):
             return False
@@ -25,7 +25,7 @@ def check_fittable_fluence(ff : None | tuple | list) -> bool:
             return False
         if ff[2] is not None and not isinstance(ff[2], (list, tuple)):
             return False
-        
+
         if len(ff[1]) == 0:
             return False
 
@@ -40,6 +40,16 @@ def check_fittable_fluence(ff : None | tuple | list) -> bool:
                 for c in constraint_grp:
                     if not isinstance(c, (int, np.integer)) or c < 0:
                         return False
+
+        if len(ff) == 4:
+            if not isinstance(ff[3], (list, tuple, np.ndarray)):
+                return False
+            if len(ff[3]) == 0:
+                return False
+            
+            for i_guess in ff[3]:
+                if not isinstance(i_guess, (int, np.integer, float)) or i_guess < 0:
+                    return False
     else:
         return False
 

@@ -34,11 +34,11 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], None)}
-        expected_ffs = [0, 1, 2, 3, 4, 5]
         fluences = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, fluences)
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], None, fluences)}
+        expected_ffs = [0, 1, 2, 3, 4, 5]
+        
+        insert_param(param_info, meas_fields)
 
         for i in expected_ffs:
             self.assertTrue(f"_f{i}" in param_info["names"])
@@ -56,11 +56,10 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [])}
-        expected_ffs = [0, 1, 2, 3, 4, 5]
         fluences = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, fluences)
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [], fluences)}
+        expected_ffs = [0, 1, 2, 3, 4, 5]
+        insert_param(param_info, meas_fields)
 
         for i in expected_ffs:
             self.assertTrue(f"_f{i}" in param_info["names"])
@@ -73,11 +72,10 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(1, 2)])}
-        expected_ffs = [0, 1, 3, 4, 5]
         fluences = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, fluences)
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(1, 2)], fluences)}
+        expected_ffs = [0, 1, 3, 4, 5]
+        insert_param(param_info, meas_fields)
 
         for i in expected_ffs:
             self.assertTrue(f"_f{i}" in param_info["names"])
@@ -90,11 +88,10 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 1, 2, 3, 4, 5)])}
-        expected_ffs = [0]
         fluences = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, fluences)
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 1, 2, 3, 4, 5)], fluences)}
+        expected_ffs = [0]
+        insert_param(param_info, meas_fields)
 
         for i in expected_ffs:
             self.assertTrue(f"_f{i}" in param_info["names"])
@@ -108,11 +105,10 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (3, 4, 5)])}
-        expected_ffs = [0, 1, 3]
         fluences = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, fluences)
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (3, 4, 5)], fluences)}
+        expected_ffs = [0, 1, 3]
+        insert_param(param_info, meas_fields)
 
         for i in expected_ffs:
             self.assertTrue(f"_f{i}" in param_info["names"])
@@ -126,11 +122,10 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)])}
-        expected_ffs = [0, 1, 3]
         fluences = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, fluences)
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)], fluences)}
+        expected_ffs = [0, 1, 3]
+        insert_param(param_info, meas_fields)
 
         for i in expected_ffs:
             self.assertTrue(f"_f{i}" in param_info["names"])
@@ -147,11 +142,10 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_absps": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)])}
-        expected_ffs = [0, 1, 3]
         alphas = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, alphas, mode="absorptions")
+        meas_fields = {"fittable_absps": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)], alphas)}
+        expected_ffs = [0, 1, 3]
+        insert_param(param_info, meas_fields, mode="absorptions")
 
         for i in expected_ffs:
             self.assertTrue(f"_a{i}" in param_info["names"])
@@ -168,11 +162,10 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"scale_factor": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)])}
-        expected_ffs = [0, 1, 3]
         scale_fs = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, scale_fs, mode="scale_f")
+        meas_fields = {"scale_factor": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)], scale_fs)}
+        expected_ffs = [0, 1, 3]
+        insert_param(param_info, meas_fields, mode="scale_f")
 
         for i in expected_ffs:
             self.assertTrue(f"_s{i}" in param_info["names"])
