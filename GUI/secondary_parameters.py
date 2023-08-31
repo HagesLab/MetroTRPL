@@ -27,10 +27,14 @@ class SecondaryParameters():
                      "LI_tau_eff": (self.li_tau_eff, ("ks", "p0", "tauN", "Sf", "Sb", "Cp", "thickness", "mu_n", "mu_p")),
                      "LI_tau_srh": (self.li_tau_srh, ("tauN", "Sf", "Sb", "thickness", "mu_n", "mu_p")),
                      "HI_tau_srh": (self.hi_tau_srh, ("tauN", "tauP", "Sf", "Sb", "thickness", "mu_n", "mu_p")),
+                     "tauN+tauP": (self.tauN_tauP, ("tauN", "tauP")),
                      "Sf+Sb": (self.s_eff, ("Sf", "Sb")),
                      "Cn+Cp": (self.c_eff, ("Cn", "Cp")),
                      "mu_ambi": (self.mu_eff, ("mu_n", "mu_p")),
-                     "epsilon": (self.epsilon, ("lambda",))}
+                     "epsilon": (self.epsilon, ("lambda",)),
+                     "tauC": (self.tauC, ("kC", "Nt")),
+                     "Rc-Re": (self.trap_rate, ("kC", "Nt", "tauE")),
+                     "Rc_Rsrh": (self.n_removal_rate, ("tauN", "tauP", "Sf", "Sb", "thickness", "mu_n", "mu_p", "kC", "Nt", "tauE"))}
 
         # Most recent thickness used to calculate; determines if recalculation needed when thickness updated
         self.last_thickness = {name: -1 for name in self.func if "thickness" in self.func[name][1]}
@@ -99,6 +103,10 @@ class SecondaryParameters():
         diffusivity = self.mu_eff(p) * kb / q * 1e14 / 1e9
         tau_surf = 2 * (p["thickness"] / ((p["Sf"] + p["Sb"]) * 0.01)) + (p["thickness"]**2 / (np.pi ** 2 * diffusivity))
         return (tau_surf**-1 + (p["tauN"] + p["tauP"])**-1)**-1
+    
+    def tauN_tauP(self, p: dict[str, np.ndarray | float]) -> np.ndarray | float:
+        """Sum of tau_N and tau_P, in ns"""
+        return p["tauN"] + p["tauP"]
 
     def s_eff(self, p: dict[str, np.ndarray | float]) -> np.ndarray | float:
         """Total surface recombination, in cm s^-1"""
@@ -115,3 +123,14 @@ class SecondaryParameters():
     def epsilon(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
         """Relative dielectric permittivity"""
         return p["lambda"]**-1
+    
+    def tauC(self, p):
+        """Maximum low-occupation capture time, in ns"""
+        return 1 / (p["Nt"] * p["kC"]) * 1e-9
+    
+    def trap_rate(self, p):
+        """Trap 'rate', in s^-1 """
+        return p["kC"] * p['Nt'] - (1 / p["tauE"]) * 1e9
+    
+    def n_removal_rate(self, p):
+        return (1 / self.hi_tau_srh(p)) * 1e9 + p["kC"] * p['Nt']
