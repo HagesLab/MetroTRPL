@@ -509,7 +509,7 @@ def search_c_grps(c_grps : list[tuple], i : int) -> int:
         for c in c_grp:
             if i == c:
                 return c_grp[0]
-    return -1
+    return i
 
 def detect_sim_fail(sol, ref_vals):
     fail = len(sol) < len(ref_vals)
