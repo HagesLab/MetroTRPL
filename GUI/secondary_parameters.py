@@ -34,7 +34,7 @@ class SecondaryParameters():
                      "epsilon": (self.epsilon, ("lambda",)),
                      "tauC": (self.tauC, ("kC", "Nt")),
                      "Rc-Re": (self.trap_rate, ("kC", "Nt", "tauE")),
-                     "Rc-Rsrh": (self.n_removal_rate, ("tauN", "tauP", "Sf", "Sb", "thickness", "mu_n", "mu_p", "kC", "Nt", "tauE"))}
+                     "Rc+Rsrh": (self.n_removal_rate, ("tauN", "tauP", "Sf", "Sb", "thickness", "mu_n", "mu_p", "kC", "Nt", "tauE"))}
 
         # Most recent thickness used to calculate; determines if recalculation needed when thickness updated
         self.last_thickness = {name: -1 for name in self.func if "thickness" in self.func[name][1]}
@@ -126,11 +126,11 @@ class SecondaryParameters():
     
     def tauC(self, p):
         """Maximum low-occupation capture time, in ns"""
-        return 1 / (p["Nt"] * p["kC"]) * 1e-9
+        return 1 / (p["Nt"] * p["kC"]) * 1e9
     
     def trap_rate(self, p):
         """Trap 'rate', in s^-1 """
-        return p["kC"] * p['Nt'] - (1 / p["tauE"]) * 1e9
+        return p["kC"] * p['Nt'] - (1 / p["tauE"] * 1e9)
     
     def n_removal_rate(self, p):
-        return (1 / self.hi_tau_srh(p)) * 1e9 + p["kC"] * p['Nt']
+        return (1 / self.hi_tau_srh(p) * 1e9) + p["kC"] * p['Nt']
