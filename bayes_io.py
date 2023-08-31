@@ -533,7 +533,8 @@ def read_config_script_file(path):
         for fi in fittables:
             if MCMC_fields.get(fi, None) is not None:
                 MCMC_fields[fi][1] = remap_fittable_inds(MCMC_fields[fi][1], meas_flags["select_obs_sets"])
-                MCMC_fields[fi][2] = remap_constraint_grps(MCMC_fields[fi][2], meas_flags["select_obs_sets"])
+                if MCMC_fields[fi][2] is not None:
+                    MCMC_fields[fi][2] = remap_constraint_grps(MCMC_fields[fi][2], meas_flags["select_obs_sets"])
 
     return grid, param_info, meas_flags, MCMC_fields
 
