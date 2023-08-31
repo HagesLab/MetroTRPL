@@ -34,7 +34,7 @@ class SecondaryParameters():
                      "epsilon": (self.epsilon, ("lambda",)),
                      "tauC": (self.tauC, ("kC", "Nt")),
                      "Rc-Re": (self.trap_rate, ("kC", "Nt", "tauE")),
-                     "Rc_Rsrh": (self.n_removal_rate, ("tauN", "tauP", "Sf", "Sb", "thickness", "mu_n", "mu_p", "kC", "Nt", "tauE"))}
+                     "Rc-Rsrh": (self.n_removal_rate, ("tauN", "tauP", "Sf", "Sb", "thickness", "mu_n", "mu_p", "kC", "Nt", "tauE"))}
 
         # Most recent thickness used to calculate; determines if recalculation needed when thickness updated
         self.last_thickness = {name: -1 for name in self.func if "thickness" in self.func[name][1]}
