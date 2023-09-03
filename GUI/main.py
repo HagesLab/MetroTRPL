@@ -411,7 +411,10 @@ class Window:
         while True:
             try:
                 sim_result = self.q.get(timeout=1)
-                self.qsr_popup.sim_results.append(sim_result)
+                self.qsr_popup.sim_results.append(sim_result[:-1])
+                message = sim_result[-1]
+                if len(message) > 0:
+                    self.status(message)
             except Empty:
                 pass
 

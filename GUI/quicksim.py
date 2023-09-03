@@ -119,8 +119,9 @@ def qs_simulate(queue, tasks) -> None:
     for i, task_f in enumerate(tasks):
         try:
             t, sol = task_f()
+            message = ""
         except AttributeError:
-            print(f"Warning: simulation {i} failed")
+            message = f"Warning: simulation {i} failed - possibly wrong model?"
             t = np.zeros(0)
             sol = np.zeros(0)
-        queue.put((t, sol))
+        queue.put((t, sol, message))
