@@ -8,6 +8,7 @@ import tkinter as tk
 import numpy as np
 from tkinter import filedialog
 from functools import partial
+from forward_solver import MODELS
 
 from popup import Popup
 from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY, RED
@@ -88,34 +89,47 @@ class QuicksimEntryPopup(Popup):
                                                           textvariable=self.c_frame.variables["n_sims"])
         self.c_frame.widgets["n_sims_entry"].place(x=20, y=48)
 
+        self.c_frame.widgets["model_label"] = tk.Label(master=self.c_frame.widget,
+                                                       text="Select model", **LABEL_KWARGS)
+        
+        self.c_frame.widgets["model_label"].place(x=140, y=20)
+
+        available_models = list(MODELS)
+        default_model = available_models.pop()
+        self.model = tk.StringVar(value=default_model)
+        self.c_frame.widgets["model"] = tk.OptionMenu(self.c_frame.widget, self.model, default_model,
+                                                      *available_models)
+        self.c_frame.widgets["model"].configure(width=10, highlightcolor=DARK_GREY)
+        self.c_frame.widgets["model"].place(x=140, y=48)
+
         self.c_frame.widgets["copy down"] = tk.Button(master=self.c_frame.widget, width=12, text="Copy #1",
                                                       background=BLACK, foreground=WHITE,
                                                       command=self.duplicate,
                                                       border=4)
-        self.c_frame.widgets["copy down"].place(x=180, y=48)
+        self.c_frame.widgets["copy down"].place(x=340, y=48)
 
         self.c_frame.widgets["clear all"] = tk.Button(master=self.c_frame.widget, width=12, text="Clear All",
                                                       background=BLACK, foreground=WHITE,
                                                       command=self.wipe,
                                                       border=4)
-        self.c_frame.widgets["clear all"].place(x=300, y=48)
+        self.c_frame.widgets["clear all"].place(x=460, y=48)
 
         self.c_frame.widgets["total_sims_label"] = tk.Label(master=self.c_frame.widget,
                                                             textvariable=self.c_frame.variables["total_sims"],
                                                             width=16, background=LIGHT_GREY)
-        self.c_frame.widgets["total_sims_label"].place(x=420, y=20)
+        self.c_frame.widgets["total_sims_label"].place(x=580, y=20)
 
         self.c_frame.widgets["continue"] = tk.Button(master=self.c_frame.widget, width=15, text="Continue",
                                                      background=BLACK, foreground=WHITE,
                                                      command=partial(self.on_close, True),
                                                      border=4)
-        self.c_frame.widgets["continue"].place(x=420, y=48)
+        self.c_frame.widgets["continue"].place(x=580, y=48)
 
         self.c_frame.widgets["save_keybind"] = tk.Button(master=self.c_frame.widget, width=15, text="Save All as Keybind",
                                                      background=BLACK, foreground=WHITE,
                                                      command=partial(self.save_keybind),
                                                      border=4)
-        self.c_frame.widgets["save_keybind"].place(x=560, y=48)
+        self.c_frame.widgets["save_keybind"].place(x=720, y=48)
 
     def redraw_ev_frame(self) -> None:
         """Adjust the large botton frame to accommodate number of sims"""

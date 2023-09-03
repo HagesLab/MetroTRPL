@@ -21,7 +21,7 @@ class QuicksimManager():
         self.window = window # A Window object, from (currently) main.py
         self.queue = queue
 
-    def quicksim(self, sim_tasks):
+    def quicksim(self, sim_tasks, model):
         """
         Regenerate simulations using a selected state.
 
@@ -80,7 +80,7 @@ class QuicksimManager():
             iniPar = list(zip(sim_tasks["fluence"], sim_tasks["absp"], sim_tasks["direction"]))
             t_sim = [np.linspace(0, sim_tasks["final_time"][i], sim_tasks["nt"][i] + 1) for i in range(n_sims)]
             simulate += [partial(task, p, thickness[i], nx[i], iniPar[i], t_sim[i],
-                                 hmax=4, meas="TRPL", solver=("solveivp",),
+                                 hmax=4, meas="TRPL", solver=("solveivp",), model=model,
                                  wavelength=wavelength[i], IRF_tables=IRF_tables) for i in range(n_sims)]
 
         self.proc = multiprocessing.Process(target=qs_simulate, args=(self.queue, simulate))
@@ -95,9 +95,9 @@ class QuicksimManager():
         """Abort quicksim process"""
         self.proc.terminate()
 
-def task(p, thickness, nx, iniPar, times, hmax, meas, solver, wavelength, IRF_tables):
+def task(p, thickness, nx, iniPar, times, hmax, meas, solver, model, wavelength, IRF_tables):
     """What each task needs to do - simulate then optionally convolve"""
-    t, sol = do_simulation(p, thickness, nx, iniPar, times, hmax, meas, solver)
+    t, sol = do_simulation(p, thickness, nx, iniPar, times, hmax, meas, solver, model)
     if wavelength != 0 and int(wavelength) in IRF_tables:
         t, sol, success = do_irf_convolution(
             t, sol, IRF_tables[int(wavelength)], time_max_shift=True)
