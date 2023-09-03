@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import os
-from bayes_io import get_initpoints, get_data, insert_scale_factors, insert_param
+from bayes_io import get_initpoints, get_data, insert_param
 
 class TestUtils(unittest.TestCase):
 
@@ -20,96 +20,6 @@ class TestUtils(unittest.TestCase):
         expected = np.array([[1, 2, 3, 4, 5]], dtype=float)
         np.testing.assert_equal(expected, ic)
         return
-    
-    def test_insert_scale_factors(self):
-        # General test case with multiple measurements; mix of measurement types,
-        # only necessary settings defined.
-        num_meas = 6
-        grid = {"meas_types": ["TRPL"] * 3 + ["TRTS"] * 3,
-                "num_meas": num_meas}
-        
-        param_info = {"names": [],
-                      "active": {},
-                      "unit_conversions": {},
-                      "do_log": {},
-                      "prior_dist": {},
-                      "init_guess": {},
-                      "init_variance": {}}
-        
-        meas_fields = {"select_obs_sets": None}
-
-        # 1. No scale_factor - no change to param_info
-        MCMC_fields = {"self_normalize": None,
-                       "scale_factor": None,
-                       }
-
-        insert_scale_factors(grid, param_info, meas_fields, MCMC_fields)
-
-        for k in param_info:
-            self.assertEqual(len(param_info[k]), 0)
-
-        # 2. Global scale_factor - _s parameter added with desired guess and variance
-        param_info = {"names": [],
-                      "active": {},
-                      "unit_conversions": {},
-                      "do_log": {},
-                      "prior_dist": {},
-                      "init_guess": {},
-                      "init_variance": {}}
-        init_guess = 1
-        init_var = 0.1
-        MCMC_fields["scale_factor"] = ("global", init_guess, init_var) # type: ignore
-
-        insert_scale_factors(grid, param_info, meas_fields, MCMC_fields)
-
-        self.assertTrue("_s" in param_info["names"])
-        self.assertEqual(param_info["active"]["_s"], 1)
-        self.assertEqual(param_info["do_log"]["_s"], 1)
-        self.assertEqual(param_info["prior_dist"]["_s"], (-np.inf, np.inf))
-        self.assertEqual(param_info["init_guess"]["_s"], init_guess)
-        self.assertEqual(param_info["init_variance"]["_s"], init_var)
-
-        # 3. Independent scale_factors - one _s per num_meas
-        param_info = {"names": [],
-                      "active": {},
-                      "unit_conversions": {},
-                      "do_log": {},
-                      "prior_dist": {},
-                      "init_guess": {},
-                      "init_variance": {}}
-        MCMC_fields["scale_factor"] = ("ind", init_guess, init_var) # type: ignore
-
-        insert_scale_factors(grid, param_info, meas_fields, MCMC_fields)
-
-        for i in range(num_meas):
-            self.assertTrue(f"_s{i}" in param_info["names"])
-            self.assertEqual(param_info["active"][f"_s{i}"], 1)
-            self.assertEqual(param_info["do_log"][f"_s{i}"], 1)
-            self.assertEqual(param_info["prior_dist"][f"_s{i}"], (-np.inf, np.inf))
-            self.assertEqual(param_info["init_guess"][f"_s{i}"], init_guess)
-            self.assertEqual(param_info["init_variance"][f"_s{i}"], init_var)
-
-        # 4. If select_obs_sets limits the number of measurements considered, only one _s for each active measurement
-        param_info = {"names": [],
-                      "active": {},
-                      "unit_conversions": {},
-                      "do_log": {},
-                      "prior_dist": {},
-                      "init_guess": {},
-                      "init_variance": {}}
-        meas_fields = {"select_obs_sets": [0, 4, 5]}
-
-        insert_scale_factors(grid, param_info, meas_fields, MCMC_fields)
-
-        for i in range(len(meas_fields["select_obs_sets"])):
-            self.assertTrue(f"_s{i}" in param_info["names"])
-            self.assertEqual(param_info["active"][f"_s{i}"], 1)
-            self.assertEqual(param_info["do_log"][f"_s{i}"], 1)
-            self.assertEqual(param_info["prior_dist"][f"_s{i}"], (-np.inf, np.inf))
-            self.assertEqual(param_info["init_guess"][f"_s{i}"], init_guess)
-            self.assertEqual(param_info["init_variance"][f"_s{i}"], init_var)
-
-        self.assertFalse(f"_s{len(meas_fields['select_obs_sets'])}" in param_info["names"])
 
     def test_insert_fluences(self):
         # Let's assume there are six measurements after select_obs_sets was applied
@@ -124,11 +34,11 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], None)}
-        expected_ffs = [0, 1, 2, 3, 4, 5]
         fluences = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, fluences)
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], None, fluences)}
+        expected_ffs = [0, 1, 2, 3, 4, 5]
+        
+        insert_param(param_info, meas_fields)
 
         for i in expected_ffs:
             self.assertTrue(f"_f{i}" in param_info["names"])
@@ -146,11 +56,10 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [])}
-        expected_ffs = [0, 1, 2, 3, 4, 5]
         fluences = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, fluences)
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [], fluences)}
+        expected_ffs = [0, 1, 2, 3, 4, 5]
+        insert_param(param_info, meas_fields)
 
         for i in expected_ffs:
             self.assertTrue(f"_f{i}" in param_info["names"])
@@ -163,11 +72,10 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(1, 2)])}
-        expected_ffs = [0, 1, 3, 4, 5]
         fluences = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, fluences)
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(1, 2)], fluences)}
+        expected_ffs = [0, 1, 3, 4, 5]
+        insert_param(param_info, meas_fields)
 
         for i in expected_ffs:
             self.assertTrue(f"_f{i}" in param_info["names"])
@@ -180,11 +88,10 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 1, 2, 3, 4, 5)])}
-        expected_ffs = [0]
         fluences = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, fluences)
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 1, 2, 3, 4, 5)], fluences)}
+        expected_ffs = [0]
+        insert_param(param_info, meas_fields)
 
         for i in expected_ffs:
             self.assertTrue(f"_f{i}" in param_info["names"])
@@ -198,11 +105,10 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (3, 4, 5)])}
-        expected_ffs = [0, 1, 3]
         fluences = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, fluences)
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (3, 4, 5)], fluences)}
+        expected_ffs = [0, 1, 3]
+        insert_param(param_info, meas_fields)
 
         for i in expected_ffs:
             self.assertTrue(f"_f{i}" in param_info["names"])
@@ -216,11 +122,10 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)])}
-        expected_ffs = [0, 1, 3]
         fluences = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, fluences)
+        meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)], fluences)}
+        expected_ffs = [0, 1, 3]
+        insert_param(param_info, meas_fields)
 
         for i in expected_ffs:
             self.assertTrue(f"_f{i}" in param_info["names"])
@@ -237,15 +142,34 @@ class TestUtils(unittest.TestCase):
                       "prior_dist": {},
                       "init_guess": {},
                       "init_variance": {}}
-        
-        meas_fields = {"fittable_absps": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)])}
-        expected_ffs = [0, 1, 3]
         alphas = np.random.random(size=num_meas)
-        insert_param(param_info, meas_fields, alphas, mode="absorptions")
+        meas_fields = {"fittable_absps": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)], alphas)}
+        expected_ffs = [0, 1, 3]
+        insert_param(param_info, meas_fields, mode="absorptions")
 
         for i in expected_ffs:
             self.assertTrue(f"_a{i}" in param_info["names"])
             self.assertEqual(param_info["init_guess"][f"_a{i}"], alphas[i])
+
+    def test_insert_scale_factors(self):
+        # Three constraint grp
+        # Should function the same as insert_fluences, but params are _s instead of _f
+        num_meas = 6
+        param_info = {"names": [],
+                      "active": {},
+                      "unit_conversions": {},
+                      "do_log": {},
+                      "prior_dist": {},
+                      "init_guess": {},
+                      "init_variance": {}}
+        scale_fs = np.random.random(size=num_meas)
+        meas_fields = {"scale_factor": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)], scale_fs)}
+        expected_ffs = [0, 1, 3]
+        insert_param(param_info, meas_fields, mode="scale_f")
+
+        for i in expected_ffs:
+            self.assertTrue(f"_s{i}" in param_info["names"])
+            self.assertEqual(param_info["init_guess"][f"_s{i}"], scale_fs[i])
 
     def test_get_data_basic(self):
         # Basic selection and cutting operations on dataset

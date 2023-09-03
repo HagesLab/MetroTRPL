@@ -100,38 +100,19 @@ class TestUtils(unittest.TestCase):
     def test_suppress_scale_factor(self):
         self.testP = Parameters(self.dummy_param_info)
 
-        self.testP._s = 1000
         self.testP._s0 = 1000
         self.testP._s1 = 1000
 
         self.testP.suppress_scale_factor(None, 0)
-        self.assertEqual(self.testP._s, 1000)
         self.assertEqual(self.testP._s0, 1000)
         self.assertEqual(self.testP._s1, 1000)
 
-        self.testP.suppress_scale_factor(("global", 1, 1), 0)
-        self.assertEqual(self.testP._s, 1)
-        self.assertEqual(self.testP._s0, 1000)
-        self.assertEqual(self.testP._s1, 1000)
+        scale_factor = [0.02, [0, 1, 2, 3, 4, 5], [(0, 2, 4), (1, 3, 5)]]
 
-        self.testP.suppress_scale_factor(("ind", 1, 1), 0)
-        self.assertEqual(self.testP._s, 1)
+        self.testP.suppress_scale_factor(scale_factor, 0)
         self.assertEqual(self.testP._s0, 1)
         self.assertEqual(self.testP._s1, 1000)
 
-        self.testP.suppress_scale_factor(("ind", 1, 1), 1)
-        self.assertEqual(self.testP._s, 1)
+        self.testP.suppress_scale_factor(scale_factor, 1)
         self.assertEqual(self.testP._s0, 1)
         self.assertEqual(self.testP._s1, 1)
-
-    def test_get_scale_factor(self):
-        self.testP = Parameters(self.dummy_param_info)
-
-        self.testP._s = 10
-        self.testP._s0 = 100
-        self.testP._s1 = 1000
-
-        self.assertEqual(self.testP.get_scale_factor(None, 0), 0)
-        self.assertEqual(self.testP.get_scale_factor(("global", 1, 1), 0), 1)
-        self.assertEqual(self.testP.get_scale_factor(("ind", 1, 1), 0), 2)
-        self.assertEqual(self.testP.get_scale_factor(("ind", 1, 1), 1), 3)

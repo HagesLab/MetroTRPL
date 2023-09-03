@@ -17,7 +17,7 @@ def check_fittable_fluence(ff : None | tuple | list) -> bool:
     if ff is None:
         pass
     elif isinstance(ff, (list, tuple)):
-        if len(ff) != 3:
+        if len(ff) < 3 or len(ff) > 4:
             return False
         if not isinstance(ff[0], (float, int)):
             return False
@@ -25,7 +25,7 @@ def check_fittable_fluence(ff : None | tuple | list) -> bool:
             return False
         if ff[2] is not None and not isinstance(ff[2], (list, tuple)):
             return False
-        
+
         if len(ff[1]) == 0:
             return False
 
@@ -40,6 +40,16 @@ def check_fittable_fluence(ff : None | tuple | list) -> bool:
                 for c in constraint_grp:
                     if not isinstance(c, (int, np.integer)) or c < 0:
                         return False
+
+        if len(ff) == 4:
+            if not isinstance(ff[3], (list, tuple, np.ndarray)):
+                return False
+            if len(ff[3]) == 0:
+                return False
+            
+            for i_guess in ff[3]:
+                if not isinstance(i_guess, (int, np.integer, float)) or i_guess < 0:
+                    return False
     else:
         return False
 
@@ -421,23 +431,23 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
     
     if "scale_factor" in MCMC_fields:
         scale_f = MCMC_fields["scale_factor"]
-        if scale_f is None:
-            pass
-        else:
-            if not ((isinstance(scale_f, (list, tuple))) and len(scale_f) == 3):
-                raise ValueError("scale_factor invalid - must be None, or a list/tuple of 3 elements")
-            if scale_f[0] not in ["global", "ind"]:
-                raise ValueError("scale_factor first value (scale type) invalid - must be \"global\" or \"ind\"")
-            if not isinstance(scale_f[1], (int, float, np.integer)):
-                raise ValueError("scale_factor second value (initial guess) invalid - must be numeric")
-            if not isinstance(scale_f[2], (int, float, np.integer)) or scale_f[2] < 0:
-                raise ValueError("scale_factor third value (initial variance) invalid - must be nonnegative")
+        success = check_fittable_fluence(scale_f)
+        if not success:
+            raise ValueError("Invalid scale_factor - must be None, or tuple"
+                             "(see printed description when verbose=True)")
 
     if "fittable_fluences" in MCMC_fields:
         ff = MCMC_fields["fittable_fluences"]
         success = check_fittable_fluence(ff)
         if not success:
-            raise ValueError("Invalid fittable_fluence - must be None, or tuple"
+            raise ValueError("Invalid fittable_fluences - must be None, or tuple"
+                             "(see printed description when verbose=True)")
+        
+    if "fittable_absps" in MCMC_fields:
+        ff = MCMC_fields["fittable_absps"]
+        success = check_fittable_fluence(ff)
+        if not success:
+            raise ValueError("Invalid fittable_absps - must be None, or tuple"
                              "(see printed description when verbose=True)")
 
     norm = MCMC_fields["self_normalize"]
