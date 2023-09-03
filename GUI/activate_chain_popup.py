@@ -9,12 +9,13 @@ from popup import Popup
 from gui_colors import LIGHT_GREY, PLOT_COLOR_CYCLE
 
 WIDTH = 280
-HEIGHT = 280
+BASE_HEIGHT = 30
+HEIGHT_PER_CHAIN = 40
 class ActivateChainPopup(Popup):
 
     def __init__(self, window, master) -> None:
         """Toggle the visibility of specific MCMC chains."""
-        super().__init__(window, master, WIDTH, HEIGHT)
+        super().__init__(window, master, WIDTH, BASE_HEIGHT + HEIGHT_PER_CHAIN * len(window.file_names))
         self.toplevel.attributes('-topmost', 'true')
         self.toplevel.title("Toggle MMC chains")
         tk.Label(self.toplevel, text="Display:", background=LIGHT_GREY).grid(row=0, column=0, columnspan=2)
