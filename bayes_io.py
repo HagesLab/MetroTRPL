@@ -525,8 +525,6 @@ def read_config_script_file(path):
     validate_meas_flags(meas_flags, grid["num_meas"])
     validate_MCMC_fields(MCMC_fields, grid["num_meas"])
 
-    insert_param(param_info, MCMC_fields, mode="scale_f")
-
     # Keep fittable_fluence (and other such fittables) indices consistent after subsetting with select_obs_sets
     if meas_flags["select_obs_sets"] is not None:
         fittables = ["fittable_fluences", "fittable_absps", "scale_factor"]
@@ -535,6 +533,8 @@ def read_config_script_file(path):
                 MCMC_fields[fi][1] = remap_fittable_inds(MCMC_fields[fi][1], meas_flags["select_obs_sets"])
                 if MCMC_fields[fi][2] is not None:
                     MCMC_fields[fi][2] = remap_constraint_grps(MCMC_fields[fi][2], meas_flags["select_obs_sets"])
+
+    insert_param(param_info, MCMC_fields, mode="scale_f")
 
     return grid, param_info, meas_flags, MCMC_fields
 
