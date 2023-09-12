@@ -21,7 +21,7 @@ class QuicksimManager():
         self.window = window # A Window object, from (currently) main.py
         self.queue = queue
 
-    def quicksim(self, sim_tasks, model):
+    def quicksim(self, sim_tasks, model, meas):
         """
         Regenerate simulations using a selected state.
 
@@ -80,7 +80,7 @@ class QuicksimManager():
             iniPar = list(zip(sim_tasks["fluence"], sim_tasks["absp"], sim_tasks["direction"]))
             t_sim = [np.linspace(0, sim_tasks["final_time"][i], sim_tasks["nt"][i] + 1) for i in range(n_sims)]
             simulate += [partial(task, p, thickness[i], nx[i], iniPar[i], t_sim[i],
-                                 hmax=4, meas="TRPL", solver=("solveivp",), model=model,
+                                 hmax=4, meas=meas, solver=("solveivp",), model=model,
                                  wavelength=wavelength[i], IRF_tables=IRF_tables) for i in range(n_sims)]
 
         self.proc = multiprocessing.Process(target=qs_simulate, args=(self.queue, simulate))

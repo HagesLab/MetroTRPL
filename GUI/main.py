@@ -450,7 +450,7 @@ class Window:
 
         self.do_quicksim_result_popup(self.get_n_chains(), self.qse_popup.n_sims)
         self.qsr_popup.toplevel.attributes('-topmost', 'false')
-        self.widget.after(10, self.qsm.quicksim, sim_tasks, self.qse_popup.model.get())
+        self.widget.after(10, self.qsm.quicksim, sim_tasks, self.qse_popup.model.get(), self.qse_popup.meas.get())
         self.widget.after(1000, self.query_quicksim, self.qse_popup.n_sims * self.get_n_chains())
 
     def loadfile(self) -> None:
