@@ -8,16 +8,8 @@ Compatible version ranges coming soon!
 * numpy 1.20
 * numba 0.54.1
 * scipy 1.7.1
-* csv
-* logging
-* signal
-* pickle
-* os
-* sys
-* time
-* datetime
 
-The Anaconda Distribution contains all of the above packages.
+The Anaconda Distribution also contains all of the above packages.
 
 ## File Overview
 
