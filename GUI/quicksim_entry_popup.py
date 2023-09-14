@@ -18,6 +18,7 @@ WIDTH = 970
 HEIGHT = 600
 DEFAULT_N_SIMS = 3
 KEYBIND_DIR = "keybinds"
+AVAILABLE_MEAS = ["TRPL", "TRTS"]
 
 class QuicksimEntryPopup(Popup):
 
@@ -94,6 +95,11 @@ class QuicksimEntryPopup(Popup):
         
         self.c_frame.widgets["model_label"].place(x=140, y=20)
 
+        self.c_frame.widgets["meas_label"] = tk.Label(master=self.c_frame.widget,
+                                                       text="Select meas.", **LABEL_KWARGS)
+        
+        self.c_frame.widgets["meas_label"].place(x=260, y=20)
+
         available_models = list(MODELS)
         default_model = available_models.pop()
         self.model = tk.StringVar(value=default_model)
@@ -102,34 +108,42 @@ class QuicksimEntryPopup(Popup):
         self.c_frame.widgets["model"].configure(width=10, highlightcolor=DARK_GREY)
         self.c_frame.widgets["model"].place(x=140, y=48)
 
+        available_meas = list(AVAILABLE_MEAS)
+        default_meas = available_meas.pop()
+        self.meas = tk.StringVar(value=default_meas)
+        self.c_frame.widgets["meas"] = tk.OptionMenu(self.c_frame.widget, self.meas, default_meas,
+                                                      *available_meas)
+        self.c_frame.widgets["meas"].configure(width=10, highlightcolor=DARK_GREY)
+        self.c_frame.widgets["meas"].place(x=260, y=48)
+
         self.c_frame.widgets["copy down"] = tk.Button(master=self.c_frame.widget, width=12, text="Copy #1",
                                                       background=BLACK, foreground=WHITE,
                                                       command=self.duplicate,
                                                       border=4)
-        self.c_frame.widgets["copy down"].place(x=340, y=48)
+        self.c_frame.widgets["copy down"].place(x=400, y=48)
 
         self.c_frame.widgets["clear all"] = tk.Button(master=self.c_frame.widget, width=12, text="Clear All",
                                                       background=BLACK, foreground=WHITE,
                                                       command=self.wipe,
                                                       border=4)
-        self.c_frame.widgets["clear all"].place(x=460, y=48)
+        self.c_frame.widgets["clear all"].place(x=520, y=48)
 
         self.c_frame.widgets["total_sims_label"] = tk.Label(master=self.c_frame.widget,
                                                             textvariable=self.c_frame.variables["total_sims"],
                                                             width=16, background=LIGHT_GREY)
-        self.c_frame.widgets["total_sims_label"].place(x=580, y=20)
+        self.c_frame.widgets["total_sims_label"].place(x=640, y=20)
 
         self.c_frame.widgets["continue"] = tk.Button(master=self.c_frame.widget, width=15, text="Continue",
                                                      background=BLACK, foreground=WHITE,
                                                      command=partial(self.on_close, True),
                                                      border=4)
-        self.c_frame.widgets["continue"].place(x=580, y=48)
+        self.c_frame.widgets["continue"].place(x=640, y=48)
 
         self.c_frame.widgets["save_keybind"] = tk.Button(master=self.c_frame.widget, width=15, text="Save All as Keybind",
                                                      background=BLACK, foreground=WHITE,
                                                      command=partial(self.save_keybind),
                                                      border=4)
-        self.c_frame.widgets["save_keybind"].place(x=720, y=48)
+        self.c_frame.widgets["save_keybind"].place(x=780, y=48)
 
     def redraw_ev_frame(self) -> None:
         """Adjust the large botton frame to accommodate number of sims"""

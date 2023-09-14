@@ -91,11 +91,15 @@ class QuicksimResultPopup(Popup):
                                          color=LIGHT_GREY)
         self.s_frame.place(x=PLOT_SIZE, y=100)
         self.scale_var = [[] for c in range(self.n_chains)] # chain-major ordering, like quicksim
-
+        self.specific_sim_visibility = []
         for i in range(self.n_sims):
             self.s_frame.widgets[f"Number-{i}"] = tk.Label(self.s_frame.widget, text=f"{i+1}.", width=4, border=3,
                                                                 background=LIGHT_GREY)
             self.s_frame.widgets[f"Number-{i}"].place(x=0, y=105+30*i)
+            self.specific_sim_visibility.append(tk.IntVar(value=1))
+            self.specific_sim_visibility[i].trace("w", self.redraw)
+            self.s_frame.widgets[f"Visible-{i}"] = tk.Checkbutton(self.s_frame.widget, variable=self.specific_sim_visibility[i], background=LIGHT_GREY)
+            self.s_frame.widgets[f"Visible-{i}"].place(x=25, y=105+30*i)
             
         for c, fname in enumerate(self.active_chain_names):
             tk.Label(self.s_frame.widget, text=f"\"{os.path.basename(fname)[:4]}...\"\nScale", **LABEL_KWARGS).place(x=38+80*c, y=20)
@@ -103,8 +107,8 @@ class QuicksimResultPopup(Popup):
             for i in range(self.n_sims):
                 self.scale_var[c].append(tk.StringVar())
                 self.s_frame.widgets[f"{c}-{i}"] = tk.Entry(master=self.s_frame.widget, width=8, border=3,
-                    textvariable=self.scale_var[c][-1], highlightthickness=2, highlightcolor=LIGHT_GREY)
-                self.s_frame.widgets[f"{c}-{i}"].place(x=62+80*c, y=100+30*i)
+                    textvariable=self.scale_var[c][-1], highlightthickness=2,)# highlightcolor=LIGHT_GREY)
+                self.s_frame.widgets[f"{c}-{i}"].place(x=62+80*c, y=105+30*i)
                 self.s_frame.widgets[f"{c}-{i}"].bind("<FocusOut>", self.redraw)
 
         self.populate_scale_factors()
@@ -200,6 +204,8 @@ class QuicksimResultPopup(Popup):
         """
         for c in range(self.n_chains):
             for i, sr in enumerate(self.sim_results[c]):
+                if self.specific_sim_visibility[i].get() == 0:
+                    continue
                 self.plot(sr[0], sr[1] * float(self.scale_var[c][i].get()), colors[c % len(PLOT_COLOR_CYCLE)])
         self.qs_chart.figure.tight_layout()
         self.qs_chart.canvas.draw()
