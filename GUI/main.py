@@ -100,7 +100,8 @@ class Window:
         self.q = multiprocessing.Queue()
         self.sp = SecondaryParameters()
         self.qsm = QuicksimManager(self, self.q)
-        self.clickmenu = Clickmenu(self, self.widget)
+        self.clickmenu = Clickmenu(self, self.widget, self.chart)
+        self.widget.bind(events["click"]["right"], self.clickmenu.show)
 
         # Stores all MCMC states - self.data[fname][param_name][accepted]
         # param_name e.g. p0, mu_n, mu_p
@@ -182,12 +183,6 @@ class Window:
         qs_button.place(x=380, y=100, anchor="se")
         qs_button.configure(state=tk.DISABLED)
         self.mini_panel.widgets["quicksim button"] = qs_button
-
-        # TEMPORARY: copy the figure to clipboard
-        copy_button = tk.Button(master=self.mini_panel.widget, width=10, text="Copy Fig.",
-                                background=BLACK, foreground=WHITE, command=partial(self.clickmenu.copy_fig, self.chart.canvas))
-        copy_button.place(x=20, y=100, anchor="sw")
-        self.mini_panel.widgets["copy_button"] = copy_button
 
     def populate_side_panel(self) -> None:
         """ Build the plot control panel to the right of the plotting frame. """
