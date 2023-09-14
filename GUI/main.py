@@ -478,8 +478,17 @@ class Window:
             else:
                 raise ValueError("Invalid chain states format - "
                                     "must be 1D or 2D of size (1, num_states)")
-            
-            self.data[file_name]["log likelihood"] = {False: logl[1:], True: logl[1:]}
+
+            plogl = getattr(metrostate.H, "proposed_loglikelihood")
+            if plogl.ndim == 2 and plogl.shape[0] == 1:
+                plogl = plogl[0]
+            elif plogl.ndim == 1:
+                pass
+            else:
+                raise ValueError("Invalid chain states format - "
+                                    "must be 1D or 2D of size (1, num_states)")
+
+            self.data[file_name]["log likelihood"] = {False: plogl[1:], True: logl[1:]}
 
             accept = getattr(metrostate.H, "accept")
             if accept.ndim == 2 and accept.shape[0] == 1:
