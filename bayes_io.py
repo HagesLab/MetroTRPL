@@ -534,6 +534,8 @@ def read_config_script_file(path):
                 if MCMC_fields[fi][2] is not None:
                     MCMC_fields[fi][2] = remap_constraint_grps(MCMC_fields[fi][2], meas_flags["select_obs_sets"])
 
+                MCMC_fields[fi][3] = list(np.array(MCMC_fields[fi][3])[meas_flags["select_obs_sets"]])
+
     insert_param(param_info, MCMC_fields, mode="scale_f")
 
     return grid, param_info, meas_flags, MCMC_fields
