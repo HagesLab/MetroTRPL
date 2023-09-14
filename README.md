@@ -8,6 +8,7 @@ Compatible version ranges coming soon!
 * numpy 1.20
 * numba 0.54.1
 * scipy 1.7.1
+* pillow 9.5.0
 
 The Anaconda Distribution also contains all of the above packages.
 
