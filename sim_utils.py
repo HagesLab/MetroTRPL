@@ -34,7 +34,7 @@ class MetroState():
 
         self.param_info = param_info
         self.MCMC_fields = MCMC_fields
-        self.MCMC_fields["current_sigma"] = self.MCMC_fields["annealing"][0]
+        self.MCMC_fields["current_sigma"] = dict(self.MCMC_fields["annealing"][0])
         return
 
     def anneal(self, k, uncs=None):
