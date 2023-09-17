@@ -298,7 +298,6 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
     required_keys = ("init_cond_path", "measurement_path", "output_path",
                      "num_iters", "solver", "model",
                      "likel2variance_ratio",
-                     "annealing",
                      "log_pl", "self_normalize",
                      "proposal_function", "one_param_at_a_time",
                      "checkpoint_dirname", "checkpoint_header",
@@ -381,30 +380,41 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("verify_hmax invalid - must be 0 or 1")
 
-    annealing = MCMC_fields["annealing"]
+    if "annealing" in MCMC_fields:
+        annealing = MCMC_fields["annealing"]
 
-    if isinstance(annealing, tuple):
-        pass
-    else:
-        raise TypeError("Annealing must be tuple")
+        if isinstance(annealing, tuple):
+            pass
+        else:
+            raise TypeError("Annealing must be tuple")
 
-    if len(annealing) == 3:
-        pass
-    else:
-        raise ValueError("Annealing must contain 3 values - "
-                         "start, steprate, and stop")
+        if len(annealing) == 3:
+            pass
+        else:
+            raise ValueError("Annealing must contain 3 values - "
+                            "start, steprate, and stop")
 
-    if annealing[0] >= annealing[2]:
-        pass
-    else:
-        raise ValueError("Annealing start must be at least as large as stop")
+        for meas_type, start in annealing[0].items():
+            if start >= annealing[2][meas_type]:
+                pass
+            else:
+                raise ValueError(f"{meas_type}: Annealing start must be at least as large as stop")
 
     l2v = MCMC_fields["likel2variance_ratio"]
 
-    if isinstance(l2v, (int, np.integer, float)) and l2v >= 0:
-        pass
+    if isinstance(l2v, (int, np.integer, float)):
+        if l2v < 0:
+            raise ValueError("Likelihood-to-variance must be non-negative value")
+    elif isinstance(l2v, dict):
+        for meas_type, val in l2v.items():
+            if isinstance(meas_type, str) and isinstance(val, (int, np.integer, float)) and val >= 0:
+                pass
+            else:
+                raise ValueError(f"{meas_type}: Likelihood-to-variance must have one non-negative value"
+                                 " per measurement type")
     else:
-        raise ValueError("Likelihood-to-variance must be a non-negative value")
+        raise ValueError("Invalid likelihood-to-variance")
+        
 
     if "override_equal_mu" in MCMC_fields:
         mu = MCMC_fields["override_equal_mu"]
