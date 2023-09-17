@@ -19,7 +19,7 @@ class MetroState():
         the states it's been to, and the trial move function used to get the
         next state.
     """
-
+    sim_info: dict
     def __init__(self, param_info, MCMC_fields, num_iters):
         self.p = Parameters(param_info)
 
@@ -34,7 +34,7 @@ class MetroState():
 
         self.param_info = param_info
         self.MCMC_fields = MCMC_fields
-        self.MCMC_fields["current_sigma"] = self.MCMC_fields["annealing"][0]
+        self.MCMC_fields["current_sigma"] = dict(self.MCMC_fields["annealing"][0])
         return
 
     def anneal(self, k, uncs=None):
@@ -44,25 +44,28 @@ class MetroState():
         steprate = self.MCMC_fields["annealing"][1]
         min_sigma = self.MCMC_fields["annealing"][2]
         l2v = self.MCMC_fields["likel2variance_ratio"]
-        if k > 0 and l2v > 0 and k % steprate == 0:
+        if k > 0 and k % steprate == 0:
 
-            self.MCMC_fields["current_sigma"] *= 0.1
+            for m in self.MCMC_fields["current_sigma"]:
+                self.MCMC_fields["current_sigma"][m] *= 0.1
 
-            self.MCMC_fields["current_sigma"] = max(self.MCMC_fields["current_sigma"],
-                                                    min_sigma)
+                self.MCMC_fields["current_sigma"][m] = max(self.MCMC_fields["current_sigma"][m],
+                                                        min_sigma[m])
 
-            new_variance = self.MCMC_fields["current_sigma"] / l2v
+            # Doesn't matter which meas_type, because all current_sigma are proportional to init_variance
+            random_m = next(iter(self.MCMC_fields["current_sigma"].keys()))
+            new_variance = self.MCMC_fields["current_sigma"][random_m] / l2v[random_m]
             self.variances.apply_values(
                 {param: new_variance for param in self.param_info["names"]})
 
             # Recalculate the previous state's likelihood, for consistency
-
+            meas_types = self.sim_info["meas_types"]
             for i in range(len(self.prev_p.likelihood)):
                 if uncs is not None:
                     exp_unc = 2 * uncs[i] ** 2
                 else:
                     exp_unc = 0
-                new_uncertainty = self.MCMC_fields["current_sigma"]**2 + exp_unc
+                new_uncertainty = self.MCMC_fields["current_sigma"][meas_types[i]]**2 + exp_unc
                 self.prev_p.likelihood[i] = - \
                     np.sum(self.prev_p.err_sq[i] / new_uncertainty)
         return
@@ -106,6 +109,8 @@ class Parameters():
     tauP: float    # Hole bulk nonradiative decayl lifetime
     eps: float     # Relative dielectric cofficient
     Tm: float      # Temperature
+    likelihood: list # Current likelihood of each simulation vs its respective measurement
+    err_sq: list     # Current squared error of each simulation vs its respective measurement
 
     def __init__(self, param_info):
         self.param_names = param_info["names"]

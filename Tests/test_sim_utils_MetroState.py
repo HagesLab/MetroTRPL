@@ -15,6 +15,7 @@ class TestUtils(unittest.TestCase):
         dummy_names = ['mu_n', 'c', 'b', 'a']
 
         # Should (but not required) contain one for each name
+        dummy_simPar = {"meas_types": ["TRPL", "TRTS"]}
         dummy_unitconversions = {'a': 1, 'c': 10, 'mu_n': 0.25}
         dummy_do_log = {'a': True, 'b': 0, 'c': 0, 'mu_n': 1, 'mu_p': True}
         dummy_active = {'a': 1, 'b': 1, 'c': 1, 'mu_n': 1}
@@ -28,15 +29,19 @@ class TestUtils(unittest.TestCase):
                             'init_guess': dummy_initial_guesses,
                             'init_variance': dummy_initial_variance}
 
-        dummy_sim_flags = {"likel2variance_ratio": 1000, }
-        dummy_sim_flags["annealing"] = (
-            max(dummy_initial_variance.values()) *
-            dummy_sim_flags["likel2variance_ratio"],
-            2, 1)
+        dummy_sim_flags = {"likel2variance_ratio": {"TRPL":1000, "TRTS": 2000},
+                           "annealing": tuple[dict, int, dict]}
+        
+        annealing_step = 2
+        min_sigma = 1
+        dummy_sim_flags["annealing"] = ({m:max(dummy_initial_variance.values()) * dummy_sim_flags["likel2variance_ratio"][m]
+                                    for m in dummy_simPar["meas_types"]},
+                                    annealing_step,
+                                    {m:min_sigma for m in dummy_simPar["meas_types"]})
+        
         num_iters = 100
         self.ms = MetroState(dummy_param_info, dummy_sim_flags, num_iters)
-
-        pass
+        self.ms.sim_info = dummy_simPar
 
     def test_MetroState(self):
 
@@ -57,53 +62,64 @@ class TestUtils(unittest.TestCase):
         # Ensure that the sigma is actually becoming more selective
         # following the inputted schedule
         # Decrease these by 10x every 2 iterations
-        orig_sigma = self.ms.MCMC_fields["current_sigma"]
+        orig_sigma = dict(self.ms.MCMC_fields["current_sigma"])
         orig_var = np.array(self.ms.variances.trace())
         self.ms.prev_p.likelihood = []  # Not testing with any measurements atm
 
         self.ms.anneal(1)
-        self.assertEqual(self.ms.MCMC_fields["current_sigma"], orig_sigma)
-        np.testing.assert_equal(self.ms.variances.trace(), orig_var)
+        for m in self.ms.sim_info["meas_types"]:
+            self.assertEqual(self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m])
+            np.testing.assert_equal(self.ms.variances.trace(), orig_var)
         self.ms.anneal(2)
-        self.assertEqual(self.ms.MCMC_fields["current_sigma"], orig_sigma * 0.1)
-        np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.1)
+        for m in self.ms.sim_info["meas_types"]:
+            self.assertEqual(self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * 0.1)
+            np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.1)
         self.ms.anneal(3)
-        self.assertEqual(self.ms.MCMC_fields["current_sigma"], orig_sigma * 0.1)
-        np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.1)
+        for m in self.ms.sim_info["meas_types"]:
+            self.assertEqual(self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * 0.1)
+            np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.1)
         self.ms.anneal(4)
-        self.assertEqual(
-            self.ms.MCMC_fields["current_sigma"], orig_sigma * 0.01)
-        np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.01)
+        for m in self.ms.sim_info["meas_types"]:
+            self.assertEqual(
+                self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * 0.01)
+            np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.01)
         self.ms.anneal(5)
-        self.assertEqual(
-            self.ms.MCMC_fields["current_sigma"], orig_sigma * 0.01)
-        np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.01)
+        for m in self.ms.sim_info["meas_types"]:
+            self.assertEqual(
+                self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * 0.01)
+            np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.01)
         self.ms.anneal(6)
-        self.assertEqual(
-            self.ms.MCMC_fields["current_sigma"], orig_sigma * 0.001)
-        np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.001)
+        for m in self.ms.sim_info["meas_types"]:
+            self.assertEqual(
+                self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * 0.001)
+            np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.001)
 
         # Until sigma becomes the min_sigma (1 in this case),
         # at which point it stops, and variance will be l2v times min_sigma
         self.ms.anneal(7)
-        self.assertEqual(
-            self.ms.MCMC_fields["current_sigma"], orig_sigma * 0.001)
-        np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.001)
+        for m in self.ms.sim_info["meas_types"]:
+
+            self.assertEqual(
+                self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * 0.001)
+            np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.001)
         self.ms.anneal(8)
-        self.assertEqual(
-            self.ms.MCMC_fields["current_sigma"], 1)
-        np.testing.assert_equal(
-            self.ms.variances.trace(), np.ones_like(orig_var) / 1000)
+        for m in self.ms.sim_info["meas_types"]:
+            self.assertEqual(
+                self.ms.MCMC_fields["current_sigma"][m], 1)
+            np.testing.assert_equal(
+                self.ms.variances.trace(), np.ones_like(orig_var) / 1000)
         self.ms.anneal(9)
-        self.assertEqual(
-            self.ms.MCMC_fields["current_sigma"], 1)
-        np.testing.assert_equal(
-            self.ms.variances.trace(), np.ones_like(orig_var) / 1000)
+        for m in self.ms.sim_info["meas_types"]:
+            self.assertEqual(
+                self.ms.MCMC_fields["current_sigma"][m], 1)
+            np.testing.assert_equal(
+                self.ms.variances.trace(), np.ones_like(orig_var) / 1000)
         self.ms.anneal(10)
-        self.assertEqual(
-            self.ms.MCMC_fields["current_sigma"], 1)
-        np.testing.assert_equal(
-            self.ms.variances.trace(), np.ones_like(orig_var) / 1000)
+        for m in self.ms.sim_info["meas_types"]:
+            self.assertEqual(
+                self.ms.MCMC_fields["current_sigma"][m], 1)
+            np.testing.assert_equal(
+                self.ms.variances.trace(), np.ones_like(orig_var) / 1000)
 
     def test_annealing_recalculating_likel(self):
         # Ensure that when an anneal step happens, the likelihood of
@@ -117,7 +133,7 @@ class TestUtils(unittest.TestCase):
         self.ms.prev_p.likelihood = [-np.inf]
         self.ms.prev_p.likelihood[0] = - \
             np.sum(
-                err_sq[0] / (self.ms.MCMC_fields["current_sigma"]**2 + 2*uncs[0]**2))
+                err_sq[0] / (self.ms.MCMC_fields["current_sigma"]["TRPL"]**2 + 2*uncs[0]**2))
 
         # sigma 10 times smaller makes likel 100 times more selective
         # but no change to underlying sum of err sq
@@ -137,14 +153,14 @@ class TestUtils(unittest.TestCase):
         self.ms.prev_p.likelihood = [-np.inf]
         self.ms.prev_p.likelihood[0] = - \
             np.sum(
-                err_sq[0] / (self.ms.MCMC_fields["current_sigma"]**2 + 2*uncs[0]**2))
+                err_sq[0] / (self.ms.MCMC_fields["current_sigma"]["TRPL"]**2 + 2*uncs[0]**2))
 
         # sigma 10 times smaller makes likel 100 times more selective
         # but no change to underlying sum of err sq
         expected_err_sq = [[1, 1, 1]]
         expected_likelihood = - \
             np.sum(
-                err_sq[0] / (0.01*self.ms.MCMC_fields["current_sigma"]**2 + 2*uncs[0]**2))
+                err_sq[0] / (0.01*self.ms.MCMC_fields["current_sigma"]["TRPL"]**2 + 2*uncs[0]**2))
 
         self.ms.anneal(2, uncs)
 

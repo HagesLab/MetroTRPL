@@ -38,6 +38,8 @@ def extract_tuples(string, delimiter, dtype=float):
     Converts a string of arbitrary lengthed tuples
     separated by delimiter into a list of tuples
     This one supports inf and -inf as values
+
+    If dtype is supplied, try to typecast out of str
     """
     tuples_as_str = string.split(delimiter)
     tuples = []
@@ -45,15 +47,21 @@ def extract_tuples(string, delimiter, dtype=float):
     for ts in tuples_as_str:
         ts = ts.strip("()")
         vals = ts.split(", ")
-        for i in range(len(vals)):
-            if vals[i] == "-inf":
+        for i, val in enumerate(vals):
+            if val == "-inf":
                 vals[i] = -np.inf
-            elif vals[i] == "inf":
+            elif val == "inf":
                 vals[i] = np.inf
             elif dtype == float:
-                vals[i] = float(vals[i])
+                try:
+                    vals[i] = float(val)
+                except ValueError:
+                    pass
             elif dtype == int:
-                vals[i] = int(vals[i])
+                try:
+                    vals[i] = int(val)
+                except ValueError:
+                    pass
             else:
                 continue
         tuples.append(tuple(vals))
@@ -264,6 +272,20 @@ def remap_constraint_grps(c_grps : list[tuple], select_obs_sets : list) -> list[
         
     return new_c_grps
 
+def add_annealing(MCMC_fields, initial_variance, meas_types, annealing_step=999999, min_sigma=0.01):
+    """Append the annealing tuple to MCMC_fields"""
+
+    if isinstance(MCMC_fields["likel2variance_ratio"], (int, float)):
+        MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"]
+                                     for m in meas_types},
+                                    annealing_step,
+                                    {m:min_sigma for m in meas_types})
+    elif isinstance(MCMC_fields["likel2variance_ratio"], dict):
+        MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"][m]
+                                     for m in meas_types},
+                                    annealing_step,
+                                    {m:min_sigma for m in meas_types})
+
 def read_config_script_file(path):
     with open(path, 'r') as ifstream:
         grid = {}
@@ -393,11 +415,25 @@ def read_config_script_file(path):
                     elif line.startswith("Repeat hmax"):
                         MCMC_fields["verify_hmax"] = int(line_split[1])
                     elif line.startswith("Annealing Controls"):
-                        MCMC_fields["annealing"] = tuple(
-                            extract_values(line_split[1].strip("()"), ", "))
+                        splits = line_split[1].split("\t")
+
+                        starts = extract_tuples(splits[0], delimiter="|", dtype=float)
+                        starts = {m[0]:float(m[1]) for m in starts}
+
+                        stops = extract_tuples(splits[2], delimiter="|", dtype=float)
+                        stops = {m[0]:float(m[1]) for m in stops}
+
+
+                        MCMC_fields["annealing"] = (starts, int(splits[1]), stops)
                     elif line.startswith("Likelihood-to-variance"):
-                        MCMC_fields["likel2variance_ratio"] = float(
-                            line_split[1])
+                        try:
+                            l2v = float(line_split[1])
+                            MCMC_fields["likel2variance_ratio"] = {m:l2v for m in grid["meas_types"]}
+                        except ValueError: # Not a float; must be dict
+                            l2v = extract_tuples(line_split[1], delimiter="|", dtype=float)
+                            MCMC_fields["likel2variance_ratio"] = {m[0]:float(m[1]) for m in l2v}
+                            
+                        
                     elif line.startswith("Force equal mu"):
                         MCMC_fields["override_equal_mu"] = int(line_split[1])
                     elif line.startswith("Force equal S"):
@@ -542,6 +578,7 @@ def read_config_script_file(path):
 
 def generate_config_script_file(path, simPar, param_info, measurement_flags,
                                 MCMC_fields, verbose=False):
+    add_annealing(MCMC_fields, param_info["init_variance"], simPar["meas_types"])
     validate_grid(simPar)
     validate_param_info(param_info)
     validate_meas_flags(measurement_flags, simPar["num_meas"])
@@ -738,18 +775,60 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             verify_hmax = MCMC_fields["verify_hmax"]
             ofstream.write(f"Repeat hmax: {verify_hmax}\n")
 
-        if verbose:
-            ofstream.write("# Annealing schedule parameters.\n"
-                           "# (Starting model uncertainty, steprate, final model uncertainty)\n"
-                           "# Will drop one order of magnitude per STEPRATE samples until FINAL is reached.\n")
-        anneal = MCMC_fields["annealing"]
-        ofstream.write(f"Annealing Controls: {anneal}\n")
+        if "annealing" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Annealing schedule parameters.\n"
+                            "# (Starting model uncertainty, steprate, final model uncertainty)\n"
+                            "# Starting and final model uncertainty will be dicts with one value per measurement type;\n"
+                            "# Steprate should be an integer number of steps.\n"
+                            "# Will drop one order of magnitude per STEPRATE samples until FINAL is reached.\n")
+            anneal = MCMC_fields["annealing"]
+            ofstream.write("Annealing Controls: ")
+            anneal_0 = iter(anneal[0].items())
+            meas_type, start = next(anneal_0)
+            while True:
+                try:
+                    ofstream.write(f"({meas_type}, {start})")
+                    meas_type, start = next(anneal_0)
+                    ofstream.write("|")
+                except StopIteration:
+                    break
+            ofstream.write("\t")
+            ofstream.write(f"{anneal[1]}")
+            ofstream.write("\t")
+
+            anneal_2 = iter(anneal[2].items())
+            meas_type, stop = next(anneal_2)
+            while True:
+                try:
+                    ofstream.write(f"({meas_type}, {stop})")
+                    meas_type, stop = next(anneal_2)
+                    ofstream.write("|")
+                except StopIteration:
+                    break
+            ofstream.write("\n")
 
         if verbose:
             ofstream.write("# Ratio to maintain betwen Model uncertainty and proposal variance.\n"
-                           "# Model uncertainty will be taken as this times proposal variance.\n")
+                           "# Model uncertainty will be taken as this times proposal variance.\n"
+                           "# Should be a single value, or \n"
+                           "# Should be a dict with one value per unique measurement type, \n"
+                           "# which will be shared by all measurements with that type.\n")
         l2v = MCMC_fields["likel2variance_ratio"]
-        ofstream.write(f"Likelihood-to-variance: {l2v}\n")
+        if isinstance(l2v, (int, np.integer, float)):
+            ofstream.write(f"Likelihood-to-variance: {l2v}\n")
+        else:
+            ofstream.write("Likelihood-to-variance: ")
+            l2v = iter(l2v.items())
+            meas_type, val = next(l2v)
+            while True:
+                try:
+                    ofstream.write(f"({meas_type}, {val})")
+                    meas_type, val = next(l2v)
+                    ofstream.write("|")
+                except StopIteration:
+                    break
+            ofstream.write("\n")
 
         if "override_equal_mu" in MCMC_fields:
             if verbose:
@@ -936,10 +1015,10 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
 
     return
 
-if __name__ == "__main__":
-    grid, param_info, meas_flags, MCMC_fields = read_config_script_file(
-        "mcmc0.txt")
-    print(grid)
-    print(param_info)
-    print(meas_flags)
-    print(MCMC_fields)
+# if __name__ == "__main__":
+#     grid, param_info, meas_flags, MCMC_fields = read_config_script_file(
+#         "mcmc0.txt")
+#     print(grid)
+#     print(param_info)
+#     print(meas_flags)
+#     print(MCMC_fields)
