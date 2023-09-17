@@ -104,7 +104,7 @@ class TestUtils(unittest.TestCase):
                        "num_iters": num_iters,
                        "solver": ("solveivp",),
                        "model": "std",
-                       "likel2variance_ratio": 500,
+                       "likel2variance_ratio": {"TRPL": 500},
                        "log_pl": 1,
                        "self_normalize": None,
                        "proposal_function": "box",
@@ -118,10 +118,12 @@ class TestUtils(unittest.TestCase):
                        "load_checkpoint": None,
                        }
 
-        MCMC_fields["annealing"] = (
-            max(initial_variance.values()) *
-            MCMC_fields["likel2variance_ratio"],
-            2000, 1e-2)
+        annealing_step = 2000
+        min_sigma = 0.01
+        MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"][m]
+                                    for m in sim_info["meas_types"]},
+                                    annealing_step,
+                                    {m:min_sigma for m in sim_info["meas_types"]})
 
         self.MS = MetroState(param_info, MCMC_fields, num_iters)
 
