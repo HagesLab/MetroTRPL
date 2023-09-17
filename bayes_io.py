@@ -272,6 +272,20 @@ def remap_constraint_grps(c_grps : list[tuple], select_obs_sets : list) -> list[
         
     return new_c_grps
 
+def add_annealing(MCMC_fields, initial_variance, meas_types, annealing_step=999999, min_sigma=0.01):
+    """Append the annealing tuple to MCMC_fields"""
+
+    if isinstance(MCMC_fields["likel2variance_ratio"], (int, float)):
+        MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"]
+                                     for m in meas_types},
+                                    annealing_step,
+                                    {m:min_sigma for m in meas_types})
+    elif isinstance(MCMC_fields["likel2variance_ratio"], dict):
+        MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"][m]
+                                     for m in meas_types},
+                                    annealing_step,
+                                    {m:min_sigma for m in meas_types})
+
 def read_config_script_file(path):
     with open(path, 'r') as ifstream:
         grid = {}
@@ -564,6 +578,7 @@ def read_config_script_file(path):
 
 def generate_config_script_file(path, simPar, param_info, measurement_flags,
                                 MCMC_fields, verbose=False):
+    add_annealing(MCMC_fields, param_info["init_variance"], simPar["meas_types"])
     validate_grid(simPar)
     validate_param_info(param_info)
     validate_meas_flags(measurement_flags, simPar["num_meas"])
@@ -1000,10 +1015,10 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
 
     return
 
-if __name__ == "__main__":
-    grid, param_info, meas_flags, MCMC_fields = read_config_script_file(
-        "mcmc0.txt")
-    print(grid)
-    print(param_info)
-    print(meas_flags)
-    print(MCMC_fields)
+# if __name__ == "__main__":
+#     grid, param_info, meas_flags, MCMC_fields = read_config_script_file(
+#         "mcmc0.txt")
+#     print(grid)
+#     print(param_info)
+#     print(meas_flags)
+#     print(MCMC_fields)
