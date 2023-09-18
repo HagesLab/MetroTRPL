@@ -616,8 +616,14 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
 
         sol[where_failed] *= -1
         err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
-        likelihood = - \
-            np.sum(err_sq / (MCMC_fields["current_sigma"][meas_type]**2 + 2*uncs_c**2))
+
+        # Compatibility with single sigma
+        if isinstance(MCMC_fields["current_sigma"], dict):
+            likelihood = - \
+                np.sum(err_sq / (MCMC_fields["current_sigma"][meas_type]**2 + 2*uncs_c**2))
+        else:
+            likelihood = - \
+                np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs_c**2))
 
         if np.isnan(likelihood):
             raise ValueError(f"{i}: Simulation failed: invalid likelihood")
