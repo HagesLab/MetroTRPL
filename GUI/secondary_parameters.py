@@ -34,7 +34,10 @@ class SecondaryParameters():
                      "epsilon": (self.epsilon, ("lambda",)),
                      "tauC": (self.tauC, ("kC", "Nt")),
                      "Rc-Re": (self.trap_rate, ("kC", "Nt", "tauE")),
-                     "Rc+Rsrh": (self.n_removal_rate, ("tauN", "tauP", "Sf", "Sb", "thickness", "mu_n", "mu_p", "kC", "Nt", "tauE"))}
+                     "Rc+Rsrh": (self.n_removal_rate, ("tauN", "tauP", "Sf", "Sb", "thickness", "mu_n", "mu_p", "kC", "Nt", "tauE")),
+                     "kp0": (self.kp0, ("ks", "p0")),
+                     "1_tauSRH": (self.hi_srh, ("tauN", "tauP", "Sf", "Sb", "thickness", "mu_n", "mu_p")),
+                     "1_tauC": (self.capture, ("kC", "Nt"))}
 
         # Most recent thickness used to calculate; determines if recalculation needed when thickness updated
         self.last_thickness = {name: -1 for name in self.func if "thickness" in self.func[name][1]}
@@ -79,6 +82,10 @@ class SecondaryParameters():
     def t_rad(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
         """Radiative recombination lifetime, in ns"""
         return 1 / (p["ks"] * p["p0"]) * 1e9
+    
+    def kp0(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
+        """"""
+        return (p["ks"] * p["p0"])
 
     def t_auger(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
         """Auger recombination lifetime, in ns"""
@@ -104,6 +111,9 @@ class SecondaryParameters():
         tau_surf = 2 * (p["thickness"] / ((p["Sf"] + p["Sb"]) * 0.01)) + (p["thickness"]**2 / (np.pi ** 2 * diffusivity))
         return (tau_surf**-1 + (p["tauN"] + p["tauP"])**-1)**-1
     
+    def hi_srh(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
+        return 1 / self.hi_tau_srh(p)
+    
     def tauN_tauP(self, p: dict[str, np.ndarray | float]) -> np.ndarray | float:
         """Sum of tau_N and tau_P, in ns"""
         return p["tauN"] + p["tauP"]
@@ -127,6 +137,9 @@ class SecondaryParameters():
     def tauC(self, p):
         """Maximum low-occupation capture time, in ns"""
         return 1 / (p["Nt"] * p["kC"]) * 1e9
+    
+    def capture(self, p):
+        return 1 / self.tauC(p)
     
     def trap_rate(self, p):
         """Trap 'rate', in s^-1 """
