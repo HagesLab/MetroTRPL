@@ -1,12 +1,12 @@
+"""
+First of a two-stage tkinter GUI construction - this one plots all of the widgets
+where window.py then adds functionality
+"""
 import tkinter as tk
-import multiprocessing
-import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
-from secondary_parameters import SecondaryParameters
-from quicksim import QuicksimManager
 from rclickmenu import Clickmenu
 from gui_colors import BLACK, WHITE, LIGHT_GREY, GREY, DARK_GREY
 from gui_styles import MENU_KWARGS, LABEL_KWARGS
@@ -71,15 +71,6 @@ class TkGUI():
 
         self.clickmenu = Clickmenu(self, self.widget, self.chart)
         self.widget.bind(events["click"]["right"], self.clickmenu.show)
-
-        # Stores all MCMC states - self.data[fname][param_name][accepted]
-        # param_name e.g. p0, mu_n, mu_p
-        # accepted - 0 for all proposed states, 1 for only accepted states
-        self.data = dict[str, dict[str, dict[bool, np.ndarray]]]()
-        self.file_names = dict[str, tk.IntVar]()
-
-        self.ext_variables = ["thickness", "nx", "final_time", "nt",
-                              "fluence", "absp", "direction", "wavelength"]
 
         self.chart.place(0, 0)
         self.side_panel = self.Panel(self.widget, 400, 430, GREY)

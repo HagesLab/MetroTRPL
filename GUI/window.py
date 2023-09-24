@@ -1,28 +1,28 @@
+"""
+Second of a two-part tkinter GUI construction - this adds functionality
+to a skeleton provided by tkgui.py
+"""
 import pickle
+import sys
 import os
 import multiprocessing
-import sys
-sys.path.append("..")
 import tkinter as tk
-import numpy as np
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.backends._backend_tk import NavigationToolbar2Tk
-from matplotlib.figure import Figure
 from tkinter import filedialog
 from types import FunctionType
 from queue import Empty
+import numpy as np
+sys.path.append("..")
 
+from tkgui import TkGUI
 from quicksim_result_popup import QuicksimResultPopup
 from quicksim_entry_popup import QuicksimEntryPopup
 from activate_chain_popup import ActivateChainPopup
-from rclickmenu import Clickmenu
 import sim_utils
 import mc_plot
 from quicksim import QuicksimManager
 from secondary_parameters import SecondaryParameters
 
-from gui_colors import BLACK, WHITE, LIGHT_GREY, GREY, DARK_GREY, PLOT_COLOR_CYCLE
-from gui_styles import MENU_KWARGS, LABEL_KWARGS
+from gui_colors import PLOT_COLOR_CYCLE
 
 events = {"key": {"escape": "<Escape>", "enter": "<Return>"},
           "click": {"left": "<Button-1>", "right": "<Button-3>"}}
@@ -33,108 +33,39 @@ ACC_BIN_SIZE = 100
 DEFAULT_THICKNESS = 2000
 MAX_STATUS_MSGS = 11
 
-class Window:
+class Window(TkGUI):
     """ The main GUI object"""
     qsr_popup: QuicksimResultPopup
     qse_popup: QuicksimEntryPopup
     ac_popup: ActivateChainPopup
 
-    class Panel:
-        """ Creates the frames for 1) the plot, 2) the plot options, 3) the import/export buttons, etc..."""
-        def __init__(self, master: tk.Tk, width: int, height: int, color: str) -> None:
-            self.widget = tk.Frame(master=master, width=width, height=height,
-                                   background=color, border=4, relief="raised")
-            self.states = {"blank": list[tuple[tk.Widget, dict[str, int | str]]]()}
-            self.state = "blank"
-            self.widgets = dict[str, tk.Widget]()
-            self.variables = dict[str, tk.Variable]()
-
-        def place(self, x: int, y: int) -> None:
-            self.widget.place(x=x, y=y)
-
-        def addstate(self, state: str, widgets: list[tuple[tk.Widget, dict[str, int | str]]]) -> None:
-            self.states[state] = widgets
-
-        def loadstate(self, state: str) -> None:
-            if state == self.state:
-                return
-            for widget, placement in self.states[self.state]:
-                widget.place_forget()
-            for widget, placement in self.states[state]:
-                widget.place(**placement) # type: ignore
-            self.state = state
-
-    class Chart:
-        """ tk embedded matplotlib Figure """
-        def __init__(self, master: tk.Tk | tk.Toplevel, width: int, height: int) -> None:
-            self.figure = Figure(figsize=(4, 4))
-            self.canvas = FigureCanvasTkAgg(master=master, figure=self.figure)
-            self.widget = self.canvas.get_tk_widget()
-            self.widget.configure(width=width, height=height, border=4, relief="sunken")
-            self.can_save = False
-
-        def place(self, x: int, y: int) -> None:
-            self.widget.place(x=x, y=y)
-
     def __init__(self, width: int, height: int, title: str) -> None:
-        self.widget = tk.Tk()
-        x_offset = (self.widget.winfo_screenwidth() - width) // 2
-        y_offset = (self.widget.winfo_screenheight() - height) // 2
-        self.widget.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
-        self.widget.resizable(False, False)
-        self.widget.title(title)
-        self.application_name = title
-        self.widget.option_add("*tearOff", False)
-        self.chart = self.Chart(self.widget, 600, 600)
-        self.q = multiprocessing.Queue()
-        self.sp = SecondaryParameters()
-        self.qsm = QuicksimManager(self, self.q)
-        self.clickmenu = Clickmenu(self, self.widget, self.chart)
-        self.widget.bind(events["click"]["right"], self.clickmenu.show)
+        super().__init__(width, height, title)
+        self.set_mini_panel_commands()
+        self.set_side_panel_commands()
 
         # Stores all MCMC states - self.data[fname][param_name][accepted]
         # param_name e.g. p0, mu_n, mu_p
         # accepted - 0 for all proposed states, 1 for only accepted states
         self.data = dict[str, dict[str, dict[bool, np.ndarray]]]()
+
+        # List of loaded MCMC chains, and whether they are active
         self.file_names = dict[str, tk.IntVar]()
 
-        self.ext_variables = ["thickness", "nx", "final_time", "nt", "fluence", "absp", "direction", "wavelength"]
+        # List of additional variables needed for simulations
+        self.ext_variables = ["thickness", "nx", "final_time", "nt",
+                              "fluence", "absp", "direction", "wavelength"]
 
-        self.chart.place(0, 0)
-        self.side_panel = self.Panel(self.widget, 400, 430, GREY)
-        self.side_panel.place(600, 0)
-        self.toolbar_panel = self.Panel(self.widget, 400, 50, DARK_GREY)
-        self.toolbar_panel.place(600, 430)
-        self.mini_panel = self.Panel(self.widget, 400, 120, DARK_GREY)
-        self.mini_panel.place(600, 480)
-        self.base_panel = self.Panel(self.widget, 1000, 200, GREY)
-        self.base_panel.place(0, 600)
+        self.q = multiprocessing.Queue()
+        self.qsm = QuicksimManager(self, self.q)
 
-        # Status box - use self.status() to add messages
-        self.status_msg = list[str]()
-        self.base_panel.variables["status_msg"] = tk.StringVar(value="")
-        data_label = tk.Label(master=self.base_panel.widget, textvariable=self.base_panel.variables["status_msg"],
-                              width=138, height=11,
-                              background=LIGHT_GREY, relief="sunken", border=2, anchor="nw", justify="left")
-        data_label.place(x=10, y=10)
-        self.base_panel.widgets["data label"] = data_label
+        self.sp = SecondaryParameters()
         self.status("Use Load File to select a file", clear=True)
-        self.populate_mini_panel()
-        self.populate_side_panel()
-        self.mount_side_panel_states()
 
-        # Figure toolbar
-        toolbar = NavigationToolbar2Tk(self.chart.canvas, self.toolbar_panel.widget, pack_toolbar=False)
-        toolbar.place(x=0, y=0, width=390)
-
-    def populate_mini_panel(self) -> None:
-        """ Build the small panel that loads data files and refreshes the plot. """
-        # Plot type selection
-        self.chart_type = tk.StringVar(value="select")
-        self.mini_panel.widgets["chart menu"] = tk.OptionMenu(self.mini_panel.widget,
-                                                              self.chart_type, "select")
-        menu: tk.Menu = self.mini_panel.widgets["chart menu"]["menu"]
-        menu.delete(0)
+    def set_mini_panel_commands(self):
+        """Add functionality to mini_panel widgets"""
+        widgets = self.mini_panel.widgets
+        menu = widgets["chart menu"]["menu"]
         menu.add_checkbutton(label="1D Trace Plot", onvalue="1D Trace Plot", offvalue="1D Trace Plot",
                              variable=self.chart_type, command=self.chartselect)
         menu.add_checkbutton(label="2D Trace Plot", onvalue="2D Trace Plot", offvalue="2D Trace Plot",
@@ -143,199 +74,28 @@ class Window:
                              variable=self.chart_type, command=self.chartselect)
         menu.add_checkbutton(label="2D Histogram", onvalue="2D Histogram", offvalue="2D Histogram",
                              variable=self.chart_type, command=self.chartselect)
-        self.mini_panel.widgets["chart menu"].configure(**MENU_KWARGS, state=tk.DISABLED)
-        self.mini_panel.widgets["chart menu"].place(x=20, y=40, anchor="sw")
+        
+        widgets["load button"].configure(command=self.loadfile)
+        widgets["export button"].configure(command=self.export)
+        widgets["graph button"].configure(command=self.drawchart)
+        widgets["quicksim button"].configure(command=self.quicksim)
 
-        # Opens file dialog
-        load_button = tk.Button(master=self.mini_panel.widget, width=10, text="Load File",
-                                background=BLACK, foreground=WHITE, command=self.loadfile, border=4)
-        load_button.place(x=200, y=40, anchor="s")
-        self.mini_panel.widgets["load button"] = load_button
-
-        # Export
-        export_button = tk.Button(master=self.mini_panel.widget, width=10, text="Export",
-                                  background=BLACK, foreground=WHITE, command=self.export, border=4)
-        export_button.place(x=200, y=100, anchor="s")
-        export_button.configure(state=tk.DISABLED)
-        self.mini_panel.widgets["export button"] = export_button
-
-        # Refreshes the plot
-        graph_button = tk.Button(master=self.mini_panel.widget, width=10, text="Graph",
-                                 background=BLACK, foreground=WHITE, command=self.drawchart, border=4)
-        graph_button.place(x=380, y=40, anchor="se")
-        graph_button.configure(state=tk.DISABLED)
-        self.mini_panel.widgets["graph button"] = graph_button
-
-        # Does a simulation using the state data
-        qs_button = tk.Button(master=self.mini_panel.widget, width=10, text="Simulate",
-                              background=BLACK, foreground=WHITE, command=self.quicksim, border=4)
-        qs_button.place(x=380, y=100, anchor="se")
-        qs_button.configure(state=tk.DISABLED)
-        self.mini_panel.widgets["quicksim button"] = qs_button
-
-    def populate_side_panel(self) -> None:
-        """ Build the plot control panel to the right of the plotting frame. """
+    def set_side_panel_commands(self):
+        """Add functionality to side_panel widgets"""
         widgets = self.side_panel.widgets
         variables = self.side_panel.variables
-        panel = self.side_panel.widget
+        widgets["chain_vis"].configure(command=self.do_select_chain_popup)
 
-        # Text labels
-        widgets["x_axis_label"] = tk.Label(master=panel, text="X Axis", **LABEL_KWARGS)
-        widgets["y_axis_label"] = tk.Label(master=panel, text="Y Axis", **LABEL_KWARGS)
-        widgets["scale_label"] = tk.Label(master=panel, text="Axis Scale", **LABEL_KWARGS)
-        widgets["accept_label"] = tk.Label(master=panel, text="Filter", **LABEL_KWARGS)
-        widgets["hori_marker_label"] = tk.Label(master=panel,
-                                                text="Horizontal Line", **LABEL_KWARGS)
-        widgets["equi_label"] = tk.Label(master=panel, text="Equilibration Period", **LABEL_KWARGS)
-        widgets["num_bins_label"] = tk.Label(master=panel, text="Bins", **LABEL_KWARGS)
-        widgets["thickness_label"] = tk.Label(master=panel, text="Thickness [nm]", **LABEL_KWARGS)
-
-        # User select menus
-        variables["variable_1"] = tk.StringVar(value="select")
-        variables["variable_2"] = tk.StringVar(value="select")
-        variables["accepted"] = tk.StringVar(value="Accepted")
-        variables["scale"] = tk.StringVar(value="Linear")
-        widgets["variable 1"] = tk.OptionMenu(panel, variables["variable_1"], "")
-        widgets["variable 2"] = tk.OptionMenu(panel, variables["variable_2"], "")
-        widgets["scale"] = tk.OptionMenu(panel, variables["scale"], "")
-        widgets["accepted"] = tk.OptionMenu(panel, variables["accepted"], "")
-        widgets["chain_vis"] = tk.Button(panel, text="Select Chains",
-                                         command=self.do_select_chain_popup,
-                                         width=13, border=4, background=BLACK, foreground=WHITE)
-        variables["combined_hist"] = tk.IntVar(value=0)
-        widgets["combined_hist"] = tk.Checkbutton(panel, text="Single Hist",
-                                                  variable=variables["combined_hist"],
-                                                  **{"width": 10, "background": LIGHT_GREY})
         variables["combined_hist"].trace("w", self.redraw)
-
-        widgets["variable 1"].configure(**MENU_KWARGS)
-        widgets["variable 2"].configure(**MENU_KWARGS)
-        widgets["scale"].configure(**MENU_KWARGS)
-        widgets["accepted"].configure(**MENU_KWARGS)
-
-        # Add fixed items to specific OptionMenus
-        menu: tk.Menu = widgets["accepted"]["menu"]
-        menu.delete(0)
-        menu.add_checkbutton(label="Accepted", onvalue="Accepted", offvalue="Accepted",
-                             variable=variables["accepted"])
-        menu.add_checkbutton(label="All Proposed", onvalue="All Proposed", offvalue="All Proposed",
-                             variable=variables["accepted"])
         variables["accepted"].trace("w", self.redraw)
-
-        menu: tk.Menu = widgets["scale"]["menu"]
-        menu.delete(0)
-        menu.add_checkbutton(label="Linear", onvalue="Linear", offvalue="Linear", variable=variables["scale"])
-        menu.add_checkbutton(label="Logarithmic", onvalue="Logarithmic",
-                             offvalue="Logarithmic", variable=variables["scale"])
         variables["scale"].trace("w", self.redraw)
-
-        # Entry for horizontal marker
-        variables["hori_marker"] = tk.StringVar()
-        widgets["hori_marker_entry"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["hori_marker"])
         widgets["hori_marker_entry"].bind("<FocusOut>", self.redraw)
-
-        # Entry to designate initial equilibration period (of states to discard from the statistics)
-        variables["equi"] = tk.StringVar()
-        widgets["equi_entry"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["equi"])
         widgets["equi_entry"].bind("<FocusOut>", self.redraw)
-
-        # Entry for number of bins
-        variables["bins"] = tk.StringVar()
-        variables["bins"].set(str(DEFAULT_HIST_BINS))
-        widgets["num_bins_entry"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["bins"])
         widgets["num_bins_entry"].bind("<FocusOut>", self.redraw)
-
-        # Entry to designate sample thickness
-        variables["thickness"] = tk.StringVar()
-        variables["thickness"].set(str(DEFAULT_THICKNESS))
-        widgets["thickness"] = tk.Entry(master=panel, width=16, border=3, textvariable=variables["thickness"])
         widgets["thickness"].bind("<FocusOut>", self.redraw)
 
-    def mount_side_panel_states(self) -> None:
-        """Add a map of widget locations for each of the four plotting states"""
-        widgets = self.side_panel.widgets
-
-        # TODO: More descriptive way to index these
-        locations = [{"x": 20, "y": 20, "anchor": "nw"},
-                     {"x": 200, "y": 20, "anchor": "n"},
-                     {"x": 380, "y": 20, "anchor": "ne"},
-                     {"x": 20, "y": 48, "anchor": "nw"},
-
-                     {"x": 200, "y": 48, "anchor": "n"},
-                     {"x": 380, "y": 48, "anchor": "ne"},
-                     {"x": 20, "y": 88, "anchor": "nw"},
-                     {"x": 200, "y": 88, "anchor": "n"},
-
-                     {"x": 380, "y": 88, "anchor": "ne"},
-                     {"x": 20, "y": 116, "anchor": "nw"},
-                     {"x": 200, "y": 116, "anchor": "n"},
-                     {"x": 380, "y": 116, "anchor": "ne"},
-
-                     {"x": 20, "y": 156, "anchor": "nw"},
-                     {"x": 20, "y": 188, "anchor": "nw"},
-
-                     {"x": 380, "y": 156, "anchor": "e"},
-
-                     {"x": 20, "y": 252, "anchor": "nw"},
-
-                     ]
-
-        self.side_panel.addstate("1D Trace Plot", [(widgets["x_axis_label"], locations[0]),
-                                                   (widgets["accept_label"], locations[1]),
-                                                   (widgets["scale_label"], locations[2]),
-                                                   (widgets["variable 1"], locations[3]),
-                                                   (widgets["accepted"], locations[4]),
-                                                   (widgets["scale"], locations[5]),
-                                                   (widgets["hori_marker_label"], locations[6]),
-                                                   (widgets["hori_marker_entry"], locations[9]),
-                                                   (widgets["equi_label"], locations[7]),
-                                                   (widgets["equi_entry"], locations[10]),
-                                                   (widgets["thickness_label"], locations[12]),
-                                                   (widgets["thickness"], locations[13]),
-                                                   (widgets["chain_vis"], locations[15])]
-                                 )
-
-        self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], locations[0]),
-                                                   (widgets["y_axis_label"], locations[1]),
-                                                   (widgets["scale_label"], locations[2]),
-                                                   (widgets["variable 1"], locations[3]),
-                                                   (widgets["variable 2"], locations[4]),
-                                                   (widgets["scale"], locations[5]),
-                                                   (widgets["equi_label"], locations[7]),
-                                                   (widgets["equi_entry"], locations[10]),
-                                                   (widgets["thickness_label"], locations[12]),
-                                                   (widgets["thickness"], locations[13]),
-                                                   (widgets["chain_vis"], locations[15])]
-                                 )
-
-        self.side_panel.addstate("1D Histogram", [(widgets["x_axis_label"], locations[0]),
-                                                  (widgets["scale_label"], locations[1]),
-                                                  (widgets["variable 1"], locations[3]),
-                                                  (widgets["scale"], locations[4]),
-                                                  (widgets["chain_vis"], locations[15]),
-                                                  (widgets["equi_label"], locations[7]),
-                                                  (widgets["equi_entry"], locations[10]),
-                                                  (widgets["num_bins_label"], locations[8]),
-                                                  (widgets["num_bins_entry"], locations[11]),
-                                                  (widgets["thickness_label"], locations[12]),
-                                                  (widgets["thickness"], locations[13]),
-                                                  (widgets["combined_hist"], locations[14])]
-                                 )
-
-        self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], locations[0]),
-                                                  (widgets["y_axis_label"], locations[1]),
-                                                  (widgets["scale_label"], locations[2]),
-                                                  (widgets["variable 1"], locations[3]),
-                                                  (widgets["variable 2"], locations[4]),
-                                                  (widgets["scale"], locations[5]),
-                                                  (widgets["chain_vis"], locations[15]),
-                                                  (widgets["equi_label"], locations[7]),
-                                                  (widgets["equi_entry"], locations[10]),
-                                                  (widgets["num_bins_label"], locations[8]),
-                                                  (widgets["num_bins_entry"], locations[11]),
-                                                  (widgets["thickness_label"], locations[12]),
-                                                  (widgets["thickness"], locations[13]),]
-                                 )
+        variables["bins"].set(str(DEFAULT_HIST_BINS))
+        variables["thickness"].set(str(DEFAULT_THICKNESS))
 
     def do_select_chain_popup(self) -> None:
         self.side_panel.widgets["chain_vis"].configure(state=tk.DISABLED) # type: ignore
@@ -631,7 +391,7 @@ class Window:
                     else:
                         hline = (float(hline),)
                 except ValueError:
-                    hline = tuple()
+                    hline = (-1.0,)
 
                 if accepted == "Accepted":
                     accepted = True
