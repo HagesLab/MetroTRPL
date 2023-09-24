@@ -74,7 +74,7 @@ class Window(TkGUI):
                              variable=self.chart_type, command=self.chartselect)
         menu.add_checkbutton(label="2D Histogram", onvalue="2D Histogram", offvalue="2D Histogram",
                              variable=self.chart_type, command=self.chartselect)
-        
+
         widgets["load button"].configure(command=self.loadfile)
         widgets["export button"].configure(command=self.export)
         widgets["graph button"].configure(command=self.drawchart)
@@ -173,7 +173,7 @@ class Window(TkGUI):
 
             if len(self.qsr_popup.sim_results) == expected_num_sims:
                 break
-            
+
         self.qsm.join()
         self.qsr_popup.finalize()
         self.status("Sims finished")
@@ -203,7 +203,8 @@ class Window(TkGUI):
 
         self.do_quicksim_result_popup(self.get_n_chains(), self.qse_popup.n_sims)
         self.qsr_popup.toplevel.attributes('-topmost', 'false')
-        self.widget.after(10, self.qsm.quicksim, sim_tasks, self.qse_popup.model.get(), self.qse_popup.meas.get())
+        self.widget.after(10, self.qsm.quicksim, sim_tasks,
+                          self.qse_popup.model.get(), self.qse_popup.meas.get())
         self.widget.after(1000, self.query_quicksim, self.qse_popup.n_sims * self.get_n_chains())
 
     def loadfile(self) -> None:
@@ -284,7 +285,7 @@ class Window(TkGUI):
 
                     self.data[file_name][key] = {False: states,
                                                     True: mean_states}
-                        
+
                 for key in self.sp.func:
                     # TODO: Option to precalculate all of these
                     self.data[file_name][key] = {False: np.zeros(0),
@@ -305,15 +306,18 @@ class Window(TkGUI):
         self.side_panel.variables["variable_1"].set("select")
         menu.delete(0, tk.END)
 
-        for key in self.data[file_names[0]]: # TODO: Require all file_names have same set of keys, or track only unique keys
-            menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_1"])
+        # TODO: Require all file_names have same set of keys, or track only unique keys
+        for key in self.data[file_names[0]]:
+            menu.add_checkbutton(label=key, onvalue=key, offvalue=key,
+                                 variable=self.side_panel.variables["variable_1"])
 
         self.side_panel.variables["variable_1"].trace("w", self.redraw)
         menu: tk.Menu = self.side_panel.widgets["variable 2"]["menu"]
         self.side_panel.variables["variable_2"].set("select")
         menu.delete(0, tk.END)
         for key in self.data[file_names[0]]:
-            menu.add_checkbutton(label=key, onvalue=key, offvalue=key, variable=self.side_panel.variables["variable_2"])
+            menu.add_checkbutton(label=key, onvalue=key, offvalue=key,
+                                 variable=self.side_panel.variables["variable_2"])
 
         self.side_panel.variables["variable_2"].trace("w", self.redraw)
         self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL) # type: ignore
@@ -526,7 +530,7 @@ class Window(TkGUI):
         # Collect common entries
         x_val = self.side_panel.variables["variable_1"].get()
         equi = self.side_panel.variables["equi"].get()
-        
+
         # Parse common entries
         if x_val == "select":
             return
