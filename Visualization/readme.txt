@@ -1,1 +1,0 @@
-This contains stuff specifically for viewing Metro walk results involving the onelayer single-absorber model, and will probably be absorbed into the OneLayer project soon.
