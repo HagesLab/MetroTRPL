@@ -20,6 +20,6 @@ class Clickmenu():
 
         try:
             self.menu.tk_popup(event.x_root, event.y_root)
-            self.latest_event = (event.x_root, event.y_root)
+            self.latest_event = (event.x, event.y)
         finally:
             self.menu.grab_release()
