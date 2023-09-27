@@ -2,17 +2,50 @@
 First of a two-stage tkinter GUI construction - this one plots all of the widgets
 where window.py then adds functionality
 """
+import platform
+from io import BytesIO
 import tkinter as tk
+from PIL import Image
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
-from rclickmenu import Clickmenu
+from rclickmenu import Clickmenu, CLICK_EVENTS
 from gui_colors import BLACK, WHITE, LIGHT_GREY, GREY, DARK_GREY
 from gui_styles import MENU_KWARGS, LABEL_KWARGS
 
-events = {"key": {"escape": "<Escape>", "enter": "<Return>"},
-          "click": {"left": "<Button-1>", "right": "<Button-3>"}}
+OSTYPE = platform.system().lower()
+if OSTYPE == "windows":
+    import win32clipboard
+
+class MainClickmenu(Clickmenu):
+
+    def __init__(self, window, master, chart):
+        super().__init__(window, master, target_widget=chart.widget)
+        self.chart = chart
+        self.menu.add_command(label="Copy", command=self.copy_fig)
+
+    def copy_fig(self):
+        """
+        Adapted from: addcopyfighandler by joshburnett (09/14/2023)
+        https://github.com/joshburnett/addcopyfighandler
+        """
+        if OSTYPE != "windows":
+            raise NotImplementedError("Copy-paste only supported on Windows (WIP)")
+
+        with BytesIO() as buf:
+            self.chart.canvas.figure.savefig(buf, dpi=600, format="png")
+
+            image = Image.open(buf)
+            with BytesIO() as output:
+                image.convert("RGB").save(output, "BMP")
+                data = output.getvalue()[14:]  # The file header off-set of BMP is 14 bytes
+                format_id = win32clipboard.CF_DIB  # DIB = device independent bitmap
+
+        win32clipboard.OpenClipboard()
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardData(format_id, data)
+        win32clipboard.CloseClipboard()
 
 class TkGUI():
     """GUI with all widgets plotted"""
@@ -69,8 +102,8 @@ class TkGUI():
         self.widget.option_add("*tearOff", False)
         self.chart = self.Chart(self.widget, 600, 600)
 
-        self.clickmenu = Clickmenu(self, self.widget, self.chart)
-        self.widget.bind(events["click"]["right"], self.clickmenu.show)
+        self.clickmenu = MainClickmenu(self, self.widget, self.chart)
+        self.widget.bind(CLICK_EVENTS["click"]["right"], self.clickmenu.show)
 
         self.chart.place(0, 0)
         self.side_panel = self.Panel(self.widget, 400, 430, GREY)

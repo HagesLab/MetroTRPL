@@ -10,15 +10,56 @@ from tkinter import filedialog
 from functools import partial
 from forward_solver import MODELS
 
+from rclickmenu import Clickmenu, CLICK_EVENTS
 from popup import Popup
 from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY, RED
 from gui_styles import LABEL_KWARGS
 
 WIDTH = 970
 HEIGHT = 600
+EV_FRAME_OFFSET = (60, 30)
 DEFAULT_N_SIMS = 3
 KEYBIND_DIR = "keybinds"
 AVAILABLE_MEAS = ["TRPL", "TRTS"]
+
+class QSEClickmenu(Clickmenu):
+
+    def __init__(self, window, master, chart):
+        super().__init__(window, master, chart)
+        self.menu.add_command(label="Copy Row", command=self.copy_row)
+        self.menu.add_command(label="Paste Row", command=self.paste_row)
+        self.clipboard = []
+
+    def show(self, event):
+        """Check that click falls within a row before showing"""
+        row = int((event.y - EV_FRAME_OFFSET[0]) / EV_FRAME_OFFSET[1])
+        if row < 0:
+            # Clicked too high
+            return
+
+        if row >= self.window.n_sims:
+            # Clicked too low
+            return
+
+        super().show(event)
+
+    def copy_row(self):
+        """Copy selected row's values"""
+        row = int((self.latest_event[1] - EV_FRAME_OFFSET[0]) / EV_FRAME_OFFSET[1])
+
+        self.clipboard = []
+        for ev in self.window.ext_var:
+            self.clipboard.append(self.window.ext_var[ev][row].get())
+
+    def paste_row(self):
+        """Paste previously copied row into selected row"""
+        if len(self.clipboard) == 0:
+            return
+
+        row = int((self.latest_event[1] - EV_FRAME_OFFSET[0]) / EV_FRAME_OFFSET[1])
+        for i, ev in enumerate(self.window.ext_var):
+            self.window.ext_var[ev][row].set(self.clipboard[i])
+
 
 class QuicksimEntryPopup(Popup):
 
@@ -37,6 +78,9 @@ class QuicksimEntryPopup(Popup):
                                               height=100, color=DARK_GREY)
         self.ev_frame = self.window.Panel(self.toplevel, width=WIDTH, height=480,
                                          color=LIGHT_GREY)
+        
+        self.clickmenu = QSEClickmenu(self, self.toplevel, self.ev_frame.widget)
+        self.toplevel.bind(CLICK_EVENTS["click"]["right"], self.clickmenu.show)
 
         self.n_sims = DEFAULT_N_SIMS
         self.c_frame.variables["n_sims"] = tk.StringVar(value=str(self.n_sims))
@@ -161,13 +205,13 @@ class QuicksimEntryPopup(Popup):
         """
         self.ev_frame.widgets[f"Number-{i}"] = tk.Label(self.ev_frame.widget, text=f"{i+1}.", width=4, border=3,
                                                             background=LIGHT_GREY)
-        self.ev_frame.widgets[f"Number-{i}"].place(x=0, y=60+30*i)
+        self.ev_frame.widgets[f"Number-{i}"].place(x=0, y=EV_FRAME_OFFSET[0]+EV_FRAME_OFFSET[1]*i)
         for e, ev in enumerate(self.ext_var):
             tk.Label(self.ev_frame.widget, text=ev, **LABEL_KWARGS).place(x=60+110*e, y=20)
             self.ext_var[ev].append(tk.StringVar())
             self.ev_frame.widgets[f"{e}-{i}"] = tk.Entry(master=self.ev_frame.widget, width=16, border=3,
                 textvariable=self.ext_var[ev][-1], highlightthickness=2, highlightcolor=LIGHT_GREY)
-            self.ev_frame.widgets[f"{e}-{i}"].place(x=60+110*e, y=60+30*i)
+            self.ev_frame.widgets[f"{e}-{i}"].place(x=60+110*e, y=EV_FRAME_OFFSET[0]+EV_FRAME_OFFSET[1]*i)
 
     def contract_ev_frame(self, i : int) -> None:
         """Remove widgets belonging to the deleted ith simulation"""
