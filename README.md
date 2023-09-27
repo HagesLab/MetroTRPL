@@ -1,7 +1,10 @@
 # MetroTRPL
 Efficient parameter fitting of TRPL curves using a Metropolis-Hastings Monte Carlo sampling algorithm, as described in the article "Rapid optoelectronic characterization of semiconductors combining Bayesian inference with Metropolis sampling" (2023) by C. Fai, A. J. C. Ladd, and C. Hages.
 
+For a quick start, download the latest release under the **Releases** tab on the right of the page.
+
 ## Required Packages
+Python 3.10+ is needed to run all features of this program, particularly the GUI visualization. Earlier versions of Python 3 can run the core Monte Carlo algorithm with some compatibility tweaks.
 Compatible version ranges coming soon!
 
 * numpy 1.20
