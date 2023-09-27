@@ -11,6 +11,7 @@ class Clickmenu():
         self.master = master
         self.target_widget = target_widget
         self.menu = Menu(self.master, tearoff=0)
+        self.latest_event = (-1, -1)
 
     def show(self, event):
         """Display menu at click event location"""
@@ -19,5 +20,6 @@ class Clickmenu():
 
         try:
             self.menu.tk_popup(event.x_root, event.y_root)
+            self.latest_event = (event.x_root, event.y_root)
         finally:
             self.menu.grab_release()

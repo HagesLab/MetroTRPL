@@ -28,7 +28,7 @@ class QSEClickmenu(Clickmenu):
         self.menu.add_command(label="Copy Row", command=self.copy_row)
 
     def copy_row(self):
-        print("help")
+        print("latest click was at ", self.latest_event)
 
 
 class QuicksimEntryPopup(Popup):
@@ -43,8 +43,6 @@ class QuicksimEntryPopup(Popup):
         self.toplevel.attributes('-topmost', 'false')
         self.toplevel.protocol("WM_DELETE_WINDOW", partial(self.on_close, False))
         self.load_keybinds()
-
-        
 
         self.c_frame = self.window.Panel(self.toplevel, width=WIDTH,
                                               height=100, color=DARK_GREY)
