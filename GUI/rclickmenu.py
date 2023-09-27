@@ -6,15 +6,15 @@ CLICK_EVENTS = {#"key": {"escape": "<Escape>", "enter": "<Return>"},
 
 class Clickmenu():
     """Menu of options that should appear on right-click"""
-    def __init__(self, window, master, chart) -> None:
+    def __init__(self, window, master, target_widget) -> None:
         self.window = window
         self.master = master
-        self.chart = chart
+        self.target_widget = target_widget
         self.menu = Menu(self.master, tearoff=0)
 
     def show(self, event):
         """Display menu at click event location"""
-        if event.widget != self.chart.widget:
+        if event.widget != self.target_widget:
             return
 
         try:

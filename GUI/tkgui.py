@@ -21,7 +21,8 @@ if OSTYPE == "windows":
 class MainClickmenu(Clickmenu):
 
     def __init__(self, window, master, chart):
-        super().__init__(window, master, chart)
+        super().__init__(window, master, target_widget=chart.widget)
+        self.chart = chart
         self.menu.add_command(label="Copy", command=self.copy_fig)
 
     def copy_fig(self):
