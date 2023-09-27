@@ -10,6 +10,7 @@ from tkinter import filedialog
 from functools import partial
 from forward_solver import MODELS
 
+from rclickmenu import Clickmenu, CLICK_EVENTS
 from popup import Popup
 from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY, RED
 from gui_styles import LABEL_KWARGS
@@ -19,6 +20,16 @@ HEIGHT = 600
 DEFAULT_N_SIMS = 3
 KEYBIND_DIR = "keybinds"
 AVAILABLE_MEAS = ["TRPL", "TRTS"]
+
+class QSEClickmenu(Clickmenu):
+
+    def __init__(self, window, master, chart):
+        super().__init__(window, master, chart)
+        self.menu.add_command(label="Copy Row", command=self.copy_row)
+
+    def copy_row(self):
+        print("help")
+
 
 class QuicksimEntryPopup(Popup):
 
@@ -33,10 +44,15 @@ class QuicksimEntryPopup(Popup):
         self.toplevel.protocol("WM_DELETE_WINDOW", partial(self.on_close, False))
         self.load_keybinds()
 
+        
+
         self.c_frame = self.window.Panel(self.toplevel, width=WIDTH,
                                               height=100, color=DARK_GREY)
         self.ev_frame = self.window.Panel(self.toplevel, width=WIDTH, height=480,
                                          color=LIGHT_GREY)
+        
+        self.clickmenu = QSEClickmenu(self, self.toplevel, self.ev_frame.widget)
+        self.toplevel.bind(CLICK_EVENTS["click"]["right"], self.clickmenu.show)
 
         self.n_sims = DEFAULT_N_SIMS
         self.c_frame.variables["n_sims"] = tk.StringVar(value=str(self.n_sims))
