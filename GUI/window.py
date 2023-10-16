@@ -5,6 +5,7 @@ to a skeleton provided by tkgui.py
 import pickle
 import sys
 import os
+from datetime import datetime
 import multiprocessing
 import tkinter as tk
 from tkinter import filedialog
@@ -76,12 +77,7 @@ class Window(TkGUI):
         menu.add_checkbutton(label="2D Histogram", onvalue="2D Histogram", offvalue="2D Histogram",
                              variable=self.chart_type, command=self.chartselect)
         
-        menu = widgets["export menu"]["menu"]
-        menu.add_checkbutton(label="This Variable", onvalue="This Variable", offvalue="This Variable",
-                             variable=self.export_type, command=partial(self.export, "this_variable"))
-        menu.add_checkbutton(label="All variables", onvalue="All Variables", offvalue="All Variables",
-                             variable=self.export_type, command=partial(self.export, "all"))
-
+        widgets["export all"].configure(command=partial(self.export, "all"))
         widgets["load button"].configure(command=self.loadfile)
         widgets["graph button"].configure(command=self.drawchart)
         widgets["quicksim button"].configure(command=self.quicksim)
@@ -99,6 +95,7 @@ class Window(TkGUI):
         widgets["equi_entry"].bind("<FocusOut>", self.redraw)
         widgets["num_bins_entry"].bind("<FocusOut>", self.redraw)
         widgets["thickness"].bind("<FocusOut>", self.redraw)
+        widgets["export this"].configure(command=partial(self.export, "this_variable"))
 
         variables["bins"].set(str(DEFAULT_HIST_BINS))
         variables["thickness"].set(str(DEFAULT_THICKNESS))
@@ -331,7 +328,7 @@ class Window(TkGUI):
     def chartselect(self) -> None:
         """ Refresh on choosing a new type of plot """
         self.side_panel.loadstate(self.chart_type.get())
-        self.mini_panel.widgets["export menu"].configure(state=tk.NORMAL) # type: ignore
+        self.mini_panel.widgets["export all"].configure(state=tk.NORMAL) # type: ignore
         self.mini_panel.widgets["graph button"].configure(state=tk.NORMAL) # type: ignore
         self.chart.figure.clear()
         self.chart.canvas.draw()
@@ -534,7 +531,55 @@ class Window(TkGUI):
     def export(self, which) -> None:
         """ Export currently plotted values as .csv or .npy """
         if which == "all":
-            pass
+            # Designate an empty folder
+            file_name = next(iter(self.file_names))
+            tstamp = str(datetime.now()).replace(":", "-")
+            out_dir = os.path.join(os.path.dirname(file_name), f"export-{tstamp}")
+            
+            if not os.path.isdir(out_dir):
+                os.makedirs(out_dir)
+
+            if len(os.listdir(out_dir)) > 0:
+                self.status(f"Error - dir {out_dir} must be empty")
+                return
+
+            # One output per chain
+            for file_name in self.file_names:
+                # Reasons to not export a file
+                if self.file_names[file_name].get() == 0: # This value display disabled
+                    continue
+
+                out_name = os.path.basename(file_name)
+                if out_name.endswith(".pik"):
+                    out_name = out_name[:-4]
+                out_name += ".csv"
+
+                equi = self.side_panel.variables["equi"].get()
+                try:
+                    equi = int(equi)
+                    equi = max(0, equi)
+                except ValueError:
+                    equi = 0
+
+                data = np.zeros((0, 0))
+                header = []
+                for x_val in self.data[file_name]:
+                    if x_val in self.sp.func:
+                        continue
+                    if x_val == "log likelihood" or x_val == "accept":
+                        continue
+
+                    vals = np.log10(self.data[file_name][x_val][True][equi:])
+                    if len(data) == 0:
+                        data = np.vstack((np.arange(len(vals)) + equi, np.array(vals)))
+                        header.append("Index")
+                    else:
+                        data = np.vstack((data, vals))
+                    header.append(x_val)
+
+                np.savetxt(os.path.join(out_dir, out_name), data.T, delimiter=",",
+                                    header=",".join(header))
+            self.status(f"Export complete - {out_dir}")
 
         elif which == "this_variable":
             # Collect common entries
@@ -777,5 +822,3 @@ class Window(TkGUI):
                         np.savetxt(out_name, freq_matrix, delimiter=",")
 
                     self.status(f"Export complete - {out_name}")
-
-        self.export_type.set("Export")
