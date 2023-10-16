@@ -152,11 +152,17 @@ class TkGUI():
         self.mini_panel.widgets["load button"] = load_button
 
         # Export
-        export_button = tk.Button(master=self.mini_panel.widget, width=10, text="Export",
-                                  background=BLACK, foreground=WHITE, border=4)
-        export_button.place(x=200, y=100, anchor="s")
-        export_button.configure(state=tk.DISABLED)
-        self.mini_panel.widgets["export button"] = export_button
+        self.export_type = tk.StringVar(value="Export")
+        self.mini_panel.widgets["export menu"] = tk.OptionMenu(self.mini_panel.widget,
+                                                               self.export_type, "Export")
+        menu: tk.Menu = self.mini_panel.widgets["export menu"]["menu"]
+        menu.delete(0)
+        # export_button = tk.Button(master=self.mini_panel.widget, width=10, text="Export",
+        #                           background=BLACK, foreground=WHITE, border=4)
+        # self.mini_panel.widgets["export button"] = export_button
+        self.mini_panel.widgets["export menu"].configure(**MENU_KWARGS, state=tk.DISABLED)
+        self.mini_panel.widgets["export menu"].place(x=200, y=100, anchor="s")
+        
 
         # Refreshes the plot
         graph_button = tk.Button(master=self.mini_panel.widget, width=10, text="Graph",
