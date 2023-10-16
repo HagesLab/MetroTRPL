@@ -152,11 +152,12 @@ class TkGUI():
         self.mini_panel.widgets["load button"] = load_button
 
         # Export
-        export_button = tk.Button(master=self.mini_panel.widget, width=10, text="Export",
+        export_button = tk.Button(master=self.mini_panel.widget, width=10, text="Export All",
                                   background=BLACK, foreground=WHITE, border=4)
-        export_button.place(x=200, y=100, anchor="s")
-        export_button.configure(state=tk.DISABLED)
-        self.mini_panel.widgets["export button"] = export_button
+        self.mini_panel.widgets["export all"] = export_button
+        self.mini_panel.widgets["export all"].configure(state=tk.DISABLED)
+        self.mini_panel.widgets["export all"].place(x=200, y=100, anchor="s")
+        
 
         # Refreshes the plot
         graph_button = tk.Button(master=self.mini_panel.widget, width=10, text="Graph",
@@ -245,6 +246,9 @@ class TkGUI():
         variables["thickness"] = tk.StringVar()
         widgets["thickness"] = tk.Entry(master=panel, width=16, border=3,
                                         textvariable=variables["thickness"])
+        
+        widgets["export this"] = tk.Button(master=panel, width=16, text="Export This Variable",
+                                           background=BLACK, foreground=WHITE, border=4)
 
     def mount_side_panel_states(self) -> None:
         """Add a map of widget locations for each of the four plotting states"""
@@ -272,6 +276,7 @@ class TkGUI():
                      {"x": 380, "y": 156, "anchor": "e"},
 
                      {"x": 20, "y": 252, "anchor": "nw"},
+                     {"x": 20, "y": 324, "anchor": "sw"},
 
                      ]
 
@@ -287,7 +292,8 @@ class TkGUI():
                                                    (widgets["equi_entry"], locations[10]),
                                                    (widgets["thickness_label"], locations[12]),
                                                    (widgets["thickness"], locations[13]),
-                                                   (widgets["chain_vis"], locations[15])]
+                                                   (widgets["chain_vis"], locations[15]),
+                                                   (widgets["export this"], locations[16])]
                                  )
 
         self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], locations[0]),
@@ -300,7 +306,8 @@ class TkGUI():
                                                    (widgets["equi_entry"], locations[10]),
                                                    (widgets["thickness_label"], locations[12]),
                                                    (widgets["thickness"], locations[13]),
-                                                   (widgets["chain_vis"], locations[15])]
+                                                   (widgets["chain_vis"], locations[15]),
+                                                   (widgets["export this"], locations[16])]
                                  )
 
         self.side_panel.addstate("1D Histogram", [(widgets["x_axis_label"], locations[0]),
@@ -314,7 +321,8 @@ class TkGUI():
                                                   (widgets["num_bins_entry"], locations[11]),
                                                   (widgets["thickness_label"], locations[12]),
                                                   (widgets["thickness"], locations[13]),
-                                                  (widgets["combined_hist"], locations[14])]
+                                                  (widgets["combined_hist"], locations[14]),
+                                                  (widgets["export this"], locations[16])]
                                  )
 
         self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], locations[0]),
@@ -329,5 +337,6 @@ class TkGUI():
                                                   (widgets["num_bins_label"], locations[8]),
                                                   (widgets["num_bins_entry"], locations[11]),
                                                   (widgets["thickness_label"], locations[12]),
-                                                  (widgets["thickness"], locations[13]),]
+                                                  (widgets["thickness"], locations[13]),
+                                                  (widgets["export this"], locations[16])]
                                  )
