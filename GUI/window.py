@@ -89,7 +89,6 @@ class Window(TkGUI):
         widgets["chain_vis"].configure(command=self.do_select_chain_popup)
 
         variables["combined_hist"].trace("w", self.redraw)
-        variables["accepted"].trace("w", self.redraw)
         variables["scale"].trace("w", self.redraw)
         widgets["hori_marker_entry"].bind("<FocusOut>", self.redraw)
         widgets["equi_entry"].bind("<FocusOut>", self.redraw)
@@ -392,7 +391,6 @@ class Window(TkGUI):
         axes = self.chart.figure.add_subplot()
         match self.side_panel.state:
             case "1D Trace Plot":
-                accepted = self.side_panel.variables["accepted"].get()
                 hline = self.side_panel.variables["hori_marker"].get()
                 try:
                     if "," in hline:

@@ -183,7 +183,6 @@ class TkGUI():
         widgets["x_axis_label"] = tk.Label(master=panel, text="X Axis", **LABEL_KWARGS)
         widgets["y_axis_label"] = tk.Label(master=panel, text="Y Axis", **LABEL_KWARGS)
         widgets["scale_label"] = tk.Label(master=panel, text="Axis Scale", **LABEL_KWARGS)
-        widgets["accept_label"] = tk.Label(master=panel, text="Filter", **LABEL_KWARGS)
         widgets["hori_marker_label"] = tk.Label(master=panel,
                                                 text="Horizontal Line", **LABEL_KWARGS)
         widgets["equi_label"] = tk.Label(master=panel, text="Equilibration Period", **LABEL_KWARGS)
@@ -193,12 +192,10 @@ class TkGUI():
         # User select menus
         variables["variable_1"] = tk.StringVar(value="select")
         variables["variable_2"] = tk.StringVar(value="select")
-        variables["accepted"] = tk.StringVar(value="Accepted")
         variables["scale"] = tk.StringVar(value="Linear")
         widgets["variable 1"] = tk.OptionMenu(panel, variables["variable_1"], "")
         widgets["variable 2"] = tk.OptionMenu(panel, variables["variable_2"], "")
         widgets["scale"] = tk.OptionMenu(panel, variables["scale"], "")
-        widgets["accepted"] = tk.OptionMenu(panel, variables["accepted"], "")
         widgets["chain_vis"] = tk.Button(panel, text="Select Chains",
                                          width=13, border=4, background=BLACK, foreground=WHITE)
         variables["combined_hist"] = tk.IntVar(value=0)
@@ -209,15 +206,8 @@ class TkGUI():
         widgets["variable 1"].configure(**MENU_KWARGS)
         widgets["variable 2"].configure(**MENU_KWARGS)
         widgets["scale"].configure(**MENU_KWARGS)
-        widgets["accepted"].configure(**MENU_KWARGS)
 
         # Add fixed items to specific OptionMenus
-        menu: tk.Menu = widgets["accepted"]["menu"]
-        menu.delete(0)
-        menu.add_checkbutton(label="Accepted", onvalue="Accepted", offvalue="Accepted",
-                             variable=variables["accepted"])
-        menu.add_checkbutton(label="All Proposed", onvalue="All Proposed", offvalue="All Proposed",
-                             variable=variables["accepted"])
 
         menu: tk.Menu = widgets["scale"]["menu"]
         menu.delete(0)
@@ -283,10 +273,8 @@ class TkGUI():
                      ]
 
         self.side_panel.addstate("1D Trace Plot", [(widgets["x_axis_label"], locations[0]),
-                                                   (widgets["accept_label"], locations[1]),
                                                    (widgets["scale_label"], locations[2]),
                                                    (widgets["variable 1"], locations[3]),
-                                                   (widgets["accepted"], locations[4]),
                                                    (widgets["scale"], locations[5]),
                                                    (widgets["hori_marker_label"], locations[6]),
                                                    (widgets["hori_marker_entry"], locations[9]),
