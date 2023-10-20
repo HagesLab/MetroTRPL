@@ -49,7 +49,7 @@ class Window(TkGUI):
         # Stores all MCMC states - self.data[fname][param_name][accepted]
         # param_name e.g. p0, mu_n, mu_p
         # accepted - 0 for all proposed states, 1 for only accepted states
-        self.data = dict[str, dict[str, dict[bool, np.ndarray]]]()
+        self.data = dict[str, dict[str, np.ndarray]]()
 
         # List of loaded MCMC chains, and whether they are active
         self.file_names = dict[str, tk.IntVar]()
@@ -244,7 +244,7 @@ class Window(TkGUI):
                 raise ValueError("Invalid chain states format - "
                                     "must be 1D or 2D of size (1, num_states)")
 
-            self.data[file_name]["log likelihood"] = {False: plogl[1:], True: logl[1:]}
+            self.data[file_name]["log likelihood"] = logl[1:]
 
             accept = getattr(metrostate.H, "accept")
             if accept.ndim == 2 and accept.shape[0] == 1:
@@ -261,7 +261,7 @@ class Window(TkGUI):
             sub_means = np.zeros((num_bins))
             for s, sub in enumerate(accepted_subs):
                 sub_means[s] = np.mean(sub)
-            self.data[file_name]["accept"] = {False: sub_means, True: sub_means}
+            self.data[file_name]["accept"] = sub_means
 
             try:
                 for key in metrostate.param_info["names"]:
@@ -274,13 +274,11 @@ class Window(TkGUI):
                         raise ValueError("Invalid chain states format - "
                                             "must be 1D or 2D of size (1, num_states)")
 
-                    self.data[file_name][key] = {False: mean_states,
-                                                    True: mean_states}
+                    self.data[file_name][key] = mean_states
 
                 for key in self.sp.func:
                     # TODO: Option to precalculate all of these
-                    self.data[file_name][key] = {False: np.zeros(0),
-                                                 True: np.zeros(0)}
+                    self.data[file_name][key] = np.zeros(0)
             except ValueError as err:
                 self.status(f"Error: {err}")
                 continue
@@ -389,7 +387,6 @@ class Window(TkGUI):
                 except ValueError:
                     hline = (-1.0,)
 
-                accepted = True
                 title = f"{x_val}"
 
                 for i, file_name in enumerate(self.file_names):
@@ -397,14 +394,14 @@ class Window(TkGUI):
                         continue
                     color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
-                    y = self.data[file_name][x_val][accepted]
+                    y = self.data[file_name][x_val]
                     if (len(y) == 0 or thickness != self.sp.last_thickness.get(x_val, thickness)) and x_val in self.sp.func:
                         # Calculate and cache the secondary parameter
                         try:
-                            self.sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": accepted}, thickness)
+                            self.sp.get(self.data, {"file_name": file_name, "value": x_val}, thickness)
                         except (ValueError, KeyError) as err:
                             self.status(str(err))
-                    mc_plot.traceplot1d(axes, self.data[file_name][x_val][accepted],
+                    mc_plot.traceplot1d(axes, self.data[file_name][x_val],
                                         title, scale, hline, (equi,), color)
 
             case "2D Trace Plot":
@@ -417,18 +414,18 @@ class Window(TkGUI):
 
                     success = {"x": False, "y": False}
                     for s, val in xy_val.items():
-                        y =  self.data[file_name][val][True]
+                        y =  self.data[file_name][val]
                         if (len(y) == 0 or thickness != self.sp.last_thickness.get(val, thickness)) and val in self.sp.func:
                             try:
-                                self.sp.get(self.data, {"file_name": file_name, "value": val, "accepted": True}, thickness)
+                                self.sp.get(self.data, {"file_name": file_name, "value": val}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
                         success[s] = True
 
                     if success["x"] and success["y"]: # Successfully obtained data for both params
-                        mc_plot.traceplot2d(axes, self.data[file_name][x_val][True][equi:],
-                                            self.data[file_name][y_val][True][equi:],
+                        mc_plot.traceplot2d(axes, self.data[file_name][x_val][equi:],
+                                            self.data[file_name][y_val][equi:],
                                             x_val, y_val, scale, color)
 
             case "1D Histogram":
@@ -440,15 +437,15 @@ class Window(TkGUI):
                         if self.file_names[file_name].get() == 0: # This value display disabled
                             continue
 
-                        y = self.data[file_name][x_val][True]
+                        y = self.data[file_name][x_val]
                         if (len(y) == 0 or thickness != self.sp.last_thickness.get(x_val, thickness)) and x_val in self.sp.func:
                             try:
-                                self.sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": True}, thickness)
+                                self.sp.get(self.data, {"file_name": file_name, "value": x_val}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
 
-                        vals = np.hstack((vals, self.data[file_name][x_val][True][equi:]))
+                        vals = np.hstack((vals, self.data[file_name][x_val][equi:]))
 
                     # Print some statistics
                     mean = np.mean(vals)
@@ -463,15 +460,15 @@ class Window(TkGUI):
                             continue
                         color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
-                        y = self.data[file_name][x_val][True]
+                        y = self.data[file_name][x_val]
                         if (len(y) == 0 or thickness != self.sp.last_thickness.get(x_val, thickness)) and x_val in self.sp.func:
                             try:
-                                self.sp.get(self.data, {"file_name": file_name, "value": x_val, "accepted": True}, thickness)
+                                self.sp.get(self.data, {"file_name": file_name, "value": x_val}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
 
-                        mc_plot.histogram1d(axes, self.data[file_name][x_val][True][equi:],
+                        mc_plot.histogram1d(axes, self.data[file_name][x_val][equi:],
                                             f"{x_val}", x_val, scale, bins, color)
 
             case "2D Histogram":
@@ -486,18 +483,18 @@ class Window(TkGUI):
 
                     success = {"x": False, "y": False}
                     for s, val in xy_val.items():
-                        y = self.data[file_name][val][True]
+                        y = self.data[file_name][val]
                         if (len(y) == 0 or thickness != self.sp.last_thickness.get(val, thickness)) and val in self.sp.func:
                             try:
-                                self.sp.get(self.data, {"file_name": file_name, "value": val, "accepted": True}, thickness)
+                                self.sp.get(self.data, {"file_name": file_name, "value": val}, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
                         success[s] = True
 
                     if success["x"] and success["y"]:
-                        vals_x = np.hstack((vals_x, self.data[file_name][x_val][True][equi:]))
-                        vals_y = np.hstack((vals_y, self.data[file_name][y_val][True][equi:]))
+                        vals_x = np.hstack((vals_x, self.data[file_name][x_val][equi:]))
+                        vals_y = np.hstack((vals_y, self.data[file_name][y_val][equi:]))
                 mc_plot.histogram2d(axes, vals_x, vals_y,
                                     x_val, y_val, scale, bins)
                 # colorbar = axes.imshow(hist2d, cmap="Blues")
@@ -554,7 +551,7 @@ class Window(TkGUI):
                     if x_val == "log likelihood" or x_val == "accept":
                         continue
 
-                    vals = np.log10(self.data[file_name][x_val][True][equi:])
+                    vals = np.log10(self.data[file_name][x_val][equi:])
                     if len(data) == 0:
                         data = np.vstack((np.arange(len(vals)) + equi, np.array(vals)))
                         header.append("Index")
@@ -661,8 +658,8 @@ class Window(TkGUI):
                         else:
                             raise ValueError("Invalid output file extension - must be .npy or .csv")
 
-                        vals_x = self.data[file_name][x_val][True][equi:]
-                        vals_y = self.data[file_name][y_val][True][equi:]
+                        vals_x = self.data[file_name][x_val][equi:]
+                        vals_y = self.data[file_name][y_val][equi:]
 
                         if len(vals_x) == 0:
                             self.status(f"Missing {x_val}")
@@ -706,7 +703,7 @@ class Window(TkGUI):
                             if x_val not in self.data[file_name]:
                                 continue
 
-                            vals = np.hstack((vals, self.data[file_name][x_val][True][equi:]))
+                            vals = np.hstack((vals, self.data[file_name][x_val][equi:]))
 
                         freq, bin_centres = np.histogram(vals, bins)
                         bin_centres = (bin_centres + np.roll(bin_centres, -1))[:-1] / 2
@@ -742,7 +739,7 @@ class Window(TkGUI):
 
                             # (b x 2 array) - (bin centres, freq)
                             # Use a bar plot to regenerate the histogram shown in the GUI
-                            vals = self.data[file_name][x_val][True][equi:]
+                            vals = self.data[file_name][x_val][equi:]
                             freq, bin_centres = np.histogram(vals, bins)
                             bin_centres = (bin_centres + np.roll(bin_centres, -1))[:-1] / 2
                             if out_format == "npy":
@@ -781,8 +778,8 @@ class Window(TkGUI):
                         if y_val not in self.data[file_name]:
                             continue
 
-                        vals_x = np.hstack((vals_x, self.data[file_name][x_val][True][equi:]))
-                        vals_y = np.hstack((vals_y, self.data[file_name][y_val][True][equi:]))
+                        vals_x = np.hstack((vals_x, self.data[file_name][x_val][equi:]))
+                        vals_y = np.hstack((vals_y, self.data[file_name][y_val][equi:]))
 
                     if len(vals_x) == 0:
                         self.status(f"Missing {x_val}")

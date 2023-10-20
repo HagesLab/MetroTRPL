@@ -25,9 +25,14 @@ class SecondaryParameters():
         self.func = {"t_rad": (self.t_rad, ("ks", "p0")),
                      "t_auger": (self.t_auger, ("Cp", "p0")),
                      "LI_tau_eff": (self.li_tau_eff, ("ks", "p0", "tauN", "Sf", "Sb", "Cp", "thickness", "mu_n", "mu_p")),
+                     "HI_tau_eff": (self.hi_tau_eff, ("ks", "p0", "tauN", "tauP", "Sf", "Sb", "Cp", "thickness", "mu_n", "mu_p")),
                      "LI_tau_srh": (self.li_tau_srh, ("tauN", "Sf", "Sb", "thickness", "mu_n", "mu_p")),
                      "HI_tau_srh": (self.hi_tau_srh, ("tauN", "tauP", "Sf", "Sb", "thickness", "mu_n", "mu_p")),
                      "tauN+tauP": (self.tauN_tauP, ("tauN", "tauP")),
+                     "LI_tau_surf": (self.LI_tau_surf, ("Sf", "Sb", "thickness", "mu_n", "mu_p")),
+                     "LI_tau_surf_asy": (self.LI_tau_surf_asy, ("Sf", "Sb", "thickness", "mu_n", "mu_p")),
+                     "HI_tau_surf": (self.HI_tau_surf, ("Sf", "Sb", "thickness", "mu_n", "mu_p")),
+                     "HI_tau_surf_asy": (self.HI_tau_surf_asy, ("Sf", "Sb", "thickness", "mu_n", "mu_p")),
                      "Sf+Sb": (self.s_eff, ("Sf", "Sb")),
                      "Cn+Cp": (self.c_eff, ("Cn", "Cp")),
                      "mu_ambi": (self.mu_eff, ("mu_n", "mu_p")),
@@ -51,14 +56,13 @@ class SecondaryParameters():
         data : Data
             Object containing MCMC results loaded from a .pik file produced by metropolis()
         data_keys : dict[str, str | bool]
-            Dict of three necessary indices for data - file_name that the result came from,
-            value to calculate, and whether to use the accepted or raw data.
+            Dict of two necessary indices for data - file_name that the result came from,
+            and value to calculate
         thickness : str
             Thickness string from GUI, needed for some diffusion lifetimes.
         """
         file_name = data_keys["file_name"]
         value = data_keys["value"]
-        accepted = data_keys["accepted"]
         primary_params = {}
         for needed_param in self.func[value][1]:
             if needed_param == "thickness": # Not included in MCMC data
@@ -68,13 +72,13 @@ class SecondaryParameters():
                     raise ValueError("Thickness value needed") from err
             else:
                 try:
-                    primary_params[needed_param] = data[file_name][needed_param][accepted]
+                    primary_params[needed_param] = data[file_name][needed_param]
                 except KeyError as err:
                     raise KeyError(f"Data {file_name} missing parameter {needed_param}") from err
 
         try:
             y = self.func[value][0](primary_params)
-            data[file_name][value][accepted] = np.array(y)
+            data[file_name][value] = np.array(y)
         except KeyError as err:
             raise KeyError(f"Failed to calculate {value}") from err
 
@@ -98,17 +102,46 @@ class SecondaryParameters():
         t_r = self.t_rad(p)
         t_aug = self.t_auger(p)
         return (t_r**-1 + t_aug**-1 + tau_surf**-1 + p["tauN"]**-1)**-1
+    
+    def hi_tau_eff(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
+        """Low injection effective lifetime, in ns"""
+        tau_surf = self.HI_tau_surf_asy(p)
+        t_r = self.t_rad(p)
+        t_aug = self.t_auger(p)
+        return (t_r**-1 + t_aug**-1 + tau_surf**-1 + (p["tauN"]+p["tauP"])**-1)**-1
+        
+    def LI_tau_surf(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
+        """Surface recombination + diffusion lifetime, limiting for identical surfaces and low inj"""
+        diffusivity = self.mu_eff(p) * kb / q * 1e14 / 1e9
+        tau_surf = (p["thickness"] / ((p["Sf"] + p["Sb"]) * 0.01)) + (p["thickness"]**2 / (np.pi ** 2 * diffusivity))
+        return tau_surf
+        
+    def HI_tau_surf(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
+        """Surface recombination + diffusion lifetime, limiting for identical surfaces and high inj"""
+        diffusivity = self.mu_eff(p) * kb / q * 1e14 / 1e9
+        tau_surf = 2 * (p["thickness"] / ((p["Sf"] + p["Sb"]) * 0.01)) + (p["thickness"]**2 / (np.pi ** 2 * diffusivity))
+        return tau_surf
+        
+    def LI_tau_surf_asy(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
+        """Surface recombination + diffusion lifetime, limiting for highly asymmetric surfaces and low inj"""
+        diffusivity = self.mu_eff(p) * kb / q * 1e14 / 1e9
+        tau_surf = (p["thickness"] / ((p["Sf"] + p["Sb"]) * 0.01)) + 4*(p["thickness"]**2 / (np.pi ** 2 * diffusivity))
+        return tau_surf
+        
+    def HI_tau_surf_asy(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
+        """Surface recombination + diffusion lifetime, limiting for highly asymmetric surfaces and high inj"""
+        diffusivity = self.mu_eff(p) * kb / q * 1e14 / 1e9
+        tau_surf = 2 * (p["thickness"] / ((p["Sf"] + p["Sb"]) * 0.01)) + 4*(p["thickness"]**2 / (np.pi ** 2 * diffusivity))
+        return tau_surf
 
     def li_tau_srh(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
         """Low injection Shockley-Reed-Hall lifetime, in ns (this excludes radiative and Auger)"""
-        diffusivity = self.mu_eff(p) * kb / q * 1e14 / 1e9
-        tau_surf = (p["thickness"] / ((p["Sf"] + p["Sb"]) * 0.01)) + (p["thickness"]**2 / (np.pi ** 2 * diffusivity))
+        tau_surf = self.LI_tau_surf(p)
         return (tau_surf**-1 + p["tauN"]**-1)**-1
 
     def hi_tau_srh(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
         """High injection Shockley-Reed-Hall lifetime, in ns"""
-        diffusivity = self.mu_eff(p) * kb / q * 1e14 / 1e9
-        tau_surf = 2 * (p["thickness"] / ((p["Sf"] + p["Sb"]) * 0.01)) + (p["thickness"]**2 / (np.pi ** 2 * diffusivity))
+        tau_surf = self.HI_tau_surf_asy(p)
         return (tau_surf**-1 + (p["tauN"] + p["tauP"])**-1)**-1
     
     def hi_srh(self, p : dict[str, np.ndarray | float]) -> np.ndarray | float:
