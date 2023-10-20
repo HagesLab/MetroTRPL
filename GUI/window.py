@@ -265,17 +265,6 @@ class Window(TkGUI):
 
             try:
                 for key in metrostate.param_info["names"]:
-                    # if metrostate.param_info["active"][key]:
-                    states = getattr(metrostate.H, key)
-                    # Always downcast to 1D
-                    if states.ndim == 2 and states.shape[0] == 1:
-                        states = states[0]
-                    elif states.ndim == 1:
-                        pass
-                    else:
-                        raise ValueError("Invalid chain states format - "
-                                            "must be 1D or 2D of size (1, num_states)")
-
                     mean_states = getattr(metrostate.H, f"mean_{key}")
                     if mean_states.ndim == 2 and mean_states.shape[0] == 1:
                         mean_states = mean_states[0]
@@ -285,7 +274,7 @@ class Window(TkGUI):
                         raise ValueError("Invalid chain states format - "
                                             "must be 1D or 2D of size (1, num_states)")
 
-                    self.data[file_name][key] = {False: states,
+                    self.data[file_name][key] = {False: mean_states,
                                                     True: mean_states}
 
                 for key in self.sp.func:
