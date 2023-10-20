@@ -400,12 +400,8 @@ class Window(TkGUI):
                 except ValueError:
                     hline = (-1.0,)
 
-                if accepted == "Accepted":
-                    accepted = True
-                    title = f"Accepted {x_val}"
-                else:
-                    accepted = False
-                    title = f"Raw {x_val}"
+                accepted = True
+                title = f"{x_val}"
 
                 for i, file_name in enumerate(self.file_names):
                     if self.file_names[file_name].get() == 0: # This value display disabled
@@ -471,7 +467,7 @@ class Window(TkGUI):
                     self.status(f"Mean: {mean}, stdev: {stdev}")
 
                     color = PLOT_COLOR_CYCLE[0]
-                    mc_plot.histogram1d(axes, vals, f"Accepted {x_val}", x_val, scale, bins, color)
+                    mc_plot.histogram1d(axes, vals, f"{x_val}", x_val, scale, bins, color)
                 else:
                     for i, file_name in enumerate(self.file_names):
                         if self.file_names[file_name].get() == 0:
@@ -487,7 +483,7 @@ class Window(TkGUI):
                                 continue
 
                         mc_plot.histogram1d(axes, self.data[file_name][x_val][True][equi:],
-                                            f"Accepted {x_val}", x_val, scale, bins, color)
+                                            f"{x_val}", x_val, scale, bins, color)
 
             case "2D Histogram":
                 xy_val = {"x": x_val, "y": y_val}
@@ -614,7 +610,7 @@ class Window(TkGUI):
 
             match self.side_panel.state:
                 case "1D Trace Plot":
-                    accepted = self.side_panel.variables["accepted"].get() == "Accepted"
+                    accepted = True
 
                     # One output per chain
                     for file_name in self.file_names:
