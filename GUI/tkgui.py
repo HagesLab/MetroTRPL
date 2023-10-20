@@ -223,8 +223,10 @@ class TkGUI():
         menu.delete(0)
         menu.add_checkbutton(label="Linear", onvalue="Linear", offvalue="Linear",
                              variable=variables["scale"])
-        menu.add_checkbutton(label="Logarithmic", onvalue="Logarithmic",
-                             offvalue="Logarithmic", variable=variables["scale"])
+        menu.add_checkbutton(label="Log", onvalue="Log",
+                             offvalue="Log", variable=variables["scale"])
+        menu.add_checkbutton(label="Symlog", onvalue="Symlog",
+                             offvalue="Symlog", variable=variables["scale"])
 
 
         # Entry for horizontal marker

@@ -360,8 +360,10 @@ class Window(TkGUI):
         if x_val == "select":
             return
 
-        if scale == "Logarithmic":
+        if scale == "Log":
             scale = "log"
+        elif scale == "Symlog":
+            scale = "symlog"
         else:
             scale = "linear"
 

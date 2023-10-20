@@ -5,9 +5,11 @@ import numpy as np
 
 from matplotlib import rcParams
 rcParams.update({"font.size":16})
-
+# For symlog - no variable ever crosses between > 0 to < 0,
+# so this allows negative log
+LINTHRESH = 1e-99 
 def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str,
-                hlines: tuple[float], vlines: tuple[int],
+                hlines: tuple, vlines: tuple[int],
                 color: str) -> None:
     """1D trace, showing history of moves for a single parameter"""
     axes.plot(x_list, color=color)
@@ -19,7 +21,10 @@ def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str,
         if 0 < vline <= len(x_list):
             axes.vlines(vline, np.amin(x_list), np.amax(x_list), colors='k')
     axes.set_title(title)
-    axes.set_yscale(scale)
+    if scale == "symlog":
+        axes.set_yscale(scale, linthresh=LINTHRESH)
+    else:
+        axes.set_yscale(scale)
     axes.set_xlabel("n", fontstyle="italic")
 
 def traceplot2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
@@ -30,8 +35,12 @@ def traceplot2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
                 label="Start", markersize=6)
     axes.plot(x_list[-1], y_list[-1], marker=".", linestyle=" ", color='k',
                 label="End", markersize=6)
-    axes.set_xscale(scale)
-    axes.set_yscale(scale)
+    if scale == "symlog":
+        axes.set_xscale(scale, linthresh=LINTHRESH)
+        axes.set_yscale(scale, linthresh=LINTHRESH)
+    else:
+        axes.set_xscale(scale)
+        axes.set_yscale(scale)
     #axes.legend()
     axes.set_xlabel(f"{x_label}")
     axes.set_ylabel(f"{y_label}")
@@ -40,7 +49,10 @@ def histogram1d(axes: Axes, x_list: np.ndarray, title: str, x_label: str, scale:
                 color: str) -> None:
     """1D histogram, showing distribution of values visited by one parameter"""
     axes.hist(x_list, bins, edgecolor='k', facecolor=color)
-    axes.set_yscale(scale)
+    if scale == "symlog":
+        axes.set_yscale(scale, linthresh=LINTHRESH)
+    else:
+        axes.set_yscale(scale)
     axes.set_title(title)
     axes.set_ylabel("Counts")
     axes.set_xlabel(x_label)
@@ -50,7 +62,12 @@ def histogram2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
     """2D histogram, showing distribution of visited values for two parameters"""
     axes.hist2d(x_list, y_list, bins, cmap="Blues")
     axes.set_xscale(scale)
-    axes.set_yscale(scale)
+    if scale == "symlog":
+        axes.set_xscale(scale, linthresh=LINTHRESH)
+        axes.set_yscale(scale, linthresh=LINTHRESH)
+    else:
+        axes.set_xscale(scale)
+        axes.set_yscale(scale)
     axes.set_xlabel(f"{x_label}")
     axes.set_ylabel(f"{y_label}")
 
