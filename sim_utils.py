@@ -246,21 +246,11 @@ class History():
     """ Record of past states the walk has been to. """
 
     def __init__(self, num_iters, param_info):
-        """ param referring to all proposed trial moves, including rejects,
-            and mean_param referring to the state after each iteration.
-
-            If a lot of moves get rejected, mean_param will record the same
-            value for a while while param will record all the rejected moves.
-
-            We need a better name for this.
-        """
         for param in param_info["names"]:
-            setattr(self, param, np.zeros((1, num_iters)))
             setattr(self, f"mean_{param}", np.zeros((1, num_iters)))
 
         self.accept = np.zeros((1, num_iters))
         self.loglikelihood = np.zeros((1, num_iters))
-        self.proposed_loglikelihood = np.zeros((1, num_iters))
         return
 
     def record_best_logll(self, k, prev_p):
@@ -269,21 +259,13 @@ class History():
         return
 
     def update(self, k, p, means, param_info):
-        self.proposed_loglikelihood[0, k] = np.sum(p.likelihood)
-
         for param in param_info['names']:
-            # Proposed states
-            h = getattr(self, param)
-            h[0, k] = getattr(p, param)
-            # Accepted states
             h_mean = getattr(self, f"mean_{param}")
             h_mean[0, k] = getattr(means, param)
         return
 
     def export(self, param_info, out_pathname):
         for param in param_info["names"]:
-            np.save(os.path.join(out_pathname,
-                    f"{param}"), getattr(self, param))
             np.save(os.path.join(out_pathname, f"mean_{param}"), getattr(
                 self, f"mean_{param}"))
 
@@ -294,15 +276,11 @@ class History():
     def truncate(self, k, param_info):
         """ Cut off any incomplete iterations should the walk be terminated early"""
         for param in param_info["names"]:
-            val = getattr(self, param)
-            setattr(self, param, val[:, :k])
-
             val = getattr(self, f"mean_{param}")
             setattr(self, f"mean_{param}", val[:, :k])
 
         self.accept = self.accept[:, :k]
         self.loglikelihood = self.loglikelihood[:, :k]
-        self.proposed_loglikelihood = self.proposed_loglikelihood[:, :k]
         return
 
     def extend(self, new_num_iters, param_info):
@@ -319,14 +297,8 @@ class History():
             (self.accept, np.zeros((1, addtl_iters))), axis=1)
         self.loglikelihood = np.concatenate(
             (self.loglikelihood, np.zeros((1, addtl_iters))), axis=1)
-        self.proposed_loglikelihood = np.concatenate(
-            (self.proposed_loglikelihood, np.zeros((1, addtl_iters))), axis=1)
 
         for param in param_info["names"]:
-            val = getattr(self, param)
-            setattr(self, param, np.concatenate(
-                (val, np.zeros((1, addtl_iters))), axis=1))
-
             val = getattr(self, f"mean_{param}")
             setattr(self, f"mean_{param}", np.concatenate(
                 (val, np.zeros((1, addtl_iters))), axis=1))

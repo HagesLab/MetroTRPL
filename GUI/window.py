@@ -46,9 +46,8 @@ class Window(TkGUI):
         self.set_mini_panel_commands()
         self.set_side_panel_commands()
 
-        # Stores all MCMC states - self.data[fname][param_name][accepted]
+        # Stores all MCMC states - self.data[fname][param_name]
         # param_name e.g. p0, mu_n, mu_p
-        # accepted - 0 for all proposed states, 1 for only accepted states
         self.data = dict[str, dict[str, np.ndarray]]()
 
         # List of loaded MCMC chains, and whether they are active
@@ -230,15 +229,6 @@ class Window(TkGUI):
             if logl.ndim == 2 and logl.shape[0] == 1:
                 logl = logl[0]
             elif logl.ndim == 1:
-                pass
-            else:
-                raise ValueError("Invalid chain states format - "
-                                    "must be 1D or 2D of size (1, num_states)")
-
-            plogl = getattr(metrostate.H, "proposed_loglikelihood")
-            if plogl.ndim == 2 and plogl.shape[0] == 1:
-                plogl = plogl[0]
-            elif plogl.ndim == 1:
                 pass
             else:
                 raise ValueError("Invalid chain states format - "
