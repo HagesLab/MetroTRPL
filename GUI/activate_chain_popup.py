@@ -8,10 +8,10 @@ import tkinter as tk
 from popup import Popup
 from gui_colors import LIGHT_GREY, PLOT_COLOR_CYCLE
 
-WIDTH_PER_COL = 100
+WIDTH_PER_COL = 180
 CHAINS_PER_ROW = 8
-BASE_HEIGHT = 30
-HEIGHT_PER_CHAIN = 18
+BASE_HEIGHT = 10
+HEIGHT_PER_CHAIN = 40
 class ActivateChainPopup(Popup):
 
     def __init__(self, window, master) -> None:
