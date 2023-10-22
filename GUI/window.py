@@ -519,7 +519,7 @@ class Window(TkGUI):
     def export(self, which) -> None:
         """ Export currently plotted values as .csv or .npy """
         if which == "all":
-            # Designate an empty folder
+            # Make an empty folder next to the loaded pickle files
             file_name = next(iter(self.file_names))
             tstamp = str(datetime.now()).replace(":", "-")
             out_dir = os.path.join(os.path.dirname(file_name), f"export-{tstamp}")
@@ -530,7 +530,6 @@ class Window(TkGUI):
             if len(os.listdir(out_dir)) > 0:
                 self.status(f"Error - dir {out_dir} must be empty")
                 return
-
             # One output per chain
             for file_name in self.file_names:
                 # Reasons to not export a file
@@ -599,11 +598,21 @@ class Window(TkGUI):
                 y_val = self.side_panel.variables["variable_2"].get()
                 if y_val == "select":
                     return
+                
+            # Make an empty folder next to the loaded pickle files
+            file_name = next(iter(self.file_names))
+            tstamp = str(datetime.now()).replace(":", "-")
+            out_dir = os.path.join(os.path.dirname(file_name), f"export-{tstamp}")
+            
+            if not os.path.isdir(out_dir):
+                os.makedirs(out_dir)
+
+            if len(os.listdir(out_dir)) > 0:
+                self.status(f"Error - dir {out_dir} must be empty")
+                return
 
             match self.side_panel.state:
                 case "1D Trace Plot":
-                    accepted = True
-
                     # One output per chain
                     for file_name in self.file_names:
                         # Reasons to not export a file
@@ -612,13 +621,10 @@ class Window(TkGUI):
                         if x_val not in self.data[file_name]:
                             continue
 
-                        out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
-                                                                        ("Text", "*.csv")],
-                                                                defaultextension=".csv",
-                                                                title=f"{os.path.basename(file_name)} - Save as",
-                                                                initialdir=PICKLE_FILE_LOCATION)
-                        if out_name == "":
-                            continue
+                        out_name = os.path.basename(file_name)
+                        if out_name.endswith(".pik"):
+                            out_name = out_name[:-4]
+                        out_name += ".csv"
 
                         if out_name.endswith(".npy"):
                             out_format = "npy"
@@ -628,16 +634,16 @@ class Window(TkGUI):
                             raise ValueError("Invalid output file extension - must be .npy or .csv")
 
                         # (N x 2) array - (iter #, vals)
-                        vals = self.data[file_name][x_val][accepted][equi:]
+                        vals = self.data[file_name][x_val][equi:]
 
                         if out_format == "npy":
-                            np.save(out_name, np.vstack((np.arange(len(vals)) + equi, vals)).T)
+                            np.save(os.path.join(out_dir, out_name), np.vstack((np.arange(len(vals)) + equi, vals)).T)
                         elif out_format == "csv":
-                            np.savetxt(out_name, np.vstack((np.arange(len(vals)) + equi, vals)).T, delimiter=",",
+                            np.savetxt(os.path.join(out_dir, out_name), np.vstack((np.arange(len(vals)) + equi, vals)).T, delimiter=",",
                                     header=f"N,{x_val}")
                         else:
                             continue
-                        self.status(f"Export complete - {out_name}")
+                        self.status(f"Export complete - {os.path.join(out_dir, out_name)}")
 
                 case "2D Trace Plot":
                     for file_name in self.file_names:
@@ -649,13 +655,10 @@ class Window(TkGUI):
                         if y_val not in self.data[file_name]:
                             continue
 
-                        out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
-                                                                        ("Text", "*.csv")],
-                                                                defaultextension=".csv",
-                                                                title=f"{os.path.basename(file_name)} - Save as",
-                                                                initialdir=PICKLE_FILE_LOCATION)
-                        if out_name == "":
-                            continue
+                        out_name = os.path.basename(file_name)
+                        if out_name.endswith(".pik"):
+                            out_name = out_name[:-4]
+                        out_name += ".csv"
 
                         if out_name.endswith(".npy"):
                             out_format = "npy"
@@ -676,24 +679,21 @@ class Window(TkGUI):
 
                         # (N x 3) array - (iter #, vals_x, vals_y)
                         if out_format == "npy":
-                            np.save(out_name, np.vstack((np.arange(len(vals_x)) + equi, vals_x, vals_y)).T)
+                            np.save(os.path.join(out_dir, out_name), np.vstack((np.arange(len(vals_x)) + equi, vals_x, vals_y)).T)
                         elif out_format == "csv":
-                            np.savetxt(out_name, np.vstack((np.arange(len(vals_x)) + equi, vals_x, vals_y)).T, delimiter=",",
+                            np.savetxt(os.path.join(out_dir, out_name), np.vstack((np.arange(len(vals_x)) + equi, vals_x, vals_y)).T, delimiter=",",
                                     header=f"N,{x_val},{y_val}")
                         else:
                             continue
-                        self.status(f"Export complete - {out_name}")
+                        self.status(f"Export complete - {os.path.join(out_dir, out_name)}")
 
                 case "1D Histogram":
                     combined_hist = self.side_panel.variables["combined_hist"].get()
                     if combined_hist:
-                        out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
-                                                                        ("Text", "*.csv")],
-                                                                defaultextension=".csv",
-                                                                title="Histogram - Save as",
-                                                                initialdir=PICKLE_FILE_LOCATION)
-                        if out_name == "":
-                            return
+                        out_name = os.path.basename(file_name)
+                        if out_name.endswith(".pik"):
+                            out_name = out_name[:-4]
+                        out_name += ".csv"
 
                         if out_name.endswith(".npy"):
                             out_format = "npy"
@@ -714,12 +714,12 @@ class Window(TkGUI):
                         freq, bin_centres = np.histogram(vals, bins)
                         bin_centres = (bin_centres + np.roll(bin_centres, -1))[:-1] / 2
                         if out_format == "npy":
-                            np.save(out_name, np.vstack((bin_centres, freq)).T)
+                            np.save(os.path.join(out_dir, out_name), np.vstack((bin_centres, freq)).T)
                         elif out_format == "csv":
-                            np.savetxt(out_name, np.vstack((bin_centres, freq)).T, delimiter=",",
+                            np.savetxt(os.path.join(out_dir, out_name), np.vstack((bin_centres, freq)).T, delimiter=",",
                                     header="bin_centre,freq")
 
-                        self.status(f"Export complete - {out_name}")
+                        self.status(f"Export complete - {os.path.join(out_dir, out_name)}")
 
                     else:
                         for file_name in self.file_names:
@@ -728,13 +728,10 @@ class Window(TkGUI):
                             if x_val not in self.data[file_name]:
                                 continue
 
-                            out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
-                                                                            ("Text", "*.csv")],
-                                                                    defaultextension=".csv",
-                                                                    title=f"{os.path.basename(file_name)} - Save as",
-                                                                    initialdir=PICKLE_FILE_LOCATION)
-                            if out_name == "":
-                                continue
+                            out_name = os.path.basename(file_name)
+                            if out_name.endswith(".pik"):
+                                out_name = out_name[:-4]
+                            out_name += ".csv"
 
                             if out_name.endswith(".npy"):
                                 out_format = "npy"
@@ -749,22 +746,19 @@ class Window(TkGUI):
                             freq, bin_centres = np.histogram(vals, bins)
                             bin_centres = (bin_centres + np.roll(bin_centres, -1))[:-1] / 2
                             if out_format == "npy":
-                                np.save(out_name, np.vstack((bin_centres, freq)).T)
+                                np.save(os.path.join(out_dir, out_name), np.vstack((bin_centres, freq)).T)
                             elif out_format == "csv":
-                                np.savetxt(out_name, np.vstack((bin_centres, freq)).T, delimiter=",",
+                                np.savetxt(os.path.join(out_dir, out_name), np.vstack((bin_centres, freq)).T, delimiter=",",
                                         header="bin_centre,freq")
                             else:
                                 continue
-                            self.status(f"Export complete - {out_name}")
+                            self.status(f"Export complete - {os.path.join(out_dir, out_name)}")
 
                 case "2D Histogram":
-                    out_name = filedialog.asksaveasfilename(filetypes=[("binary", "*.npy"),
-                                                                    ("Text", "*.csv")],
-                                                            defaultextension=".csv",
-                                                            title="Histogram - Save as",
-                                                            initialdir=PICKLE_FILE_LOCATION)
-                    if out_name == "":
-                        return
+                    out_name = os.path.basename(file_name)
+                    if out_name.endswith(".pik"):
+                        out_name = out_name[:-4]
+                    out_name += ".csv"
 
                     if out_name.endswith(".npy"):
                         out_format = "npy"
@@ -805,8 +799,8 @@ class Window(TkGUI):
                     freq_matrix[1:, 1:] = freq
 
                     if out_format == "npy":
-                        np.save(out_name, freq_matrix)
+                        np.save(os.path.join(out_dir, out_name), freq_matrix)
                     elif out_format == "csv":
-                        np.savetxt(out_name, freq_matrix, delimiter=",")
+                        np.savetxt(os.path.join(out_dir, out_name), freq_matrix, delimiter=",")
 
-                    self.status(f"Export complete - {out_name}")
+                    self.status(f"Export complete - {os.path.join(out_dir, out_name)}")
