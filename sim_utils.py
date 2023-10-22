@@ -12,7 +12,7 @@ from numba import njit
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
 q_C = 1.602e-19  # [C per carrier]
-
+DEFAULT_ANN_STEP = np.sqrt(0.5)
 
 class MetroState():
     """ Overall management of the metropolis random walker: its current state,
@@ -37,17 +37,17 @@ class MetroState():
         self.MCMC_fields["current_sigma"] = dict(self.MCMC_fields["annealing"][0])
         return
 
-    def anneal(self, k, uncs=None):
+    def anneal(self, k, uncs=None, force=False, step=DEFAULT_ANN_STEP):
         """ "Adjust the model sigma according to an annealing schedule -
-            sigma *= 0.1 every kth step
+            sigma *= sqrt(0.5) every kth step
         """
         steprate = self.MCMC_fields["annealing"][1]
         min_sigma = self.MCMC_fields["annealing"][2]
         l2v = self.MCMC_fields["likel2variance_ratio"]
-        if k > 0 and k % steprate == 0:
+        if force or (k > 0 and k % steprate == 0):
 
             for m in self.MCMC_fields["current_sigma"]:
-                self.MCMC_fields["current_sigma"][m] *= 0.1
+                self.MCMC_fields["current_sigma"][m] *= step
 
                 self.MCMC_fields["current_sigma"][m] = max(self.MCMC_fields["current_sigma"][m],
                                                         min_sigma[m])
