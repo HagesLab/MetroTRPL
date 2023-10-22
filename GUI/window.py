@@ -93,6 +93,8 @@ class Window(TkGUI):
         widgets["equi_entry"].bind("<FocusOut>", self.redraw)
         widgets["num_bins_entry"].bind("<FocusOut>", self.redraw)
         widgets["thickness"].bind("<FocusOut>", self.redraw)
+        widgets["xlim_l"].bind("<FocusOut>", self.redraw)
+        widgets["xlim_u"].bind("<FocusOut>", self.redraw)
         widgets["export this"].configure(command=partial(self.export, "this_variable"))
 
         variables["bins"].set(str(DEFAULT_HIST_BINS))
@@ -331,6 +333,8 @@ class Window(TkGUI):
         scale = self.side_panel.variables["scale"].get()
         equi = self.side_panel.variables["equi"].get()
         thickness = self.side_panel.variables["thickness"].get()
+        xlim_l = self.side_panel.variables["xlim_l"].get()
+        xlim_u = self.side_panel.variables["xlim_u"].get()
 
         # Parse common entries
         if x_val == "select":
@@ -348,6 +352,18 @@ class Window(TkGUI):
             equi = max(0, equi)
         except ValueError:
             equi = 0
+
+        try:
+            xlim_l = float(xlim_l)
+        except ValueError:
+            xlim_l = None
+
+        try:
+            xlim_u = float(xlim_u)
+        except ValueError:
+            xlim_u = None
+
+        xlim = (xlim_l, xlim_u)
 
         # Histogram specific entries
         bins = DEFAULT_HIST_BINS
@@ -392,7 +408,7 @@ class Window(TkGUI):
                         except (ValueError, KeyError) as err:
                             self.status(str(err))
                     mc_plot.traceplot1d(axes, self.data[file_name][x_val],
-                                        title, scale, hline, (equi,), color)
+                                        title, scale, xlim, hline, (equi,), color)
 
             case "2D Trace Plot":
                 xy_val = {"x": x_val, "y": y_val}

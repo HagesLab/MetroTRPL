@@ -8,7 +8,7 @@ rcParams.update({"font.size":16})
 # For symlog - no variable ever crosses between > 0 to < 0,
 # so this allows negative log
 LINTHRESH = 1e-99 
-def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str,
+def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str, xlim: tuple,
                 hlines: tuple, vlines: tuple[int],
                 color: str) -> None:
     """1D trace, showing history of moves for a single parameter"""
@@ -26,6 +26,16 @@ def traceplot1d(axes: Axes, x_list: np.ndarray, title: str, scale: str,
     else:
         axes.set_yscale(scale)
     axes.set_xlabel("n", fontstyle="italic")
+
+    if xlim[0] is None and xlim[1] is None:
+        pass
+    elif xlim[0] is None:
+        axes.set_xlim(right=xlim[1])
+    elif xlim[1] is None:
+        axes.set_xlim(left=xlim[0])
+    else:
+        axes.set_xlim(xlim)
+
 
 def traceplot2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
                 x_label: str, y_label: str, scale: str, color: str) -> None:
