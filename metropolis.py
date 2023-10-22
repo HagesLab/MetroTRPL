@@ -377,12 +377,11 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
                                     meas=meas_type,
                                     solver=MCMC_fields["solver"], model=MCMC_fields["model"],
                                     rtol=RTOL, atol=ATOL)
-        
+
         if MCMC_fields["solver"][0] == "diagnostic":
             # Replace this with curve_fitting code as needed
             pass
-                    
-        # if verbose:
+
         if verbose and logger is not None:
             logger.info("{}: Simulation complete hmax={}; t {}-{}; x {}".format(i,
                         hmax, tSteps[0], tSteps[-1], thickness))
@@ -484,7 +483,6 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
             iniPar[0] *= getattr(p, f"_f{search_c_grps(ff[2], i)}")
         else:
             iniPar[0] *= getattr(p, f"_f{i}")
-
     fa = MCMC_fields.get("fittable_absps", None)
     if (fa is not None and i in fa[1]):
         if fa[2] is not None and len(fa[2]) > 0:
@@ -653,7 +651,6 @@ def main_metro_loop(MS, starting_iter, num_iters,
                       MS.times, MS.vals, MS.uncs, MS.IRF_tables,
                       MS.running_hmax, MS.MCMC_fields, verbose, logger)
         MS.H.update(0, MS.prev_p, MS.means, MS.param_info)
-
     for k in range(starting_iter, num_iters):
         try:
             logger.info("#####")
@@ -791,6 +788,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             starting_iter = int(load_checkpoint[first_under+1:tail])+1
             MS.H.extend(num_iters, param_info)
             MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
+            # Induce annealing, which also corrects the prev_likelihood and adjust the step size
+            # MS.anneal(-1, MS.uncs, force=True)
 
     # From this point on, for consistency, work with ONLY the MetroState object!
     if verbose:
