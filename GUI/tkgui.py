@@ -188,6 +188,7 @@ class TkGUI():
         widgets["equi_label"] = tk.Label(master=panel, text="Equilibration Period", **LABEL_KWARGS)
         widgets["num_bins_label"] = tk.Label(master=panel, text="Bins", **LABEL_KWARGS)
         widgets["thickness_label"] = tk.Label(master=panel, text="Thickness [nm]", **LABEL_KWARGS)
+        widgets["xlim_label"] = tk.Label(master=panel, text="X-limits (A, B)", **LABEL_KWARGS)
 
         # User select menus
         variables["variable_1"] = tk.StringVar(value="select")
@@ -239,6 +240,11 @@ class TkGUI():
         widgets["thickness"] = tk.Entry(master=panel, width=16, border=3,
                                         textvariable=variables["thickness"])
         
+        # Entry for x limit
+        variables["xlim"] = tk.StringVar()
+        widgets["xlim"] = tk.Entry(master=panel, width=16, border=3,
+                                        textvariable=variables["xlim"])
+        
         widgets["export this"] = tk.Button(master=panel, width=16, text="Export This Variable",
                                            background=BLACK, foreground=WHITE, border=4)
 
@@ -264,11 +270,14 @@ class TkGUI():
 
                      {"x": 20, "y": 156, "anchor": "nw"},
                      {"x": 20, "y": 188, "anchor": "nw"},
+                     {"x": 200, "y": 156, "anchor": "n"},
+                     {"x": 200, "y": 188, "anchor": "n"},
+
 
                      {"x": 380, "y": 156, "anchor": "e"},
 
-                     {"x": 20, "y": 252, "anchor": "nw"},
-                     {"x": 20, "y": 324, "anchor": "sw"},
+                     {"x": 20, "y": 322, "anchor": "nw"},
+                     {"x": 20, "y": 394, "anchor": "sw"},
 
                      ]
 
@@ -282,8 +291,10 @@ class TkGUI():
                                                    (widgets["equi_entry"], locations[10]),
                                                    (widgets["thickness_label"], locations[12]),
                                                    (widgets["thickness"], locations[13]),
-                                                   (widgets["chain_vis"], locations[15]),
-                                                   (widgets["export this"], locations[16])]
+                                                   (widgets["xlim_label"], locations[14]),
+                                                   (widgets["xlim"], locations[15]),
+                                                   (widgets["chain_vis"], locations[17]),
+                                                   (widgets["export this"], locations[18])]
                                  )
 
         self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], locations[0]),
@@ -296,23 +307,27 @@ class TkGUI():
                                                    (widgets["equi_entry"], locations[10]),
                                                    (widgets["thickness_label"], locations[12]),
                                                    (widgets["thickness"], locations[13]),
-                                                   (widgets["chain_vis"], locations[15]),
-                                                   (widgets["export this"], locations[16])]
+                                                   (widgets["xlim_label"], locations[14]),
+                                                   (widgets["xlim"], locations[15]),
+                                                   (widgets["chain_vis"], locations[17]),
+                                                   (widgets["export this"], locations[18])]
                                  )
 
         self.side_panel.addstate("1D Histogram", [(widgets["x_axis_label"], locations[0]),
-                                                  (widgets["scale_label"], locations[1]),
+                                                  (widgets["scale_label"], locations[2]),
                                                   (widgets["variable 1"], locations[3]),
-                                                  (widgets["scale"], locations[4]),
-                                                  (widgets["chain_vis"], locations[15]),
+                                                  (widgets["scale"], locations[5]),
                                                   (widgets["equi_label"], locations[7]),
                                                   (widgets["equi_entry"], locations[10]),
                                                   (widgets["num_bins_label"], locations[8]),
                                                   (widgets["num_bins_entry"], locations[11]),
                                                   (widgets["thickness_label"], locations[12]),
                                                   (widgets["thickness"], locations[13]),
-                                                  (widgets["combined_hist"], locations[14]),
-                                                  (widgets["export this"], locations[16])]
+                                                  (widgets["xlim_label"], locations[14]),
+                                                  (widgets["xlim"], locations[15]),
+                                                  (widgets["combined_hist"], locations[16]),
+                                                  (widgets["chain_vis"], locations[17]),
+                                                  (widgets["export this"], locations[18])]
                                  )
 
         self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], locations[0]),
@@ -321,12 +336,14 @@ class TkGUI():
                                                   (widgets["variable 1"], locations[3]),
                                                   (widgets["variable 2"], locations[4]),
                                                   (widgets["scale"], locations[5]),
-                                                  (widgets["chain_vis"], locations[15]),
                                                   (widgets["equi_label"], locations[7]),
                                                   (widgets["equi_entry"], locations[10]),
                                                   (widgets["num_bins_label"], locations[8]),
                                                   (widgets["num_bins_entry"], locations[11]),
                                                   (widgets["thickness_label"], locations[12]),
                                                   (widgets["thickness"], locations[13]),
-                                                  (widgets["export this"], locations[16])]
+                                                  (widgets["xlim_label"], locations[14]),
+                                                  (widgets["xlim"], locations[15]),
+                                                  (widgets["chain_vis"], locations[17]),
+                                                  (widgets["export this"], locations[18])]
                                  )
