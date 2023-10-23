@@ -62,64 +62,64 @@ class TestUtils(unittest.TestCase):
         # Ensure that the sigma is actually becoming more selective
         # following the inputted schedule
         # Decrease these by 10x every 2 iterations
+        step = 0.1
         orig_sigma = dict(self.ms.MCMC_fields["current_sigma"])
         orig_var = np.array(self.ms.variances.trace())
         self.ms.prev_p.likelihood = []  # Not testing with any measurements atm
 
-        self.ms.anneal(1)
+        self.ms.anneal(1, step=step)
         for m in self.ms.sim_info["meas_types"]:
             self.assertEqual(self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m])
             np.testing.assert_equal(self.ms.variances.trace(), orig_var)
-        self.ms.anneal(2)
+        self.ms.anneal(2, step=step)
         for m in self.ms.sim_info["meas_types"]:
-            self.assertEqual(self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * 0.1)
-            np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.1)
-        self.ms.anneal(3)
+            self.assertEqual(self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * step)
+            np.testing.assert_equal(self.ms.variances.trace(), orig_var * step)
+        self.ms.anneal(3, step=step)
         for m in self.ms.sim_info["meas_types"]:
-            self.assertEqual(self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * 0.1)
-            np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.1)
-        self.ms.anneal(4)
+            self.assertEqual(self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * step)
+            np.testing.assert_equal(self.ms.variances.trace(), orig_var * step)
+        self.ms.anneal(4, step=step)
         for m in self.ms.sim_info["meas_types"]:
-            self.assertEqual(
-                self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * 0.01)
-            np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.01)
-        self.ms.anneal(5)
+            self.assertAlmostEqual(
+                self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * step**2)
+            np.testing.assert_almost_equal(self.ms.variances.trace(), orig_var * step**2)
+        self.ms.anneal(5, step=step)
         for m in self.ms.sim_info["meas_types"]:
-            self.assertEqual(
-                self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * 0.01)
-            np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.01)
-        self.ms.anneal(6)
+            self.assertAlmostEqual(
+                self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * step**2)
+            np.testing.assert_almost_equal(self.ms.variances.trace(), orig_var * step**2)
+        self.ms.anneal(6, step=step)
         for m in self.ms.sim_info["meas_types"]:
-            self.assertEqual(
-                self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * 0.001)
-            np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.001)
+            self.assertAlmostEqual(
+                self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * step**3)
+            np.testing.assert_almost_equal(self.ms.variances.trace(), orig_var * step**3)
 
         # Until sigma becomes the min_sigma (1 in this case),
         # at which point it stops, and variance will be l2v times min_sigma
-        self.ms.anneal(7)
+        self.ms.anneal(7, step=step)
         for m in self.ms.sim_info["meas_types"]:
-
-            self.assertEqual(
-                self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * 0.001)
-            np.testing.assert_equal(self.ms.variances.trace(), orig_var * 0.001)
-        self.ms.anneal(8)
+            self.assertAlmostEqual(
+                self.ms.MCMC_fields["current_sigma"][m], orig_sigma[m] * step**3)
+            np.testing.assert_almost_equal(self.ms.variances.trace(), orig_var * step**3)
+        self.ms.anneal(8, step=step)
         for m in self.ms.sim_info["meas_types"]:
-            self.assertEqual(
+            self.assertAlmostEqual(
                 self.ms.MCMC_fields["current_sigma"][m], 1)
-            np.testing.assert_equal(
-                self.ms.variances.trace(), np.ones_like(orig_var) / 1000)
-        self.ms.anneal(9)
+            np.testing.assert_almost_equal(
+                self.ms.variances.trace(), np.ones_like(orig_var) * step**3)
+        self.ms.anneal(9, step=step)
         for m in self.ms.sim_info["meas_types"]:
-            self.assertEqual(
+            self.assertAlmostEqual(
                 self.ms.MCMC_fields["current_sigma"][m], 1)
-            np.testing.assert_equal(
-                self.ms.variances.trace(), np.ones_like(orig_var) / 1000)
-        self.ms.anneal(10)
+            np.testing.assert_almost_equal(
+                self.ms.variances.trace(), np.ones_like(orig_var) * step**3)
+        self.ms.anneal(10, step=step)
         for m in self.ms.sim_info["meas_types"]:
-            self.assertEqual(
+            self.assertAlmostEqual(
                 self.ms.MCMC_fields["current_sigma"][m], 1)
-            np.testing.assert_equal(
-                self.ms.variances.trace(), np.ones_like(orig_var) / 1000)
+            np.testing.assert_almost_equal(
+                self.ms.variances.trace(), np.ones_like(orig_var) * step**3)
 
     def test_annealing_recalculating_likel(self):
         # Ensure that when an anneal step happens, the likelihood of
@@ -127,6 +127,7 @@ class TestUtils(unittest.TestCase):
         # with the post-annealing uncertainty, so that it has a comparable
         # likelihood with future states
         # This supports the idea of restarting an MMC when an anneal happens
+        step = 0.1
         uncs = [np.array([0, 0, 0])]
         err_sq = [np.array([1, 1, 1])]
         self.ms.prev_p.err_sq = err_sq
@@ -138,15 +139,16 @@ class TestUtils(unittest.TestCase):
         # sigma 10 times smaller makes likel 100 times more selective
         # but no change to underlying sum of err sq
         expected_err_sq = [[1, 1, 1]]
-        expected_likelihood = self.ms.prev_p.likelihood[0] * 100
+        expected_likelihood = self.ms.prev_p.likelihood[0] / step**2
 
-        self.ms.anneal(2, uncs)
+        self.ms.anneal(2, uncs, step=step)
 
-        np.testing.assert_equal(self.ms.prev_p.err_sq, expected_err_sq)
-        self.assertEqual(self.ms.prev_p.likelihood[0], expected_likelihood)
+        np.testing.assert_almost_equal(self.ms.prev_p.err_sq, expected_err_sq)
+        self.assertAlmostEqual(self.ms.prev_p.likelihood[0], expected_likelihood)
 
     def test_annealing_recalculating_likel_withexpunc(self):
         # Result will be a little different with nonzero exp unc
+        step = 0.1
         uncs = [np.array([1000, 1000, 1000])]
         err_sq = [np.array([1, 1, 1])]
         self.ms.prev_p.err_sq = err_sq
@@ -160,9 +162,9 @@ class TestUtils(unittest.TestCase):
         expected_err_sq = [[1, 1, 1]]
         expected_likelihood = - \
             np.sum(
-                err_sq[0] / (0.01*self.ms.MCMC_fields["current_sigma"]["TRPL"]**2 + 2*uncs[0]**2))
+                err_sq[0] / (step**2*self.ms.MCMC_fields["current_sigma"]["TRPL"]**2 + 2*uncs[0]**2))
 
-        self.ms.anneal(2, uncs)
+        self.ms.anneal(2, uncs, step=step)
 
         np.testing.assert_equal(self.ms.prev_p.err_sq, expected_err_sq)
         self.assertEqual(self.ms.prev_p.likelihood[0], expected_likelihood)

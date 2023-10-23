@@ -168,11 +168,8 @@ class TestUtils(unittest.TestCase):
                                 self.MS_from_chpt.H.loglikelihood)
 
         for param in self.MS.param_info['names']:
-            h1 = getattr(self.MS.H, param)
             h1_mean = getattr(self.MS.H, f"mean_{param}")
-            h2 = getattr(self.MS_from_chpt.H, param)
             h2_mean = getattr(self.MS_from_chpt.H, f"mean_{param}")
-            np.testing.assert_equal(h1, h2)
             np.testing.assert_equal(h1_mean, h2_mean)
         return
 

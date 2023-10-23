@@ -26,15 +26,11 @@ class TestUtils(unittest.TestCase):
         # Test init
         self.assertEqual(np.sum(self.tasth.accept), 0)
         self.assertEqual(np.sum(self.tasth.loglikelihood), 0)
-        self.assertEqual(np.sum(self.tasth.proposed_loglikelihood), 0)
         self.assertEqual(len(self.tasth.accept[0]), self.num_iters)
         self.assertEqual(len(self.tasth.loglikelihood[0]), self.num_iters)
-        self.assertEqual(len(self.tasth.proposed_loglikelihood[0]), self.num_iters)
-
+        
         for param in self.dummy_names:
-            self.assertEqual(np.sum(getattr(self.tasth, param)), 0)
             self.assertEqual(np.sum(getattr(self.tasth, f"mean_{param}")), 0)
-            self.assertEqual(len(getattr(self.tasth, param)[0]), self.num_iters)
             self.assertEqual(
                 len(getattr(self.tasth, f"mean_{param}")[0]), self.num_iters)
 
@@ -49,20 +45,16 @@ class TestUtils(unittest.TestCase):
         # Test truncate
         truncate_at = 10
         for param in self.dummy_names:
-            setattr(self.tasth, param, np.arange(self.num_iters, dtype=float).reshape((1, self.num_iters)))
             setattr(self.tasth, f"mean_{param}", np.arange(
                 self.num_iters, dtype=float).reshape((1, self.num_iters)) + 10)
         self.tasth.truncate(truncate_at, self.dummy_param_info)
 
         for param in self.dummy_names:
             np.testing.assert_equal(
-                getattr(self.tasth, param)[0], np.arange(truncate_at))
-            np.testing.assert_equal(
                 getattr(self.tasth, f"mean_{param}")[0], np.arange(truncate_at) + 10)
 
         self.assertEqual(len(self.tasth.accept[0]), truncate_at)
         self.assertEqual(len(self.tasth.loglikelihood[0]), truncate_at)
-        self.assertEqual(len(self.tasth.proposed_loglikelihood[0]), truncate_at)
 
     def test_extend(self):
         self.tasth = History(self.num_iters, self.dummy_param_info)
@@ -73,59 +65,46 @@ class TestUtils(unittest.TestCase):
         # Test extend from 20 iters to 19 iters, which should result in a contraction
         extend_to = 19
         for param in self.dummy_names:
-            setattr(self.tasth, param, np.arange(self.num_iters, dtype=float).reshape((1, self.num_iters)))
             setattr(self.tasth, f"mean_{param}", np.arange(
                 self.num_iters, dtype=float).reshape((1, self.num_iters)) + 10)
         self.tasth.extend(extend_to, self.dummy_param_info)
         for param in self.dummy_names:
-            np.testing.assert_equal(
-                getattr(self.tasth, param)[0], np.arange(extend_to, dtype=float))
             np.testing.assert_equal(getattr(self.tasth, f"mean_{param}")[0], np.arange(
                 extend_to, dtype=float)+10)
 
         self.assertEqual(len(self.tasth.accept[0]), extend_to)
         self.assertEqual(len(self.tasth.loglikelihood[0]), extend_to)
-        self.assertEqual(len(self.tasth.proposed_loglikelihood[0]), extend_to)
 
         # Test extend from 20 iters to 20 iters, which should result in no changes
         self.setUp()
         extend_to = 20
         for param in self.dummy_names:
-            setattr(self.tasth, param, np.arange(self.num_iters, dtype=float).reshape((1, self.num_iters)))
             setattr(self.tasth, f"mean_{param}", np.arange(
                 self.num_iters, dtype=float).reshape((1, self.num_iters)) + 10)
         self.tasth.extend(extend_to, self.dummy_param_info)
         for param in self.dummy_names:
-            np.testing.assert_equal(
-                getattr(self.tasth, param)[0], np.arange(self.num_iters, dtype=float))
             np.testing.assert_equal(getattr(self.tasth, f"mean_{param}")[0], np.arange(
                 self.num_iters, dtype=float)+10)
 
         self.assertEqual(len(self.tasth.accept[0]), self.num_iters)
         self.assertEqual(len(self.tasth.loglikelihood[0]), self.num_iters)
-        self.assertEqual(len(self.tasth.proposed_loglikelihood[0]), self.num_iters)
 
         # Test extend from 20 iters to 100 iters
         self.setUp()
         extend_to = 100
         for param in self.dummy_names:
-            setattr(self.tasth, param, np.arange(self.num_iters, dtype=float).reshape((1, self.num_iters)))
             setattr(self.tasth, f"mean_{param}", np.arange(
                 self.num_iters, dtype=float).reshape((1, self.num_iters)) + 10)
         self.tasth.extend(extend_to, self.dummy_param_info)
 
-        expected_p = np.concatenate(
-            (np.arange(self.num_iters, dtype=float), np.zeros(extend_to - self.num_iters)))
         expected_means = np.concatenate(
             (np.arange(self.num_iters, dtype=float) + 10, np.zeros(extend_to - self.num_iters)))
         for param in self.dummy_names:
-            np.testing.assert_equal(getattr(self.tasth, param)[0], expected_p)
             np.testing.assert_equal(
                 getattr(self.tasth, f"mean_{param}")[0], expected_means)
 
         self.assertEqual(len(self.tasth.accept[0]), extend_to)
         self.assertEqual(len(self.tasth.loglikelihood[0]), extend_to)
-        self.assertEqual(len(self.tasth.proposed_loglikelihood[0]), extend_to)
 
     def test_update(self):
         self.tasth = History(self.num_iters, self.dummy_param_info)
@@ -149,15 +128,8 @@ class TestUtils(unittest.TestCase):
 
         self.tasth.update(k, p, means, self.dummy_param_info)
 
-        self.assertEqual(self.tasth.c[0, k], p.c)
         self.assertEqual(self.tasth.mean_c[0, k], means.c)
-        self.assertEqual(np.sum(self.tasth.c), p.c)
         self.assertEqual(np.sum(self.tasth.mean_c), means.c)
-
-        expected_loglikelihood = np.zeros((1, self.num_iters))
-        expected_loglikelihood[0, k] = np.sum(p.likelihood)
-        np.testing.assert_equal(self.tasth.proposed_loglikelihood,
-                                expected_loglikelihood)
 
     def test_best_LL(self):
         self.tasth = History(self.num_iters, self.dummy_param_info)
