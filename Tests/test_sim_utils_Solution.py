@@ -127,14 +127,14 @@ class TestUtils(unittest.TestCase):
         # y -> 2 * (1.21 - 1) * 100 = 42
         y = y0 / 10
 
-        thr = 1e-3
+        min_y = PL0 * 1e-3
         # PL, still above thr - True
-        self.assertTrue(check_threshold(t, y, PL0, num_nodes, dx, thr=thr, mode="TRPL",
+        self.assertTrue(check_threshold(t, y, num_nodes, dx, min_y, mode="TRPL",
                                         ks=ks, n0=n0, p0=p0))
         
-        thr = 1e-2
+        min_y = PL0 * 1e-2
         # PL, now below thr - False
-        self.assertFalse(check_threshold(t, y, PL0, num_nodes, dx, thr=thr, mode="TRPL",
+        self.assertFalse(check_threshold(t, y, num_nodes, dx, min_y, mode="TRPL",
                                          ks=ks, n0=n0, p0=p0))
         
     def test_check_threshold_TRTS(self):
@@ -155,12 +155,12 @@ class TestUtils(unittest.TestCase):
         # y -> q_C * ((1.1 - 1) + (1.1 - 1)) * 100 = 20*q_C
         y = y0 / 10
 
-        thr = 1e-2
+        min_y = TRTS0 * 1e-2
         # PL, still at thr - True
-        self.assertTrue(check_threshold(t, y, TRTS0, num_nodes, dx, thr=thr, mode="TRTS",
+        self.assertTrue(check_threshold(t, y, num_nodes, dx, min_y, mode="TRTS",
                                         mu_n=mu_n, mu_p=mu_p, n0=n0, p0=p0))
         
-        thr = 1.001e-2
+        min_y = TRTS0 * 1.001e-2
         # PL, now below thr - False
-        self.assertFalse(check_threshold(t, y, TRTS0, num_nodes, dx, thr=thr, mode="TRTS",
+        self.assertFalse(check_threshold(t, y, num_nodes, dx, min_y, mode="TRTS",
                                          mu_n=mu_n, mu_p=mu_p, n0=n0, p0=p0))

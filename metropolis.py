@@ -123,28 +123,31 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
 
         s = Solution()
         if meas == "TRPL":
-            s.N, s.P = N, P
-            s.calculate_PL(g, p)
-            PL0 = s.PL
-            stop_integrate = lambda t, y: check_threshold(t, y, PL0, g.nx, g.dx, thr=10 ** g.y_range, mode="TRPL",
+            min_y = g.min_y * 1e-23 # To nm/ns units
+            stop_integrate = lambda t, y: check_threshold(t, y, g.nx, g.dx, min_y=min_y, mode="TRPL",
                                                           ks=p.ks, n0=p.n0, p0=p.p0)
             stop_integrate.terminal = 1
 
         elif meas == "TRTS":
-            s.N, s.P = N, P
-            s.calculate_TRTS(g, p)
-            trts0 = s.trts
-            stop_integrate = lambda t, y: check_threshold(t, y, trts0, g.nx, g.dx, thr=10 ** g.y_range, mode="TRTS",
+            min_y = g.min_y * 1e-9
+            stop_integrate = lambda t, y: check_threshold(t, y, g.nx, g.dx, min_y=min_y, mode="TRTS",
                                                           mu_n=p.mu_n, mu_p=p.mu_p, n0=p.n0, p0=p.p0)
             stop_integrate.terminal = 1
         else:
             raise NotImplementedError("TRPL or TRTS only")
 
+        i_final = len(g.tSteps)
         if solver[0] == "solveivp" or solver[0] == "diagnostic":
             sol = solve_ivp(dy, [g.start_time, g.time], init_condition,
-                            method='LSODA', dense_output=True,
+                            method='LSODA', dense_output=True, events=stop_integrate,
                             max_step=g.hmax, rtol=RTOL, atol=ATOL)
+            
             data = sol.sol(g.tSteps).T
+
+            if len(sol.t_events[0]) > 0:
+                t_final = sol.t_events[0][0]
+                i_final = np.where(g.tSteps < t_final)[0][-1]
+
         else:
             data = odeint(MODELS[model], init_condition, g.tSteps, args=args,
                       hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
@@ -160,13 +163,18 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
             next_init = s.N[-1] - p.n0
             p.apply_unit_conversions(reverse=True)  # [nm, V, ns] to [cm, V, s]
             s.PL *= 1e23                            # [nm^-2 ns^-1] to [cm^-2 s^-1]
-
+            # solve_ivp isn't perfectly accurate at determining i_final,
+            # so ensure all values below g.min_y are set to g.min_y
+            s.PL[i_final:] = g.min_y
+            s.PL[s.PL < g.min_y] = g.min_y
             return s.PL, next_init
         elif meas == "TRTS":
             s.calculate_TRTS(g, p)
             next_init = s.N[-1] - p.n0
             p.apply_unit_conversions(reverse=True)
             s.trts *= 1e9
+            s.trts[i_final:] = g.min_y
+            s.trts[s.trts < g.min_y] = g.min_y
             return s.trts, next_init
         else:
             raise NotImplementedError("TRTS or TRPL only")
@@ -315,7 +323,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
     return
 
 
-def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", y_range=None,
+def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", min_y=0,
                   solver=("solveivp",), model="std", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
     """ Set up one simulation. """
     g = Grid()
@@ -330,7 +338,7 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", y_range=No
     g.hmax = hmax
     g.tSteps = times
 
-    g.y_range = y_range # If not none, how many OM the simulation will allow the signal to decay before terminating
+    g.min_y = min_y
 
     if times[0] > 0:
         # Always start sims from t=0 even if experimental data doesn't, to verify initial conditions
@@ -392,13 +400,13 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
     ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
 
-    y_range = find_range(vals)
+    min_y = min(vals)
     # Always attempt a slightly larger hmax than what worked previously
     hmax[i] = min(STARTING_HMAX, hmax[i] * 2)
 
     # Repeat until all criteria are satisfied.
     while hmax[i] > MIN_HMAX:
-        tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], y_range=y_range,
+        tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], min_y=min_y,
                                     meas=meas_type,
                                     solver=MCMC_fields["solver"], model=MCMC_fields["model"],
                                     rtol=RTOL, atol=ATOL)
@@ -472,9 +480,6 @@ def search_c_grps(c_grps : list[tuple], i : int) -> int:
             if i == c:
                 return c_grp[0]
     return i
-
-def find_range(vals : np.ndarray) -> float:
-    return np.amax(vals) - np.amin(vals)
 
 def detect_sim_fail(sol, ref_vals):
     fail = len(sol) < len(ref_vals)

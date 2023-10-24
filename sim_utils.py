@@ -306,7 +306,14 @@ class History():
 
 
 class Grid():
+    """
+    Collection of values describing the grid dimensions for the simulation.
+
+    min_y : float
+        Minimum value the simulated signal is allowed to reach before the sim terminates.
+    """
     def __init__(self):
+        self.min_y = 0
         return
 
 
@@ -366,7 +373,7 @@ def calculate_RR(N, P, ks, n0, p0):
 def calculate_photoc(N, P, mu_n, mu_p, n0, p0):
     return q_C * (mu_n * (N - n0) + mu_p * (P - p0))
 
-def check_threshold(t, y, y0, L, dx, thr=1e-6, mode="TRPL", ks=0, mu_n=0, mu_p=0, n0=0, p0=0):
+def check_threshold(t, y, L, dx, min_y=0, mode="TRPL", ks=0, mu_n=0, mu_p=0, n0=0, p0=0):
     """Event - terminate integration if PL(t) is below the starting PL0=PL(t=0) * thr"""
     N = y[0:L]
     P = y[L:2*(L)]
@@ -378,7 +385,7 @@ def check_threshold(t, y, y0, L, dx, thr=1e-6, mode="TRPL", ks=0, mu_n=0, mu_p=0
     else:
         raise ValueError("Unsupported threshold mode")
 
-    if y_test / y0 < thr:
+    if y_test <= min_y:
         return 0
     else:
         return 1
