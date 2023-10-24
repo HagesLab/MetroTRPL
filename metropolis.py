@@ -142,13 +142,12 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
 
         if solver[0] == "solveivp" or solver[0] == "diagnostic":
             sol = solve_ivp(dy, [g.start_time, g.time], init_condition,
-                            t_eval=g.tSteps, method='LSODA',
+                            method='LSODA', dense_output=True,
                             max_step=g.hmax, rtol=RTOL, atol=ATOL)
-            data = sol.y.T
+            data = sol.sol(g.tSteps).T
         else:
             data = odeint(MODELS[model], init_condition, g.tSteps, args=args,
                       hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
-        
 
         # Also depends on how many dependent variables
         if model == "std":
