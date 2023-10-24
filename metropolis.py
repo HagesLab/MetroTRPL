@@ -119,6 +119,7 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
         else:
             raise ValueError(f"Invalid model {model}")
         
+        dy = lambda t, y: MODELS[model](t, y, *args)
 
         s = Solution()
         if meas == "TRPL":
@@ -140,8 +141,8 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
             raise NotImplementedError("TRPL or TRTS only")
 
         if solver[0] == "solveivp" or solver[0] == "diagnostic":
-            sol = solve_ivp(MODELS[model], [g.start_time, g.time], init_condition,
-                            args=args, t_eval=g.tSteps, method='LSODA',
+            sol = solve_ivp(dy, [g.start_time, g.time], init_condition,
+                            t_eval=g.tSteps, method='LSODA',
                             max_step=g.hmax, rtol=RTOL, atol=ATOL)
             data = sol.y.T
         else:
