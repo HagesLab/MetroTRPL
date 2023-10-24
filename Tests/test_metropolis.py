@@ -11,8 +11,7 @@ from metropolis import detect_sim_fail, detect_sim_depleted, almost_equal
 from metropolis import check_approved_param
 from metropolis import run_iteration
 from metropolis import search_c_grps
-from metropolis import find_range
-from sim_utils import Parameters, Grid, Covariance
+from sim_utils import Parameters, Grid, Covariance, calculate_PL, calculate_TRTS
 q = 1.0  # [e]
 q_C = 1.602e-19  # [C]
 kB = 8.61773e-5  # [eV / K]
@@ -24,13 +23,6 @@ class TestUtils(unittest.TestCase):
 
     def setUp(self):
         self.logger = logging.getLogger()
-
-    def test_find_range(self):
-        """Should find difference between max and min of signal"""
-        t = np.linspace(0, 100, 100)
-        test_PL = 1e5 * np.exp(-t / 5) + 1e4 * np.exp(-t / 20)
-        test_PL = np.log10(test_PL)
-        self.assertEqual(find_range(test_PL), test_PL[0] - test_PL[-1])
 
     def test_search_c_grps(self):
         c_grps = [(0, 1, 2), (3, 4)]
@@ -211,6 +203,82 @@ class TestUtils(unittest.TestCase):
         # try an undefined solver
         with self.assertRaises(NotImplementedError):
             solve(init_dN, g, pa, meas="TRPL", solver=("somethign else",))
+
+        return
+    
+    def test_solve_depletion(self):
+        """ A high-inj, rad-only sample problem. Parameters are chosen such that
+        the simulated PL will decay by about 2.5 orders of magnitude. """
+        g = Grid()
+        g.nx = 100
+        g.dx = 10
+        g.start_time = 0
+        g.time = 100
+        g.nt = 1000
+        g.hmax = 4
+        g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
+
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9),
+                            "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
+
+        param_info = {"names": ["n0", "p0", "mu_n", "mu_p",
+                                "ks", "tauN", "tauP",
+                                "Cn", "Cp", "Sf", "Sb", "eps", "Tm"],
+                      "active": {"n0": 0, "p0": 1,
+                                 "mu_n": 1, "mu_p": 1,
+                                 "Cn": 0, "Cp": 0,
+                                 "ks": 1, "Sf": 1, "Sb": 1,
+                                 "tauN": 1, "tauP": 1, "eps": 0,
+                                 "Tm": 0},
+                      "unit_conversions": unit_conversions}
+        vals = {'n0': 0,
+                'p0': 0,
+                'mu_n': 1,
+                'mu_p': 1,
+                "ks": 2e-10,
+                "Cn": 0, "Cp": 0,
+                'tauN': 1e99,
+                'tauP': 1e99,
+                'Sf': 0,
+                'Sb': 0,
+                "Tm": 300,
+                'eps': 1}
+
+        param_info["init_guess"] = vals
+        pa = Parameters(param_info)
+        init_dN = 1e18 * np.ones(g.nx) # [cm^-3]
+
+        PL0 = calculate_PL(g.dx * 1e-7, init_dN, init_dN, vals["ks"], vals["n0"], vals["p0"]) # in cm/s units
+        # No or large range - PL runs to conclusion
+        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+                                RTOL=1e-10, ATOL=1e-14)
+        self.assertEqual(len(g.tSteps), len(test_PL))
+
+        # Smaller range - PL decay stops early at PL_final, and signal over remaining time is set to PL_final
+        g.min_y = PL0 * 1e-2
+        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+                                RTOL=1e-10, ATOL=1e-14)
+
+        self.assertTrue(min(test_PL) >= g.min_y)
+        np.testing.assert_equal(test_PL[-10:], g.min_y)
+
+        # Try a TRTS
+        TRTS0 = calculate_TRTS(g.dx * 1e-7, init_dN, init_dN, vals["mu_n"], vals["mu_p"], vals["n0"], vals["p0"])
+        # No or large range - PL runs to conclusion
+        g.min_y = TRTS0 * 1e-10
+        test_TRTS, out_dN = solve(init_dN, g, pa, meas="TRTS", solver=("solveivp",),
+                                RTOL=1e-10, ATOL=1e-14)
+        self.assertEqual(len(g.tSteps), len(test_TRTS))
+
+
+        # Smaller range - TRTS is truncated
+        g.min_y = TRTS0 * 1e-1
+        test_TRTS, out_dN = solve(init_dN, g, pa, meas="TRTS", solver=("solveivp",),
+                                RTOL=1e-10, ATOL=1e-14)
+        self.assertTrue(min(test_TRTS) >= g.min_y)
+        np.testing.assert_equal(test_TRTS[-10:], g.min_y)
 
         return
     
@@ -712,26 +780,6 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(meas_type[2], mtype)
         return
 
-    # def test_anneal(self):
-    #     anneal_mode = None # T = T_2
-    #     anneal_params = [0, 0, 1] #T_2
-    #     t = 9999
-    #     self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params[0])
-
-    #     anneal_mode = "exp" # T = T_0 * exp(-t/T_1) + T_2
-    #     anneal_params = [10,1, 0]
-    #     t = 1
-    #     self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params / np.exp(1))
-
-    #     anneal_mode = "log" # T = (T_0 ln(2)) / (ln(2 + (t / T_1))) + T_2
-    #     t = 23523
-    #     anneal_params = [10, t / (np.exp(1) - 2), 0]
-    #     self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params[0] * np.log(2))
-
-    #     anneal_mode = "not a mode"
-    #     with self.assertRaises(ValueError):
-    #         anneal(t, anneal_mode, anneal_params)
-
     def test_run_iter(self):
         # Will basically need to set up a full simulation for this
         np.random.seed(42)
@@ -1125,4 +1173,4 @@ class TestUtils(unittest.TestCase):
 
 if __name__ == "__main__":
     t = TestUtils()
-    t.test_find_range()
+    t.test_solve_traps()
