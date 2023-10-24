@@ -316,27 +316,72 @@ class Solution():
 
     def calculate_PL(self, g, p):
         """ Time-resolved photoluminescence """
-        rr = calculate_RR(self.N, self.P, p.ks, p.n0, p.p0)
-
-        self.PL = trapz(rr, dx=g.dx, axis=1)
-        self.PL += rr[:, 0] * g.dx / 2
-        self.PL += rr[:, -1] * g.dx / 2
-        return
+        self.PL = calculate_PL(g.dx, self.N, self.P, p.ks, p.n0, p.p0)
 
     def calculate_TRTS(self, g, p):
         """ Transient terahertz decay """
-        trts = p.mu_n * (self.N - p.n0) + p.mu_p * (self.P - p.p0)
-        self.trts = trapz(trts, dx=g.dx, axis=1)
-        self.trts += trts[:, 0] * g.dx / 2
-        self.trts += trts[:, -1] * g.dx / 2
-        self.trts *= q_C
-        return
+        self.trts = calculate_TRTS(g.dx, self.N, self.P, p.mu_n, p.mu_p, p.n0, p.p0)
+    
+def calculate_PL(dx, N, P, ks, n0, p0):
+    rr = calculate_RR(N, P, ks, n0, p0)
+    if rr.ndim == 2:
+        PL = integrate_2D(dx, rr)
+    elif rr.ndim == 1:
+        PL = integrate_1D(dx, rr)
+    else:
+        raise ValueError(f"Invalid number of dims (got {rr.ndim} dims) in Solution")
+    return PL
+
+def calculate_TRTS(dx, N, P, mu_n, mu_p, n0, p0):
+    trts = calculate_photoc(N, P, mu_n, mu_p, n0, p0)
+    if trts.ndim == 2:
+        trts = integrate_2D(dx, trts)
+    elif trts.ndim == 1:
+        trts = integrate_1D(dx, trts)
+    else:
+        raise ValueError(f"Invalid number of dims (got {trts.ndim} dims) in Solution")
+    return trts
+
+@njit(cache=True)
+def integrate_2D(dx, y):
+    y_int = np.zeros(len(y))
+    for i in range(len(y)):
+        y_int[i] = integrate_1D(dx, y[i])
+    return y_int
+
+@njit(cache=True)
+def integrate_1D(dx, y):
+    y_int = y[0] * dx / 2
+    for i in range(1, len(y)):
+        y_int += dx * (y[i] + y[i-1]) / 2
+    y_int += y[-1] * dx / 2
+    return y_int
 
 
 @njit(cache=True)
 def calculate_RR(N, P, ks, n0, p0):
     return ks * (N * P - n0 * p0)
 
+@njit(cache=True)
+def calculate_photoc(N, P, mu_n, mu_p, n0, p0):
+    return q_C * (mu_n * (N - n0) + mu_p * (P - p0))
+
+def check_threshold(t, y, y0, L, dx, thr=1e-6, mode="TRPL", ks=0, mu_n=0, mu_p=0, n0=0, p0=0):
+    """Event - terminate integration if PL(t) is below the starting PL0=PL(t=0) * thr"""
+    N = y[0:L]
+    P = y[L:2*(L)]
+
+    if mode == "TRPL":
+        y_test = calculate_PL(dx, N, P, ks, n0, p0)
+    elif mode == "TRTS":
+        y_test = calculate_TRTS(dx, N, P, mu_n, mu_p, n0, p0)
+    else:
+        raise ValueError("Unsupported threshold mode")
+
+    if y_test / y0 < thr:
+        return 0
+    else:
+        return 1
 
 if __name__ == "__main__":
     S = Solution()

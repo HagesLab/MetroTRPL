@@ -12,7 +12,7 @@ import numpy as np
 from scipy.integrate import solve_ivp, odeint
 
 from forward_solver import MODELS
-from sim_utils import MetroState, Grid, Solution
+from sim_utils import MetroState, Grid, Solution, check_threshold
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import make_dir, clear_checkpoint_dir
 from laplace import make_I_tables, do_irf_convolution, post_conv_trim
@@ -105,6 +105,7 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
         P = init_dN + p.p0
         E_f = E_field(N, P, p, g.dx)
 
+
         # Depends on how many dependent variables and parameters are in the selected model
         if model == "std":
             init_condition = np.concatenate([N, P, E_f], axis=None)
@@ -117,6 +118,26 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
                 p.kC, p.Nt, p.tauE)
         else:
             raise ValueError(f"Invalid model {model}")
+        
+
+        s = Solution()
+        if meas == "TRPL":
+            s.N, s.P = N, P
+            s.calculate_PL(g, p)
+            PL0 = s.PL
+            stop_integrate = lambda t, y: check_threshold(t, y, PL0, g.nx, g.dx, thr=10 ** g.y_range, mode="TRPL",
+                                                          ks=p.ks, n0=p.n0, p0=p.p0)
+            stop_integrate.terminal = 1
+
+        elif meas == "TRTS":
+            s.N, s.P = N, P
+            s.calculate_TRTS(g, p)
+            trts0 = s.trts
+            stop_integrate = lambda t, y: check_threshold(t, y, trts0, g.nx, g.dx, thr=10 ** g.y_range, mode="TRTS",
+                                                          mu_n=p.mu_n, mu_p=p.mu_p, n0=p.n0, p0=p.p0)
+            stop_integrate.terminal = 1
+        else:
+            raise NotImplementedError("TRPL or TRTS only")
 
         if solver[0] == "solveivp" or solver[0] == "diagnostic":
             sol = solve_ivp(MODELS[model], [g.start_time, g.time], init_condition,
@@ -126,7 +147,7 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
         else:
             data = odeint(MODELS[model], init_condition, g.tSteps, args=args,
                       hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
-        s = Solution()
+        
 
         # Also depends on how many dependent variables
         if model == "std":
@@ -294,7 +315,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
     return
 
 
-def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
+def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", y_range=None,
                   solver=("solveivp",), model="std", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
     """ Set up one simulation. """
     g = Grid()
@@ -308,6 +329,8 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
     g.nt = len(times) - 1
     g.hmax = hmax
     g.tSteps = times
+
+    g.y_range = y_range # If not none, how many OM the simulation will allow the signal to decay before terminating
 
     if times[0] > 0:
         # Always start sims from t=0 even if experimental data doesn't, to verify initial conditions
@@ -368,12 +391,14 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
     RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
     ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
+
+    y_range = find_range(vals)
     # Always attempt a slightly larger hmax than what worked previously
     hmax[i] = min(STARTING_HMAX, hmax[i] * 2)
 
     # Repeat until all criteria are satisfied.
     while hmax[i] > MIN_HMAX:
-        tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
+        tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], y_range=y_range,
                                     meas=meas_type,
                                     solver=MCMC_fields["solver"], model=MCMC_fields["model"],
                                     rtol=RTOL, atol=ATOL)
@@ -447,6 +472,9 @@ def search_c_grps(c_grps : list[tuple], i : int) -> int:
             if i == c:
                 return c_grp[0]
     return i
+
+def find_range(vals : np.ndarray) -> float:
+    return np.amax(vals) - np.amin(vals)
 
 def detect_sim_fail(sol, ref_vals):
     fail = len(sol) < len(ref_vals)
