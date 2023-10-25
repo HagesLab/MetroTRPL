@@ -169,16 +169,18 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
             next_init = s.N[-1] - p.n0
             p.apply_unit_conversions(reverse=True)  # [nm, V, ns] to [cm, V, s]
             s.PL *= 1e23                            # [nm^-2 ns^-1] to [cm^-2 s^-1]
-            i_final = np.searchsorted(-s.PL, -g.min_y)
-            s.PL[i_final:] = g.min_y
+            i_final = np.argmax(s.PL < g.min_y)
+            if s.PL[i_final] < g.min_y:
+                s.PL[i_final:] = g.min_y
             return s.PL, next_init
         elif meas == "TRTS":
             s.calculate_TRTS(g, p)
             next_init = s.N[-1] - p.n0
             p.apply_unit_conversions(reverse=True)
             s.trts *= 1e9
-            i_final = np.searchsorted(-s.trts, -g.min_y)
-            s.trts[i_final:] = g.min_y
+            i_final = np.argmax(s.trts < g.min_y)
+            if s.trts[i_final] < g.min_y:
+                s.trts[i_final:] = g.min_y
             return s.trts, next_init
         else:
             raise NotImplementedError("TRTS or TRPL only")
