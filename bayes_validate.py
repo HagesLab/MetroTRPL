@@ -482,6 +482,14 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
             pass
         else:
             raise ValueError("hard_bounds invalid - must be 0 or 1")
+        
+    if "force_min_y" in MCMC_fields:
+        fy = MCMC_fields["force_min_y"]
+        if (isinstance(fy, (int, np.integer)) and
+                (fy == 0 or fy == 1)):
+            pass
+        else:
+            raise ValueError("force_min_y invalid - must be 0 or 1")
 
     if "irf_convolution" in MCMC_fields:
         irf = MCMC_fields["irf_convolution"]

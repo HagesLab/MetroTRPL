@@ -526,6 +526,8 @@ def read_config_script_file(path):
                         MCMC_fields["proposal_function"] = line_split[1]
                     elif line.startswith("Use hard boundaries"):
                         MCMC_fields["hard_bounds"] = int(line_split[1])
+                    elif line.startswith("Force min y"):
+                        MCMC_fields["force_min_y"] = int(line_split[1])
                     elif line.startswith("IRF"):
                         if line_split[1] == "None":
                             MCMC_fields["irf_convolution"] = None
@@ -952,6 +954,14 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                                "# =1 will coerce while =0 will only warn.\n")
             bound = MCMC_fields["hard_bounds"]
             ofstream.write(f"Use hard boundaries: {bound}\n")
+
+        if "force_min_y" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Whether to set all simulation values to be at least the min value in a measurement. \n"
+                               "# May make the likelihood more responsive when simulated signals are decaying rapidly. \n"
+                               "# =1 to activate; =0 to disable.\n")
+            fy = MCMC_fields["force_min_y"]
+            ofstream.write(f"Force min y: {fy}\n")
 
         if verbose:
             ofstream.write(

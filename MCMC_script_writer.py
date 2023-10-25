@@ -154,6 +154,7 @@ if __name__ == "__main__":
                    "proposal_function": "box",
                    "one_param_at_a_time": 0,
                    "hard_bounds": 1,
+                   "force_min_y": 0,
                    "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
                    "checkpoint_header": f"CPU{jobid}",
                    "checkpoint_freq": 12000,
