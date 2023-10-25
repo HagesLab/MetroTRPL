@@ -1,6 +1,9 @@
 # Output files
 *.pik
 
+# Script writer files
+*.txt
+
 # IRF files, except for the examples and readme
 !IRFs/readme.txt
 IRFs/*
