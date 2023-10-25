@@ -495,7 +495,7 @@ def detect_sim_fail(sol, ref_vals):
 
 def set_min_y(sol, vals, scale_shift):
     """
-    Raise the values in sol to at least the minimum of vals, accounting for scale_shift.
+    Raise the values in (sol + scale_shift) to at least the minimum of vals.
     scale_shift and vals should be in log scale; sol in regular scale
     Returns:
     sol : np.ndarray
