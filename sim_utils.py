@@ -4,10 +4,10 @@ Created on Thu Jan 13 13:04:20 2022
 
 @author: cfai2
 """
-import numpy as np
-from scipy.integrate import trapz
+from sys import float_info
 import os
 import pickle
+import numpy as np
 from numba import njit
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
@@ -313,7 +313,7 @@ class Grid():
         Minimum value the simulated signal is allowed to reach before the sim terminates.
     """
     def __init__(self):
-        self.min_y = 0
+        self.min_y = float_info.min
         return
 
 

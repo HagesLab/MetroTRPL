@@ -327,7 +327,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
     return
 
 
-def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", min_y=0,
+def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
                   solver=("solveivp",), model="std", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
     """ Set up one simulation. """
     g = Grid()
@@ -341,8 +341,6 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL", min_y=0,
     g.nt = len(times) - 1
     g.hmax = hmax
     g.tSteps = times
-
-    g.min_y = min_y
 
     if times[0] > 0:
         # Always start sims from t=0 even if experimental data doesn't, to verify initial conditions
@@ -404,13 +402,12 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
     ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
 
-    min_y = min(vals)
     # Always attempt a slightly larger hmax than what worked previously
     hmax[i] = min(STARTING_HMAX, hmax[i] * 2)
 
     # Repeat until all criteria are satisfied.
     while hmax[i] > MIN_HMAX:
-        tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i], min_y=min_y,
+        tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
                                     meas=meas_type,
                                     solver=MCMC_fields["solver"], model=MCMC_fields["model"],
                                     rtol=RTOL, atol=ATOL)
@@ -494,6 +491,23 @@ def detect_sim_fail(sol, ref_vals):
 
     return sol, fail
 
+def set_min_y(sol, vals, scale_shift):
+    """
+    Raise the values in sol to at least the minimum of vals, accounting for scale_shift.
+    scale_shift and vals should be in log scale; sol in regular scale
+    Returns:
+    sol : np.ndarray
+        New sol with raised values.
+    min_y : float
+        min_val sol was raised to. Regular scale.
+    n_set : int
+        Number of values in sol raised.
+    """
+    min_y = 10 ** min(vals - scale_shift)
+    i_final = np.searchsorted(-sol, -min_y)
+    sol[i_final:] = min_y
+    return sol, min_y, len(sol[i_final:])
+
 
 def detect_sim_depleted(sol):
     fail = np.any(sol < 0)
@@ -526,6 +540,14 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
             iniPar[1] *= getattr(p, f"_a{search_c_grps(fa[2], i)}")
         else:
             iniPar[1] *= getattr(p, f"_a{i}")
+    fs = MCMC_fields.get("scale_factor", None)
+    if (fs is not None and i in fs[1]):
+        if fs[2] is not None and len(fs[2]) > 0:
+            scale_shift = np.log10(getattr(p, f"_s{search_c_grps(fs[2], i)}"))
+        else:
+            scale_shift = np.log10(getattr(p, f"_s{i}"))
+    else:
+        scale_shift = 0
 
     tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
                                                hmax, MCMC_fields, logger, verbose)
@@ -561,16 +583,6 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
             p.suppress_scale_factor(MCMC_fields.get("scale_factor", None), i)
             scale_shift = 0
 
-        else:
-            fs = MCMC_fields.get("scale_factor", None)
-            if (fs is not None and i in fs[1]):
-                if fs[2] is not None and len(fs[2]) > 0:
-                    scale_shift = np.log10(getattr(p, f"_s{search_c_grps(fs[2], i)}"))
-                else:
-                    scale_shift = np.log10(getattr(p, f"_s{i}"))
-            else:
-                scale_shift = 0
-            
         # TODO: accomodate multiple experiments, just like bayes
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect
@@ -588,6 +600,13 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
             logger.warning(f"{i}: {n_fails} / {len(sol)} non-positive vals")
 
         sol[where_failed] *= -1
+
+        if MCMC_fields.get("force_min_y", False):
+            sol, min_y, n_set = set_min_y(sol, vals_c, scale_shift)
+
+            logger.warning(f"min_y: {min_y}")
+            if n_set > 0:
+                logger.warning(f"{n_set} values raised to min_y")
         err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
 
         # Compatibility with single sigma

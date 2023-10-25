@@ -11,6 +11,7 @@ from metropolis import detect_sim_fail, detect_sim_depleted, almost_equal
 from metropolis import check_approved_param
 from metropolis import run_iteration
 from metropolis import search_c_grps
+from metropolis import set_min_y
 from sim_utils import Parameters, Grid, Covariance, calculate_PL, calculate_TRTS
 q = 1.0  # [e]
 q_C = 1.602e-19  # [C]
@@ -891,6 +892,7 @@ class TestUtils(unittest.TestCase):
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "self_normalize": None,
                      "solver": ("solveivp",),
+                     "force_min_y": True,
                      "model": "std"}
 
         p = Parameters(param_info)
@@ -898,13 +900,14 @@ class TestUtils(unittest.TestCase):
         nt = 1000
         running_hmax = [4] * len(iniPar)
         times = [np.linspace(0, 100, nt+1)]
-        vals = [np.log10(2e14 * np.exp(-times[0] / 10))]
+        vals = [np.log10(2e14 * np.exp(-times[0] / 8))]
         uncs = [np.ones(nt+1) * 1e-99]
         run_iteration(p, simPar, iniPar, times, vals, uncs, None,
                       running_hmax, sim_flags, verbose=True,
                       logger=self.logger, prev_p=None)
 
         # A small move toward the true lifetime of 10 makes the likelihood better
+        # Without min_y truncation, the likelihoods were so small they weren't even comparable
         param_info["init_guess"]["tauN"] = 4.01
         param_info["init_guess"]["tauP"] = 4.01
 
@@ -912,8 +915,18 @@ class TestUtils(unittest.TestCase):
         run_iteration(p2, simPar, iniPar, times, vals, uncs, None,
                       running_hmax, sim_flags, verbose=True,
                       logger=self.logger, prev_p=None)
-        
         self.assertTrue(p2.likelihood[0] > p.likelihood[0])
+
+    def test_set_min_y(self):
+        t = np.linspace(0, 100, 100)
+        vals = np.log10(np.exp(-t / 2)) # A slow decay
+        sol = np.exp(-t) # A faster decay
+        scale_shift = np.log10(0.1)
+        sol, min_y, n_set = set_min_y(sol, vals, scale_shift)
+
+        # Show that the min_y accounts for scale_shift
+        np.testing.assert_equal(sol[len(sol)-n_set:], min_y)
+        self.assertEqual(np.log10(min_y), min(vals) - scale_shift)
 
     def test_run_iter_cutoff(self):
         # Same as test_run_iter, only "experimental" data is
