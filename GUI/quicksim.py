@@ -60,7 +60,7 @@ class QuicksimManager():
                 continue
             param_info = {}
             param_info["names"] = [x for x in self.window.data[fname] if x not in self.window.sp.func]
-            param_info["init_guess"] = {x: self.window.data[fname][x][True][-1] for x in param_info["names"]}
+            param_info["init_guess"] = {x: self.window.data[fname][x][-1] for x in param_info["names"]}
             param_info["active"] = {x: True for x in param_info["names"]}
             param_info["unit_conversions"] = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
                             "mu_n": ((1e7) ** 2) / (1e9),
