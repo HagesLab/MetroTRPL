@@ -146,7 +146,7 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
                             max_step=g.hmax, rtol=RTOL, atol=ATOL)
 
             data = sol.sol(g.tSteps).T
-
+            data[g.tSteps > sol.t[-1]] = 0 # Disallow sol from extrapolating beyond time it solved up to
             # if len(sol.t_events[0]) > 0:
             #     t_final = sol.t_events[0][0]
             #     try:
