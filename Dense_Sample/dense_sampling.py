@@ -43,7 +43,7 @@ def random_grid(min_X, max_X, do_log, num_samples):
             
     return grid
 
-def make_grid(N, P, num_exp, min_X, max_X, do_log, sim_flags, nref=None, minP=None, refs=None):
+def make_grid(N, P, min_X, max_X, do_log, sim_flags):
     """ Set up sampling grid - random sample """
 
     num_samples = sim_flags["num_iters"]
@@ -52,7 +52,7 @@ def make_grid(N, P, num_exp, min_X, max_X, do_log, sim_flags, nref=None, minP=No
     X = random_grid(min_X, max_X, do_log, num_samples)
 
     # Likelihoods
-    P = np.zeros((num_exp, len(N)))
+    P = np.zeros(len(N))
 
     return N, P, X
 
@@ -61,7 +61,7 @@ def almost_equal(x, x0, threshold=1e-10):
     
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
-def simulate(model, e_data, P, X, plI, plI_int, num_curves, param_info,
+def simulate(model, e_data, P, X, plI, param_info,
              sim_params, init_params, sim_flags, gpu_info, gpu_id, solver_time, err_sq_time, misc_time,
              logger=None):
     """ Delegate blocks of simulation tasks to connected GPUs """
@@ -85,7 +85,6 @@ def simulate(model, e_data, P, X, plI, plI_int, num_curves, param_info,
     #     num_SMs = getattr(device, "MULTIPROCESSOR_COUNT")
     
     LOG_PL = sim_flags["log_pl"]
-    NORMALIZE = sim_flags["self_normalize"]
     
     thicknesses = sim_params["lengths"]
     nxes = sim_params["nx"]
@@ -93,8 +92,9 @@ def simulate(model, e_data, P, X, plI, plI_int, num_curves, param_info,
     p.param_names = param_info["names"]
     p.ucs = param_info["unit_conversions"]
 
-    for ic_num in range(num_curves):
-        simulation_times = e_data[0][ic_num]
+    for ic_num in range(sim_params["num_meas"]):
+        meas_type = sim_params["meas_types"][ic_num]
+        times = e_data[0][ic_num]
         # Update thickness
         thickness = thicknesses[ic_num]
         nx = nxes[ic_num]
@@ -103,7 +103,7 @@ def simulate(model, e_data, P, X, plI, plI_int, num_curves, param_info,
                 logger.info("Curve #{}: Calculating {} of {}".format(ic_num, blk, len(X)))
             size = min(GPU_GROUP_SIZE, len(X) - blk)
 
-            plI[gpu_id] = np.empty((size, len(simulation_times)))
+            plI[gpu_id] = np.empty((size, len(times)))
             #assert len(plI[gpu_id][0]) == len(values), "Error: plI size mismatch"
 
             # if has_GPU:
@@ -115,66 +115,37 @@ def simulate(model, e_data, P, X, plI, plI_int, num_curves, param_info,
             #                                  TPB,8*num_SMs, max_sims_per_block, init_mode="points")
             # else:
 
-            """def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
-                  solver=("solveivp",), model="std", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):"""
             clock0 = time.perf_counter()
             for i, mp in enumerate(X[blk:blk+size]):
                 for j, n in enumerate(param_info["names"]):
                     setattr(p, n, mp[j])
 
-                tSteps, sol = model(p, thickness, nx, init_params[ic_num], simulation_times, 1,
-                                    meas="TRPL", solver=("solveivp",), model="std")
+                tSteps, sol = model(p, thickness, nx, init_params[ic_num], times, 1,
+                                    meas=meas_type, solver=("solveivp",), model="std")
                 plI[gpu_id][i] = sol
 
             solver_time[gpu_id] += time.perf_counter() - clock0
-            if NORMALIZE:
-                # Normalize each model to its own t=0
-                plI[gpu_id] = plI[gpu_id].T
-                plI[gpu_id] /= plI[gpu_id][0]
-                plI[gpu_id] = plI[gpu_id].T
+
             if LOG_PL:
                 # if has_GPU:
                 #     misc_time[gpu_id] += fastlog(plI[gpu_id], sys.float_info.min, TPB[0], num_SMs)
                 # else:
                 clock0 = time.perf_counter()
-                plI[gpu_id] = np.abs(plI[gpu_id]) + sys.float_info.min
                 plI[gpu_id] = np.log10(plI[gpu_id])
                 misc_time[gpu_id] += time.perf_counter() - clock0
-                
-            for e, exp in enumerate(e_data):
-                times = exp[0][ic_num]
-                values = exp[1][ic_num]
-                std = exp[2][ic_num]
-                
-                skip_time_interpolation = almost_equal(simulation_times, times)
-                
-                if logger is not None:
-                    if skip_time_interpolation:    
-                        logger.info("Experiment {}: No time interpolation needed; bypassing".format(e))
-                    else:
-                        logger.info("Experiment {}: time interpolating".format(e))
-                    
-                # Interpolate if observation times do not match simulation time grid
-                if skip_time_interpolation:
-                    plI_int[gpu_id] = plI[gpu_id]
-                else:
-                    clock0 = time.perf_counter()
-                    plI_int[gpu_id] = np.empty((size, len(times)))
-                    
-                    for i, unint_PL in enumerate(plI[gpu_id]):
-                        plI_int[gpu_id][i] = griddata(simulation_times, unint_PL, times)
-                        
-                    misc_time[gpu_id] += time.perf_counter() - clock0
-                    
-                # Calculate errors
-                # if has_GPU:
-                #     err_sq_time[gpu_id] += prob(P[e, blk:blk+size], plI_int[gpu_id], values, std, np.ascontiguousarray(X[blk:blk+size, -1]), 
-                #                                 TPB[0], num_SMs)
-                    
-                # else:
-                clock0 = time.perf_counter()
-                P[e, blk:blk+size] -= np.sum((plI_int[gpu_id] - values)**2, axis=1)
-                err_sq_time[gpu_id] += time.perf_counter() - clock0
+
+            values = e_data[1][ic_num]
+            std = e_data[2][ic_num]
+
+            # Calculate errors
+            # if has_GPU:
+            #     err_sq_time[gpu_id] += prob(P[e, blk:blk+size], plI_int[gpu_id], values, std, np.ascontiguousarray(X[blk:blk+size, -1]), 
+            #                                 TPB[0], num_SMs)
+
+            # else:
+            clock0 = time.perf_counter()
+            P[blk:blk+size] -= np.sum((plI[gpu_id] - values)**2 / (sim_flags["current_sigma"][meas_type]**2 + 2*std**2), axis=1)
+            err_sq_time[gpu_id] += time.perf_counter() - clock0
         # END LOOP OVER BLOCKS
     # END LOOP OVER ICs
 
@@ -190,29 +161,26 @@ def bayes(N, P, init_params, sim_params, e_data, sim_flags, param_info, logger=N
     err_sq_time = np.zeros(num_gpus)
     misc_time = np.zeros(num_gpus)
 
-    num_curves = len(init_params)
-
     min_X = np.array([param_info["prior_dist"][name][0] if param_info['active'][name] else param_info["init_guess"][name]
                       for name in param_info["names"]])
     max_X = np.array([param_info["prior_dist"][name][1] if param_info['active'][name] else param_info["init_guess"][name]
                       for name in param_info["names"]])
     do_log = np.array([param_info["do_log"][name] for name in param_info["names"]])
 
-    N, P, X = make_grid(N, P, len(e_data), min_X, max_X, do_log, sim_flags)
+    N, P, X = make_grid(N, P, min_X, max_X, do_log, sim_flags)
     
     if logger is not None:
         logger.info("Initializing {} random samples".format(len(X)))
 
+    sim_flags["current_sigma"] = dict(sim_flags["annealing"][0])
     sim_params = [dict(sim_params) for i in range(num_gpus)]
-
     plI = [None for i in range(num_gpus)]
-    plI_int = [None for i in range(num_gpus)]
     
     model = do_simulation
     gpu_id = 0
     # Single core control
-    simulate(model, e_data, P, X, plI, plI_int,
-             num_curves, param_info, sim_params[gpu_id], init_params, sim_flags, {}, gpu_id,
+    simulate(model, e_data, P, X, plI,
+             param_info, sim_params[gpu_id], init_params, sim_flags, {}, gpu_id,
              solver_time, err_sq_time, misc_time, logger=logger)
     # Multi-GPU thread control
     # threads = []
@@ -234,3 +202,17 @@ def bayes(N, P, init_params, sim_params, e_data, sim_flags, param_info, logger=N
         logger.info("Total err_sq time (temperatures and mag_offsets): {}, avg {}".format(err_sq_time, np.mean(err_sq_time)))
         logger.info("Total misc time: {}, avg {}".format(misc_time, np.mean(misc_time)))
     return N, P, X
+
+def export(out_filename, P, X, logger=None):
+    """ Export list of likelihoods (*_BAYRAN_P.npy) and sample parameter points (*_BAYRAN_X.npy) """
+    head = os.path.dirname(out_filename)
+    base = os.path.basename(out_filename)
+
+    if logger is not None:
+        logger.info(f"Creating dir {head}")
+    os.makedirs(head, exist_ok=True)
+
+    if logger is not None: 
+        logger.info(f"Writing to {out_filename}:")
+    np.save(os.path.join(head, f"{base}_P.npy"), P)
+    np.save(os.path.join(head, f"{base}_X.npy"), X)

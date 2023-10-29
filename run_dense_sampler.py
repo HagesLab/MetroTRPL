@@ -8,7 +8,7 @@ import numpy as np
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import get_data, get_initpoints, read_config_script_file
 from bayes_io import insert_param
-from dense_sampling import bayes
+from dense_sampling import bayes, export
 
 if __name__ == "__main__":
     on_hpg = 0
@@ -80,8 +80,7 @@ if __name__ == "__main__":
     logger.info("Bayesim took {} s".format(perf_counter() - clock0))
 
     clock0 = perf_counter()
-    for i, of in enumerate(out_filename):
-        export(of, P[i], X, logger=logger)
+    export(os.path.join(MCMC_fields["output_path"], f"CPU{jobid}"), P, X, logger=logger)
     logger.info("Export took {}".format(perf_counter() - clock0))
     stop_logging(logger, handler, 0)
 
