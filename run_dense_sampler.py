@@ -79,8 +79,6 @@ if __name__ == "__main__":
     N, P, X = bayes(N, P, iniPar, sim_info, e_data, MCMC_fields, param_info, logger=logger)
     logger.info("Bayesim took {} s".format(perf_counter() - clock0))
 
-    X /= unit_conversions
-
     clock0 = perf_counter()
     for i, of in enumerate(out_filename):
         export(of, P[i], X, logger=logger)
