@@ -553,23 +553,30 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
 
     tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
                                                hmax, MCMC_fields, logger, verbose)
-    if irf_convolution is not None and irf_convolution[i] != 0:
-        if verbose:
-            logger.debug(f"Convolving with wavelength {irf_convolution[i]}")
-        wave = int(irf_convolution[i])
-        tSteps, sol, success = do_irf_convolution(
-            tSteps, sol, IRF_tables[wave], time_max_shift=True)
-        if not success:
-            raise ValueError("Error: Interpolation for conv failed. Check measurement data"
-                             " times for floating-point inaccuracies.")
-        sol, times_c, vals_c, uncs_c = post_conv_trim(tSteps, sol, times, vals, uncs)
+    try:
+        if irf_convolution is not None and irf_convolution[i] != 0:
+            if verbose:
+                logger.debug(f"Convolving with wavelength {irf_convolution[i]}")
+            wave = int(irf_convolution[i])
+            tSteps, sol, success = do_irf_convolution(
+                tSteps, sol, IRF_tables[wave], time_max_shift=True)
+            if not success:
+                raise ValueError("Conv failed. Check measurement data times for floating-point inaccuracies.\n"
+                                 "This may also happen if simulated signal decays extremely slowly.")
+            sol, times_c, vals_c, uncs_c = post_conv_trim(tSteps, sol, times, vals, uncs)
 
-    else:
-        # Still need to trim, in case experimental data doesn't start at t=0
-        times_c = times
-        vals_c = vals
-        uncs_c = uncs
-        sol = sol[-len(times_c):]
+        else:
+            # Still need to trim, in case experimental data doesn't start at t=0
+            times_c = times
+            vals_c = vals
+            uncs_c = uncs
+            sol = sol[-len(times_c):]
+
+    except ValueError as e:
+        logger.warning(e)
+        likelihood = -np.inf
+        err_sq = np.inf
+        return likelihood, err_sq
 
     if verbose:
         logger.debug(f"Comparing times {times_c[0]}-{times_c[-1]}")
