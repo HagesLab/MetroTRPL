@@ -5,14 +5,14 @@ import time
 
 import numpy as np
 
-from metropolis import do_simulation
+from metropolis import do_simulation, search_c_grps
 
 class Par():
 
     def __init__(self):
         """Dummy class to hold material parameters"""
-        self.param_names = None
-        self.ucs = None
+        self.param_names = dict()
+        self.ucs = dict()
         return
 
     def apply_unit_conversions(self, reverse=False):
@@ -56,11 +56,6 @@ def make_grid(N, P, min_X, max_X, do_log, sim_flags):
 
     return N, P, X
 
-def almost_equal(x, x0, threshold=1e-10):
-    if x.shape != x0.shape: return False
-    
-    return np.abs(np.nanmax((x - x0) / x0)) < threshold
-
 def simulate(model, e_data, P, X, plI, param_info,
              sim_params, init_params, sim_flags, gpu_info, gpu_id, solver_time, err_sq_time, misc_time,
              logger=None):
@@ -85,7 +80,8 @@ def simulate(model, e_data, P, X, plI, param_info,
     #     num_SMs = getattr(device, "MULTIPROCESSOR_COUNT")
     
     LOG_PL = sim_flags["log_pl"]
-    
+    scale_f_info = sim_flags.get("scale_factor", None)
+    where_sfs = {s_name:i for i, s_name in enumerate(param_info["names"]) if s_name.startswith("_s")}
     thicknesses = sim_params["lengths"]
     nxes = sim_params["nx"]
     p = Par()
@@ -134,6 +130,15 @@ def simulate(model, e_data, P, X, plI, param_info,
                 plI[gpu_id] = np.log10(plI[gpu_id])
                 misc_time[gpu_id] += time.perf_counter() - clock0
 
+            if (scale_f_info is not None and ic_num in scale_f_info[1]):
+                if scale_f_info[2] is not None and len(scale_f_info[2]) > 0:
+                    s_name = f"_s{search_c_grps(scale_f_info[2], ic_num)}"
+                else:
+                    s_name = f"_s{ic_num}"
+                scale_shift = np.log10(X[:, where_sfs[s_name]:where_sfs[s_name]+1])
+            else:
+                scale_shift = 0
+
             values = e_data[1][ic_num]
             std = e_data[2][ic_num]
 
@@ -144,12 +149,17 @@ def simulate(model, e_data, P, X, plI, param_info,
 
             # else:
             clock0 = time.perf_counter()
-            P[blk:blk+size] -= np.sum((plI[gpu_id] - values)**2 / (sim_flags["current_sigma"][meas_type]**2 + 2*std**2), axis=1)
+            P[blk:blk+size] -= np.sum((plI[gpu_id] + scale_shift - values)**2 / (sim_flags["current_sigma"][meas_type]**2 + 2*std**2), axis=1)
             err_sq_time[gpu_id] += time.perf_counter() - clock0
         # END LOOP OVER BLOCKS
     # END LOOP OVER ICs
 
-    return
+def modify_scale_factors(param_info, sim_flags):
+    """Replace the (0, inf) default bounds for scale factors with their init_guess * or / their variance"""
+    spread = sim_flags["scale_factor"][0]
+    for name in param_info["names"]:
+        if name.startswith("_s"):
+            param_info["prior_dist"][name] = (param_info["init_guess"][name] / spread, param_info["init_guess"][name] * spread)
 
 def bayes(N, P, init_params, sim_params, e_data, sim_flags, param_info, logger=None):
     """ 
@@ -160,6 +170,8 @@ def bayes(N, P, init_params, sim_params, e_data, sim_flags, param_info, logger=N
     solver_time = np.zeros(num_gpus)
     err_sq_time = np.zeros(num_gpus)
     misc_time = np.zeros(num_gpus)
+
+    modify_scale_factors(param_info, sim_flags)
 
     min_X = np.array([param_info["prior_dist"][name][0] if param_info['active'][name] else param_info["init_guess"][name]
                       for name in param_info["names"]])
