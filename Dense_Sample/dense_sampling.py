@@ -6,6 +6,7 @@ import time
 import numpy as np
 
 from metropolis import do_simulation, search_c_grps
+from laplace import make_I_tables, do_irf_convolution, post_conv_trim
 
 class Par():
 
@@ -56,7 +57,7 @@ def make_grid(N, P, min_X, max_X, do_log, sim_flags):
 
     return N, P, X
 
-def simulate(model, e_data, P, X, plI, param_info,
+def simulate(model, e_data, P, X, param_info,
              sim_params, init_params, sim_flags, gpu_info, gpu_id, solver_time, err_sq_time, misc_time,
              logger=None):
     """ Delegate blocks of simulation tasks to connected GPUs """
@@ -82,6 +83,8 @@ def simulate(model, e_data, P, X, plI, param_info,
     LOG_PL = sim_flags["log_pl"]
     scale_f_info = sim_flags.get("scale_factor", None)
     where_sfs = {s_name:i for i, s_name in enumerate(param_info["names"]) if s_name.startswith("_s")}
+    irf_convolution = sim_flags.get("irf_convolution", None)
+    IRF_tables = sim_flags.get("IRF_tables", None)
     thicknesses = sim_params["lengths"]
     nxes = sim_params["nx"]
     p = Par()
@@ -91,43 +94,57 @@ def simulate(model, e_data, P, X, plI, param_info,
     for ic_num in range(sim_params["num_meas"]):
         meas_type = sim_params["meas_types"][ic_num]
         times = e_data[0][ic_num]
-        # Update thickness
+        values = e_data[1][ic_num]
+        std = e_data[2][ic_num]
+
         thickness = thicknesses[ic_num]
         nx = nxes[ic_num]
-        for blk in range(gpu_id*GPU_GROUP_SIZE,len(X),num_gpus*GPU_GROUP_SIZE):
-            if logger is not None:
-                logger.info("Curve #{}: Calculating {} of {}".format(ic_num, blk, len(X)))
-            size = min(GPU_GROUP_SIZE, len(X) - blk)
 
-            plI[gpu_id] = np.empty((size, len(times)))
-            #assert len(plI[gpu_id][0]) == len(values), "Error: plI size mismatch"
+        for i, mp in enumerate(X):
+            if logger is not None and i % 1000 == 0:
+                logger.info("Curve #{}: Calculating {} of {}".format(ic_num, i, len(X)))
 
-            # if has_GPU:
-            #     plN = np.empty((size, 2, sim_params[2]))
-            #     plP = np.empty((size, 2, sim_params[2]))
-            #     plE = np.empty((size, 2, sim_params[2]+1))
-            #     solver_time[gpu_id] += model(plI[gpu_id], plN, plP, plE, X[blk:blk+size, :-1], 
-            #                                  sim_params, init_params[ic_num],
-            #                                  TPB,8*num_SMs, max_sims_per_block, init_mode="points")
-            # else:
-
+            for j, n in enumerate(param_info["names"]):
+                setattr(p, n, mp[j])
             clock0 = time.perf_counter()
-            for i, mp in enumerate(X[blk:blk+size]):
-                for j, n in enumerate(param_info["names"]):
-                    setattr(p, n, mp[j])
-
-                tSteps, sol = model(p, thickness, nx, init_params[ic_num], times, 1,
-                                    meas=meas_type, solver=("solveivp",), model="std")
-                plI[gpu_id][i] = sol
-
+            tSteps, sol = model(p, thickness, nx, init_params[ic_num], times, 1,
+                                meas=meas_type, solver=("solveivp",), model="std")
             solver_time[gpu_id] += time.perf_counter() - clock0
+            
+            clock0 = time.perf_counter()
+            if irf_convolution is not None and irf_convolution[ic_num] != 0:
+                wave = int(irf_convolution[ic_num])
+                tSteps, sol, success = do_irf_convolution(
+                    tSteps, sol, IRF_tables[wave], time_max_shift=True)
+                if not success:
+                    raise ValueError("Error: Interpolation for conv failed. Check measurement data"
+                                    " times for floating-point inaccuracies.")
+                sol, times_c, vals_c, uncs_c = post_conv_trim(tSteps, sol, times, values, std)
 
+            else:
+                # Still need to trim, in case experimental data doesn't start at t=0
+                times_c = times
+                vals_c = values
+                uncs_c = std
+                sol = sol[-len(times_c):]
+            misc_time[gpu_id] += time.perf_counter() - clock0
+
+            where_failed = sol < 0
+            n_fails = np.sum(where_failed)
+
+            if n_fails > 0 and logger is not None:
+                logger.warning(f"{i}: {n_fails} / {len(sol)} non-positive vals")
+
+            sol[where_failed] *= -1
+
+            # Convolution has to be done per-sample. Otherwise the simulations could be postprocessed
+            # in blocks.
             if LOG_PL:
                 # if has_GPU:
                 #     misc_time[gpu_id] += fastlog(plI[gpu_id], sys.float_info.min, TPB[0], num_SMs)
                 # else:
                 clock0 = time.perf_counter()
-                plI[gpu_id] = np.log10(plI[gpu_id])
+                sol = np.log10(sol)
                 misc_time[gpu_id] += time.perf_counter() - clock0
 
             if (scale_f_info is not None and ic_num in scale_f_info[1]):
@@ -135,12 +152,9 @@ def simulate(model, e_data, P, X, plI, param_info,
                     s_name = f"_s{search_c_grps(scale_f_info[2], ic_num)}"
                 else:
                     s_name = f"_s{ic_num}"
-                scale_shift = np.log10(X[blk:blk+size, where_sfs[s_name]:where_sfs[s_name]+1])
+                scale_shift = np.log10(X[i, where_sfs[s_name]])
             else:
                 scale_shift = 0
-
-            values = e_data[1][ic_num]
-            std = e_data[2][ic_num]
 
             # Calculate errors
             # if has_GPU:
@@ -149,7 +163,7 @@ def simulate(model, e_data, P, X, plI, param_info,
 
             # else:
             clock0 = time.perf_counter()
-            P[blk:blk+size] -= np.sum((plI[gpu_id] + scale_shift - values)**2 / (sim_flags["current_sigma"][meas_type]**2 + 2*std**2), axis=1)
+            P[i] -= np.sum((sol + scale_shift - vals_c)**2 / (sim_flags["current_sigma"][meas_type]**2 + 2*uncs_c**2))
             err_sq_time[gpu_id] += time.perf_counter() - clock0
         # END LOOP OVER BLOCKS
     # END LOOP OVER ICs
@@ -188,12 +202,24 @@ def bayes(N, P, init_params, sim_params, e_data, sim_flags, param_info, logger=N
 
     sim_flags["current_sigma"] = dict(sim_flags["annealing"][0])
     sim_params = [dict(sim_params) for i in range(num_gpus)]
-    plI = [None for i in range(num_gpus)]
+
+    if sim_flags.get("irf_convolution", None) is not None:
+        irfs = {}
+        for i in sim_flags["irf_convolution"]:
+            if i > 0 and i not in irfs:
+                irfs[int(i)] = np.loadtxt(os.path.join("IRFs", f"irf_{int(i)}nm.csv"),
+                                            delimiter=",")
+
+        sim_flags["IRF_tables"] = make_I_tables(irfs)
+        if logger is not None:
+            logger.info(f"Found IRFs for WLs {list(sim_flags['IRF_tables'].keys())}")
+    else:
+        sim_flags["IRF_tables"] = None
     
     model = do_simulation
     gpu_id = 0
     # Single core control
-    simulate(model, e_data, P, X, plI,
+    simulate(model, e_data, P, X,
              param_info, sim_params[gpu_id], init_params, sim_flags, {}, gpu_id,
              solver_time, err_sq_time, misc_time, logger=logger)
     # Multi-GPU thread control
