@@ -63,7 +63,7 @@ def simulate(model, e_data, P, X, plI, param_info,
     # has_GPU = gpu_info["has_GPU"]
     # GPU_GROUP_SIZE = gpu_info["sims_per_gpu"]
     # num_gpus = gpu_info["num_gpus"]
-    GPU_GROUP_SIZE = sim_flags["num_iters"]
+    GPU_GROUP_SIZE = 1000
     num_gpus = 1
     
     # if has_GPU:
@@ -135,7 +135,7 @@ def simulate(model, e_data, P, X, plI, param_info,
                     s_name = f"_s{search_c_grps(scale_f_info[2], ic_num)}"
                 else:
                     s_name = f"_s{ic_num}"
-                scale_shift = np.log10(X[:, where_sfs[s_name]:where_sfs[s_name]+1])
+                scale_shift = np.log10(X[blk:blk+size, where_sfs[s_name]:where_sfs[s_name]+1])
             else:
                 scale_shift = 0
 
@@ -162,7 +162,7 @@ def modify_scale_factors(param_info, sim_flags):
             param_info["prior_dist"][name] = (param_info["init_guess"][name] / spread, param_info["init_guess"][name] * spread)
 
 def bayes(N, P, init_params, sim_params, e_data, sim_flags, param_info, logger=None):
-    """ 
+    """
     Driver function from Bayesian-Inference-TRPL, made compatible with MetroTRPL
     iniPar acts as init_params, sim_info as sim_params, and MCMC_fields as sim_flags
     """
@@ -171,7 +171,8 @@ def bayes(N, P, init_params, sim_params, e_data, sim_flags, param_info, logger=N
     err_sq_time = np.zeros(num_gpus)
     misc_time = np.zeros(num_gpus)
 
-    modify_scale_factors(param_info, sim_flags)
+    if "scale_factor" in sim_flags:
+    	modify_scale_factors(param_info, sim_flags)
 
     min_X = np.array([param_info["prior_dist"][name][0] if param_info['active'][name] else param_info["init_guess"][name]
                       for name in param_info["names"]])
@@ -183,6 +184,7 @@ def bayes(N, P, init_params, sim_params, e_data, sim_flags, param_info, logger=N
     
     if logger is not None:
         logger.info("Initializing {} random samples".format(len(X)))
+        logger.info(f"First three samples: {X[0:3]}")
 
     sim_flags["current_sigma"] = dict(sim_flags["annealing"][0])
     sim_params = [dict(sim_params) for i in range(num_gpus)]
