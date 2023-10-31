@@ -35,6 +35,8 @@ class MetroState():
         self.param_info = param_info
         self.MCMC_fields = MCMC_fields
         self.MCMC_fields["current_sigma"] = dict(self.MCMC_fields["annealing"][0])
+        self.latest_iter = 0
+        self.random_state = np.random.get_state()
         return
 
     def anneal(self, k, uncs=None, force=False, step=DEFAULT_ANN_STEP):
