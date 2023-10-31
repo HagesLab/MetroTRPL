@@ -1,17 +1,18 @@
 import unittest
-import numpy as np
 import logging
 import sys
-
+sys.path.append("..")
+import numpy as np
+from scipy.integrate import trapz
 from metropolis import all_signal_handler
-from metropolis import E_field, model, select_next_params
+from metropolis import E_field, solve, select_next_params
 from metropolis import do_simulation, roll_acceptance, unpack_simpar
 from metropolis import detect_sim_fail, detect_sim_depleted, almost_equal
 from metropolis import check_approved_param
 from metropolis import run_iteration
-from sim_utils import Parameters, Grid, Covariance
-from scipy.integrate import trapz
-eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
+from metropolis import search_c_grps
+from metropolis import set_min_y
+from sim_utils import Parameters, Grid, Covariance, calculate_PL, calculate_TRTS
 q = 1.0  # [e]
 q_C = 1.602e-19  # [C]
 kB = 8.61773e-5  # [eV / K]
@@ -23,13 +24,21 @@ class TestUtils(unittest.TestCase):
 
     def setUp(self):
         self.logger = logging.getLogger()
-        pass
+
+    def test_search_c_grps(self):
+        c_grps = [(0, 1, 2), (3, 4)]
+        self.assertEqual(search_c_grps(c_grps, 0), 0)
+        self.assertEqual(search_c_grps(c_grps, 1), 0)
+        self.assertEqual(search_c_grps(c_grps, 2), 0)
+        self.assertEqual(search_c_grps(c_grps, 3), 3)
+        self.assertEqual(search_c_grps(c_grps, 4), 3)
 
     def test_all_signal(self):
         def f(x): return x
         all_signal_handler(f)
 
     def test_E_field(self):
+        eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
         # Test 1D
         vals = {'n0': 0,
                 'p0': 0,
@@ -90,7 +99,7 @@ class TestUtils(unittest.TestCase):
 
         return
 
-    def test_model(self):
+    def test_solve(self):
         # A high-inj, rad-only sample problem
         g = Grid()
         g.nx = 100
@@ -131,23 +140,33 @@ class TestUtils(unittest.TestCase):
 
         param_info["init_guess"] = vals
         pa = Parameters(param_info)
-        pa.apply_unit_conversions(param_info)
-        init_dN = 1e20 * np.ones(g.nx) * 1e-21  # [cm^-3] to [nm^-3]
+        init_dN = 1e20 * np.ones(g.nx) # [cm^-3]
 
         # with solveivp
-        test_PL, out_dN = model(init_dN, g, pa, meas="TRPL", solver="solveivp",
+        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
                                 RTOL=1e-10, ATOL=1e-14)
+        # Calculate expected output in simulation units
+        pa.apply_unit_conversions()
         rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
-        self.assertAlmostEqual(
-            test_PL[-1], trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2)
+        expected_out = trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2
+        expected_out *= 1e23
+        pa.apply_unit_conversions(reverse=True)
+        self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]))
 
         # with odeint
-        test_PL, out_DN = model(init_dN, g, pa, meas="TRPL", solver="odeint",
+        test_PL, out_DN = solve(init_dN, g, pa, meas="TRPL", solver=("odeint",),
                                 RTOL=1e-10, ATOL=1e-14)
+        pa.apply_unit_conversions()
         rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
-        self.assertAlmostEqual(
-            test_PL[-1], trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2,
+        expected_out = trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2
+        expected_out *= 1e23
+        pa.apply_unit_conversions(reverse=True)
+        self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]),
             places=6)
+
+        # No change should be seen by Parameters()
+        for n in param_info["names"]:
+            self.assertEqual(getattr(pa, n), vals[n])
 
         # try a trts
 
@@ -165,27 +184,228 @@ class TestUtils(unittest.TestCase):
                 'eps': 1}
         param_info["init_guess"] = vals
         pa = Parameters(param_info)
-        pa.apply_unit_conversions(param_info)
 
-        test_TRTS, out_dN = model(
-            init_dN, g, pa, meas="TRTS", solver="solveivp")
+        test_TRTS, out_dN = solve(
+            init_dN, g, pa, meas="TRTS", solver=("solveivp",))
+        pa.apply_unit_conversions()
         trts = q_C * (pa.mu_n * out_dN + pa.mu_p * out_dN)
-        self.assertAlmostEqual(
-            test_TRTS[-1], trapz(trts, dx=g.dx) + trts[0]*g.dx/2 + trts[-1]*g.dx/2)
+        expected_out = trapz(trts, dx=g.dx) + trts[0]*g.dx/2 + trts[-1]*g.dx/2
+        expected_out *= 1e9
+        pa.apply_unit_conversions(reverse=True)
+        self.assertAlmostEqual(test_TRTS[-1] / np.amax(test_TRTS[-1]), expected_out / np.amax(test_TRTS[-1]))
+
+        for n in param_info["names"]:
+            self.assertEqual(getattr(pa, n), vals[n])
 
         # try an undefined measurement
         with self.assertRaises(NotImplementedError):
-            model(init_dN, g, pa, meas="something else")
+            solve(init_dN, g, pa, meas="something else")
 
         # try an undefined solver
         with self.assertRaises(NotImplementedError):
-            model(init_dN, g, pa, meas="TRPL", solver="somethign else")
+            solve(init_dN, g, pa, meas="TRPL", solver=("somethign else",))
 
         return
 
+    def test_solve_depletion(self):
+        """ A high-inj, rad-only sample problem. Parameters are chosen such that
+        the simulated PL will decay by about 2.5 orders of magnitude. """
+        g = Grid()
+        g.nx = 100
+        g.dx = 10
+        g.start_time = 0
+        g.time = 100
+        g.nt = 1000
+        g.hmax = 4
+        g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
+
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9),
+                            "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
+
+        param_info = {"names": ["n0", "p0", "mu_n", "mu_p",
+                                "ks", "tauN", "tauP",
+                                "Cn", "Cp", "Sf", "Sb", "eps", "Tm"],
+                      "active": {"n0": 0, "p0": 1,
+                                 "mu_n": 1, "mu_p": 1,
+                                 "Cn": 0, "Cp": 0,
+                                 "ks": 1, "Sf": 1, "Sb": 1,
+                                 "tauN": 1, "tauP": 1, "eps": 0,
+                                 "Tm": 0},
+                      "unit_conversions": unit_conversions}
+        vals = {'n0': 0,
+                'p0': 0,
+                'mu_n': 1,
+                'mu_p': 1,
+                "ks": 2e-10,
+                "Cn": 0, "Cp": 0,
+                'tauN': 1e99,
+                'tauP': 1e99,
+                'Sf': 0,
+                'Sb': 0,
+                "Tm": 300,
+                'eps': 1}
+
+        param_info["init_guess"] = vals
+        pa = Parameters(param_info)
+        init_dN = 1e18 * np.ones(g.nx) # [cm^-3]
+
+        PL0 = calculate_PL(g.dx * 1e-7, init_dN, init_dN, vals["ks"], vals["n0"], vals["p0"]) # in cm/s units
+        # No or large range - PL runs to conclusion
+        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+                                RTOL=1e-10, ATOL=1e-14)
+        self.assertEqual(len(g.tSteps), len(test_PL))
+
+        # Smaller range - PL decay stops early at PL_final, and signal over remaining time is set to PL_final
+        g.min_y = PL0 * 1e-2
+        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+                                RTOL=1e-10, ATOL=1e-14)
+
+        self.assertTrue(min(test_PL) >= g.min_y)
+        np.testing.assert_equal(test_PL[-10:], g.min_y)
+
+        # Try a TRTS
+        TRTS0 = calculate_TRTS(g.dx * 1e-7, init_dN, init_dN, vals["mu_n"], vals["mu_p"], vals["n0"], vals["p0"])
+        # No or large range - PL runs to conclusion
+        g.min_y = TRTS0 * 1e-10
+        test_TRTS, out_dN = solve(init_dN, g, pa, meas="TRTS", solver=("solveivp",),
+                                RTOL=1e-10, ATOL=1e-14)
+        self.assertEqual(len(g.tSteps), len(test_TRTS))
+
+
+        # Smaller range - TRTS is truncated
+        g.min_y = TRTS0 * 1e-1
+        test_TRTS, out_dN = solve(init_dN, g, pa, meas="TRTS", solver=("solveivp",),
+                                RTOL=1e-10, ATOL=1e-14)
+        self.assertTrue(min(test_TRTS) >= g.min_y)
+        np.testing.assert_equal(test_TRTS[-10:], g.min_y)
+
+        return
+
+    def test_solve_traps(self):
+        # A high-inj, rad-only sample problem using null parameters for the trap model
+        # which should be equivalent to the std model
+        g = Grid()
+        g.nx = 100
+        g.dx = 10
+        g.start_time = 0
+        g.time = 100
+        g.nt = 1000
+        g.hmax = 4
+        g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
+
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9),
+                            "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2,
+                            "kC": ((1e7) ** 3) / (1e9),
+                            "Nt": ((1e-7) ** 3)}
+
+        param_info = {"names": ["n0", "p0", "mu_n", "mu_p",
+                                "ks", "tauN", "tauP",
+                                "Cn", "Cp", "Sf", "Sb", "eps", "Tm",
+                                "kC", "Nt", "tauE"],
+                      "active": {"n0": 0, "p0": 1,
+                                 "mu_n": 0, "mu_p": 0,
+                                 "Cn": 0, "Cp": 0,
+                                 "ks": 1, "Sf": 1, "Sb": 1,
+                                 "tauN": 1, "tauP": 1, "eps": 0,
+                                 "Tm": 0,"kC": 1, "Nt": 1, "tauE": 1},
+                      "unit_conversions": unit_conversions}
+        vals = {"n0": 0,
+                "p0": 0,
+                "mu_n": 0,
+                "mu_p": 0,
+                "ks": 1e-11,
+                "Cn": 0, "Cp": 0,
+                "tauN": 1e99,
+                "tauP": 1e99,
+                "Sf": 0,
+                "Sb": 0,
+                "Tm": 300,
+                "eps": 1,
+                "kC": 0,
+                "Nt": 0,
+                "tauE": 1e99}
+
+        param_info["init_guess"] = vals
+        pa = Parameters(param_info)
+        init_dN = 1e20 * np.ones(g.nx) # [cm^-3]
+
+        # with solveivp
+        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",), model="traps",
+                                RTOL=1e-10, ATOL=1e-14)
+        # Calculate expected output in simulation units
+        pa.apply_unit_conversions()
+        rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
+        expected_out = trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2
+        expected_out *= 1e23
+        pa.apply_unit_conversions(reverse=True)
+        self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]))
+
+        return
+
+    def test_solve_iniPar(self):
+        # A high-inj, rad-only sample problem
+        g = Grid()
+        g.nx = 100
+        g.dx = 10
+        g.thickness = 1000 # in nm
+        g.start_time = 0
+        g.time = 100
+        g.nt = 1000
+        g.hmax = 4
+        g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
+
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9),
+                            "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
+
+        param_info = {"names": ["n0", "p0", "mu_n", "mu_p",
+                                "ks", "tauN", "tauP",
+                                "Cn", "Cp", "Sf", "Sb", "eps", "Tm"],
+                      "active": {"n0": 0, "p0": 1,
+                                 "mu_n": 0, "mu_p": 0,
+                                 "Cn": 0, "Cp": 0,
+                                 "ks": 1, "Sf": 1, "Sb": 1,
+                                 "tauN": 1, "tauP": 1, "eps": 0,
+                                 "Tm": 0},
+                      "unit_conversions": unit_conversions}
+        vals = {'n0': 0,
+                'p0': 0,
+                'mu_n': 0,
+                'mu_p': 0,
+                "ks": 1e-11,
+                "Cn": 0, "Cp": 0,
+                'tauN': 1e99,
+                'tauP': 1e99,
+                'Sf': 0,
+                'Sb': 0,
+                "Tm": 300,
+                'eps': 1}
+
+        param_info["init_guess"] = vals
+        pa = Parameters(param_info)
+
+        fluence = 1e15 # Fluence, alpha in cm units
+        alpha = 6e4
+        g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
+
+        init_dN = fluence * alpha * np.exp(-alpha * g.xSteps * 1e-7)  # In cm units
+
+        PL_by_initvals, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+                                       RTOL=1e-10, ATOL=1e-14)
+
+        PL_by_initparams, out_dN = solve([fluence, alpha], g, pa, meas="TRPL", solver=("solveivp",),
+                                         RTOL=1e-10, ATOL=1e-14)
+
+        np.testing.assert_almost_equal(PL_by_initvals / np.amax(PL_by_initvals), PL_by_initparams / np.amax(PL_by_initvals))
+
+
     def test_approve_param(self):
         info = {'names': ['tauP', 'tauN', 'somethingelse'],
-                'unit_conversions': {'tauP': 1, 'tauN': 1, 'somethingelse': 1},
                 'prior_dist': {'tauP': (0.1, np.inf), 'tauN': (0.1, np.inf),
                                'somethingelse': (-np.inf, np.inf)},
                 'do_log': {'tauP': 1, 'tauN': 1, 'somethingelse': 1}}
@@ -207,7 +427,6 @@ class TestUtils(unittest.TestCase):
 
         # These should still work if p is not logscaled
         info = {'names': ['tauP', 'tauN', 'somethingelse'],
-                'unit_conversions': {'tauP': 1, 'tauN': 1, 'somethingelse': 1},
                 'prior_dist': {'tauP': (0.1, np.inf), 'tauN': (0.1, np.inf),
                                'somethingelse': (-np.inf, np.inf)},
                 'do_log': {'tauP': 0, 'tauN': 0, 'somethingelse': 1}}
@@ -221,25 +440,6 @@ class TestUtils(unittest.TestCase):
         new_p = np.array([0.1, 0.11, 1])
         self.assertTrue("tauP_size" in check_approved_param(new_p, info))
         new_p = np.array([0.11, 0.1, 1])
-        self.assertTrue("tauN_size" in check_approved_param(new_p, info))
-
-        # These should also still work if new_p's unit system is different
-        info = {'names': ['tauP', 'tauN', 'somethingelse'],
-                'unit_conversions': {'tauP': 0.1, 'tauN': 0.01,
-                                     'somethingelse': 0.1},
-                'prior_dist': {'tauP': (0.1, np.inf), 'tauN': (0.1, np.inf),
-                               'somethingelse': (-np.inf, np.inf)},
-                'do_log': {'tauP': 0, 'tauN': 0, 'somethingelse': 1}}
-        new_p = np.array([511 * 0.1, 511e2 * 0.01, 1 * 0.1])
-        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
-        new_p = np.array([511 * 0.1, (511e2+1) * 0.01,  1 * 0.1])
-        self.assertTrue("tn_tp_close" in check_approved_param(new_p, info))
-
-        new_p = np.array([0.11 * 0.1, 0.11 * 0.01, 1 * 0.1])
-        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
-        new_p = np.array([0.09 * 0.1, 0.11 * 0.01, 1 * 0.1])
-        self.assertTrue("tauP_size" in check_approved_param(new_p, info))
-        new_p = np.array([0.11 * 0.1, 0.09 * 0.01, 1 * 0.1])
         self.assertTrue("tauN_size" in check_approved_param(new_p, info))
 
         # Check mu_n, mu_p, Sf, and Sb size limits
@@ -426,7 +626,6 @@ class TestUtils(unittest.TestCase):
         param_names = ["mu_n", "mu_p"]
 
         do_log = {"mu_n": 1, "mu_p": 1}
-        unit_conversions = {"mu_n": 1, "mu_p": 1}
 
         prior_dist = {"mu_n": (0.1, np.inf),
                       "mu_p": (0.1, np.inf),
@@ -441,7 +640,6 @@ class TestUtils(unittest.TestCase):
                          }
 
         param_info = {"active": active_params,
-                      "unit_conversions": unit_conversions,
                       "do_log": do_log,
                       "names": param_names,
                       "do_mu_constraint": (20, 3),
@@ -492,13 +690,12 @@ class TestUtils(unittest.TestCase):
 
         param_info["init_guess"] = vals
         pa = Parameters(param_info)
-        pa.apply_unit_conversions(param_info)
 
         thickness = 1000
         nx = 100
         times = np.linspace(10, 100, 901)
 
-        iniPar = np.logspace(19, 14, nx) * 1e-21
+        iniPar = np.logspace(19, 14, nx)
         tSteps, sol = do_simulation(pa, thickness, nx, iniPar, times, hmax=4)
         np.testing.assert_equal(tSteps[0], 0)
 
@@ -584,26 +781,6 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(meas_type[2], mtype)
         return
 
-    # def test_anneal(self):
-    #     anneal_mode = None # T = T_2
-    #     anneal_params = [0, 0, 1] #T_2
-    #     t = 9999
-    #     self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params[0])
-
-    #     anneal_mode = "exp" # T = T_0 * exp(-t/T_1) + T_2
-    #     anneal_params = [10,1, 0]
-    #     t = 1
-    #     self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params / np.exp(1))
-
-    #     anneal_mode = "log" # T = (T_0 ln(2)) / (ln(2 + (t / T_1))) + T_2
-    #     t = 23523
-    #     anneal_params = [10, t / (np.exp(1) - 2), 0]
-    #     self.assertTrue(anneal(t, anneal_mode, anneal_params), anneal_params[0] * np.log(2))
-
-    #     anneal_mode = "not a mode"
-    #     with self.assertRaises(ValueError):
-    #         anneal(t, anneal_mode, anneal_params)
-
     def test_run_iter(self):
         # Will basically need to set up a full simulation for this
         np.random.seed(42)
@@ -615,7 +792,7 @@ class TestUtils(unittest.TestCase):
                   "meas_types": mtype,
                   "num_meas": 2}
 
-        iniPar = [1e15 * np.ones(L[0]) * 1e-21, 1e16 * np.ones(L[1]) * 1e-21]
+        iniPar = [1e15 * np.ones(L[0]), 1e16 * np.ones(L[1])]
 
         param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
                        "Sf", "Sb", "tauN", "tauP", "eps", "m"]
@@ -644,21 +821,19 @@ class TestUtils(unittest.TestCase):
                          "m": 1}
         param_info["init_guess"] = initial_guess
 
-        sim_flags = {"current_sigma": 1,
+        sim_flags = {"current_sigma": {"TRPL": 1},
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
-                     "measurement": "TRPL",
                      "self_normalize": None,
-                     "solver": "solveivp", }
+                     "solver": ("solveivp",),
+                     "model": "std"}
 
         p = Parameters(param_info)
-        p.apply_unit_conversions(param_info)
         p2 = Parameters(param_info)
-        p2.apply_unit_conversions(param_info)
 
         nt = 1000
         running_hmax = [4] * len(iniPar)
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
-        vals = [np.zeros(nt+1), np.zeros(nt+1)]
+        vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
         accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
                                  running_hmax, sim_flags, verbose=True,
@@ -678,6 +853,81 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(p.likelihood, p2.likelihood)
         np.testing.assert_equal(p.err_sq, p2.err_sq)
 
+    def test_run_iter_depletion(self):
+        """Prove that the truncation allows likelihood of two carrier-depleting simulations to be reliably determined."""
+        np.random.seed(42)
+        Length = [2000]                            # Length (nm)
+        L = [2 ** 7]                                # Spatial point
+        mtype = ["TRPL"]
+        simPar = {"lengths": Length, "nx": L, "meas_types": mtype, "num_meas": 1}
+
+        iniPar = [1e15 * np.ones(L[0])] # PL(t=0) ~ 2e15
+
+        param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
+                       "Sf", "Sb", "tauN", "tauP", "eps", "m"]
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9), "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
+
+        param_info = {"names": param_names,
+                      "unit_conversions": unit_conversions,
+                      "active": {name: 0 for name in param_names}}
+        initial_guess = {"n0": 1e8,
+                         "p0": 1e17,
+                         "mu_n": 0,
+                         "mu_p": 0,
+                         "ks": 1e-13,
+                         "Sf": 0,
+                         "Sb": 0,
+                         "Cn": 0,
+                         "Cp": 0,
+                         "Tm": 300,
+                         "tauN": 4, # Fast enough to deplete carriers
+                         "tauP": 4,
+                         "eps": 10,
+                         "m": 1}
+        param_info["init_guess"] = initial_guess
+
+        sim_flags = {"current_sigma": {"TRPL": 1},
+                     "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
+                     "self_normalize": None,
+                     "solver": ("solveivp",),
+                     "force_min_y": True,
+                     "model": "std"}
+
+        p = Parameters(param_info)
+
+        nt = 1000
+        running_hmax = [4] * len(iniPar)
+        times = [np.linspace(0, 100, nt+1)]
+        vals = [np.log10(2e14 * np.exp(-times[0] / 8))]
+        uncs = [np.ones(nt+1) * 1e-99]
+        run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                      running_hmax, sim_flags, verbose=True,
+                      logger=self.logger, prev_p=None)
+
+        # A small move toward the true lifetime of 10 makes the likelihood better
+        # Without min_y truncation, the likelihoods were so small they weren't even comparable
+        param_info["init_guess"]["tauN"] = 4.01
+        param_info["init_guess"]["tauP"] = 4.01
+
+        p2 = Parameters(param_info)
+        run_iteration(p2, simPar, iniPar, times, vals, uncs, None,
+                      running_hmax, sim_flags, verbose=True,
+                      logger=self.logger, prev_p=None)
+        self.assertTrue(p2.likelihood[0] > p.likelihood[0])
+
+    def test_set_min_y(self):
+        t = np.linspace(0, 100, 100)
+        vals = np.log10(np.exp(-t / 2)) # A slow decay
+        sol = np.exp(-t) # A faster decay
+        scale_shift = np.log10(0.1)
+        sol, min_y, n_set = set_min_y(sol, vals, scale_shift)
+
+        # Show that the min_y accounts for scale_shift
+        np.testing.assert_equal(sol[len(sol)-n_set:], min_y)
+        self.assertEqual(np.log10(min_y), min(vals) - scale_shift)
+
     def test_run_iter_cutoff(self):
         # Same as test_run_iter, only "experimental" data is
         # truncated at [50,100] instead of [0,100].
@@ -691,7 +941,7 @@ class TestUtils(unittest.TestCase):
                   "meas_types": mtype,
                   "num_meas": 2}
 
-        iniPar = [1e15 * np.ones(L[0]) * 1e-21, 1e16 * np.ones(L[1]) * 1e-21]
+        iniPar = [1e15 * np.ones(L[0]), 1e16 * np.ones(L[1])]
 
         param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
                        "Sf", "Sb", "tauN", "tauP", "eps", "m"]
@@ -720,21 +970,19 @@ class TestUtils(unittest.TestCase):
                          "m": 1}
         param_info["init_guess"] = initial_guess
 
-        sim_flags = {"current_sigma": 1,
+        sim_flags = {"current_sigma": {"TRPL": 1},
                      "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
-                     "measurement": "TRPL",
                      "self_normalize": None,
-                     "solver": "solveivp", }
+                     "solver": ("solveivp",),
+                     "model": "std"}
 
         p = Parameters(param_info)
-        p.apply_unit_conversions(param_info)
         p2 = Parameters(param_info)
-        p2.apply_unit_conversions(param_info)
 
         nt = 500
         running_hmax = [4] * len(iniPar)
         times = [np.linspace(50, 100, nt+1), np.linspace(50, 100, nt+1)]
-        vals = [np.zeros(nt+1), np.zeros(nt+1)]
+        vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
         accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
                                  running_hmax, sim_flags, verbose=True,
@@ -743,6 +991,195 @@ class TestUtils(unittest.TestCase):
         # First iter; auto-accept
         np.testing.assert_almost_equal(
             p.likelihood, [-29701, -16309], decimal=0)  # rtol=1e-5
+
+    def test_run_iter_normalize(self):
+        # Same as test_run_iter, except self_normalization is active
+        # log(sol) should be much closer to vals (which is zero) as a result
+        np.random.seed(42)
+        Length = [2000, 2000]                            # Length (nm)
+        L = [2 ** 7, 2 ** 7]                                # Spatial point
+        mtype = ["TRPL", "TRPL"]
+        simPar = {"lengths": Length,
+                  "nx": L,
+                  "meas_types": mtype,
+                  "num_meas": 2}
+
+        iniPar = [1e15 * np.ones(L[0]), 1e16 * np.ones(L[1])]
+
+        param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
+                       "Sf", "Sb", "tauN", "tauP", "eps"]
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9), "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
+
+        # Iterations should proceed independent of which params are actively iterated,
+        # as all params are presumably needed to complete the simulation
+        param_info = {"names": param_names,
+                      "unit_conversions": unit_conversions,
+                      "active": {name: 0 for name in param_names}}
+        initial_guess = {"n0": 0,
+                         "p0": 0,
+                         "mu_n": 0,
+                         "mu_p": 0,
+                         "ks": 1e-20,
+                         "Sf": 0,
+                         "Sb": 0,
+                         "Cn": 0,
+                         "Cp": 0,
+                         "Tm": 300,
+                         "tauN": 1e99,
+                         "tauP": 1e99,
+                         "eps": 10}
+        param_info["init_guess"] = initial_guess
+
+        sim_flags = {"current_sigma": {"TRPL": 1},
+                     "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
+                     "self_normalize": ["TRPL"],
+                     "solver": ("solveivp",),
+                     "model": "std"}
+
+        p = Parameters(param_info)
+        p2 = Parameters(param_info)
+
+        nt = 1000
+        running_hmax = [4] * len(iniPar)
+        times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
+        vals = [np.zeros(nt+1), np.zeros(nt+1)]
+        uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
+        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                                 running_hmax, sim_flags, verbose=True,
+                                 logger=self.logger, prev_p=None)
+
+        np.testing.assert_almost_equal(
+            p.likelihood, [0, 0], decimal=0)  # rtol=1e-5
+
+    def test_run_iter_scale(self):
+        # Same as test_run_iter, except global scale factor, which will be chosen to match
+        # the first measurement (but off by one order of magnitude from the second)
+        # likelihood should be small but nonzero as a result
+        np.random.seed(42)
+        Length = [2000, 2000]                            # Length (nm)
+        L = [2 ** 7, 2 ** 7]                                # Spatial point
+        mtype = ["TRPL", "TRPL"]
+        simPar = {"lengths": Length,
+                  "nx": L,
+                  "meas_types": mtype,
+                  "num_meas": 2}
+
+        iniPar = [1e15 * np.ones(L[0]), 1e16 * np.ones(L[1])]
+
+        param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
+                       "Sf", "Sb", "tauN", "tauP", "eps"]
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9), "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
+
+        # Iterations should proceed independent of which params are actively iterated,
+        # as all params are presumably needed to complete the simulation
+        param_info = {"names": param_names,
+                      "unit_conversions": unit_conversions,
+                      "active": {name: 0 for name in param_names}}
+        initial_guess = {"n0": 0,
+                         "p0": 0,
+                         "mu_n": 0,
+                         "mu_p": 0,
+                         "ks": 1e-20,
+                         "Sf": 0,
+                         "Sb": 0,
+                         "Cn": 0,
+                         "Cp": 0,
+                         "Tm": 300,
+                         "tauN": 1e99,
+                         "tauP": 1e99,
+                         "eps": 10}
+        param_info["init_guess"] = initial_guess
+
+        sim_flags = {"current_sigma": {"TRPL": 1},
+                     "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
+                     "self_normalize": None,
+                     "scale_factor": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2, 4), (1, 3, 5)]),
+                     "solver": ("solveivp",),
+                     "model": "std"}
+
+        p = Parameters(param_info)
+        # By setting individual scale factors in this simple case the likelihood can be made perfect
+        setattr(p, "_s0", 2e-17 ** -1)
+        setattr(p, "_s1", 2e-15 ** -1)
+        nt = 1000
+        running_hmax = [4] * len(iniPar)
+        times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
+        vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
+        uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
+
+        run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                      running_hmax, sim_flags, verbose=True,
+                      logger=self.logger, prev_p=None)
+
+        np.testing.assert_almost_equal(
+            p.likelihood, [0, 0], decimal=0)  # rtol=1e-5
+
+    def test_run_iter_mixed_types(self):
+        # Will basically need to set up a full simulation for this
+        np.random.seed(42)
+        Length = [2000, 2000]                            # Length (nm)
+        L = [2 ** 7, 2 ** 7]                                # Spatial point
+        mtype = ["TRPL", "TRTS"]
+        simPar = {"lengths": Length,
+                  "nx": L,
+                  "meas_types": mtype,
+                  "num_meas": 2}
+
+        iniPar = [1e15 * np.ones(L[0]), 1e15 * np.ones(L[1])]
+
+        param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
+                       "Sf", "Sb", "tauN", "tauP", "eps", "m"]
+        unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
+                            "mu_n": ((1e7) ** 2) / (1e9), "mu_p": ((1e7) ** 2) / (1e9),
+                            "ks": ((1e7) ** 3) / (1e9), "Sf": 1e-2, "Sb": 1e-2}
+
+        # Iterations should proceed independent of which params are actively iterated,
+        # as all params are presumably needed to complete the simulation
+        param_info = {"names": param_names,
+                      "unit_conversions": unit_conversions,
+                      "active": {name: 0 for name in param_names}}
+        initial_guess = {"n0": 0,
+                         "p0": 0,
+                         "mu_n": 0.01,
+                         "mu_p": 0.01,
+                         "ks": 1e-11,
+                         "Sf": 0,
+                         "Sb": 0,
+                         "Cn": 0,
+                         "Cp": 0,
+                         "Tm": 300,
+                         "tauN": 1e99,
+                         "tauP": 1e99,
+                         "eps": 10,
+                         "m": 1}
+        param_info["init_guess"] = initial_guess
+
+        sim_flags = {"current_sigma": {"TRPL": 1, "TRTS": 10},
+                     "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
+                     "self_normalize": None,
+                     "solver": ("solveivp",),
+                     "model": "std"}
+
+        p = Parameters(param_info)
+        p2 = Parameters(param_info)
+
+        nt = 1000
+        running_hmax = [4] * len(iniPar)
+        times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
+        vals = [np.ones(nt+1) * 23, np.ones(nt+1) * -2]
+        uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
+        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                                 running_hmax, sim_flags, verbose=True,
+                                 logger=self.logger, prev_p=None)
+
+        # First iter; auto-accept
+        np.testing.assert_almost_equal(
+            p.likelihood, [-59340.105083, -517.98], decimal=0)  # rtol=1e-5
+        self.assertTrue(accepted)
 
     def test_one_sim_ll_errata(self):
         # TODO: The next time odeint fails to do a simulation, upload it into this
@@ -758,7 +1195,7 @@ class TestUtils(unittest.TestCase):
 
         # simPar = [Length, -1, L, -1, plT, pT, tol, MAX]
 
-        # iniPar = [np.logspace(20,1,L) * 1e-21, 1e16 * np.ones(L) * 1e-21]
+        # iniPar = [np.logspace(20,1,L), 1e16 * np.ones(L)]
 
         # param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp", "Tm",
         #                "Sf", "Sb", "tauN", "tauP", "eps", "m"]
@@ -788,7 +1225,7 @@ class TestUtils(unittest.TestCase):
 
         # sim_flags = {"hmax":MIN_HMAX * 4, "rtol":1e-10, "atol":1e-10,
         #              "measurement":"TRPL",
-        #              "solver":"odeint"}
+        #              "solver":("odeint",)}
 
         # nt = 100
         # i = 0
@@ -810,8 +1247,7 @@ class TestUtils(unittest.TestCase):
         # self.assertEqual(captured.records[2].getMessage(),
         #                  f"{i}: Retrying hmax={MIN_HMAX * 2}")
 
-
 if __name__ == "__main__":
     t = TestUtils()
     t.setUp()
-    t.test_do_simulation()
+    t.test_run_iter_depletion()

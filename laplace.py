@@ -80,6 +80,8 @@ def do_irf_convolution(t, y, IRF_table, time_max_shift=False):
     convolved_t = resampled_t[::2]
     if time_max_shift:
         convolved_t -= convolved_t[np.argmax(convolved_y)]
+        if convolved_t[-1] == 0: # May happen if y decays extremely slowly
+            success = False
     return convolved_t, convolved_y, success
 
 

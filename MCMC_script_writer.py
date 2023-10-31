@@ -15,6 +15,7 @@ from bayes_io import generate_config_script_file
 
 if __name__ == "__main__":
     # Just some HiperGator-specific stuff
+    # Set up jobid, script_head, init_dir, out_dir, etc... depending on your computer
     on_hpg = 0
     try:
         jobid = int(sys.argv[1])
@@ -28,13 +29,13 @@ if __name__ == "__main__":
         out_dir = r"/blue/c.hages/cfai2304/Metro_out"
 
     else:
-        init_dir = r"bay_inputs"
+        init_dir = r"Inputs"
         out_dir = r"bay_outputs"
 
     # Filenames
-    init_fname = "staub_MAPI_threepower_twothick_input.csv"
-    exp_fname = "staub_MAPI_threepower_twothick_withauger.csv"
-    out_fname = "DEBUG"
+    init_fname = "staub_MAPI_threepower_twothick_fluences.csv"
+    exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
+    out_fname = "sample_output"
 
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
@@ -43,10 +44,9 @@ if __name__ == "__main__":
 
     # Info for each measurement's corresponding simulation
     num_measurements = 6
-    Length = [311, 2000, 311, 2000, 311, 2000]
-    # Length = [2000] * 3             # Length (nm)
+    Length = [311, 2000, 311, 2000, 311, 2000] # in nm
     L = [128] * 6                         # Spatial points
-    measurement_types = ["TRPL"]*6
+    measurement_types = ["TRPL"] * 6
     simPar = {"lengths": Length,
               "nx": L,
               "meas_types": measurement_types,
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     # which will shift the simulation output by x10**m before calculating
     # likelihood vs measurement
     param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp",
-                   "Sf", "Sb", "tauN", "tauP", "eps", "Tm", "m"]
+                   "Sf", "Sb", "tauN", "tauP", "eps", "Tm"]
 
     unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
                         "mu_n": ((1e7) ** 2) / (1e9),
@@ -65,11 +65,12 @@ if __name__ == "__main__":
                         "ks": ((1e7) ** 3) / (1e9),
                         "Cn": ((1e7) ** 6) / (1e9),
                         "Cp": ((1e7) ** 6) / (1e9),
-                        "Sf": 1e-2, "Sb": 1e-2, "Tm": 1}
+                        "Sf": 1e-2, "Sb": 1e-2, "Tm": 1,
+                        }
 
     do_log = {"n0": 1, "p0": 1, "mu_n": 1, "mu_p": 1, "ks": 1, "Cn": 1, "Cp": 1,
-              "Sf": 1, "Sb": 1, "tauN": 1, "tauP": 1, "eps": 1, "Tm": 1,
-              "m": 1}
+              "Sf": 1, "Sb": 1, "tauN": 1, "tauP": 1, "eps": 1, "Tm": 1
+              }
 
     prior_dist = {"n0": (0, np.inf),
                   "p0": (1e14, 1e16),
@@ -84,7 +85,7 @@ if __name__ == "__main__":
                   "tauP": (1, 3000),
                   "eps": (0, np.inf),
                   "Tm": (0, np.inf),
-                  "m": (-np.inf, np.inf)}
+                  }
 
     initial_guesses = {"n0": 1e8,
                        "p0": 3e15,
@@ -99,7 +100,7 @@ if __name__ == "__main__":
                        "tauP": 871,
                        "eps": 10,
                        "Tm": 300,
-                       "m": 1}
+                       }
 
     active_params = {"n0": 0,
                      "p0": 1,
@@ -114,9 +115,14 @@ if __name__ == "__main__":
                      "tauP": 1,
                      "eps": 0,
                      "Tm": 0,
-                     "m": 0}
+                     }
     # Proposal function search widths
-    initial_variance = {param: 1 for param in param_names}
+    initial_variance = {param: 0.02 for param in param_names}
+
+    # Randomize the initial guess a little
+    for name in param_names:
+        if active_params[name]:
+            initial_guesses[name] *= 10 ** np.random.uniform(-0.5, 0.5)
 
     param_info = {"names": param_names,
                   "active": active_params,
@@ -128,7 +134,7 @@ if __name__ == "__main__":
 
     # Measurement preprocessing options
     meas_fields = {"time_cutoff": [0, 2000],
-                   "select_obs_sets": None,  # [0,1,2],
+                   "select_obs_sets": None,  # e.g. [0, 2, 4] to select only 311nm curves
                    }
 
     # Other MCMC control potions
@@ -136,15 +142,19 @@ if __name__ == "__main__":
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
-                   "num_iters": 8000,
-                   "solver": "solveivp",
+                   "num_iters": 50,
+                   "solver": ("solveivp",),
+                   "model": "std",
                    "likel2variance_ratio": 500,
                    "log_pl": 1,
-                   "self_normalize": 0,
-                   "irf_convolution": [1, 2, 3, 4, 5],
+                   "self_normalize": None,
+                   "scale_factor": None,
+                   "fittable_fluences": None,
+                   "irf_convolution": None,
                    "proposal_function": "box",
                    "one_param_at_a_time": 0,
                    "hard_bounds": 1,
+                   "force_min_y": 0,
                    "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
                    "checkpoint_header": f"CPU{jobid}",
                    "checkpoint_freq": 12000,
@@ -155,7 +165,7 @@ if __name__ == "__main__":
     # Compute properly scaled initial model uncertainty from initial variance
     MCMC_fields["annealing"] = (
         max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"],
-        200000, 1e-2)
+        999999, 1e-2)
 
     generate_config_script_file(script_path, simPar, param_info,
                                 meas_fields, MCMC_fields, verbose=True)

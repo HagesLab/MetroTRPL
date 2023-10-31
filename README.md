@@ -1,6 +1,7 @@
 # MetroTRPL
 Efficient parameter fitting of TRPL curves using a Metropolis-Hastings Monte Carlo sampling algorithm, as described in the article "Rapid optoelectronic characterization of semiconductors combining Bayesian inference with Metropolis sampling" (2023) by C. Fai, A. J. C. Ladd, and C. Hages.
 
+[![DOI](https://zenodo.org/badge/460199913.svg)](https://zenodo.org/badge/latestdoi/460199913)
 For a quick start, download the latest release under the **Releases** tab on the right of the page.
 
 ## Required Packages
@@ -10,6 +11,7 @@ Compatible version ranges coming soon!
 * numpy 1.20
 * numba 0.54.1
 * scipy 1.7.1
+* pillow 9.5.0
 
 The Anaconda Distribution also contains all of the above packages.
 

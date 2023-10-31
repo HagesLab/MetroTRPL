@@ -102,8 +102,9 @@ class TestUtils(unittest.TestCase):
                        "measurement_path": None,
                        "output_path": "test-out",
                        "num_iters": num_iters,
-                       "solver": "solveivp",
-                       "likel2variance_ratio": 500,
+                       "solver": ("solveivp",),
+                       "model": "std",
+                       "likel2variance_ratio": {"TRPL": 500},
                        "log_pl": 1,
                        "self_normalize": None,
                        "proposal_function": "box",
@@ -117,16 +118,18 @@ class TestUtils(unittest.TestCase):
                        "load_checkpoint": None,
                        }
 
-        MCMC_fields["annealing"] = (
-            max(initial_variance.values()) *
-            MCMC_fields["likel2variance_ratio"],
-            2000, 1e-2)
+        annealing_step = 2000
+        min_sigma = 0.01
+        MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"][m]
+                                    for m in sim_info["meas_types"]},
+                                    annealing_step,
+                                    {m:min_sigma for m in sim_info["meas_types"]})
 
         self.MS = MetroState(param_info, MCMC_fields, num_iters)
 
         self.MS.sim_info = sim_info
         # Dummy initial condition and measurement data
-        self.MS.iniPar = [np.ones(self.MS.sim_info["nx"][0]) * 1e16 * 1e-21]
+        self.MS.iniPar = [np.ones(self.MS.sim_info["nx"][0]) * 1e16]
         self.MS.times = [np.linspace(0, 100, 100)]
         self.MS.vals = [np.ones(len(self.MS.times[0])) * -20]
         self.MS.uncs = [np.ones(len(self.MS.times[0])) * 0.04]
@@ -165,11 +168,8 @@ class TestUtils(unittest.TestCase):
                                 self.MS_from_chpt.H.loglikelihood)
 
         for param in self.MS.param_info['names']:
-            h1 = getattr(self.MS.H, param)
             h1_mean = getattr(self.MS.H, f"mean_{param}")
-            h2 = getattr(self.MS_from_chpt.H, param)
             h2_mean = getattr(self.MS_from_chpt.H, f"mean_{param}")
-            np.testing.assert_equal(h1, h2)
             np.testing.assert_equal(h1_mean, h2_mean)
         return
 

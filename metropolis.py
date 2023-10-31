@@ -4,20 +4,24 @@ Created on Mon Jan 31 22:13:26 2022
 
 @author: cfai2
 """
-import numpy as np
-from scipy.integrate import solve_ivp, odeint
-from scipy.interpolate import griddata
 import os
 import sys
 import signal
 import pickle
+import numpy as np
+from scipy.integrate import solve_ivp, odeint
 
-from forward_solver import dydt_numba
-from sim_utils import MetroState, Grid, Solution
+from forward_solver import MODELS
+from sim_utils import MetroState, Grid, Solution, check_threshold
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import make_dir, clear_checkpoint_dir
 from laplace import make_I_tables, do_irf_convolution, post_conv_trim
-
+try:
+    from nn_features import NeuralNetwork
+    HAS_NN_LIB = True
+    nn = NeuralNetwork()
+except ImportError:
+    HAS_NN_LIB = False
 
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
@@ -29,7 +33,6 @@ DEFAULT_RTOL = 1e-7
 DEFAULT_ATOL = 1e-10
 DEFAULT_HMAX = 4
 MAX_PROPOSALS = 100
-
 
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
@@ -43,50 +46,170 @@ def E_field(N, P, PA, dx, corner_E=0):
         E = np.concatenate((np.ones(shape=(num_tsteps, 1))*corner_E, E), axis=1)
     return E
 
-
-def model(init_dN, g, p, meas="TRPL", solver="solveivp",
+def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
           RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
-    """ Calculate one simulation. """
-    N = init_dN + p.n0
-    P = init_dN + p.p0
-    E_f = E_field(N, P, p, g.dx)
+    """
+    Calculate one simulation. Outputs in same units as measurement data,
+    ([cm, V, s]) for PL.
 
-    init_condition = np.concatenate([N, P, E_f], axis=None)
+    Parameters
+    ----------
+    iniPar : np.ndarray
+        Initial conditions - either an array of one initial value per g.nx, or an array
+        of parameters (e.g. [fluence, alpha, direction]) usable to generate the initial condition.
+    g : Grid
+        Object containing space and time grid information.
+    p : Parameters
+        Object corresponding to current state of MMC walk.
+    meas : str, optional
+        Type of measurement (e.g. TRPL, TRTS) being simulated. The default is "TRPL".
+    solver : tuple(str), optional
+        Solution method used to perform simulation and optional related args.
+        The first element is the solver type.
+        Choices include:
+        solveivp - scipy.integrate.solve_ivp()
+        odeint - scipy.integrate.odeint()
+        NN - a tensorflow/keras model (WIP!)
+        All subsequent elements are optional. For NN the second element is
+        a path to the NN weight file, the third element is a path
+        to the corresponding NN scale factor file.
+        The default is ("solveivp",).
+    model : str, optional
+        Physics model to be solved by the solver, chosen from MODELS.
+        The default is "std".
+    RTOL, ATOL : float, optional
+        Tolerance parameters for scipy solvers. See the solve_ivp() docs for details.
 
-    if solver == "solveivp":
-        args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
-                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
-        sol = solve_ivp(dydt_numba, [g.start_time, g.time], init_condition,
-                        args=args, t_eval=g.tSteps, method='LSODA',
-                        max_step=g.hmax, rtol=RTOL, atol=ATOL)
-        data = sol.y.T
-    elif solver == "odeint":
-        # Slightly faster but less robust
-        args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
-                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm)
-        data = odeint(dydt_numba, init_condition, g.tSteps, args=args,
+    Returns
+    -------
+    sol : np.ndarray
+        Array of values (e.g. TRPL) from final simulation.
+    next_init : np.ndarray
+        Values (e.g. the electron profile) at the final time of the simulation.
+
+    """
+    if solver[0] == "solveivp" or solver[0] == "odeint" or solver[0] == "diagnostic":
+        if len(iniPar) == g.nx:         # If list of initial values
+            init_dN = iniPar * 1e-21    # [cm^-3] to [nm^-3]
+        else:                           # List of parameters
+            fluence = iniPar[0] * 1e-14 # [cm^-2] to [nm^-2]
+            alpha = iniPar[1] * 1e-7    # [cm^-1] to [nm^-1]
+            init_dN = fluence * alpha * np.exp(-alpha * g.xSteps)
+            try:
+                init_dN = init_dN[::np.sign(int(iniPar[2]))]
+            except (IndexError, ValueError):
+                pass
+
+        p.apply_unit_conversions()
+        N = init_dN + p.n0
+        P = init_dN + p.p0
+        E_f = E_field(N, P, p, g.dx)
+
+
+        # Depends on how many dependent variables and parameters are in the selected model
+        if model == "std":
+            init_condition = np.concatenate([N, P, E_f], axis=None)
+            args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
+                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm,)
+        elif model == "traps":
+            init_condition = np.concatenate([N, np.zeros_like(N), P, E_f], axis=None)
+            args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
+                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm,
+                p.kC, p.Nt, p.tauE)
+        else:
+            raise ValueError(f"Invalid model {model}")
+
+        dy = lambda t, y: MODELS[model](t, y, *args)
+
+        s = Solution()
+        # Can't get solve_ivp's root finder to work reliably, so leaving out the early termination events for now.
+        # Instead we will let solve_ivp run as-is, and then find where the early termination cutoff would have been
+        # after the fact.
+        # if meas == "TRPL":
+        #     min_y = g.min_y * 1e-23 # To nm/ns units
+        #     stop_integrate = lambda t, y: check_threshold(t, y, g.nx, g.dx, min_y=min_y, mode="TRPL",
+        #                                                   ks=p.ks, n0=p.n0, p0=p.p0)
+        #     stop_integrate.terminal = 1
+
+        # elif meas == "TRTS":
+        #     min_y = g.min_y * 1e-9
+        #     stop_integrate = lambda t, y: check_threshold(t, y, g.nx, g.dx, min_y=min_y, mode="TRTS",
+        #                                                   mu_n=p.mu_n, mu_p=p.mu_p, n0=p.n0, p0=p.p0)
+        #     stop_integrate.terminal = 1
+        # else:
+        #     raise NotImplementedError("TRPL or TRTS only")
+
+        i_final = len(g.tSteps)
+        if solver[0] == "solveivp" or solver[0] == "diagnostic":
+            sol = solve_ivp(dy, [g.start_time, g.time], init_condition,
+                            method='LSODA', dense_output=True, # events=stop_integrate,
+                            max_step=g.hmax, rtol=RTOL, atol=ATOL)
+
+            data = sol.sol(g.tSteps).T
+            data[g.tSteps > sol.t[-1]] = 0 # Disallow sol from extrapolating beyond time it solved up to
+            # if len(sol.t_events[0]) > 0:
+            #     t_final = sol.t_events[0][0]
+            #     try:
+            #         i_final = np.where(g.tSteps < t_final)[0][-1]
+            #     except IndexError:
+            #         pass
+
+        else:
+            data = odeint(MODELS[model], init_condition, g.tSteps, args=args,
                       hmax=g.hmax, rtol=RTOL, atol=ATOL, tfirst=True)
+
+        # Also depends on how many dependent variables
+        if model == "std":
+            s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
+        elif model == "traps":
+            s.N, s.N_trap, s.P, E_f = np.split(data, [g.nx, 2*g.nx, 3*g.nx], axis=1)
+
+        if meas == "TRPL":
+            s.calculate_PL(g, p)
+            next_init = s.N[-1] - p.n0
+            p.apply_unit_conversions(reverse=True)  # [nm, V, ns] to [cm, V, s]
+            s.PL *= 1e23                            # [nm^-2 ns^-1] to [cm^-2 s^-1]
+            i_final = np.argmax(s.PL < g.min_y)
+            if s.PL[i_final] < g.min_y:
+                s.PL[i_final:] = g.min_y
+            return s.PL, next_init
+        elif meas == "TRTS":
+            s.calculate_TRTS(g, p)
+            next_init = s.N[-1] - p.n0
+            p.apply_unit_conversions(reverse=True)
+            s.trts *= 1e9
+            i_final = np.argmax(s.trts < g.min_y)
+            if s.trts[i_final] < g.min_y:
+                s.trts[i_final:] = g.min_y
+            return s.trts, next_init
+        else:
+            raise NotImplementedError("TRTS or TRPL only")
+
+    elif solver[0] == "NN":
+        if not HAS_NN_LIB:
+            raise ImportError("Failed to load neural network library")
+
+        if meas != "TRPL":
+            raise NotImplementedError("TRPL only")
+
+        if not nn.has_model:
+            nn.load_model(solver[1], solver[2])
+
+        scaled_matPar = np.zeros((1, 14))
+        scaled_matPar[0] = [p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, p.eps**-1,
+                            iniPar[0], iniPar[1], g.thickness]
+
+        pl_from_NN = nn.predict(g.tSteps, scaled_matPar)
+        return pl_from_NN, None
+
     else:
         raise NotImplementedError
-
-    s = Solution()
-    s.N, s.P, E_f = np.split(data, [g.nx, 2*g.nx], axis=1)
-    if meas == "TRPL":
-        s.calculate_PL(g, p)
-        return s.PL, (s.N[-1]-p.n0)
-    elif meas == "TRTS":
-        s.calculate_TRTS(g, p)
-        return s.trts, (s.N[-1] - p.n0)
-    else:
-        raise NotImplementedError("TRTS or TRPL only")
-
 
 def check_approved_param(new_p, param_info):
     """ Raise a warning for non-physical or unrealistic proposed trial moves,
         or proposed moves that exceed the prior distribution.
     """
     order = list(param_info['names'])
-    ucs = param_info.get('unit_conversions', {})
     do_log = param_info["do_log"]
     checks = {}
     prior_dist = param_info["prior_dist"]
@@ -102,7 +225,6 @@ def check_approved_param(new_p, param_info):
             diff = 10 ** new_p[order.index(param)]
         else:
             diff = new_p[order.index(param)]
-        diff /= ucs.get(param, 1)
         checks[f"{param}_size"] = (lb < diff < ub)
 
     # TRPL specific checks:
@@ -119,12 +241,10 @@ def check_approved_param(new_p, param_info):
         logtn = new_p[order.index('tauN')]
         if not do_log["tauN"]:
             logtn = np.log10(logtn)
-        logtn -= np.log10(ucs.get('tauN', 1))
 
         logtp = new_p[order.index('tauP')]
         if not do_log["tauP"]:
             logtp = np.log10(logtp)
-        logtp -= np.log10(ucs.get('tauP', 1))
 
         diff = np.abs(logtn - logtp)
         checks["tn_tp_close"] = (diff <= 2)
@@ -177,8 +297,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
                     ambi = mu_constraint[0]
                     ambi_std = mu_constraint[1]
                     logger.debug("mu constraint: ambi {} +/- {}".format(ambi, ambi_std))
-                    new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std) * \
-                        param_info["unit_conversions"].get("mu_n", 1)
+                    new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
                     new_p[i] = np.log10(
                         (2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
 
@@ -211,7 +330,7 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
 
 
 def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
-                  solver="solveivp", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
+                  solver=("solveivp",), model="std", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
     """ Set up one simulation. """
     g = Grid()
     g.thickness = thickness
@@ -230,8 +349,8 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
         dt_estimate = times[1] - times[0]
         g.tSteps = np.concatenate((np.arange(0, times[0], dt_estimate), g.tSteps))
 
-    sol, next_init_condition = model(
-        iniPar, g, p, meas=meas, solver=solver, RTOL=rtol, ATOL=atol)
+    sol, next_init_condition = solve(
+        iniPar, g, p, meas=meas, solver=solver, model=model, RTOL=rtol, ATOL=atol)
     return g.tSteps, sol
 
 
@@ -284,6 +403,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
     RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
     ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
+
     # Always attempt a slightly larger hmax than what worked previously
     hmax[i] = min(STARTING_HMAX, hmax[i] * 2)
 
@@ -291,10 +411,13 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     while hmax[i] > MIN_HMAX:
         tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
                                     meas=meas_type,
-                                    solver=MCMC_fields["solver"],
+                                    solver=MCMC_fields["solver"], model=MCMC_fields["model"],
                                     rtol=RTOL, atol=ATOL)
 
-        # if verbose:
+        if MCMC_fields["solver"][0] == "diagnostic":
+            # Replace this with curve_fitting code as needed
+            pass
+
         if verbose and logger is not None:
             logger.info("{}: Simulation complete hmax={}; t {}-{}; x {}".format(i,
                         hmax, tSteps[0], tSteps[-1], thickness))
@@ -314,7 +437,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
             tSteps, sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
-                                         meas=meas_type, solver=MCMC_fields["solver"],
+                                         meas=meas_type, solver=MCMC_fields["solver"], model=MCMC_fields["model"],
                                          rtol=RTOL, atol=ATOL)
             if almost_equal(sol, sol2, threshold=RTOL):
                 logger.info("Success!")
@@ -350,6 +473,16 @@ def unpack_simpar(sim_info, i):
     meas_type = sim_info["meas_types"][i]
     return thickness, nx, meas_type
 
+def search_c_grps(c_grps : list[tuple], i : int) -> int:
+    """
+    Find the constraint group that contains i
+    and return its first value
+    """
+    for c_grp in c_grps:
+        for c in c_grp:
+            if i == c:
+                return c_grp[0]
+    return i
 
 def detect_sim_fail(sol, ref_vals):
     fail = len(sol) < len(ref_vals)
@@ -359,6 +492,23 @@ def detect_sim_fail(sol, ref_vals):
         sol = np.array(sol2)
 
     return sol, fail
+
+def set_min_y(sol, vals, scale_shift):
+    """
+    Raise the values in (sol + scale_shift) to at least the minimum of vals.
+    scale_shift and vals should be in log scale; sol in regular scale
+    Returns:
+    sol : np.ndarray
+        New sol with raised values.
+    min_y : float
+        min_val sol was raised to. Regular scale.
+    n_set : int
+        Number of values in sol raised.
+    """
+    min_y = 10 ** min(vals - scale_shift)
+    i_final = np.searchsorted(-sol, -min_y)
+    sol[i_final:] = min_y
+    return sol, min_y, len(sol[i_final:])
 
 
 def detect_sim_depleted(sol):
@@ -377,28 +527,56 @@ def almost_equal(x, x0, threshold=1e-10):
 
 def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbose, args):
     i, iniPar, times, vals, uncs = args
+    meas_type = sim_info["meas_types"][i]
     irf_convolution = MCMC_fields.get("irf_convolution", None)
+
+    ff = MCMC_fields.get("fittable_fluences", None)
+    if (ff is not None and i in ff[1]):
+        if ff[2] is not None and len(ff[2]) > 0:
+            iniPar[0] *= getattr(p, f"_f{search_c_grps(ff[2], i)}")
+        else:
+            iniPar[0] *= getattr(p, f"_f{i}")
+    fa = MCMC_fields.get("fittable_absps", None)
+    if (fa is not None and i in fa[1]):
+        if fa[2] is not None and len(fa[2]) > 0:
+            iniPar[1] *= getattr(p, f"_a{search_c_grps(fa[2], i)}")
+        else:
+            iniPar[1] *= getattr(p, f"_a{i}")
+    fs = MCMC_fields.get("scale_factor", None)
+    if (fs is not None and i in fs[1]):
+        if fs[2] is not None and len(fs[2]) > 0:
+            scale_shift = np.log10(getattr(p, f"_s{search_c_grps(fs[2], i)}"))
+        else:
+            scale_shift = np.log10(getattr(p, f"_s{i}"))
+    else:
+        scale_shift = 0
 
     tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
                                                hmax, MCMC_fields, logger, verbose)
+    try:
+        if irf_convolution is not None and irf_convolution[i] != 0:
+            if verbose:
+                logger.debug(f"Convolving with wavelength {irf_convolution[i]}")
+            wave = int(irf_convolution[i])
+            tSteps, sol, success = do_irf_convolution(
+                tSteps, sol, IRF_tables[wave], time_max_shift=True)
+            if not success:
+                raise ValueError("Conv failed. Check measurement data times for floating-point inaccuracies.\n"
+                                 "This may also happen if simulated signal decays extremely slowly.")
+            sol, times_c, vals_c, uncs_c = post_conv_trim(tSteps, sol, times, vals, uncs)
 
-    if irf_convolution is not None and irf_convolution[i] != 0:
-        if verbose:
-            logger.debug(f"Convolving with wavelength {irf_convolution[i]}")
-        wave = int(irf_convolution[i])
-        tSteps, sol, success = do_irf_convolution(
-            tSteps, sol, IRF_tables[wave], time_max_shift=True)
-        if not success:
-            raise ValueError("Error: Interpolation for conv failed. Check measurement data"
-                             " times for floating-point inaccuracies.")
-        sol, times_c, vals_c, uncs_c = post_conv_trim(tSteps, sol, times, vals, uncs)
+        else:
+            # Still need to trim, in case experimental data doesn't start at t=0
+            times_c = times
+            vals_c = vals
+            uncs_c = uncs
+            sol = sol[-len(times_c):]
 
-    else:
-        # Still need to trim, in case experimental data doesn't start at t=0
-        times_c = times
-        vals_c = vals
-        uncs_c = uncs
-        sol = sol[-len(times_c):]
+    except ValueError as e:
+        logger.warning(e)
+        likelihood = -np.inf
+        err_sq = np.inf
+        return likelihood, err_sq
 
     if verbose:
         logger.debug(f"Comparing times {times_c[0]}-{times_c[-1]}")
@@ -409,19 +587,47 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
             if verbose:
                 logger.debug("Normalizing sim result...")
             sol /= np.nanmax(sol)
+
+            # Suppress scale_factor for all measurements being normalized
+            p.suppress_scale_factor(MCMC_fields.get("scale_factor", None), i)
             scale_shift = 0
-        else:
-            scale_shift = np.log10(p.m)
+
         # TODO: accomodate multiple experiments, just like bayes
-
-        err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
-        likelihood = - \
-            np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs_c**2))
-
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect
-        if not success or np.isnan(likelihood):
-            raise ValueError(f"{i}: Simulation failed!")
+        # A few negative values may also be introduced during convolution -
+        # so we want to tolerate these, while too many suggests that depletion
+        # is happening instead
+
+        where_failed = sol < 0
+        n_fails = np.sum(where_failed)
+        success = n_fails < 0.2 * len(sol)
+        if not success:
+            raise ValueError(f"{i}: Simulation failed: too many negative vals")
+
+        if n_fails > 0:
+            logger.warning(f"{i}: {n_fails} / {len(sol)} non-positive vals")
+
+        sol[where_failed] *= -1
+
+        if MCMC_fields.get("force_min_y", False):
+            sol, min_y, n_set = set_min_y(sol, vals_c, scale_shift)
+
+            logger.warning(f"min_y: {min_y}")
+            if n_set > 0:
+                logger.warning(f"{n_set} values raised to min_y")
+        err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
+
+        # Compatibility with single sigma
+        if isinstance(MCMC_fields["current_sigma"], dict):
+            likelihood = - \
+                np.sum(err_sq / (MCMC_fields["current_sigma"][meas_type]**2 + 2*uncs_c**2))
+        else:
+            likelihood = - \
+                np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs_c**2))
+
+        if np.isnan(likelihood):
+            raise ValueError(f"{i}: Simulation failed: invalid likelihood")
     except ValueError as e:
         logger.warning(e)
         likelihood = -np.inf
@@ -449,7 +655,7 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
         for i in range(len(iniPar)):
             p.likelihood[i], p.err_sq[i] = one_sim_likelihood(
                 p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbose,
-                (i, iniPar[i], times[i], vals[i], uncs[i]))
+                (i, np.array(iniPar[i]), times[i], vals[i], uncs[i]))
 
     if prev_p is not None:
         logger.info("Likelihood of proposed move: {}".format(np.sum(p.likelihood)))
@@ -510,7 +716,6 @@ def main_metro_loop(MS, starting_iter, num_iters,
                       MS.times, MS.vals, MS.uncs, MS.IRF_tables,
                       MS.running_hmax, MS.MCMC_fields, verbose, logger)
         MS.H.update(0, MS.prev_p, MS.means, MS.param_info)
-
     for k in range(starting_iter, num_iters):
         try:
             logger.info("#####")
@@ -558,7 +763,7 @@ def main_metro_loop(MS, starting_iter, num_iters,
 
             if accepted:
                 MS.means.transfer_from(MS.p, MS.param_info)
-                MS.H.accept[k] = 1
+                MS.H.accept[0, k] = 1
 
             MS.H.update(k, MS.p, MS.means, MS.param_info)
         except KeyboardInterrupt:
@@ -648,6 +853,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             starting_iter = int(load_checkpoint[first_under+1:tail])+1
             MS.H.extend(num_iters, param_info)
             MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
+            # Induce annealing, which also corrects the prev_likelihood and adjust the step size
+            # MS.anneal(-1, MS.uncs, force=True)
 
     # From this point on, for consistency, work with ONLY the MetroState object!
     if verbose:
@@ -660,7 +867,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                     need_initial_state=need_initial_state,
                     logger=logger, verbose=True)
 
-    MS.H.apply_unit_conversions(MS.param_info)
     MS.H.final_cov = MS.variances.cov
 
     if export_path is not None:

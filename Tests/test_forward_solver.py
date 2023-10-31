@@ -46,7 +46,6 @@ class TestUtils(unittest.TestCase):
                            "unit_conversions":self.unit_conversions,
                            "do_log":do_log,
                            "active":active}
-        pass
     
     def test_solver_nothing(self):
         """ The carrier dynamics model is a sum of diffusion, electronic drift,
@@ -72,9 +71,7 @@ class TestUtils(unittest.TestCase):
         
         self.param_info["init_guess"] = initial_guess
         p = Parameters(self.param_info)
-
-        p.apply_unit_conversions(self.param_info)
-        
+        p.apply_unit_conversions()
         init_dN = np.ones(self.g.nx) * 1e10 * self.unit_conversions["n0"]
         N = init_dN + p.n0
         P = init_dN + p.p0
@@ -122,8 +119,7 @@ class TestUtils(unittest.TestCase):
         
         self.param_info["init_guess"] = initial_guess
         p = Parameters(self.param_info)
-        p.apply_unit_conversions(self.param_info)
-        
+        p.apply_unit_conversions()
         init_dN = np.logspace(14, 8, self.g.nx) * self.unit_conversions["n0"]
         N = init_dN + p.n0
         P = init_dN + p.p0
@@ -173,8 +169,7 @@ class TestUtils(unittest.TestCase):
         
         self.param_info["init_guess"] = initial_guess
         p = Parameters(self.param_info)
-        p.apply_unit_conversions(self.param_info)
-        
+        p.apply_unit_conversions()
         init_dN = 1e10 * np.ones(self.g.nx) * self.unit_conversions["n0"]
         N = init_dN + p.n0
         P = init_dN + p.p0
@@ -221,8 +216,7 @@ class TestUtils(unittest.TestCase):
         
         self.param_info["init_guess"] = initial_guess
         p = Parameters(self.param_info)
-        p.apply_unit_conversions(self.param_info)
-        
+        p.apply_unit_conversions()
         init_dN = 1e10 * np.ones(self.g.nx) * self.unit_conversions["n0"]
         N = init_dN + p.n0
         P = init_dN + p.p0
@@ -262,8 +256,7 @@ class TestUtils(unittest.TestCase):
         
         self.param_info["init_guess"] = initial_guess
         p = Parameters(self.param_info)
-        p.apply_unit_conversions(self.param_info)
-        
+        p.apply_unit_conversions()
         init_dN = 1e10 * np.ones(self.g.nx) * self.unit_conversions["n0"]
         N = init_dN + p.n0
         P = init_dN + p.p0
@@ -304,8 +297,7 @@ class TestUtils(unittest.TestCase):
         
         self.param_info["init_guess"] = initial_guess
         p = Parameters(self.param_info)
-        p.apply_unit_conversions(self.param_info)
-        
+        p.apply_unit_conversions()
         init_dN = 1e10 * np.ones(self.g.nx) * self.unit_conversions["n0"]
         N = init_dN + p.n0
         P = init_dN + p.p0

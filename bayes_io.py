@@ -8,14 +8,16 @@ Created on Tue Jan 11 18:10:38 2022
 import sys
 import csv
 import os
-import numpy as np
 import datetime
+import numpy as np
 
+from bayes_validate import validate_grid, validate_MCMC_fields, validate_meas_flags, validate_param_info
 
 # Eventually use io_utils for this
 def get_split_and_clean_line(line: str):
     """Split line by colon symbol ':' and
     remove preceding and trailing spaces."""
+    # FIXME: This causes absolute file paths to not work
     split_line = line.split(':')
     split_line = [i.strip() for i in split_line]
     return split_line
@@ -31,43 +33,42 @@ def extract_values(string, delimiter, dtype=float):
     return values
 
 
-def extract_tuples(string, delimiter):
-    """ Converts a string of tuples separated by delimiter into a list of
-    tuples"""
+def extract_tuples(string, delimiter, dtype=float):
+    """
+    Converts a string of arbitrary lengthed tuples
+    separated by delimiter into a list of tuples
+    This one supports inf and -inf as values
+
+    If dtype is supplied, try to typecast out of str
+    """
     tuples_as_str = string.split(delimiter)
     tuples = []
 
     for ts in tuples_as_str:
-        first_value = ts[ts.find("(")+1:ts.find(", ")]
-        second_value = ts[ts.find(", ")+2:ts.find(")")]
-        if first_value == "-inf":
-            first_value = -np.inf
-        else:
-            first_value = float(first_value)
-
-        if second_value == "inf":
-            second_value = np.inf
-        else:
-            second_value = float(second_value)
-
-        tuples.append((first_value, second_value))
-
+        ts = ts.strip("()")
+        vals = ts.split(", ")
+        for i, val in enumerate(vals):
+            if val == "-inf":
+                vals[i] = -np.inf
+            elif val == "inf":
+                vals[i] = np.inf
+            elif dtype == float:
+                try:
+                    vals[i] = float(val)
+                except ValueError:
+                    pass
+            elif dtype == int:
+                try:
+                    vals[i] = int(val)
+                except ValueError:
+                    pass
+            else:
+                continue
+        tuples.append(tuple(vals))
     return tuples
 
 
-def check_valid_filename(file_name):
-    """Screens file_name for prohibited characters
-        This one allows slashes
-    """
-    prohibited_characters = ["<", ">", "*", "?", ":", "\"", "|"]
-    # return !any(char in file_name for char in prohibited_characters)
-    if any(char in file_name for char in prohibited_characters):
-        return False
-
-    return True
-
-
-def get_data(exp_file, meas_types, ic_flags, MCMC_fields, scale_f=1e-23, verbose=False):
+def get_data(exp_file, meas_types, ic_flags, MCMC_fields, verbose=False):
     TIME_RANGE = ic_flags['time_cutoff']
     SELECT = ic_flags['select_obs_sets']
     NOISE_LEVEL = ic_flags.get('noise_level', 0)
@@ -115,13 +116,6 @@ def get_data(exp_file, meas_types, ic_flags, MCMC_fields, scale_f=1e-23, verbose
         y_list[i] = y_list[i][::resample]
         u_list[i] = u_list[i][::resample]
 
-    if isinstance(scale_f, (float, int)):
-        scale_f = [scale_f] * len(t_list)
-
-    for i in range(len(t_list)):
-        y_list[i] *= scale_f[i]
-        u_list[i] *= scale_f[i]
-
     if NORMALIZE is not None:
         for i in range(len(t_list)):
             if meas_types[i] in NORMALIZE:
@@ -153,10 +147,10 @@ def get_data(exp_file, meas_types, ic_flags, MCMC_fields, scale_f=1e-23, verbose
         return (t_list, y_list, u_list)
 
 
-def get_initpoints(init_file, ic_flags, scale_f=1e-21):
-    SELECT = ic_flags['select_obs_sets']
+def get_initpoints(init_file, ic_flags):
+    select = ic_flags['select_obs_sets']
 
-    with open(init_file, newline='') as file:
+    with open(init_file, newline='', encoding=None) as file:
         ifstream = csv.reader(file)
         initpoints = []
         for row in ifstream:
@@ -164,9 +158,9 @@ def get_initpoints(init_file, ic_flags, scale_f=1e-21):
                 continue
             initpoints.append(row)
 
-    if SELECT is not None:
-        initpoints = np.array(initpoints)[SELECT]
-    return np.array(initpoints, dtype=float) * scale_f
+    if select is not None:
+        initpoints = np.array(initpoints)[select]
+    return np.array(initpoints, dtype=float)
 
 
 def make_dir(dirname):
@@ -189,6 +183,108 @@ def put_into_param_info(param_info, vals, new_key):
                            for i in range(len(param_info["names"]))}
     return
 
+def insert_param(param_info, MCMC_fields, mode="fluences"):
+    if mode == "fluences":
+        ff = MCMC_fields.get("fittable_fluences", None)
+        name_base = "_f"
+    elif mode == "absorptions":
+        ff = MCMC_fields.get("fittable_absps", None)
+        name_base = "_a"
+    elif mode == "scale_f":
+        ff = MCMC_fields.get("scale_factor", None)
+        name_base = "_s"
+    else:
+        raise NotImplementedError("Unsupported mode for insert_param()")
+    if ff is None:
+        return
+
+    f_var = ff[0]
+
+    # The FIRST value in each c_grp determines the name
+    # of the fluence parameter used by all in the c_grp
+    # All subsequent values do not need their own fluence parameters
+    c_grp_dependents = []
+    if ff[2] is None or len(ff[2]) == 0:
+        pass
+    else:
+        for c_grp in ff[2]:
+            c_grp_dependents += list(c_grp)[1:]
+
+    for i in ff[1]:
+        if i in c_grp_dependents:
+            continue
+        param_info["names"].append(f"{name_base}{i}")
+        param_info["do_log"][f"{name_base}{i}"] = 1
+        param_info["prior_dist"][f"{name_base}{i}"] = (0, np.inf)
+        param_info["init_guess"][f"{name_base}{i}"] = ff[3][i]
+        param_info["init_variance"][f"{name_base}{i}"] = f_var
+        param_info["active"][f"{name_base}{i}"] = 1
+    return
+
+def remap_fittable_inds(fittables : np.ndarray | list[int], select_obs_sets : list) -> np.ndarray:
+    """
+    Reassign new fittable indices (e.g. for fittable_fluence's 2nd argument)
+    according to subset of measurements requested by select_obs_sets
+
+    This is essentially the intersection of fittables and select_obs_sets,
+    but working on ordered lists rather than sets
+
+    E.g.: select_obs_sets = [0, 2, 4]; fittables = [0, 1, 3, 4]
+    MMC will refer to the remaining three measurements as "0", "1", and "2",
+    i.e. 0 -> 0, 2 -> 1, 4 -> 2
+    so a new_fittables of [0, 2] is required to correspond with the originally
+    requested 0 and 4.
+    Meanwhile, measurements 1 and 3 are omitted by select_obs_sets, so they should
+    be absent from new_fittables.
+    """
+    new_fittables = []
+    for i, s in enumerate(select_obs_sets):
+        if s in fittables:
+            new_fittables.append(i)
+
+    return np.array(new_fittables)
+
+def remap_constraint_grps(c_grps : list[tuple], select_obs_sets : list) -> list[tuple]:
+    """
+    Reassign new constraint groups (e.g. for fittable_fluence's 3rd argument)
+    according to subset of measurements requested by select_obs_sets
+
+    E.g.: select_obs_sets = [0, 2, 4]; c_grps = [(0, 1, 2), (3, 4, 5)]
+    MMC will refer to the remaining three measurements as "0", "1", and "2",
+    i.e. 0 -> 0, 2 -> 1, 4 -> 2
+    so every occurence of 0, 2, and 4 in c_grps must be replaced with 0, 1, and 2 respectively.
+    Measurements 1, 3, and 5 are omitted by select_obs_sets, so they should be removed from
+    c_grps.
+    This leaves [(0, 1), (2, )]
+    However, constraint groups of size 1 are meaningless (such a measurement will not share a
+    fittable fluence with any other measurement), so they too can be removed.
+    This leaves [(0, 1)]
+    """
+    new_c_grps = []
+    for grp in c_grps:
+        new_c_grp = []
+        for val in grp:
+            if val in select_obs_sets:
+                new_c_grp.append(select_obs_sets.index(val))
+
+        if len(new_c_grp) > 1:
+            new_c_grps.append(tuple(new_c_grp))
+
+    return new_c_grps
+
+def add_annealing(MCMC_fields, initial_variance, meas_types, annealing_step=999999, min_sigma=0.01):
+    """Append the annealing tuple to MCMC_fields"""
+
+    if isinstance(MCMC_fields["likel2variance_ratio"], (int, float)):
+        MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"]
+                                     for m in meas_types},
+                                    annealing_step,
+                                    {m:min_sigma for m in meas_types})
+    elif isinstance(MCMC_fields["likel2variance_ratio"], dict):
+        MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"][m]
+                                     for m in meas_types},
+                                    annealing_step,
+                                    {m:min_sigma for m in meas_types})
 
 def read_config_script_file(path):
     with open(path, 'r') as ifstream:
@@ -292,6 +388,7 @@ def read_config_script_file(path):
                             meas_flags["select_obs_sets"] = extract_values(line_split[1],
                                                                            delimiter='\t',
                                                                            dtype=int)
+                            meas_flags["select_obs_sets"] = list(meas_flags["select_obs_sets"])
 
                     elif line.startswith("Added noise level"):
                         if line_split[1] == "None":
@@ -306,7 +403,9 @@ def read_config_script_file(path):
                     if line.startswith("Num iters"):
                         MCMC_fields["num_iters"] = int(line_split[1])
                     elif line.startswith("Solver name"):
-                        MCMC_fields["solver"] = line_split[1]
+                        MCMC_fields["solver"] = tuple(line_split[1].split('\t'))
+                    elif line.startswith("Model name"):
+                        MCMC_fields["model"] = line_split[1]
                     elif line.startswith("Solver rtol"):
                         MCMC_fields["rtol"] = float(line_split[1])
                     elif line.startswith("Solver atol"):
@@ -316,17 +415,106 @@ def read_config_script_file(path):
                     elif line.startswith("Repeat hmax"):
                         MCMC_fields["verify_hmax"] = int(line_split[1])
                     elif line.startswith("Annealing Controls"):
-                        MCMC_fields["annealing"] = tuple(
-                            extract_values(line_split[1].strip("()"), ", "))
+                        splits = line_split[1].split("\t")
+
+                        starts = extract_tuples(splits[0], delimiter="|", dtype=float)
+                        starts = {m[0]:float(m[1]) for m in starts}
+
+                        stops = extract_tuples(splits[2], delimiter="|", dtype=float)
+                        stops = {m[0]:float(m[1]) for m in stops}
+
+
+                        MCMC_fields["annealing"] = (starts, int(splits[1]), stops)
                     elif line.startswith("Likelihood-to-variance"):
-                        MCMC_fields["likel2variance_ratio"] = float(
-                            line_split[1])
+                        try:
+                            l2v = float(line_split[1])
+                            MCMC_fields["likel2variance_ratio"] = {m:l2v for m in grid["meas_types"]}
+                        except ValueError: # Not a float; must be dict
+                            l2v = extract_tuples(line_split[1], delimiter="|", dtype=float)
+                            MCMC_fields["likel2variance_ratio"] = {m[0]:float(m[1]) for m in l2v}
                     elif line.startswith("Force equal mu"):
                         MCMC_fields["override_equal_mu"] = int(line_split[1])
                     elif line.startswith("Force equal S"):
                         MCMC_fields["override_equal_s"] = int(line_split[1])
                     elif line.startswith("Use log of measurements"):
                         MCMC_fields["log_pl"] = int(line_split[1])
+                    elif line.startswith("Scale factor"):
+                        if line_split[1] == "None":
+                            MCMC_fields["scale_factor"] = None
+                        else:
+                            splits = line_split[1].split("\t")
+                            if len(splits) == 3:
+                                init_var, inds, c_grps = splits
+                                guesses = [1] * len(inds)
+                            elif len(splits) == 4:
+                                init_var, inds, c_grps, guesses = splits
+                                guesses = guesses.strip("([])")
+                                guesses = extract_values(guesses, delimiter=", ", dtype=float)
+                            else:
+                                raise ValueError("Invalid scale factor")
+                            init_var = float(init_var)
+
+                            inds = inds.strip("([])")
+                            inds = extract_values(inds, delimiter=", ", dtype=int)
+
+                            if c_grps == "None":
+                                c_grps = None
+                            else:
+                                c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
+
+                            MCMC_fields["scale_factor"] = [init_var, inds, c_grps, guesses]
+                    elif line.startswith("Fittable fluences"):
+                        if line_split[1] == "None":
+                            MCMC_fields["fittable_fluences"] = None
+                        else:
+                            splits = line_split[1].split("\t")
+                            if len(splits) == 3:
+                                init_var, inds, c_grps = splits
+                                guesses = [1] * len(inds)
+                            elif len(splits) == 4:
+                                init_var, inds, c_grps, guesses = splits
+                                guesses = guesses.strip("([])")
+                                guesses = extract_values(guesses, delimiter=", ", dtype=float)
+                            else:
+                                raise ValueError("Invalid fittable_fluence")
+
+                            init_var = float(init_var)
+
+                            inds = inds.strip("([])")
+                            inds = extract_values(inds, delimiter=", ", dtype=int)
+
+                            if c_grps == "None":
+                                c_grps = None
+                            else:
+                                c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
+
+                            MCMC_fields["fittable_fluences"] = [init_var, inds, c_grps, guesses]
+                    elif line.startswith("Fittable absorptions"):
+                        if line_split[1] == "None":
+                            MCMC_fields["fittable_absps"] = None
+                        else:
+                            splits = line_split[1].split("\t")
+                            if len(splits) == 3:
+                                init_var, inds, c_grps = splits
+                                guesses = [1] * len(inds)
+                            elif len(splits) == 4:
+                                init_var, inds, c_grps, guesses = splits
+                                guesses = guesses.strip("([])")
+                                guesses = extract_values(guesses, delimiter=", ", dtype=float)
+                            else:
+                                raise ValueError("Invalid fittable_absp")
+
+                            init_var = float(init_var)
+
+                            inds = inds.strip("([])")
+                            inds = extract_values(inds, delimiter=", ", dtype=int)
+
+                            if c_grps == "None":
+                                c_grps = None
+                            else:
+                                c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
+
+                            MCMC_fields["fittable_absps"] = [init_var, inds, c_grps, guesses]
                     elif line.startswith("Normalize these meas and sim types"):
                         if line_split[1] == "None":
                             MCMC_fields["self_normalize"] = None
@@ -336,6 +524,8 @@ def read_config_script_file(path):
                         MCMC_fields["proposal_function"] = line_split[1]
                     elif line.startswith("Use hard boundaries"):
                         MCMC_fields["hard_bounds"] = int(line_split[1])
+                    elif line.startswith("Force min y"):
+                        MCMC_fields["force_min_y"] = int(line_split[1])
                     elif line.startswith("IRF"):
                         if line_split[1] == "None":
                             MCMC_fields["irf_convolution"] = None
@@ -371,11 +561,24 @@ def read_config_script_file(path):
     validate_meas_flags(meas_flags, grid["num_meas"])
     validate_MCMC_fields(MCMC_fields, grid["num_meas"])
 
-    return grid, param_info, meas_flags, MCMC_fields
+    # Keep fittable_fluence (and other such fittables) indices consistent after subsetting with select_obs_sets
+    if meas_flags["select_obs_sets"] is not None:
+        fittables = ["fittable_fluences", "fittable_absps", "scale_factor"]
+        for fi in fittables:
+            if MCMC_fields.get(fi, None) is not None:
+                MCMC_fields[fi][1] = remap_fittable_inds(MCMC_fields[fi][1], meas_flags["select_obs_sets"])
+                if MCMC_fields[fi][2] is not None:
+                    MCMC_fields[fi][2] = remap_constraint_grps(MCMC_fields[fi][2], meas_flags["select_obs_sets"])
 
+                MCMC_fields[fi][3] = list(np.array(MCMC_fields[fi][3])[meas_flags["select_obs_sets"]])
+
+    insert_param(param_info, MCMC_fields, mode="scale_f")
+
+    return grid, param_info, meas_flags, MCMC_fields
 
 def generate_config_script_file(path, simPar, param_info, measurement_flags,
                                 MCMC_fields, verbose=False):
+    add_annealing(MCMC_fields, param_info["init_variance"], simPar["meas_types"])
     validate_grid(simPar)
     validate_param_info(param_info)
     validate_meas_flags(measurement_flags, simPar["num_meas"])
@@ -534,9 +737,20 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         ofstream.write(f"Num iters: {num_iters}\n")
         if verbose:
             ofstream.write(
-                "# Which solver engine to use - solveivp (more robust) or odeint (sometimes faster).\n")
+                "# Which solver engine to use - solveivp (more robust), odeint (sometimes faster),"
+                "# or NN (experimental!).\n")
         solver = MCMC_fields["solver"]
-        ofstream.write(f"Solver name: {solver}\n")
+        ofstream.write(f"Solver name: {solver[0]}")
+        for value in solver[1:]:
+            ofstream.write(f"\t{value}")
+        ofstream.write("\n")
+        if verbose:
+            ofstream.write(
+                "# Which model to use, as listed in forward_solver.MODELS\n"
+                "# Currently two options - std (ordinary absorber model), and traps (electron trapping)\n")
+        model = MCMC_fields["model"]
+        ofstream.write(f"Model name: {model}")
+        ofstream.write("\n")
         if "rtol" in MCMC_fields:
             if verbose:
                 ofstream.write("# Solver engine relative tolerance.\n")
@@ -561,18 +775,60 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             verify_hmax = MCMC_fields["verify_hmax"]
             ofstream.write(f"Repeat hmax: {verify_hmax}\n")
 
-        if verbose:
-            ofstream.write("# Annealing schedule parameters.\n"
-                           "# (Starting model uncertainty, steprate, final model uncertainty)\n"
-                           "# Will drop one order of magnitude per STEPRATE samples until FINAL is reached.\n")
-        anneal = MCMC_fields["annealing"]
-        ofstream.write(f"Annealing Controls: {anneal}\n")
+        if "annealing" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Annealing schedule parameters.\n"
+                            "# (Starting model uncertainty, steprate, final model uncertainty)\n"
+                            "# Starting and final model uncertainty will be dicts with one value per measurement type;\n"
+                            "# Steprate should be an integer number of steps.\n"
+                            "# Will drop one order of magnitude per STEPRATE samples until FINAL is reached.\n")
+            anneal = MCMC_fields["annealing"]
+            ofstream.write("Annealing Controls: ")
+            anneal_0 = iter(anneal[0].items())
+            meas_type, start = next(anneal_0)
+            while True:
+                try:
+                    ofstream.write(f"({meas_type}, {start})")
+                    meas_type, start = next(anneal_0)
+                    ofstream.write("|")
+                except StopIteration:
+                    break
+            ofstream.write("\t")
+            ofstream.write(f"{anneal[1]}")
+            ofstream.write("\t")
+
+            anneal_2 = iter(anneal[2].items())
+            meas_type, stop = next(anneal_2)
+            while True:
+                try:
+                    ofstream.write(f"({meas_type}, {stop})")
+                    meas_type, stop = next(anneal_2)
+                    ofstream.write("|")
+                except StopIteration:
+                    break
+            ofstream.write("\n")
 
         if verbose:
             ofstream.write("# Ratio to maintain betwen Model uncertainty and proposal variance.\n"
-                           "# Model uncertainty will be taken as this times proposal variance.\n")
+                           "# Model uncertainty will be taken as this times proposal variance.\n"
+                           "# Should be a single value, or \n"
+                           "# Should be a dict with one value per unique measurement type, \n"
+                           "# which will be shared by all measurements with that type.\n")
         l2v = MCMC_fields["likel2variance_ratio"]
-        ofstream.write(f"Likelihood-to-variance: {l2v}\n")
+        if isinstance(l2v, (int, np.integer, float)):
+            ofstream.write(f"Likelihood-to-variance: {l2v}\n")
+        else:
+            ofstream.write("Likelihood-to-variance: ")
+            l2v = iter(l2v.items())
+            meas_type, val = next(l2v)
+            while True:
+                try:
+                    ofstream.write(f"({meas_type}, {val})")
+                    meas_type, val = next(l2v)
+                    ofstream.write("|")
+                except StopIteration:
+                    break
+            ofstream.write("\n")
 
         if "override_equal_mu" in MCMC_fields:
             if verbose:
@@ -595,9 +851,11 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         if verbose:
             ofstream.write("# Normalize all individual measurements and simulations "
                            "to maximum of 1 before likelihood evaluation. "
-                           "\n# A global scaling coefficient named 'm' may optionally be defined in param_info. "
+                           "\n# Global scaling coefficients named '_s#' may optionally be defined in MCMC_fields by "
+                           "\n# enabling the scale_factor setting. "
                            "\n# If the absolute units or efficiency of the measurement is unknown, "
-                           "\n# it is recommended to try fitting 'm' instead of relying on normalization. \n")
+                           "\n# it is recommended to try fitting '_s' instead of relying on normalization. "
+                           "\n# Enabling this will disable _s for the selected measurements. \n")
         norm = MCMC_fields["self_normalize"]
 
         if norm is None:
@@ -607,6 +865,79 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             for value in norm[1:]:
                 ofstream.write(f"\t{value}")
         ofstream.write('\n')
+
+        if "fittable_fluences" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Whether to try inferring the fluences. None means it will keep"
+                               " the fluence values as entered;\n# otherwise, a list of three (optionally, 4) elements:\n"
+                               "# 1. An initial variance value, as in initial_variance.\n"
+                               "# All fluences are fitted by log scale and will use the same variance.\n"
+                               "# 2. A list of indices for measurements for which fluences will be fitted.\n"
+                               "# e.g. [0, 1, 2] means vary the fluences for the first, second, and third measurements.\n"
+                               "# Additional parameters named _f0, _f1, _f2... will be created for such measurements.\n"
+                               "# 3. Either None, in which all fluences will be independently fitted, or\n"
+                               "# A list of constraint groups, in which each measurement in a group will share a fluence\n"
+                               "# with all other members. E.g. [(0, 2, 4), (1, 3, 5)] means that the third and fifth\n"
+                               "# measurments will share a fluence value with the first, \n"
+                               "# while the fourth and sixth measurements will share a fluence value with the second.\n"
+                               "# 4. (Optional) A list of initial guesses for each fluence factor. Defaults to 1 if not specified.\n")
+                ff = MCMC_fields["fittable_fluences"]
+                if ff is None:
+                    ofstream.write(f"Fittable fluences: {ff}\n")
+                else:
+                    ofstream.write(f"Fittable fluences: {ff[0]}\t")
+                    ofstream.write(f"{ff[1]}\t")
+                    if ff[2] is None:
+                        ofstream.write(f"{ff[2]}")
+                    else:
+                        ofstream.write(f"{ff[2][0]}")
+                        for c_grp in ff[2][1:]:
+                            ofstream.write(f"|{c_grp}")
+                    if len(ff) == 4:
+                        ofstream.write(f"\t{ff[3]}")
+                    ofstream.write("\n")
+
+        if "fittable_absps" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Whether to try inferring the absorption coefficients."
+                               " See fittable_fluences for further details\n")
+                ff = MCMC_fields["fittable_absps"]
+                if ff is None:
+                    ofstream.write(f"Fittable absorptions: {ff}\n")
+                else:
+                    ofstream.write(f"Fittable absorptions: {ff[0]}\t")
+                    ofstream.write(f"{ff[1]}\t")
+                    if ff[2] is None:
+                        ofstream.write(f"{ff[2]}")
+                    else:
+                        ofstream.write(f"{ff[2][0]}")
+                        for c_grp in ff[2][1:]:
+                            ofstream.write(f"|{c_grp}")
+                    if len(ff) == 4:
+                        ofstream.write(f"\t{ff[3]}")
+                    ofstream.write("\n")
+
+        if "scale_factor" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Add additional scale factors that MMC will attempt to apply on the simulations "
+                               "\n# to better fit measurement data curves. "
+                               "\n# Must be None, in which no scaling will be done to the simulations, or a list of three elements. (see fittable_fluences)\n"
+                               )
+                scale_f = MCMC_fields["scale_factor"]
+                if scale_f is None:
+                    ofstream.write(f"Scale factor: {scale_f}\n")
+                else:
+                    ofstream.write(f"Scale factor: {scale_f[0]}\t")
+                    ofstream.write(f"{scale_f[1]}\t")
+                    if scale_f[2] is None:
+                        ofstream.write(f"{scale_f[2]}")
+                    else:
+                        ofstream.write(f"{scale_f[2][0]}")
+                        for c_grp in scale_f[2][1:]:
+                            ofstream.write(f"|{c_grp}")
+                    if len(scale_f) == 4:
+                        ofstream.write(f"\t{scale_f[3]}")
+                    ofstream.write('\n')
 
         if verbose:
             ofstream.write("# Proposal function used to generate new states. "
@@ -621,6 +952,29 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                                "# =1 will coerce while =0 will only warn.\n")
             bound = MCMC_fields["hard_bounds"]
             ofstream.write(f"Use hard boundaries: {bound}\n")
+
+        if "force_min_y" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Whether to set all simulation values to be at least the min value in a measurement. \n"
+                               "# May make the likelihood more responsive when simulated signals are decaying rapidly. \n"
+                               "# =1 to activate; =0 to disable.\n")
+            fy = MCMC_fields["force_min_y"]
+            ofstream.write(f"Force min y: {fy}\n")
+
+        if verbose:
+            ofstream.write(
+                "# None for no convolution, or a list of wavelengths whose IRF profiles\n"
+                "# will be used to convolute each simulated TRPL curve. One wavelength per"
+                " measurement.\n")
+        if "irf_convolution" in MCMC_fields:
+            irf = MCMC_fields["irf_convolution"]
+            if irf is None:
+                ofstream.write(f"IRF: {irf}")
+            else:
+                ofstream.write(f"IRF: {irf[0]}")
+                for value in irf[1:]:
+                    ofstream.write(f"\t{value}")
+            ofstream.write('\n')
 
         if verbose:
             ofstream.write(
@@ -684,439 +1038,10 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
 
     return
 
-
-def validate_grid(grid: dict, supported_meas_types=("TRPL", "TRTS")):
-    if not isinstance(grid, dict):
-        raise TypeError("MCMC simPar must be type 'dict'")
-
-    required_keys = ("lengths", "nx", "meas_types", "num_meas")
-    for k in required_keys:
-        if k not in grid:
-            raise ValueError(f"MCMC simPar missing entry '{k}'")
-
-    declared_num_measurements = grid["num_meas"]
-    if (isinstance(declared_num_measurements, int) and
-            declared_num_measurements > 0):
-        pass
-    else:
-        raise ValueError("Invalid number of measurements")
-
-    if (isinstance(grid["lengths"], (list, np.ndarray)) and
-        len(grid["lengths"]) == declared_num_measurements and
-            all(map(lambda x: x > 0, grid["lengths"]))):
-        pass
-    else:
-        raise ValueError("MCMC simPar entry 'Length' must be a list with "
-                         "one positive length value per measurement")
-
-    if (isinstance(grid["nx"], (list, np.ndarray)) and
-        len(grid["nx"]) == declared_num_measurements and
-            all(map(lambda x: x > 0, grid["nx"]))):
-        pass
-    else:
-        raise ValueError(
-            "MCMC simPar entry 'nx' must be a list with one positive integer "
-            "number of nodes per measurement")
-
-    if (isinstance(grid["meas_types"], (list, np.ndarray)) and
-        len(grid["meas_types"]) == declared_num_measurements and
-            all(map(lambda x: x in supported_meas_types, grid["meas_types"]))):
-        pass
-    else:
-        raise ValueError("MCMC simPar entry 'meas_types' must be a list with "
-                         "one supported type per measurement.\n"
-                         f"Supported types are {supported_meas_types}")
-
-
-def validate_param_info(param_info: dict):
-    if not isinstance(param_info, dict):
-        raise TypeError("MCMC param_info must be type 'dict'")
-
-    required_keys = ("names", "active", "unit_conversions", "do_log",
-                     "init_guess", "init_variance", "prior_dist")
-    for k in required_keys:
-        if k not in param_info:
-            raise ValueError(f"MCMC param_info missing entry '{k}'")
-
-    names = param_info["names"]
-    if (isinstance(names, list) and len(names) > 0):
-        pass
-    else:
-        raise ValueError("Invalid number of param names in param_info")
-
-    # No duplicate names allowed
-    if len(names) == len(set(names)):
-        pass
-    else:
-        raise ValueError("Duplicate param names not allowed")
-
-    # Alphanumeric + underscore only
-    for k in names:
-        if k.replace("_", "").isalnum():
-            pass
-        else:
-            raise ValueError(f"Param name {k} is invalid \n"
-                             " Names must be alphanumeric")
-
-    # Unit conversions CAN be missing entries - these are defaulted to 1
-    for k, v in param_info["unit_conversions"].items():
-        if isinstance(v, (int, float)):
-            pass
-        else:
-            raise ValueError(f"Invalid unit conversion {v} for param {k}")
-
-    # Mu constraint
-    if "do_mu_constraint" in param_info:
-        mu = param_info["do_mu_constraint"]
-        if isinstance(mu, (list, tuple, np.ndarray)) and len(mu) == 2:
-            pass
-        else:
-            raise ValueError("mu_constraint must be list with center and width values \n"
-                             "E.g. [100, 10] to restrict ambipolar mu between 90 and 110.")
-
-    # Others must have ALL entries
-    for k in names:
-        if k in param_info["do_log"]:
-            pass
-        else:
-            raise KeyError(f"do_log missing param {k}")
-
-        if (isinstance(param_info["do_log"][k], (int, np.integer)) and
-                (param_info["do_log"][k] == 0 or param_info["do_log"][k] == 1)):
-            pass
-        else:
-            raise ValueError(f"do_log param {k} invalid - must be 0 or 1")
-
-        if k in param_info["active"]:
-            pass
-        else:
-            raise KeyError(f"param_info's 'active' missing param {k}")
-
-        if (isinstance(param_info["active"][k], (int, np.integer)) and
-                (param_info["active"][k] == 0 or param_info["active"][k] == 1)):
-            pass
-        else:
-            raise ValueError(
-                f"param_info's 'active' param {k} invalid - must be 0 or 1")
-
-        if k in param_info["init_guess"]:
-            pass
-        else:
-            raise KeyError(f"init_guess missing param {k}")
-
-        if (isinstance(param_info["init_guess"][k], (int, np.integer, float))):
-            pass
-        else:
-            raise ValueError(f"init_guess param {k} invalid")
-
-        if k in param_info["prior_dist"]:
-            pass
-        else:
-            raise KeyError(f"prior_dist missing param {k}")
-
-        if (isinstance(param_info["prior_dist"][k], (tuple, list))):
-            pass
-        else:
-            raise ValueError(f"prior_dist param {k} must be tuple or list")
-
-        if (len(param_info["prior_dist"][k]) == 2):
-            pass
-        else:
-            raise ValueError(f"prior_dist param {k} must be length 2")
-
-        if (isinstance(param_info["prior_dist"][k][0], (int, np.integer, float)) and
-                isinstance(param_info["prior_dist"][k][1], (int, np.integer, float))):
-            pass
-        else:
-            raise ValueError(
-                f"prior_dist param {k} must contain two numeric bounds")
-
-        if (param_info["prior_dist"][k][0] < param_info["prior_dist"][k][1]):
-            pass
-        else:
-            raise ValueError(f"prior_dist param {k} lower bound must be smaller"
-                             " than upper bound")
-
-        if k in param_info["init_variance"]:
-            pass
-        else:
-            raise KeyError(f"init_variance missing param {k}")
-
-        if (isinstance(param_info["init_variance"][k], (int, np.integer, float))
-                and param_info["init_variance"][k] >= 0):
-            pass
-        else:
-            raise ValueError(
-                f"init_variance param {k} invalid - must be non-negative")
-
-    return
-
-
-def validate_meas_flags(meas_flags: dict, num_measurements):
-    if not isinstance(meas_flags, dict):
-        raise TypeError("MCMC meas_flags must be type 'dict'")
-
-    required_keys = ("time_cutoff", "select_obs_sets")
-    for k in required_keys:
-        if k not in meas_flags:
-            raise ValueError(f"MCMC meas_flags missing entry '{k}'")
-
-    time_cutoff = meas_flags["time_cutoff"]
-    if isinstance(time_cutoff, (list, np.ndarray)) and len(time_cutoff) == 2:
-        pass
-    else:
-        raise ValueError("meas_flags time_cutoff must be list with 2 cutoff values \n"
-                         "E.g. [0, np.inf] to allow all non-negative times.")
-
-    if isinstance(time_cutoff[0], (int, np.integer, float)):
-        pass
-    else:
-        raise ValueError("Invalid time_cutoff lower bound")
-
-    if isinstance(time_cutoff[1], (int, np.integer, float)):
-        pass
-    else:
-        raise ValueError("Invalid time_cutoff upper bound")
-
-    if time_cutoff[1] >= time_cutoff[0]:
-        pass
-    else:
-        raise ValueError("time_cutoff upper bound smaller than lower bound")
-
-    select = meas_flags["select_obs_sets"]
-    if select is None or isinstance(select, (list, np.ndarray)):
-        pass
-    else:
-        raise TypeError("select_obs_sets must be None or a list type")
-
-    if isinstance(select, (list, np.ndarray)):
-        if all(map(lambda x: x >= 0 and x < num_measurements, select)):
-            pass
-        else:
-            raise ValueError("Invalid select value - must be ints between 0 and"
-                             " num_measurements - 1")
-    if "noise_level" in meas_flags:
-        noise = meas_flags["noise_level"]
-        if noise is None or (isinstance(noise, (int, np.integer, float)) and noise >= 0):
-            pass
-        else:
-            raise TypeError("Noise must be numeric and postiive")
-
-    if "resample" in meas_flags:
-        resample = meas_flags["resample"]
-        if isinstance(resample, int):
-            pass
-        else:
-            raise TypeError("Resample must be an integer")
-        if resample >= 1:
-            pass
-        else:
-            raise ValueError("Invalid resample - must be positive")
-
-    return
-
-
-def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
-                         supported_solvers=("odeint", "solveivp"),
-                         supported_prop_funcs=("box", "gauss", "None")):
-    if not isinstance(MCMC_fields, dict):
-        raise TypeError("MCMC control flags must be type 'dict'")
-
-    required_keys = ("init_cond_path", "measurement_path", "output_path",
-                     "num_iters", "solver",
-                     "likel2variance_ratio",
-                     "annealing",
-                     "log_pl", "self_normalize",
-                     "proposal_function", "one_param_at_a_time",
-                     "checkpoint_dirname", "checkpoint_header",
-                     "checkpoint_freq",
-                     "load_checkpoint",
-                     )
-    for k in required_keys:
-        if k not in MCMC_fields:
-            raise ValueError(f"MCMC control flags missing entry '{k}'")
-
-    if isinstance(MCMC_fields["init_cond_path"], str):
-        pass
-    else:
-        raise ValueError("init_cond_path must be a valid path")
-
-    if isinstance(MCMC_fields["measurement_path"], str):
-        pass
-    else:
-        raise ValueError("measurement_path must be a valid path")
-
-    if isinstance(MCMC_fields["output_path"], str):
-        pass
-    else:
-        raise ValueError("output_path must be a valid path")
-
-    if check_valid_filename(MCMC_fields["output_path"]):
-        pass
-    else:
-        raise ValueError("Invalid char in output_path")
-
-    num_iters = MCMC_fields["num_iters"]
-    if isinstance(num_iters, (int, np.integer)) and num_iters > 0:
-        pass
-    else:
-        raise ValueError("Invalid number of iterations")
-
-    if MCMC_fields["solver"] in supported_solvers:
-        pass
-    else:
-        raise ValueError("MCMC control 'solver' must be a supported solver.\n"
-                         f"Supported solvers are {supported_solvers}")
-
-    if "rtol" in MCMC_fields:
-        rtol = MCMC_fields["rtol"]
-        if isinstance(rtol, (int, np.integer, float)) and rtol > 0:
-            pass
-        else:
-            raise ValueError("rtol must be a non-negative value")
-
-    if "atol" in MCMC_fields:
-        atol = MCMC_fields["atol"]
-        if isinstance(atol, (int, np.integer, float)) and atol > 0:
-            pass
-        else:
-            raise ValueError("atol must be a non-negative value")
-
-    if "hmax" in MCMC_fields:
-        hmax = MCMC_fields["hmax"]
-        if isinstance(hmax, (int, np.integer, float)) and hmax > 0:
-            pass
-        else:
-            raise ValueError("hmax must be a non-negative value")
-
-    if "verify_hmax" in MCMC_fields:
-        verify_hmax = MCMC_fields["verify_hmax"]
-        if (isinstance(verify_hmax, (int, np.integer)) and
-                (verify_hmax == 0 or verify_hmax == 1)):
-            pass
-        else:
-            raise ValueError("verify_hmax invalid - must be 0 or 1")
-
-    annealing = MCMC_fields["annealing"]
-
-    if isinstance(annealing, tuple):
-        pass
-    else:
-        raise TypeError("Annealing must be tuple")
-
-    if len(annealing) == 3:
-        pass
-    else:
-        raise ValueError("Annealing must contain 3 values - "
-                         "start, steprate, and stop")
-
-    if annealing[0] >= annealing[2]:
-        pass
-    else:
-        raise ValueError("Annealing start must be at least as large as stop")
-
-    l2v = MCMC_fields["likel2variance_ratio"]
-
-    if isinstance(l2v, (int, np.integer, float)) and l2v >= 0:
-        pass
-    else:
-        raise ValueError("Likelihood-to-variance must be a non-negative value")
-
-    if "override_equal_mu" in MCMC_fields:
-        mu = MCMC_fields["override_equal_mu"]
-        if (isinstance(mu, (int, np.integer)) and
-                (mu == 0 or mu == 1)):
-            pass
-        else:
-            raise ValueError("override equal_mu invalid - must be 0 or 1")
-
-    if "override_equal_s" in MCMC_fields:
-        s = MCMC_fields["override_equal_s"]
-        if (isinstance(s, (int, np.integer)) and
-                (s == 0 or s == 1)):
-            pass
-        else:
-            raise ValueError("override equal_s invalid - must be 0 or 1")
-
-    logpl = MCMC_fields["log_pl"]
-    if (isinstance(logpl, (int, np.integer)) and
-            (logpl == 0 or logpl == 1)):
-        pass
-    else:
-        raise ValueError("logpl invalid - must be 0 or 1")
-
-    norm = MCMC_fields["self_normalize"]
-    if norm is None:
-        pass
-    elif (isinstance(norm, list)) and all(map(lambda x: isinstance(x, str), norm)):
-        pass
-    else:
-        raise ValueError("self_normalize invalid - must be None, or a list of measurement types "
-                         "that should be normalized.")
-
-    if MCMC_fields["proposal_function"] in supported_prop_funcs:
-        pass
-    else:
-        raise ValueError("MCMC control 'proposal_function' must be a supported proposal function.\n"
-                         f"Supported funcs are {supported_prop_funcs}")
-
-    if "hard_bounds" in MCMC_fields:
-        bound = MCMC_fields["hard_bounds"]
-        if (isinstance(bound, (int, np.integer)) and
-                (bound == 0 or bound == 1)):
-            pass
-        else:
-            raise ValueError("hard_bounds invalid - must be 0 or 1")
-
-    if "irf_convolution" in MCMC_fields:
-        irf = MCMC_fields["irf_convolution"]
-        if irf is None:
-            pass
-        elif (isinstance(irf, (list, np.ndarray)) and
-              len(irf) == num_measurements and
-                all(map(lambda x: x >= 0, irf))):
-            pass
-        else:
-            raise ValueError("MCMC control 'irf_convolution' must be None, or a list with "
-                             "one positive wavelength value per measurement")
-
-    oneaat = MCMC_fields["one_param_at_a_time"]
-    if (isinstance(oneaat, (int, np.integer)) and
-            (oneaat == 0 or oneaat == 1)):
-        pass
-    else:
-        raise ValueError("one_param_at_a_time invalid - must be 0 or 1")
-
-    chpt_d = MCMC_fields["checkpoint_dirname"]
-    if check_valid_filename(chpt_d):
-        pass
-    else:
-        raise ValueError("Invalid char in checkpoint dirname")
-
-    chpt_h = MCMC_fields["checkpoint_header"]
-    if check_valid_filename(chpt_h):
-        pass
-    else:
-        raise ValueError("Invalid char in checkpoint header")
-
-    chpt_f = MCMC_fields["checkpoint_freq"]
-    if isinstance(chpt_f, (int, np.integer)) and chpt_f > 0:
-        pass
-    else:
-        raise ValueError("checkpoint_freq must be positive integer")
-
-    load = MCMC_fields["load_checkpoint"]
-    if load is None or isinstance(load, str):
-        pass
-    else:
-        raise ValueError("Invalid name of checkpoint to load")
-    return
-
-
-if __name__ == "__main__":
-    grid, param_info, meas_flags, MCMC_fields = read_config_script_file(
-        "mcmc0.txt")
-    print(grid)
-    print(param_info)
-    print(meas_flags)
-    print(MCMC_fields)
+# if __name__ == "__main__":
+#     grid, param_info, meas_flags, MCMC_fields = read_config_script_file(
+#         "mcmc0.txt")
+#     print(grid)
+#     print(param_info)
+#     print(meas_flags)
+#     print(MCMC_fields)

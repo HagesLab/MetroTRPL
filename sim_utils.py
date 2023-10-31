@@ -4,83 +4,82 @@ Created on Thu Jan 13 13:04:20 2022
 
 @author: cfai2
 """
-import numpy as np
-from scipy.integrate import trapz
+from sys import float_info
 import os
 import pickle
+import numpy as np
 from numba import njit
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
 q_C = 1.602e-19  # [C per carrier]
-
+DEFAULT_ANN_STEP = np.sqrt(0.5)
 
 class MetroState():
     """ Overall management of the metropolis random walker: its current state,
         the states it's been to, and the trial move function used to get the
         next state.
     """
-
+    sim_info: dict
     def __init__(self, param_info, MCMC_fields, num_iters):
         self.p = Parameters(param_info)
-        self.p.apply_unit_conversions(param_info)
 
         self.H = History(num_iters, param_info)
 
         self.prev_p = Parameters(param_info)
-        self.prev_p.apply_unit_conversions(param_info)
 
         self.means = Parameters(param_info)
-        self.means.apply_unit_conversions(param_info)
 
         self.variances = Covariance(param_info)
         self.variances.apply_values(param_info["init_variance"])
 
         self.param_info = param_info
         self.MCMC_fields = MCMC_fields
-        self.MCMC_fields["current_sigma"] = self.MCMC_fields["annealing"][0]
+        self.MCMC_fields["current_sigma"] = dict(self.MCMC_fields["annealing"][0])
         return
 
-    def anneal(self, k, uncs=None):
+    def anneal(self, k, uncs=None, force=False, step=DEFAULT_ANN_STEP):
         """ "Adjust the model sigma according to an annealing schedule -
-            sigma *= 0.1 every kth step
+            sigma *= sqrt(0.5) every kth step
         """
         steprate = self.MCMC_fields["annealing"][1]
         min_sigma = self.MCMC_fields["annealing"][2]
         l2v = self.MCMC_fields["likel2variance_ratio"]
-        if k > 0 and l2v > 0 and k % steprate == 0:
+        if force or (k > 0 and k % steprate == 0):
 
-            self.MCMC_fields["current_sigma"] *= 0.1
+            for m in self.MCMC_fields["current_sigma"]:
+                self.MCMC_fields["current_sigma"][m] *= step
 
-            self.MCMC_fields["current_sigma"] = max(self.MCMC_fields["current_sigma"],
-                                                    min_sigma)
+                self.MCMC_fields["current_sigma"][m] = max(self.MCMC_fields["current_sigma"][m],
+                                                        min_sigma[m])
 
-            new_variance = self.MCMC_fields["current_sigma"] / l2v
+            # Doesn't matter which meas_type, because all current_sigma are proportional to init_variance
+            random_m = next(iter(self.MCMC_fields["current_sigma"].keys()))
+            new_variance = self.MCMC_fields["current_sigma"][random_m] / l2v[random_m]
             self.variances.apply_values(
                 {param: new_variance for param in self.param_info["names"]})
 
             # Recalculate the previous state's likelihood, for consistency
-
+            meas_types = self.sim_info["meas_types"]
             for i in range(len(self.prev_p.likelihood)):
                 if uncs is not None:
                     exp_unc = 2 * uncs[i] ** 2
                 else:
                     exp_unc = 0
-                new_uncertainty = self.MCMC_fields["current_sigma"]**2 + exp_unc
+                new_uncertainty = self.MCMC_fields["current_sigma"][meas_types[i]]**2 + exp_unc
                 self.prev_p.likelihood[i] = - \
                     np.sum(self.prev_p.err_sq[i] / new_uncertainty)
         return
 
     def print_status(self, logger):
         is_active = self.param_info['active']
-        ucs = self.param_info["unit_conversions"]
 
         if hasattr(self.prev_p, "likelihood"):
             logger.info("Current loglikelihood : {:.6e} ".format(
                 np.sum(self.prev_p.likelihood)))
         for param in self.param_info['names']:
             if is_active.get(param, 0):
-                trial = getattr(self.p, param) / ucs.get(param, 1)
-                mean = getattr(self.means, param) / ucs.get(param, 1)
+                trial = getattr(self.p, param)
+                mean = getattr(self.means, param)
                 logger.info("Next {}: {:.6e} from mean {:.6e}".format(param, trial, mean))
 
         return
@@ -110,9 +109,12 @@ class Parameters():
     tauP: float    # Hole bulk nonradiative decayl lifetime
     eps: float     # Relative dielectric cofficient
     Tm: float      # Temperature
+    likelihood: list # Current likelihood of each simulation vs its respective measurement
+    err_sq: list     # Current squared error of each simulation vs its respective measurement
 
     def __init__(self, param_info):
         self.param_names = param_info["names"]
+        self.ucs = param_info.get("unit_conversions", dict[str, float]())
         self.actives = [(param, index) for index, param in enumerate(self.param_names)
                         if param_info["active"].get(param, False)]
 
@@ -121,20 +123,19 @@ class Parameters():
                 raise KeyError(f"Param with name {param} already exists")
             setattr(self, param, param_info["init_guess"][param])
 
-        # Global scale factor is an optional fitting param - if not defined,
-        # default to x1
-        if "m" not in self.param_names:
-            setattr(self, "m", 1)
+
         return
 
-    def apply_unit_conversions(self, param_info=None):
-        """ Multiply the currently stored parameters according to a provided
+    def apply_unit_conversions(self, reverse=False):
+        """ Multiply the currently stored parameters according to a stored
             unit conversion dictionary.
         """
         for param in self.param_names:
             val = getattr(self, param)
-            setattr(self, param, val *
-                    param_info["unit_conversions"].get(param, 1))
+            if reverse:
+                setattr(self, param, val / self.ucs.get(param, 1))
+            else:
+                setattr(self, param, val * self.ucs.get(param, 1))
         return
 
     def make_log(self, param_info=None):
@@ -162,6 +163,15 @@ class Parameters():
             Parameters(). """
         for param in param_info['names']:
             setattr(self, param, getattr(sender, param))
+        return
+
+    def suppress_scale_factor(self, scale_info, i):
+        """ Force _s scale factors to 1 if they aren't needed, such as if self_normalize
+            is used.
+        """
+        if scale_info is None:
+            return
+        setattr(self, f"_s{i}", 1)
         return
 
 
@@ -236,66 +246,26 @@ class History():
     """ Record of past states the walk has been to. """
 
     def __init__(self, num_iters, param_info):
-        """ param referring to all proposed trial moves, including rejects,
-            and mean_param referring to the state after each iteration.
-
-            If a lot of moves get rejected, mean_param will record the same
-            value for a while while param will record all the rejected moves.
-
-            We need a better name for this.
-        """
         for param in param_info["names"]:
-            setattr(self, param, np.zeros(num_iters))
-            setattr(self, f"mean_{param}", np.zeros(num_iters))
+            setattr(self, f"mean_{param}", np.zeros((1, num_iters)))
 
-        self.accept = np.zeros(num_iters)
-        self.loglikelihood = np.zeros(num_iters)
-        self.proposed_loglikelihood = np.zeros(num_iters)
+        self.accept = np.zeros((1, num_iters))
+        self.loglikelihood = np.zeros((1, num_iters))
         return
 
     def record_best_logll(self, k, prev_p):
         # prev_p is essentially the latest accepted move
-        self.loglikelihood[k] = np.sum(prev_p.likelihood)
+        self.loglikelihood[0, k] = np.sum(prev_p.likelihood)
         return
 
     def update(self, k, p, means, param_info):
-        self.proposed_loglikelihood[k] = np.sum(p.likelihood)
-
         for param in param_info['names']:
-            # Proposed states
-            h = getattr(self, param)
-            h[k] = getattr(p, param)
-            # Accepted states
             h_mean = getattr(self, f"mean_{param}")
-            h_mean[k] = getattr(means, param)
-        return
-
-    def apply_unit_conversions(self, param_info):
-        for param in param_info["names"]:
-            val = getattr(self, param)
-            setattr(self, param, val /
-                    param_info["unit_conversions"].get(param, 1))
-
-            val = getattr(self, f"mean_{param}")
-            setattr(self, f"mean_{param}", val /
-                    param_info["unit_conversions"].get(param, 1))
-        return
-
-    def unapply_unit_conversions(self, param_info):
-        for param in param_info["names"]:
-            val = getattr(self, param)
-            setattr(self, param, val *
-                    param_info["unit_conversions"].get(param, 1))
-
-            val = getattr(self, f"mean_{param}")
-            setattr(self, f"mean_{param}", val *
-                    param_info["unit_conversions"].get(param, 1))
+            h_mean[0, k] = getattr(means, param)
         return
 
     def export(self, param_info, out_pathname):
         for param in param_info["names"]:
-            np.save(os.path.join(out_pathname,
-                    f"{param}"), getattr(self, param))
             np.save(os.path.join(out_pathname, f"mean_{param}"), getattr(
                 self, f"mean_{param}"))
 
@@ -306,44 +276,44 @@ class History():
     def truncate(self, k, param_info):
         """ Cut off any incomplete iterations should the walk be terminated early"""
         for param in param_info["names"]:
-            val = getattr(self, param)
-            setattr(self, param, val[:k])
-
             val = getattr(self, f"mean_{param}")
-            setattr(self, f"mean_{param}", val[:k])
+            setattr(self, f"mean_{param}", val[:, :k])
 
-        self.accept = self.accept[:k]
-        self.loglikelihood = self.loglikelihood[:k]
-        self.proposed_loglikelihood = self.proposed_loglikelihood[:k]
+        self.accept = self.accept[:, :k]
+        self.loglikelihood = self.loglikelihood[:, :k]
         return
 
     def extend(self, new_num_iters, param_info):
         """ Enlarge an existing MC chain to length new_num_iters, if needed """
-        current_num_iters = len(self.accept)
-        if new_num_iters <= current_num_iters:  # No extension needed
+        current_num_iters = len(self.accept[0])
+        if new_num_iters < current_num_iters:  # No extension needed
+            self.truncate(new_num_iters, param_info)
+            return
+        if new_num_iters == current_num_iters:
             return
 
         addtl_iters = new_num_iters - current_num_iters
         self.accept = np.concatenate(
-            (self.accept, np.zeros(addtl_iters)), axis=0)
+            (self.accept, np.zeros((1, addtl_iters))), axis=1)
         self.loglikelihood = np.concatenate(
-            (self.loglikelihood, np.zeros(addtl_iters)), axis=0)
-        self.proposed_loglikelihood = np.concatenate(
-            (self.proposed_loglikelihood, np.zeros(addtl_iters)), axis=0)
+            (self.loglikelihood, np.zeros((1, addtl_iters))), axis=1)
 
         for param in param_info["names"]:
-            val = getattr(self, param)
-            setattr(self, param, np.concatenate(
-                (val, np.zeros(addtl_iters)), axis=0))
-
             val = getattr(self, f"mean_{param}")
             setattr(self, f"mean_{param}", np.concatenate(
-                (val, np.zeros(addtl_iters)), axis=0))
+                (val, np.zeros((1, addtl_iters))), axis=1))
         return
 
 
 class Grid():
+    """
+    Collection of values describing the grid dimensions for the simulation.
+
+    min_y : float
+        Minimum value the simulated signal is allowed to reach before the sim terminates.
+    """
     def __init__(self):
+        self.min_y = float_info.min
         return
 
 
@@ -353,27 +323,71 @@ class Solution():
 
     def calculate_PL(self, g, p):
         """ Time-resolved photoluminescence """
-        rr = calculate_RR(self.N, self.P, p.ks, p.n0, p.p0)
-
-        self.PL = trapz(rr, dx=g.dx, axis=1)
-        self.PL += rr[:, 0] * g.dx / 2
-        self.PL += rr[:, -1] * g.dx / 2
-        return
+        self.PL = calculate_PL(g.dx, self.N, self.P, p.ks, p.n0, p.p0)
 
     def calculate_TRTS(self, g, p):
         """ Transient terahertz decay """
-        trts = p.mu_n * (self.N - p.n0) + p.mu_p * (self.P - p.p0)
-        self.trts = trapz(trts, dx=g.dx, axis=1)
-        self.trts += trts[:, 0] * g.dx / 2
-        self.trts += trts[:, -1] * g.dx / 2
-        self.trts *= q_C
-        return
+        self.trts = calculate_TRTS(g.dx, self.N, self.P, p.mu_n, p.mu_p, p.n0, p.p0)
 
+def calculate_PL(dx, N, P, ks, n0, p0):
+    rr = calculate_RR(N, P, ks, n0, p0)
+    if rr.ndim == 2:
+        PL = integrate_2D(dx, rr)
+    elif rr.ndim == 1:
+        PL = integrate_1D(dx, rr)
+    else:
+        raise ValueError(f"Invalid number of dims (got {rr.ndim} dims) in Solution")
+    return PL
+
+def calculate_TRTS(dx, N, P, mu_n, mu_p, n0, p0):
+    trts = calculate_photoc(N, P, mu_n, mu_p, n0, p0)
+    if trts.ndim == 2:
+        trts = integrate_2D(dx, trts)
+    elif trts.ndim == 1:
+        trts = integrate_1D(dx, trts)
+    else:
+        raise ValueError(f"Invalid number of dims (got {trts.ndim} dims) in Solution")
+    return trts
+
+@njit(cache=True)
+def integrate_2D(dx, y):
+    y_int = np.zeros(len(y))
+    for i in range(len(y)):
+        y_int[i] = integrate_1D(dx, y[i])
+    return y_int
+
+@njit(cache=True)
+def integrate_1D(dx, y):
+    y_int = y[0] * dx / 2
+    for i in range(1, len(y)):
+        y_int += dx * (y[i] + y[i-1]) / 2
+    y_int += y[-1] * dx / 2
+    return y_int
 
 @njit(cache=True)
 def calculate_RR(N, P, ks, n0, p0):
     return ks * (N * P - n0 * p0)
 
+@njit(cache=True)
+def calculate_photoc(N, P, mu_n, mu_p, n0, p0):
+    return q_C * (mu_n * (N - n0) + mu_p * (P - p0))
+
+def check_threshold(t, y, L, dx, min_y=0, mode="TRPL", ks=0, mu_n=0, mu_p=0, n0=0, p0=0):
+    """Event - terminate integration if PL(t) is below the starting PL0=PL(t=0) * thr"""
+    N = y[0:L]
+    P = y[L:2*(L)]
+
+    if mode == "TRPL":
+        y_test = calculate_PL(dx, N, P, ks, n0, p0)
+    elif mode == "TRTS":
+        y_test = calculate_TRTS(dx, N, P, mu_n, mu_p, n0, p0)
+    else:
+        raise ValueError("Unsupported threshold mode")
+
+    if y_test <= min_y:
+        return 0
+    else:
+        return 1
 
 if __name__ == "__main__":
     S = Solution()
