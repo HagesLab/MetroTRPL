@@ -1002,11 +1002,11 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         chpt_d = MCMC_fields.get("checkpoint_dirname", MCMC_fields["output_path"])
         ofstream.write(f"Checkpoint dir: {chpt_d}\n")
 
-        if verbose:
-            ofstream.write(
-                "# An optional tag to append to the filename of each checkpoint.\n")
-        chpt_h = MCMC_fields["checkpoint_header"]
-        ofstream.write(f"Checkpoint fileheader: {chpt_h}\n")
+        if "checkpoint_header" in MCMC_fields:
+            if verbose:
+                ofstream.write("# A name for each checkpoint file.\n")
+            chpt_h = MCMC_fields["checkpoint_header"]
+            ofstream.write(f"Checkpoint fileheader: {chpt_h}\n")
 
         if verbose:
             ofstream.write("# Checkpoint saved every 'this many' samples.\n")

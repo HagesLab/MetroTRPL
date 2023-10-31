@@ -300,7 +300,6 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
                      "likel2variance_ratio",
                      "log_pl", "self_normalize",
                      "proposal_function", "one_param_at_a_time",
-                     "checkpoint_header",
                      "checkpoint_freq",
                      "load_checkpoint",
                      )
@@ -517,11 +516,12 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("Invalid char in checkpoint dirname")
 
-    chpt_h = MCMC_fields["checkpoint_header"]
-    if check_valid_filename(chpt_h):
-        pass
-    else:
-        raise ValueError("Invalid char in checkpoint header")
+    if "checkpoint_header" in MCMC_fields:
+        chpt_h = MCMC_fields["checkpoint_header"]
+        if check_valid_filename(chpt_h):
+            pass
+        else:
+            raise ValueError("Invalid char in checkpoint header")
 
     chpt_f = MCMC_fields["checkpoint_freq"]
     if isinstance(chpt_f, (int, np.integer)) and chpt_f > 0:

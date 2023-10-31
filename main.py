@@ -91,11 +91,12 @@ if __name__ == "__main__":
     logger.info("Acceptance rate: {}".format(
         np.sum(MS.H.accept) / len(MS.H.accept.flatten())))
 
-    # Successful completion - checkpoints not needed anymore
-    chpt_header = MS.MCMC_fields["checkpoint_header"]
-    for chpt in os.listdir(MS.MCMC_fields["checkpoint_dirname"]):
-        if f"checkpoint{chpt_header}" in chpt:
-            os.remove(os.path.join(MS.MCMC_fields["checkpoint_dirname"], chpt))
+    # Successful completion - remove all non-final checkpoints
+    if "checkpoint_header" in MS.MCMC_fields:
+        chpt_header = MS.MCMC_fields["checkpoint_header"]
+        for chpt in os.listdir(MS.MCMC_fields["checkpoint_dirname"]):
+            if chpt.startswith(chpt_header) and not chpt.endswith("final.pik") and not chpt.endswith(".log"):
+                os.remove(os.path.join(MS.MCMC_fields["checkpoint_dirname"], chpt))
     # os.rmdir(MS.MCMC_fields["checkpoint_dirname"])
 
     stop_logging(logger, handler, 0)

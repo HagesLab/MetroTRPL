@@ -776,7 +776,7 @@ def main_metro_loop(MS, starting_iter, num_iters,
         if checkpoint_freq is not None and k % checkpoint_freq == 0:
             chpt_header = MS.MCMC_fields["checkpoint_header"]
             chpt_fname = os.path.join(MS.MCMC_fields["checkpoint_dirname"],
-                                      f"checkpoint{chpt_header}.pik")
+                                    f"{chpt_header}.pik")
             logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
             MS.random_state = np.random.get_state()
             MS.checkpoint(chpt_fname)
@@ -797,7 +797,7 @@ def all_signal_handler(func):
 
 
 def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
-          verbose=False, export_path=None, logger=None):
+          verbose=False, export_path="", logger=None):
 
     if logger is None:  # Require a logger
         logger, handler = start_logging(log_dir=MCMC_fields["output_path"],
@@ -818,6 +818,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     if load_checkpoint is None:
         MS = MetroState(param_info, MCMC_fields, num_iters)
         MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
+        if "checkpoint_header" not in MS.MCMC_fields:
+            MS.MCMC_fields["checkpoint_header"] = export_path[:export_path.find(".pik")]
 
         starting_iter = 1
 
