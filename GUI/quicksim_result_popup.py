@@ -119,7 +119,7 @@ class QuicksimResultPopup(Popup):
             for c in range(self.n_chains):
                 scale_f = self.window.data[self.active_chain_names[c]]
                 if f"_s{i}" in scale_f:
-                    scale_f = scale_f[f"_s{i}"][True][-1]
+                    scale_f = scale_f[f"_s{i}"][-1]
                 else:
                     scale_f = 1
                 self.scale_var[c][i].set("{:.2e}".format(scale_f))
