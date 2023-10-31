@@ -118,7 +118,7 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
                 p.kC, p.Nt, p.tauE)
         else:
             raise ValueError(f"Invalid model {model}")
-        
+
         dy = lambda t, y: MODELS[model](t, y, *args)
 
         s = Solution()
@@ -191,7 +191,7 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
 
         if meas != "TRPL":
             raise NotImplementedError("TRPL only")
-        
+
         if not nn.has_model:
             nn.load_model(solver[1], solver[2])
 
@@ -595,7 +595,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
         # TODO: accomodate multiple experiments, just like bayes
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect
-        # A few negative values may also be introduced during convolution - 
+        # A few negative values may also be introduced during convolution -
         # so we want to tolerate these, while too many suggests that depletion
         # is happening instead
 
@@ -604,7 +604,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
         success = n_fails < 0.2 * len(sol)
         if not success:
             raise ValueError(f"{i}: Simulation failed: too many negative vals")
- 
+
         if n_fails > 0:
             logger.warning(f"{i}: {n_fails} / {len(sol)} non-positive vals")
 

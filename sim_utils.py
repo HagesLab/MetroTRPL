@@ -164,7 +164,7 @@ class Parameters():
         for param in param_info['names']:
             setattr(self, param, getattr(sender, param))
         return
-    
+
     def suppress_scale_factor(self, scale_info, i):
         """ Force _s scale factors to 1 if they aren't needed, such as if self_normalize
             is used.
@@ -328,7 +328,7 @@ class Solution():
     def calculate_TRTS(self, g, p):
         """ Transient terahertz decay """
         self.trts = calculate_TRTS(g.dx, self.N, self.P, p.mu_n, p.mu_p, p.n0, p.p0)
-    
+
 def calculate_PL(dx, N, P, ks, n0, p0):
     rr = calculate_RR(N, P, ks, n0, p0)
     if rr.ndim == 2:
@@ -363,7 +363,6 @@ def integrate_1D(dx, y):
         y_int += dx * (y[i] + y[i-1]) / 2
     y_int += y[-1] * dx / 2
     return y_int
-
 
 @njit(cache=True)
 def calculate_RR(N, P, ks, n0, p0):

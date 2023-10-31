@@ -1,8 +1,9 @@
+from sim_utils import History
 import unittest
 import numpy as np
 import sys
 sys.path.append("..")
-from sim_utils import History
+
 
 class TestUtils(unittest.TestCase):
 
@@ -28,7 +29,7 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(np.sum(self.tasth.loglikelihood), 0)
         self.assertEqual(len(self.tasth.accept[0]), self.num_iters)
         self.assertEqual(len(self.tasth.loglikelihood[0]), self.num_iters)
-        
+
         for param in self.dummy_names:
             self.assertEqual(np.sum(getattr(self.tasth, f"mean_{param}")), 0)
             self.assertEqual(

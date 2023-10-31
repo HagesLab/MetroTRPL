@@ -269,7 +269,7 @@ def remap_constraint_grps(c_grps : list[tuple], select_obs_sets : list) -> list[
 
         if len(new_c_grp) > 1:
             new_c_grps.append(tuple(new_c_grp))
-        
+
     return new_c_grps
 
 def add_annealing(MCMC_fields, initial_variance, meas_types, annealing_step=999999, min_sigma=0.01):
@@ -398,7 +398,7 @@ def read_config_script_file(path):
 
                     elif line.startswith("Resample"):
                         meas_flags["resample"] = int(line_split[1])
-                            
+
                 if (init_flag == 's'):
                     if line.startswith("Num iters"):
                         MCMC_fields["num_iters"] = int(line_split[1])
@@ -432,8 +432,6 @@ def read_config_script_file(path):
                         except ValueError: # Not a float; must be dict
                             l2v = extract_tuples(line_split[1], delimiter="|", dtype=float)
                             MCMC_fields["likel2variance_ratio"] = {m[0]:float(m[1]) for m in l2v}
-                            
-                        
                     elif line.startswith("Force equal mu"):
                         MCMC_fields["override_equal_mu"] = int(line_split[1])
                     elif line.startswith("Force equal S"):
@@ -962,6 +960,21 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                                "# =1 to activate; =0 to disable.\n")
             fy = MCMC_fields["force_min_y"]
             ofstream.write(f"Force min y: {fy}\n")
+
+        if verbose:
+            ofstream.write(
+                "# None for no convolution, or a list of wavelengths whose IRF profiles\n"
+                "# will be used to convolute each simulated TRPL curve. One wavelength per"
+                " measurement.\n")
+        if "irf_convolution" in MCMC_fields:
+            irf = MCMC_fields["irf_convolution"]
+            if irf is None:
+                ofstream.write(f"IRF: {irf}")
+            else:
+                ofstream.write(f"IRF: {irf[0]}")
+                for value in irf[1:]:
+                    ofstream.write(f"\t{value}")
+            ofstream.write('\n')
 
         if verbose:
             ofstream.write(

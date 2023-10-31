@@ -206,7 +206,7 @@ class TestUtils(unittest.TestCase):
             solve(init_dN, g, pa, meas="TRPL", solver=("somethign else",))
 
         return
-    
+
     def test_solve_depletion(self):
         """ A high-inj, rad-only sample problem. Parameters are chosen such that
         the simulated PL will decay by about 2.5 orders of magnitude. """
@@ -282,7 +282,7 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(test_TRTS[-10:], g.min_y)
 
         return
-    
+
     def test_solve_traps(self):
         # A high-inj, rad-only sample problem using null parameters for the trap model
         # which should be equivalent to the std model
@@ -388,7 +388,7 @@ class TestUtils(unittest.TestCase):
 
         param_info["init_guess"] = vals
         pa = Parameters(param_info)
-        
+
         fluence = 1e15 # Fluence, alpha in cm units
         alpha = 6e4
         g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
@@ -397,10 +397,10 @@ class TestUtils(unittest.TestCase):
 
         PL_by_initvals, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
                                        RTOL=1e-10, ATOL=1e-14)
-        
+
         PL_by_initparams, out_dN = solve([fluence, alpha], g, pa, meas="TRPL", solver=("solveivp",),
                                          RTOL=1e-10, ATOL=1e-14)
-        
+
         np.testing.assert_almost_equal(PL_by_initvals / np.amax(PL_by_initvals), PL_by_initparams / np.amax(PL_by_initvals))
 
 
@@ -1052,7 +1052,7 @@ class TestUtils(unittest.TestCase):
 
         np.testing.assert_almost_equal(
             p.likelihood, [0, 0], decimal=0)  # rtol=1e-5
-        
+
     def test_run_iter_scale(self):
         # Same as test_run_iter, except global scale factor, which will be chosen to match
         # the first measurement (but off by one order of magnitude from the second)
@@ -1110,7 +1110,7 @@ class TestUtils(unittest.TestCase):
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        
+
         run_iteration(p, simPar, iniPar, times, vals, uncs, None,
                       running_hmax, sim_flags, verbose=True,
                       logger=self.logger, prev_p=None)
