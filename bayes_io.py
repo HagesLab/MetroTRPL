@@ -999,7 +999,7 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
 
         if verbose:
             ofstream.write("# Directory checkpoint files stored in.\n")
-        chpt_d = MCMC_fields["checkpoint_dirname"]
+        chpt_d = MCMC_fields.get("checkpoint_dirname", MCMC_fields["output_path"])
         ofstream.write(f"Checkpoint dir: {chpt_d}\n")
 
         if verbose:
