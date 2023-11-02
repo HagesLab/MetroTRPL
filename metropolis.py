@@ -850,8 +850,16 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             MS = pickle.load(ifstream)
             np.random.set_state(MS.random_state)
 
-            starting_iter = MS.latest_iter + 1
-            MS.H.extend(num_iters, param_info)
+            if "starting_iter" in MCMC_fields and MCMC_fields["starting_iter"] < MS.latest_iter:
+                starting_iter = MCMC_fields["starting_iter"]
+                MS.H.extend(starting_iter, MS.param_info)
+                for param in MS.param_info["names"]:
+                    setattr(MS.means, param, getattr(MS.H, f"mean_{param}")[0, starting_iter - 1])
+                MS.prev_p.likelihood = np.zeros_like(MS.prev_p.likelihood)
+                MS.prev_p.likelihood = MS.H.loglikelihood[0, -1]
+            else:
+                starting_iter = MS.latest_iter + 1
+            MS.H.extend(num_iters, MS.param_info)
             MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
             # Induce annealing, which also corrects the prev_likelihood and adjust the step size
             # MS.anneal(-1, MS.uncs, force=True)

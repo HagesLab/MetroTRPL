@@ -402,6 +402,8 @@ def read_config_script_file(path):
                 if (init_flag == 's'):
                     if line.startswith("Num iters"):
                         MCMC_fields["num_iters"] = int(line_split[1])
+                    elif line.startswith("Starting iter"):
+                        MCMC_fields["starting_iter"] = int(line_split[1])
                     elif line.startswith("Solver name"):
                         MCMC_fields["solver"] = tuple(line_split[1].split('\t'))
                     elif line.startswith("Model name"):
@@ -735,6 +737,12 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             ofstream.write("# How many samples to propose.\n")
         num_iters = MCMC_fields["num_iters"]
         ofstream.write(f"Num iters: {num_iters}\n")
+        if verbose:
+            ofstream.write("# Starting sample number. This is always zero for new inferences.\n"
+                           "# If loading a checkpoint, will continue from this iteration if provided,\n"
+                           "# or where the checkpoint left off by default.\n")
+        starting_iter = MCMC_fields.get("starting_iter", 0)
+        ofstream.write(f"Starting iter: {starting_iter}\n")
         if verbose:
             ofstream.write(
                 "# Which solver engine to use - solveivp (more robust), odeint (sometimes faster),"

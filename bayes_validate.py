@@ -333,6 +333,13 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
     else:
         raise ValueError("Invalid number of iterations")
     
+    if "starting_iter" in MCMC_fields:
+        starting_iter = MCMC_fields["starting_iter"]
+        if isinstance(starting_iter, (int, np.integer)) and starting_iter >= 0:
+            pass
+        else:
+            raise ValueError("Invalid starting iteration")
+    
     if isinstance(MCMC_fields["model"], str) and MCMC_fields["model"] in MODELS:
         pass
     else:
