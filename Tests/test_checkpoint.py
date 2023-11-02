@@ -112,7 +112,7 @@ class TestUtils(unittest.TestCase):
                        "hard_bounds": 1,
                        "checkpoint_dirname": os.path.join(".",
                                                           "test-Checkpoints"),
-                       "checkpoint_header": "",
+                       "checkpoint_header": "checkpoint",
                        "checkpoint_freq": 5,
                        # f"checkpointCPU{jobid}_30000.pik",
                        "load_checkpoint": None,
@@ -145,7 +145,7 @@ class TestUtils(unittest.TestCase):
 
     def test_checkpoint(self):
         with open(os.path.join(os.path.join(".", "test-Checkpoints"),
-                               "checkpoint_5.pik"), 'rb') as ifstream:
+                               "checkpoint.pik"), 'rb') as ifstream:
             self.MS_from_chpt = pickle.load(ifstream)
             np.random.set_state(self.MS_from_chpt.random_state)
             starting_iter = 5 + 1

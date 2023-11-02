@@ -402,6 +402,8 @@ def read_config_script_file(path):
                 if (init_flag == 's'):
                     if line.startswith("Num iters"):
                         MCMC_fields["num_iters"] = int(line_split[1])
+                    elif line.startswith("Starting iter"):
+                        MCMC_fields["starting_iter"] = int(line_split[1])
                     elif line.startswith("Solver name"):
                         MCMC_fields["solver"] = tuple(line_split[1].split('\t'))
                     elif line.startswith("Model name"):
@@ -736,6 +738,12 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         num_iters = MCMC_fields["num_iters"]
         ofstream.write(f"Num iters: {num_iters}\n")
         if verbose:
+            ofstream.write("# Starting sample number. This is always zero for new inferences.\n"
+                           "# If loading a checkpoint, will continue from this iteration if provided,\n"
+                           "# or where the checkpoint left off by default.\n")
+        starting_iter = MCMC_fields.get("starting_iter", 0)
+        ofstream.write(f"Starting iter: {starting_iter}\n")
+        if verbose:
             ofstream.write(
                 "# Which solver engine to use - solveivp (more robust), odeint (sometimes faster),"
                 "# or NN (experimental!).\n")
@@ -999,14 +1007,14 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
 
         if verbose:
             ofstream.write("# Directory checkpoint files stored in.\n")
-        chpt_d = MCMC_fields["checkpoint_dirname"]
+        chpt_d = MCMC_fields.get("checkpoint_dirname", MCMC_fields["output_path"])
         ofstream.write(f"Checkpoint dir: {chpt_d}\n")
 
-        if verbose:
-            ofstream.write(
-                "# An optional tag to append to the filename of each checkpoint.\n")
-        chpt_h = MCMC_fields["checkpoint_header"]
-        ofstream.write(f"Checkpoint fileheader: {chpt_h}\n")
+        if "checkpoint_header" in MCMC_fields:
+            if verbose:
+                ofstream.write("# A name for each checkpoint file.\n")
+            chpt_h = MCMC_fields["checkpoint_header"]
+            ofstream.write(f"Checkpoint fileheader: {chpt_h}\n")
 
         if verbose:
             ofstream.write("# Checkpoint saved every 'this many' samples.\n")

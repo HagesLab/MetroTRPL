@@ -766,6 +766,8 @@ def main_metro_loop(MS, starting_iter, num_iters,
                 MS.H.accept[0, k] = 1
 
             MS.H.update(k, MS.p, MS.means, MS.param_info)
+            MS.latest_iter = k
+
         except KeyboardInterrupt:
             logger.info("Terminating with k={} iters completed:".format(k-1))
             MS.H.truncate(k, MS.param_info)
@@ -774,7 +776,7 @@ def main_metro_loop(MS, starting_iter, num_iters,
         if checkpoint_freq is not None and k % checkpoint_freq == 0:
             chpt_header = MS.MCMC_fields["checkpoint_header"]
             chpt_fname = os.path.join(MS.MCMC_fields["checkpoint_dirname"],
-                                      f"checkpoint{chpt_header}_{k}.pik")
+                                    f"{chpt_header}.pik")
             logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
             MS.random_state = np.random.get_state()
             MS.checkpoint(chpt_fname)
@@ -795,7 +797,7 @@ def all_signal_handler(func):
 
 
 def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
-          verbose=False, export_path=None, logger=None):
+          verbose=False, export_path="", logger=None):
 
     if logger is None:  # Require a logger
         logger, handler = start_logging(log_dir=MCMC_fields["output_path"],
@@ -809,8 +811,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     all_signal_handler(kill_from_cl)
 
     make_dir(MCMC_fields["checkpoint_dirname"])
-    clear_checkpoint_dir(MCMC_fields)
-
     make_dir(MCMC_fields["output_path"])
 
     load_checkpoint = MCMC_fields["load_checkpoint"]
@@ -818,6 +818,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     if load_checkpoint is None:
         MS = MetroState(param_info, MCMC_fields, num_iters)
         MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
+        if "checkpoint_header" not in MS.MCMC_fields:
+            MS.MCMC_fields["checkpoint_header"] = export_path[:export_path.find(".pik")]
 
         starting_iter = 1
 
@@ -847,11 +849,17 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                                load_checkpoint), 'rb') as ifstream:
             MS = pickle.load(ifstream)
             np.random.set_state(MS.random_state)
-            first_under = load_checkpoint.find("_")
-            tail = load_checkpoint.rfind(".pik")
 
-            starting_iter = int(load_checkpoint[first_under+1:tail])+1
-            MS.H.extend(num_iters, param_info)
+            if "starting_iter" in MCMC_fields and MCMC_fields["starting_iter"] < MS.latest_iter:
+                starting_iter = MCMC_fields["starting_iter"]
+                MS.H.extend(starting_iter, MS.param_info)
+                for param in MS.param_info["names"]:
+                    setattr(MS.means, param, getattr(MS.H, f"mean_{param}")[0, starting_iter - 1])
+                MS.prev_p.likelihood = np.zeros_like(MS.prev_p.likelihood)
+                MS.prev_p.likelihood = MS.H.loglikelihood[0, -1]
+            else:
+                starting_iter = MS.latest_iter + 1
+            MS.H.extend(num_iters, MS.param_info)
             MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
             # Induce annealing, which also corrects the prev_likelihood and adjust the step size
             # MS.anneal(-1, MS.uncs, force=True)
@@ -868,7 +876,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                     logger=logger, verbose=True)
 
     MS.H.final_cov = MS.variances.cov
-
+    MS.random_state = np.random.get_state()
     if export_path is not None:
         logger.info("Exporting to {}".format(MS.MCMC_fields["output_path"]))
         MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
