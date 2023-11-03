@@ -591,7 +591,7 @@ class TestUtils(unittest.TestCase):
 
         with self.assertLogs() as captured:
             select_next_params(pa, means, variances, param_info,
-                               trial_function="gauss", logger=self.logger)
+                               trial_function="gauss", logger=self.logger, verbose=True)
 
         # One error about the multivariate norm failing and one message
         # about finding the fallback params successfully
