@@ -20,6 +20,11 @@ class MetroState():
         next state.
     """
     sim_info: dict
+    iniPar: np.ndarray
+    times: list[np.ndarray]
+    vals: list[np.ndarray]
+    uncs: list[np.ndarray]
+    IRF_tables: dict
     def __init__(self, param_info, MCMC_fields, num_iters):
         self.p = Parameters(param_info)
 
