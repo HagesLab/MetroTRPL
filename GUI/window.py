@@ -833,6 +833,8 @@ class Window(TkGUI):
             equi = 0
 
         for chain in self.chains:
+            if chain.visible.get() == 0:
+                continue
             num_active = sum(chain.active_sampled.values())
             num_samples = len(chain.data["log likelihood"]) + 1 - equi
             diffusion_coef = 0
