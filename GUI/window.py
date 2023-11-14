@@ -48,6 +48,8 @@ class Chain():
     def __init__(self, fname):
         self.fname = fname
         self.visible = TracedIntVar(value=1)
+        self.active_sampled = {}
+        self.param_names = []
 
         # Stores all MCMC states - self.data[param_name]
         # param_name e.g. p0, mu_n, mu_p
@@ -110,6 +112,7 @@ class Window(TkGUI):
         widgets["xlim_l"].bind("<FocusOut>", self.redraw)
         widgets["xlim_u"].bind("<FocusOut>", self.redraw)
         widgets["export this"].configure(command=partial(self.export, "this_variable"))
+        widgets["calc_diffusion"].configure(command=self.chain_diffusion)
 
         variables["bins"].set(str(DEFAULT_HIST_BINS))
         variables["thickness"].set(str(DEFAULT_THICKNESS))
@@ -238,6 +241,9 @@ class Window(TkGUI):
 
             with open(file_name, "rb") as rfile:
                 metrostate: sim_utils.MetroState = pickle.load(rfile)
+
+            chain.active_sampled = metrostate.param_info["active"]
+            chain.param_names = metrostate.param_info["names"]
 
             logl = getattr(metrostate.H, "loglikelihood")
             if logl.ndim == 2 and logl.shape[0] == 1:
@@ -816,3 +822,30 @@ class Window(TkGUI):
                         np.savetxt(os.path.join(out_dir, out_name), freq_matrix, delimiter=",")
 
                     self.status(f"Export complete - {os.path.join(out_dir, out_name)}")
+
+    def chain_diffusion(self):
+        """Calculate diffusion coefficient of chains"""
+        equi = self.side_panel.variables["equi"].get()
+        try:
+            equi = int(equi)
+            equi = max(0, equi)
+        except ValueError:
+            equi = 0
+
+        for chain in self.chains:
+            num_active = sum(chain.active_sampled.values())
+            num_samples = len(chain.data["log likelihood"]) + 1 - equi
+            diffusion_coef = 0
+
+            for param in chain.param_names:
+                if not chain.active_sampled[param]:
+                    continue
+
+                x = chain.data[param][equi:]
+                x = np.log10(x)
+                x = np.diff(x)
+                x = x ** 2
+                diffusion_coef += np.sum(x)
+
+            diffusion_coef /= (num_samples * num_active)
+            self.status(f"Chain {chain.fname} Diffusion coef: {diffusion_coef}")
