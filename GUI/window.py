@@ -151,12 +151,9 @@ class Window(TkGUI):
 
     def do_quicksim_result_popup(self, n_chains, n_sims) -> None:
         """Show quicksim results"""
-        active_chain_names = []
-        for chain in self.chains:
-            if chain.visible.get() != 0:
-                active_chain_names.append(chain.fname)
+        active_chain_inds = [i for i in range(len(self.chains)) if self.chains[i].visible.get()]
         self.qsr_popup = QuicksimResultPopup(self, self.side_panel.widget, n_chains, n_sims,
-                                             active_chain_names)
+                                             active_chain_inds)
 
     def query_quicksim(self, expected_num_sims : int) -> None:
         """Periodically check and plot completed quicksims"""

@@ -19,7 +19,7 @@ PLOT_SIZE = 400
 
 class QuicksimResultPopup(Popup):
 
-    def __init__(self, window, master, n_chains, n_sims, active_chain_names):
+    def __init__(self, window, master, n_chains, n_sims, active_chain_inds):
         self.width = int(BASE_WIDTH + WIDTH_PER_CHAIN * n_chains)
         super().__init__(window, master, self.width, HEIGHT)
         self.toplevel.resizable(False, False)
@@ -54,7 +54,7 @@ class QuicksimResultPopup(Popup):
         self.exp_data = []
         self.n_chains = n_chains
         self.n_sims = n_sims
-        self.active_chain_names = active_chain_names
+        self.active_chain_inds = active_chain_inds
 
         self.draw_s_frame()
 
@@ -101,8 +101,9 @@ class QuicksimResultPopup(Popup):
             self.s_frame.widgets[f"Visible-{i}"] = tk.Checkbutton(self.s_frame.widget, variable=self.specific_sim_visibility[i], background=LIGHT_GREY)
             self.s_frame.widgets[f"Visible-{i}"].place(x=25, y=105+30*i)
             
-        for c, fname in enumerate(self.active_chain_names):
-            tk.Label(self.s_frame.widget, text=f"\"{os.path.basename(fname)[:4]}...\"\nScale", **LABEL_KWARGS).place(x=38+80*c, y=20)
+        for c, ind in enumerate(self.active_chain_inds):
+            chain = self.window.chains[ind]
+            tk.Label(self.s_frame.widget, text=f"\"{os.path.basename(chain.fname)[:4]}...\"\nScale", **LABEL_KWARGS).place(x=38+80*c, y=20)
             tk.Label(self.s_frame.widget, width=8, height=1, background=PLOT_COLOR_CYCLE[c % len(PLOT_COLOR_CYCLE)]).place(x=60+80*c, y=60)
             for i in range(self.n_sims):
                 self.scale_var[c].append(tk.StringVar())
@@ -117,11 +118,7 @@ class QuicksimResultPopup(Popup):
         """Fill in s_frame with scale factors for each chain's final state"""
         for i in range(self.n_sims):
             for c in range(self.n_chains):
-                # TODO: Make QSR not rely on indexing by fnames anymore
-                scale_f = {}
-                for chain in self.window.chains:
-                    if chain.fname == self.active_chain_names[c]:
-                        scale_f = chain.data
+                scale_f = self.window.chains[self.active_chain_inds[c]].data
 
                 if f"_s{i}" in scale_f:
                     scale_f = scale_f[f"_s{i}"][-1]
@@ -161,8 +158,8 @@ class QuicksimResultPopup(Popup):
         if fname == "":
             return
 
-        exp_t, exp_y, exp_u = get_data(fname, None, ic_flags, MCMC_fields)
-        for ty in zip(exp_t, exp_y):
+        exp = get_data(fname, None, ic_flags, MCMC_fields)
+        for ty in zip(exp[0], exp[1]):
             self.exp_data.append(ty)
 
         self.clear()
@@ -193,8 +190,8 @@ class QuicksimResultPopup(Popup):
             for i, sr in enumerate(self.sim_results[c]):
                 result.append(sr[0])
                 result.append(sr[1] * float(self.scale_var[c][i].get()))
-                header.append(f"{os.path.basename(self.active_chain_names[c])} - {i} - time")
-                header.append(f"{os.path.basename(self.active_chain_names[c])} - {i} - y")
+                header.append(f"{os.path.basename(self.window.chains[self.active_chain_inds[c]].fname)} - {i} - time")
+                header.append(f"{os.path.basename(self.window.chains[self.active_chain_inds[c]].fname)} - {i} - y")
 
         result = np.array(list(map(list, itertools.zip_longest(*result, fillvalue=-1))))
         np.savetxt(fname, result, header=",".join(header), delimiter=",")
