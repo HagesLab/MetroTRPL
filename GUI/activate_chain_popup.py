@@ -10,8 +10,8 @@ from gui_colors import LIGHT_GREY, PLOT_COLOR_CYCLE
 
 WIDTH_PER_COL = 180
 CHAINS_PER_ROW = 8
-BASE_HEIGHT = 20
-HEIGHT_PER_CHAIN = 40
+BASE_HEIGHT = 60
+HEIGHT_PER_CHAIN = 36
 class ActivateChainPopup(Popup):
 
     def __init__(self, window, master) -> None:
