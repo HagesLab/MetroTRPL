@@ -55,12 +55,12 @@ class QuicksimManager():
             IRF_tables = dict()
 
         simulate = []
-        for fname in self.window.file_names:
-            if self.window.file_names[fname].get() == 0: # Don't simulate disabled chains
+        for chain in self.window.chains:
+            if chain.visible.get() == 0: # Don't simulate disabled chains
                 continue
             param_info = {}
-            param_info["names"] = [x for x in self.window.data[fname] if x not in self.window.sp.func]
-            param_info["init_guess"] = {x: self.window.data[fname][x][-1] for x in param_info["names"]}
+            param_info["names"] = [x for x in self.window.data[chain.fname] if x not in self.window.sp.func]
+            param_info["init_guess"] = {x: self.window.data[chain.fname][x][-1] for x in param_info["names"]}
             param_info["active"] = {x: True for x in param_info["names"]}
             param_info["unit_conversions"] = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
                             "mu_n": ((1e7) ** 2) / (1e9),
