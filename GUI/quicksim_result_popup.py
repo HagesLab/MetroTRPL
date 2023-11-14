@@ -117,7 +117,12 @@ class QuicksimResultPopup(Popup):
         """Fill in s_frame with scale factors for each chain's final state"""
         for i in range(self.n_sims):
             for c in range(self.n_chains):
-                scale_f = self.window.data[self.active_chain_names[c]]
+                # TODO: Make QSR not rely on indexing by fnames anymore
+                scale_f = {}
+                for chain in self.window.chains:
+                    if chain.fname == self.active_chain_names[c]:
+                        scale_f = chain.data
+
                 if f"_s{i}" in scale_f:
                     scale_f = scale_f[f"_s{i}"][-1]
                 else:

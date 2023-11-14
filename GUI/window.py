@@ -49,6 +49,10 @@ class Chain():
         self.fname = fname
         self.visible = TracedIntVar(value=1)
 
+        # Stores all MCMC states - self.data[param_name]
+        # param_name e.g. p0, mu_n, mu_p
+        self.data = dict[str, np.ndarray]()
+
 class Window(TkGUI):
     """ The main GUI object"""
     qsr_popup: QuicksimResultPopup
@@ -59,10 +63,6 @@ class Window(TkGUI):
         super().__init__(width, height, title)
         self.set_mini_panel_commands()
         self.set_side_panel_commands()
-
-        # Stores all MCMC states - self.data[fname][param_name]
-        # param_name e.g. p0, mu_n, mu_p
-        self.data = dict[str, dict[str, np.ndarray]]()
 
         # List of loaded MCMC chains
         self.chains = list[Chain]()
@@ -234,10 +234,11 @@ class Window(TkGUI):
             self.status(f"Loaded file {file_name}")
 
         self.widget.title(f"{self.application_name} - {file_names}")
-        self.data.clear()
 
+        self.chains = []
         for file_name in file_names:
-            self.data[file_name] = {}
+            chain = Chain(file_name)
+
             with open(file_name, "rb") as rfile:
                 metrostate: sim_utils.MetroState = pickle.load(rfile)
 
@@ -250,7 +251,7 @@ class Window(TkGUI):
                 raise ValueError("Invalid chain states format - "
                                     "must be 1D or 2D of size (1, num_states)")
 
-            self.data[file_name]["log likelihood"] = logl[1:]
+            chain.data["log likelihood"] = logl[1:]
 
             accept = getattr(metrostate.H, "accept")
             if accept.ndim == 2 and accept.shape[0] == 1:
@@ -267,7 +268,7 @@ class Window(TkGUI):
             sub_means = np.zeros((num_bins))
             for s, sub in enumerate(accepted_subs):
                 sub_means[s] = np.mean(sub)
-            self.data[file_name]["accept"] = sub_means
+            chain.data["accept"] = sub_means
 
             try:
                 for key in metrostate.param_info["names"]:
@@ -280,20 +281,17 @@ class Window(TkGUI):
                         raise ValueError("Invalid chain states format - "
                                             "must be 1D or 2D of size (1, num_states)")
 
-                    self.data[file_name][key] = mean_states
+                    chain.data[key] = mean_states
 
                 for key in self.sp.func:
                     # TODO: Option to precalculate all of these
-                    self.data[file_name][key] = np.zeros(0)
+                    chain.data[key] = np.zeros(0)
             except ValueError as err:
                 self.status(f"Error: {err}")
-                continue
+                continue   
 
-        self.chains = []
-        for file_name in file_names:
-            chain = Chain(file_name)
             chain.visible.trace_id = chain.visible.trace("w", self.on_active_chain_update)
-            self.chains.append(chain)
+            self.chains.append(chain)         
 
         # Generate a button for each parameter
         self.mini_panel.widgets["chart menu"].configure(state=tk.NORMAL) # type: ignore
@@ -304,7 +302,7 @@ class Window(TkGUI):
         menu.delete(0, tk.END)
 
         # TODO: Require all file_names have same set of keys, or track only unique keys
-        for key in self.data[file_names[0]]:
+        for key in self.chains[0].data:
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key,
                                  variable=self.side_panel.variables["variable_1"])
 
@@ -312,7 +310,7 @@ class Window(TkGUI):
         menu: tk.Menu = self.side_panel.widgets["variable 2"]["menu"]
         self.side_panel.variables["variable_2"].set("select")
         menu.delete(0, tk.END)
-        for key in self.data[file_names[0]]:
+        for key in self.chains[0].data:
             menu.add_checkbutton(label=key, onvalue=key, offvalue=key,
                                  variable=self.side_panel.variables["variable_2"])
 
@@ -417,14 +415,14 @@ class Window(TkGUI):
                         continue
                     color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
-                    y = self.data[chain.fname][x_val]
+                    y = chain.data[x_val]
                     if (len(y) == 0 or thickness != self.sp.last_thickness.get(x_val, thickness)) and x_val in self.sp.func:
                         # Calculate and cache the secondary parameter
                         try:
-                            self.sp.get(self.data, {"file_name": chain.fname, "value": x_val}, thickness)
+                            self.sp.get(chain.data, x_val, thickness)
                         except (ValueError, KeyError) as err:
                             self.status(str(err))
-                    mc_plot.traceplot1d(axes, self.data[chain.fname][x_val],
+                    mc_plot.traceplot1d(axes, chain.data[x_val],
                                         title, scale, xlim, hline, (equi,), color)
 
             case "2D Trace Plot":
@@ -437,18 +435,18 @@ class Window(TkGUI):
 
                     success = {"x": False, "y": False}
                     for s, val in xy_val.items():
-                        y =  self.data[chain.fname][val]
+                        y =  chain.data[val]
                         if (len(y) == 0 or thickness != self.sp.last_thickness.get(val, thickness)) and val in self.sp.func:
                             try:
-                                self.sp.get(self.data, {"file_name": chain.fname, "value": val}, thickness)
+                                self.sp.get(chain.data, val, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
                         success[s] = True
 
                     if success["x"] and success["y"]: # Successfully obtained data for both params
-                        mc_plot.traceplot2d(axes, self.data[chain.fname][x_val][equi:],
-                                            self.data[chain.fname][y_val][equi:],
+                        mc_plot.traceplot2d(axes, chain.data[x_val][equi:],
+                                            chain.data[y_val][equi:],
                                             x_val, y_val, scale, color)
 
             case "1D Histogram":
@@ -460,15 +458,15 @@ class Window(TkGUI):
                         if chain.visible.get() == 0: # This value display disabled
                             continue
 
-                        y = self.data[chain.fname][x_val]
+                        y = chain.data[x_val]
                         if (len(y) == 0 or thickness != self.sp.last_thickness.get(x_val, thickness)) and x_val in self.sp.func:
                             try:
-                                self.sp.get(self.data, {"file_name": chain.fname, "value": x_val}, thickness)
+                                self.sp.get(chain.data, x_val, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
 
-                        vals = np.hstack((vals, self.data[chain.fname][x_val][equi:]))
+                        vals = np.hstack((vals, chain.data[x_val][equi:]))
 
                     # Print some statistics
                     mean = np.mean(vals)
@@ -483,15 +481,15 @@ class Window(TkGUI):
                             continue
                         color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
-                        y = self.data[chain.fname][x_val]
+                        y = chain.data[x_val]
                         if (len(y) == 0 or thickness != self.sp.last_thickness.get(x_val, thickness)) and x_val in self.sp.func:
                             try:
-                                self.sp.get(self.data, {"file_name": chain.fname, "value": x_val}, thickness)
+                                self.sp.get(chain.data, x_val, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
 
-                        mc_plot.histogram1d(axes, self.data[chain.fname][x_val][equi:],
+                        mc_plot.histogram1d(axes, chain.data[x_val][equi:],
                                             f"{x_val}", x_val, scale, bins, color)
 
             case "2D Histogram":
@@ -506,18 +504,18 @@ class Window(TkGUI):
 
                     success = {"x": False, "y": False}
                     for s, val in xy_val.items():
-                        y = self.data[chain.fname][val]
+                        y = chain.data[val]
                         if (len(y) == 0 or thickness != self.sp.last_thickness.get(val, thickness)) and val in self.sp.func:
                             try:
-                                self.sp.get(self.data, {"file_name": chain.fname, "value": val}, thickness)
+                                self.sp.get(chain.data, val, thickness)
                             except (ValueError, KeyError) as err:
                                 self.status(str(err))
                                 continue
                         success[s] = True
 
                     if success["x"] and success["y"]:
-                        vals_x = np.hstack((vals_x, self.data[chain.fname][x_val][equi:]))
-                        vals_y = np.hstack((vals_y, self.data[chain.fname][y_val][equi:]))
+                        vals_x = np.hstack((vals_x, chain.data[x_val][equi:]))
+                        vals_y = np.hstack((vals_y, chain.data[y_val][equi:]))
                 mc_plot.histogram2d(axes, vals_x, vals_y,
                                     x_val, y_val, scale, bins)
                 # colorbar = axes.imshow(hist2d, cmap="Blues")
@@ -567,13 +565,13 @@ class Window(TkGUI):
 
                 data = np.zeros((0, 0))
                 header = []
-                for x_val in self.data[chain.fname]:
+                for x_val in chain.data:
                     if x_val in self.sp.func:
                         continue
                     if x_val == "log likelihood" or x_val == "accept":
                         continue
 
-                    vals = np.log10(self.data[chain.fname][x_val][equi:])
+                    vals = np.log10(chain.data[x_val][equi:])
                     if len(data) == 0:
                         data = np.vstack((np.arange(len(vals)) + equi, np.array(vals)))
                         header.append("Index")
@@ -635,7 +633,7 @@ class Window(TkGUI):
                         # Reasons to not export a file
                         if chain.visible.get() == 0: # This value display disabled
                             continue
-                        if x_val not in self.data[chain.fname]:
+                        if x_val not in chain.data:
                             continue
 
                         out_name = os.path.basename(chain.fname)
@@ -651,7 +649,7 @@ class Window(TkGUI):
                             raise ValueError("Invalid output file extension - must be .npy or .csv")
 
                         # (N x 2) array - (iter #, vals)
-                        vals = self.data[chain.fname][x_val][equi:]
+                        vals = chain.data[x_val][equi:]
 
                         if out_format == "npy":
                             np.save(os.path.join(out_dir, out_name), np.vstack((np.arange(len(vals)) + equi, vals)).T)
@@ -667,9 +665,9 @@ class Window(TkGUI):
                         # Reasons to not export a file
                         if chain.visible.get() == 0: # This value display disabled
                             continue
-                        if x_val not in self.data[chain.fname]:
+                        if x_val not in chain.data:
                             continue
-                        if y_val not in self.data[chain.fname]:
+                        if y_val not in chain.data:
                             continue
 
                         out_name = os.path.basename(chain.fname)
@@ -684,8 +682,8 @@ class Window(TkGUI):
                         else:
                             raise ValueError("Invalid output file extension - must be .npy or .csv")
 
-                        vals_x = self.data[chain.fname][x_val][equi:]
-                        vals_y = self.data[chain.fname][y_val][equi:]
+                        vals_x = chain.data[x_val][equi:]
+                        vals_y = chain.data[y_val][equi:]
 
                         if len(vals_x) == 0:
                             self.status(f"Missing {x_val}")
@@ -723,10 +721,10 @@ class Window(TkGUI):
                         for chain in self.chains:
                             if chain.visible.get() == 0: # This value display disabled
                                 continue
-                            if x_val not in self.data[chain.fname]:
+                            if x_val not in chain.data:
                                 continue
 
-                            vals = np.hstack((vals, self.data[chain.fname][x_val][equi:]))
+                            vals = np.hstack((vals, chain.data[x_val][equi:]))
 
                         freq, bin_centres = np.histogram(vals, bins)
                         bin_centres = (bin_centres + np.roll(bin_centres, -1))[:-1] / 2
@@ -742,7 +740,7 @@ class Window(TkGUI):
                         for chain in self.chains:
                             if chain.visible.get() == 0: # This value display disabled
                                 continue
-                            if x_val not in self.data[chain.fname]:
+                            if x_val not in chain.data:
                                 continue
 
                             out_name = os.path.basename(chain.fname)
@@ -759,7 +757,7 @@ class Window(TkGUI):
 
                             # (b x 2 array) - (bin centres, freq)
                             # Use a bar plot to regenerate the histogram shown in the GUI
-                            vals = self.data[chain.fname][x_val][equi:]
+                            vals = chain.data[x_val][equi:]
                             freq, bin_centres = np.histogram(vals, bins)
                             bin_centres = (bin_centres + np.roll(bin_centres, -1))[:-1] / 2
                             if out_format == "npy":
@@ -790,13 +788,13 @@ class Window(TkGUI):
                         # Reasons to not export a file
                         if chain.visible.get() == 0: # This value display disabled
                             continue
-                        if x_val not in self.data[chain.fname]:
+                        if x_val not in chain.data:
                             continue
-                        if y_val not in self.data[chain.fname]:
+                        if y_val not in chain.data:
                             continue
 
-                        vals_x = np.hstack((vals_x, self.data[chain.fname][x_val][equi:]))
-                        vals_y = np.hstack((vals_y, self.data[chain.fname][y_val][equi:]))
+                        vals_x = np.hstack((vals_x, chain.data[x_val][equi:]))
+                        vals_y = np.hstack((vals_y, chain.data[y_val][equi:]))
 
                     if len(vals_x) == 0:
                         self.status(f"Missing {x_val}")
