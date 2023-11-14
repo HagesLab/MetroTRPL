@@ -55,6 +55,9 @@ class Chain():
         # param_name e.g. p0, mu_n, mu_p
         self.data = dict[str, np.ndarray]()
 
+    def is_visible(self):
+        return self.visible.get()
+
 class Window(TkGUI):
     """ The main GUI object"""
     qsr_popup: QuicksimResultPopup
@@ -125,7 +128,7 @@ class Window(TkGUI):
         """Count how many active chains, as set by to ActivateChainPopup"""
         n_chains = 0
         for chain in self.chains:
-            if chain.visible.get():
+            if chain.is_visible():
                 n_chains += 1
         return n_chains
 
@@ -154,7 +157,7 @@ class Window(TkGUI):
 
     def do_quicksim_result_popup(self, n_chains, n_sims) -> None:
         """Show quicksim results"""
-        active_chain_inds = [i for i in range(len(self.chains)) if self.chains[i].visible.get()]
+        active_chain_inds = [i for i in range(len(self.chains)) if self.chains[i].is_visible()]
         self.qsr_popup = QuicksimResultPopup(self, self.side_panel.widget, n_chains, n_sims,
                                              active_chain_inds)
 
@@ -414,7 +417,7 @@ class Window(TkGUI):
 
                 for i, chain in enumerate(self.chains):
 
-                    if chain.visible.get() == 0:
+                    if not chain.is_visible():
                         continue
                     color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
@@ -432,7 +435,7 @@ class Window(TkGUI):
                 xy_val = {"x": x_val, "y": y_val}
 
                 for i, chain in enumerate(self.chains):
-                    if chain.visible.get() == 0:
+                    if not chain.is_visible():
                         continue
                     color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
@@ -458,7 +461,7 @@ class Window(TkGUI):
                 if combined_hist:
                     vals = np.zeros(0)
                     for chain in self.chains:
-                        if chain.visible.get() == 0: # This value display disabled
+                        if not chain.is_visible(): # This value display disabled
                             continue
 
                         y = chain.data[x_val]
@@ -480,7 +483,7 @@ class Window(TkGUI):
                     mc_plot.histogram1d(axes, vals, f"{x_val}", x_val, scale, bins, color)
                 else:
                     for i, chain in enumerate(self.chains):
-                        if chain.visible.get() == 0:
+                        if not chain.is_visible():
                             continue
                         color = PLOT_COLOR_CYCLE[i % len(PLOT_COLOR_CYCLE)]
 
@@ -502,7 +505,7 @@ class Window(TkGUI):
                 vals_x = np.zeros(0)
                 vals_y = np.zeros(0)
                 for chain in self.chains:
-                    if chain.visible.get() == 0: # This value display disabled
+                    if not chain.is_visible(): # This value display disabled
                         continue
 
                     success = {"x": False, "y": False}
@@ -551,7 +554,7 @@ class Window(TkGUI):
             # One output per chain
             for chain in self.chains:
                 # Reasons to not export a file
-                if chain.visible.get() == 0: # This value display disabled
+                if not chain.is_visible(): # This value display disabled
                     continue
 
                 out_name = os.path.basename(chain.fname)
@@ -634,7 +637,7 @@ class Window(TkGUI):
                     # One output per chain
                     for chain in self.chains:
                         # Reasons to not export a file
-                        if chain.visible.get() == 0: # This value display disabled
+                        if not chain.is_visible(): # This value display disabled
                             continue
                         if x_val not in chain.data:
                             continue
@@ -666,7 +669,7 @@ class Window(TkGUI):
                 case "2D Trace Plot":
                     for chain in self.chains:
                         # Reasons to not export a file
-                        if chain.visible.get() == 0: # This value display disabled
+                        if not chain.is_visible(): # This value display disabled
                             continue
                         if x_val not in chain.data:
                             continue
@@ -722,7 +725,7 @@ class Window(TkGUI):
 
                         vals = np.zeros(0)
                         for chain in self.chains:
-                            if chain.visible.get() == 0: # This value display disabled
+                            if not chain.is_visible(): # This value display disabled
                                 continue
                             if x_val not in chain.data:
                                 continue
@@ -741,7 +744,7 @@ class Window(TkGUI):
 
                     else:
                         for chain in self.chains:
-                            if chain.visible.get() == 0: # This value display disabled
+                            if not chain.is_visible(): # This value display disabled
                                 continue
                             if x_val not in chain.data:
                                 continue
@@ -789,7 +792,7 @@ class Window(TkGUI):
                     vals_y = np.zeros(0)
                     for chain in self.chains:
                         # Reasons to not export a file
-                        if chain.visible.get() == 0: # This value display disabled
+                        if not chain.is_visible(): # This value display disabled
                             continue
                         if x_val not in chain.data:
                             continue
@@ -833,7 +836,7 @@ class Window(TkGUI):
             equi = 0
 
         for chain in self.chains:
-            if chain.visible.get() == 0:
+            if not chain.is_visible():
                 continue
             num_active = sum(chain.active_sampled.values())
             num_samples = len(chain.data["log likelihood"]) + 1 - equi

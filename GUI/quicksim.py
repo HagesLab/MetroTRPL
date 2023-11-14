@@ -56,7 +56,7 @@ class QuicksimManager():
 
         simulate = []
         for chain in self.window.chains:
-            if chain.visible.get() == 0: # Don't simulate disabled chains
+            if not chain.is_visible():
                 continue
             param_info = {}
             param_info["names"] = [x for x in chain.data if x not in self.window.sp.func]
