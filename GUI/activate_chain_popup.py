@@ -19,7 +19,7 @@ class ActivateChainPopup(Popup):
         n_cols = 1 + len(window.file_names) // CHAINS_PER_ROW
         super().__init__(window, master,
                          n_cols * WIDTH_PER_COL,
-                         BASE_HEIGHT + HEIGHT_PER_CHAIN * len(window.file_names))
+                         BASE_HEIGHT + HEIGHT_PER_CHAIN * min(CHAINS_PER_ROW, len(window.file_names)))
         self.toplevel.attributes('-topmost', 'true')
         self.toplevel.title("Toggle MMC chains")
         tk.Label(self.toplevel, text="Display:", background=LIGHT_GREY).grid(row=0, column=0, columnspan=99)
