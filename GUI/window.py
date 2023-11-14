@@ -850,4 +850,4 @@ class Window(TkGUI):
                 diffusion_coef += np.sum(x)
 
             diffusion_coef /= (num_samples * num_active)
-            self.status(f"Chain {chain.fname} Diffusion coef: {diffusion_coef}")
+            self.status(f"Chain {os.path.basename(chain.fname)} Diffusion coef: {diffusion_coef}")
