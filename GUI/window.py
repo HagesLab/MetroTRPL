@@ -35,6 +35,13 @@ ACC_BIN_SIZE = 100
 DEFAULT_THICKNESS = 2000
 MAX_STATUS_MSGS = 11
 
+class TracedIntVar(tk.IntVar):
+    """ Extension of tkinter IntVar - records ID of its trace function"""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.trace_id = -1
+
 class Window(TkGUI):
     """ The main GUI object"""
     qsr_popup: QuicksimResultPopup
@@ -51,7 +58,7 @@ class Window(TkGUI):
         self.data = dict[str, dict[str, np.ndarray]]()
 
         # List of loaded MCMC chains, and whether they are active
-        self.file_names = dict[str, tk.IntVar]()
+        self.file_names = dict[str, TracedIntVar]()
 
         # List of additional variables needed for simulations
         self.ext_variables = ["thickness", "nx", "final_time", "nt",
@@ -275,9 +282,9 @@ class Window(TkGUI):
                 self.status(f"Error: {err}")
                 continue
 
-        self.file_names = {file_name: tk.IntVar(value=1) for file_name in file_names}
+        self.file_names = {file_name: TracedIntVar(value=1) for file_name in file_names}
         for file_name in self.file_names:
-            self.file_names[file_name].trace("w", self.on_active_chain_update)
+            self.file_names[file_name].trace_id = self.file_names[file_name].trace("w", self.on_active_chain_update)
 
         # Generate a button for each parameter
         self.mini_panel.widgets["chart menu"].configure(state=tk.NORMAL) # type: ignore
