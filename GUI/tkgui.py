@@ -203,6 +203,8 @@ class TkGUI():
         widgets["combined_hist"] = tk.Checkbutton(panel, text="Single Hist",
                                                   variable=variables["combined_hist"],
                                                   **{"width": 10, "background": LIGHT_GREY})
+        widgets["calc_diffusion"] = tk.Button(panel, text="Diffusion", width=13, border=4,
+                                              background=BLACK, foreground=WHITE)
 
         widgets["variable 1"].configure(**MENU_KWARGS)
         widgets["variable 2"].configure(**MENU_KWARGS)
@@ -282,6 +284,7 @@ class TkGUI():
 
                      {"x": 20, "y": 322, "anchor": "nw"},
                      {"x": 20, "y": 394, "anchor": "sw"},
+                     {"x": 380, "y": 394, "anchor": "se"}
 
                      ]
 
@@ -299,7 +302,8 @@ class TkGUI():
                                                    (widgets["xlim_l"], locations[15]),
                                                    (widgets["xlim_u"], locations[16]),
                                                    (widgets["chain_vis"], locations[18]),
-                                                   (widgets["export this"], locations[19])]
+                                                   (widgets["export this"], locations[19]),
+                                                   (widgets["calc_diffusion"], locations[20])]
                                  )
 
         self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], locations[0]),
