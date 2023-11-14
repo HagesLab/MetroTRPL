@@ -12,9 +12,9 @@ import numpy as np
 from scipy.integrate import solve_ivp, odeint
 
 from forward_solver import MODELS
-from sim_utils import MetroState, Grid, Solution, check_threshold
+from sim_utils import MetroState, Grid, Solution
 from mcmc_logging import start_logging, stop_logging
-from bayes_io import make_dir, clear_checkpoint_dir
+from bayes_io import make_dir
 from laplace import make_I_tables, do_irf_convolution, post_conv_trim
 try:
     from nn_features import NeuralNetwork
@@ -33,6 +33,8 @@ DEFAULT_RTOL = 1e-7
 DEFAULT_ATOL = 1e-10
 DEFAULT_HMAX = 4
 MAX_PROPOSALS = 100
+MSG_FREQ = 100
+MSG_COOLDOWN = 3 # Log first few states regardless of verbose
 
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
@@ -258,7 +260,7 @@ def check_approved_param(new_p, param_info):
 
 
 def select_next_params(p, means, variances, param_info, trial_function="box",
-                       coerce_hard_bounds=False, logger=None):
+                       coerce_hard_bounds=False, logger=None, verbose=False):
     """ Trial move function:
         box: uniform rectangle centered about current state.
         gauss: gaussian centered about current state.
@@ -285,40 +287,46 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
     else:
         max_tries = 1
 
+    new_p = np.zeros_like(mean)
     while tries < max_tries:
         tries += 1
 
         if trial_function == "box":
-            new_p = np.zeros_like(mean)
             for i, param in enumerate(names):
                 new_p[i] = np.random.uniform(
                     mean[i]-cov[i, i], mean[i]+cov[i, i])
                 if mu_constraint is not None and param == "mu_p":
                     ambi = mu_constraint[0]
                     ambi_std = mu_constraint[1]
-                    logger.debug("mu constraint: ambi {} +/- {}".format(ambi, ambi_std))
+                    if verbose and logger is not None:
+                        logger.debug(f"mu constraint: ambi {ambi} +/- {ambi_std}")
                     new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
                     new_p[i] = np.log10(
                         (2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
 
         elif trial_function == "gauss":
             try:
-                assert np.all(cov >= 0)
+                if not np.all(cov >= 0):
+                    raise RuntimeError
                 new_p = np.random.multivariate_normal(mean, cov)
-            except Exception:
+            except RuntimeError:
                 if logger is not None:
                     logger.error(
                         f"multivar_norm failed: mean {mean}, cov {cov}")
                 new_p = mean
 
+        else:
+            raise ValueError("Invalid trial function - must be \"box\" or \"gauss\"")
+
         failed_checks = check_approved_param(new_p, param_info)
         success = len(failed_checks) == 0
         if success:
-            logger.info("Found params in {} tries".format(tries))
+            if verbose and logger is not None:
+                logger.info(f"Found params in {tries} tries")
             break
 
         if logger is not None and len(failed_checks) > 0:
-            logger.warning("Failed checks: {}".format(failed_checks))
+            logger.warning(f"Failed checks: {failed_checks}")
 
     for i, param in enumerate(names):
         if is_active[param]:
@@ -419,8 +427,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
             pass
 
         if verbose and logger is not None:
-            logger.info("{}: Simulation complete hmax={}; t {}-{}; x {}".format(i,
-                        hmax, tSteps[0], tSteps[-1], thickness))
+            logger.info(f"{i}: Simulation complete hmax={hmax}; t {tSteps[0]}-{tSteps[-1]}; x {thickness}")
 
         sol, fail = detect_sim_fail(sol, vals)
         if fail and logger is not None:
@@ -555,8 +562,8 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
                                                hmax, MCMC_fields, logger, verbose)
     try:
         if irf_convolution is not None and irf_convolution[i] != 0:
-            if verbose:
-                logger.debug(f"Convolving with wavelength {irf_convolution[i]}")
+            if verbose and logger is not None:
+                logger.info(f"Convolving with wavelength {irf_convolution[i]}")
             wave = int(irf_convolution[i])
             tSteps, sol, success = do_irf_convolution(
                 tSteps, sol, IRF_tables[wave], time_max_shift=True)
@@ -578,21 +585,20 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
         err_sq = np.inf
         return likelihood, err_sq
 
-    if verbose:
-        logger.debug(f"Comparing times {times_c[0]}-{times_c[-1]}")
+    if verbose and logger is not None:
+        logger.info(f"Comparing times {times_c[0]}-{times_c[-1]}")
 
     try:
         if (MCMC_fields["self_normalize"] is not None and
                 sim_info["meas_types"][i] in MCMC_fields["self_normalize"]):
-            if verbose:
-                logger.debug("Normalizing sim result...")
+            if verbose and logger is not None:
+                logger.info("Normalizing sim result...")
             sol /= np.nanmax(sol)
 
             # Suppress scale_factor for all measurements being normalized
             p.suppress_scale_factor(MCMC_fields.get("scale_factor", None), i)
             scale_shift = 0
 
-        # TODO: accomodate multiple experiments, just like bayes
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect
         # A few negative values may also be introduced during convolution -
@@ -612,10 +618,10 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
 
         if MCMC_fields.get("force_min_y", False):
             sol, min_y, n_set = set_min_y(sol, vals_c, scale_shift)
-
-            logger.warning(f"min_y: {min_y}")
-            if n_set > 0:
-                logger.warning(f"{n_set} values raised to min_y")
+            if verbose and logger is not None:
+                logger.warning(f"min_y: {min_y}")
+                if n_set > 0:
+                    logger.warning(f"{n_set} values raised to min_y")
         err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
 
         # Compatibility with single sigma
@@ -646,25 +652,25 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
     p.err_sq = [[] for i in iniPar]
 
     if MCMC_fields.get("use_multi_cpus", False):
-        raise NotImplementedError
+        raise NotImplementedError("WIP - multi_cpus")
         # with Pool(MCMC_fields["num_cpus"]) as pool:
         #    likelihoods = pool.map(partial(one_sim_likelihood, p, sim_info, hmax, MCMC_fields, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
         #    p.likelihood = np.array(likelihoods)
 
-    else:
-        for i in range(len(iniPar)):
-            p.likelihood[i], p.err_sq[i] = one_sim_likelihood(
-                p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbose,
-                (i, np.array(iniPar[i]), times[i], vals[i], uncs[i]))
+    for i, init_cond in enumerate(iniPar):
+        p.likelihood[i], p.err_sq[i] = one_sim_likelihood(
+            p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbose,
+            (i, np.array(init_cond), times[i], vals[i], uncs[i]))
 
     if prev_p is not None:
-        logger.info("Likelihood of proposed move: {}".format(np.sum(p.likelihood)))
+        if verbose and logger is not None:
+            logger.info(f"Likelihood of proposed move: {np.sum(p.likelihood)}")
         logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
         if np.isnan(logratio):
             logratio = -np.inf
 
         if verbose and logger is not None:
-            logger.info("Partial Ratio: {}".format(10 ** logratio))
+            logger.info(f"Partial Ratio: {10 ** logratio}")
 
         accepted = roll_acceptance(logratio)
 
@@ -719,15 +725,14 @@ def main_metro_loop(MS, starting_iter, num_iters,
     for k in range(starting_iter, num_iters):
         try:
             logger.info("#####")
-            logger.info("Iter {}".format(k))
+            logger.info(f"Iter {k}")
             logger.info("#####")
 
             # Check if anneal needed
             MS.anneal(k, MS.uncs)
-            if verbose:
-                logger.debug("Current model sigma: {}".format(
-                    MS.MCMC_fields["current_sigma"]))
-                logger.debug("Current variances: {}".format(MS.variances.trace()))
+            if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
+                logger.debug(f"Current model sigma: {MS.MCMC_fields['current_sigma']}")
+                logger.debug(f"Current variances: {MS.variances.trace()}")
 
             # Identify which parameter to move
             if MS.MCMC_fields.get("one_param_at_a_time", 0):
@@ -744,7 +749,7 @@ def main_metro_loop(MS, starting_iter, num_iters,
                                MS.MCMC_fields["proposal_function"],
                                MS.MCMC_fields.get("hard_bounds", 0), logger)
 
-            if verbose:
+            if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
                 MS.print_status(logger)
 
             MS.H.record_best_logll(k, MS.prev_p)
@@ -758,7 +763,10 @@ def main_metro_loop(MS, starting_iter, num_iters,
             elif DA_mode == 'DEBUG':
                 accepted = False
 
-            if verbose and not accepted:
+            else:
+                raise ValueError("Invalid DA mode - must be \"off\" or \"DEBUG\"")
+
+            if verbose and not accepted and logger is not None:
                 logger.info("Rejected!")
 
             if accepted:
@@ -769,7 +777,7 @@ def main_metro_loop(MS, starting_iter, num_iters,
             MS.latest_iter = k
 
         except KeyboardInterrupt:
-            logger.info("Terminating with k={} iters completed:".format(k-1))
+            logger.warning(f"Terminating with k={k-1} iters completed:")
             MS.H.truncate(k, MS.param_info)
             break
 
@@ -805,9 +813,10 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         using_default_logger = True
     else:
         using_default_logger = False
+        handler = None
 
     # Setup
-    logger.info("PID: {}".format(os.getpid()))
+    logger.info(f"PID: {os.getpid()}")
     all_signal_handler(kill_from_cl)
 
     make_dir(MCMC_fields["checkpoint_dirname"])
@@ -828,21 +837,20 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         MS.iniPar = iniPar
         MS.times, MS.vals, MS.uncs = e_data
 
-        if verbose and logger is not None:
-            for i in range(len(MS.uncs)):
-                logger.debug("{} exp unc max: {} avg: {}".format(
-                    i, np.amax(MS.uncs[i]), np.mean(MS.uncs[i])))
+        if logger is not None:
+            for i, unc in enumerate(MS.uncs):
+                logger.info(f"{i} exp unc max: {np.amax(unc)} avg: {np.mean(unc)}")
 
         if MCMC_fields.get("irf_convolution", None) is not None:
             irfs = {}
             for i in MCMC_fields["irf_convolution"]:
                 if i > 0 and i not in irfs:
-                    irfs[int(i)] = np.loadtxt(os.path.join("IRFs", "irf_{}nm.csv".format(int(i))),
+                    irfs[int(i)] = np.loadtxt(os.path.join("IRFs", f"irf_{int(i)}nm.csv"),
                                               delimiter=",")
 
             MS.IRF_tables = make_I_tables(irfs)
         else:
-            MS.IRF_tables = None
+            MS.IRF_tables = {}
 
     else:
         with open(os.path.join(MCMC_fields["checkpoint_dirname"],
@@ -865,20 +873,18 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             # MS.anneal(-1, MS.uncs, force=True)
 
     # From this point on, for consistency, work with ONLY the MetroState object!
-    if verbose:
-        logger.info("Sim info: {}".format(MS.sim_info))
-        logger.info("Param infos: {}".format(MS.param_info))
-        logger.info("MCMC fields: {}".format(MS.MCMC_fields))
+    logger.info(f"Sim info: {MS.sim_info}")
+    logger.info(f"Param infos: {MS.param_info}")
+    logger.info(f"MCMC fields: {MS.MCMC_fields}")
 
     need_initial_state = (load_checkpoint is None)
     main_metro_loop(MS, starting_iter, num_iters,
                     need_initial_state=need_initial_state,
-                    logger=logger, verbose=True)
+                    logger=logger, verbose=verbose)
 
-    MS.H.final_cov = MS.variances.cov
     MS.random_state = np.random.get_state()
     if export_path is not None:
-        logger.info("Exporting to {}".format(MS.MCMC_fields["output_path"]))
+        logger.info(f"Exporting to {MS.MCMC_fields['output_path']}")
         MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
 
     if using_default_logger:

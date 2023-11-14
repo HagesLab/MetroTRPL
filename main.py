@@ -4,10 +4,11 @@ Created on Mon Jan 31 22:03:46 2022
 
 @author: cfai2
 """
-import numpy as np
 import os
 import sys
 from time import perf_counter
+
+import numpy as np
 
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import get_data, get_initpoints, read_config_script_file
@@ -16,6 +17,7 @@ from metropolis import metro
 
 if __name__ == "__main__":
     # Some HiperGator specific stuff
+    # Replace as needed for your setup
     on_hpg = 0
     if on_hpg:
         jobid = int(os.getenv('SLURM_ARRAY_TASK_ID'))
@@ -72,30 +74,31 @@ if __name__ == "__main__":
             MCMC_fields["irf_convolution"] = [MCMC_fields["irf_convolution"][i]
                                               for i in meas_fields["select_obs_sets"]]
 
-    logger.info("Measurement handling fields: {}".format(meas_fields))
-    logger.info("E data: {}".format(
-        ["[{}...{}]".format(e_data[1][i][0], e_data[1][i][-1]) for i in range(len(e_data[1]))]))
-    logger.info("Initial condition: {}".format(
-        ["[{}...{}]".format(iniPar[i][0], iniPar[i][-1]) for i in range(len(iniPar))]))
+    logger.info(f"Measurement handling fields: {meas_fields}")
+    e_string = [f"[{e_data[1][i][0]}...{e_data[1][i][-1]}]" for i in range(len(e_data[1]))]
+    logger.info(f"E data: {e_string}")
+    i_string = [f"[{iniPar[i][0]}...{iniPar[i][-1]}]" for i in range(len(iniPar))]
+    logger.info(f"Initial condition: {i_string}")
 
     export_path = f"CPU{jobid}-final.pik"
 
     clock0 = perf_counter()
-    MS = metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=True,
+    MS = metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False,
                export_path=export_path, logger=logger)
 
     final_t = perf_counter() - clock0
 
-    logger.info("Metro took {} s ({} hr)".format(final_t, final_t / 3600))
-    logger.info("Avg: {} s per iter".format(final_t / MCMC_fields["num_iters"]))
-    logger.info("Acceptance rate: {}".format(
-        np.sum(MS.H.accept) / len(MS.H.accept.flatten())))
+    logger.info(f"Metro took {final_t} s ({final_t / 3600} hr)")
+    logger.info(f"Avg: {final_t / MCMC_fields['num_iters']} s per iter")
+    logger.info(f"Acceptance rate: {np.sum(MS.H.accept) / len(MS.H.accept.flatten())}")
 
     # Successful completion - remove all non-final checkpoints
     if "checkpoint_header" in MS.MCMC_fields:
         chpt_header = MS.MCMC_fields["checkpoint_header"]
         for chpt in os.listdir(MS.MCMC_fields["checkpoint_dirname"]):
-            if chpt.startswith(chpt_header) and not chpt.endswith("final.pik") and not chpt.endswith(".log"):
+            if (chpt.startswith(chpt_header)
+                and not chpt.endswith("final.pik")
+                and not chpt.endswith(".log")):
                 os.remove(os.path.join(MS.MCMC_fields["checkpoint_dirname"], chpt))
     # os.rmdir(MS.MCMC_fields["checkpoint_dirname"])
 
