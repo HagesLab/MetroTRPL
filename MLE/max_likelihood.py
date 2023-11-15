@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from scipy.optimize import least_squares
+from scipy.optimize import minimize
 
 from metropolis import do_simulation
 from sim_utils import MetroState
@@ -70,7 +70,7 @@ def cost(x, e_data, MS, logger):
     if MS.latest_iter > current_num_iters:
         MS.H.extend(2 * current_num_iters, MS.param_info)
     MS.H.update(MS.latest_iter, MS.means, MS.means, MS.param_info)
-    MS.H.loglikelihood[0, MS.latest_iter] = _cost
+    MS.H.loglikelihood[0, MS.latest_iter] = _cost * -1
 
     for n in MS.param_info['names']:
         if MS.param_info["active"][n]:
@@ -107,7 +107,7 @@ def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, log
 
 
     cost_ = lambda x: cost(x, e_data, MS, logger)
-    opt = least_squares(cost_, x0, loss="soft_l1")
+    opt = minimize(cost_, x0)
     x = opt.x
     print(10 ** x)
     final_logll = opt.fun * -1
