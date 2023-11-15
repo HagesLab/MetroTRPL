@@ -2,6 +2,7 @@
 *.pik
 
 # Script writer files
+!*readme.txt
 *.txt
 
 # IRF files, except for the examples and readme
