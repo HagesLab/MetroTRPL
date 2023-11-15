@@ -84,7 +84,7 @@ if __name__ == "__main__":
     export_path = f"CPU{jobid}-final.pik"
 
     clock0 = perf_counter()
-    mle(e_data, sim_info, param_info, iniPar, MCMC_fields, logger)
+    mle(e_data, sim_info, param_info, iniPar, MCMC_fields, export_path, logger)
 
     final_t = perf_counter() - clock0
 
