@@ -2,7 +2,7 @@ import os
 import numpy as np
 from scipy.optimize import minimize
 
-from metropolis import do_simulation
+from metropolis import do_simulation, search_c_grps
 from sim_utils import MetroState
 
 DEFAULT_NUM_ITERS = 1000
@@ -42,6 +42,7 @@ def cost(x, e_data, MS, logger):
     logger.info("Iter #")
 
     LOG_PL = MS.MCMC_fields["log_pl"]
+    scale_f_info = MS.MCMC_fields.get("scale_factor", None)
     thicknesses = MS.sim_info["lengths"]
     nxes = MS.sim_info["nx"]
     for ic_num in range(MS.sim_info["num_meas"]):
@@ -63,7 +64,15 @@ def cost(x, e_data, MS, logger):
         if LOG_PL:
             sol = np.log10(sol)
 
-        scale_shift = 0
+        if (scale_f_info is not None and ic_num in scale_f_info[1]):
+            if scale_f_info[2] is not None and len(scale_f_info[2]) > 0:
+                s_name = f"_s{search_c_grps(scale_f_info[2], ic_num)}"
+            else:
+                s_name = f"_s{ic_num}"
+            scale_shift = np.log10(getattr(MS.means, s_name))
+        else:
+            scale_shift = 0
+
         _cost += np.sum((sol + scale_shift - vals_c)**2 / (MS.MCMC_fields["current_sigma"][meas_type]**2 + 2*uncs_c**2))
 
     current_num_iters = len(MS.H.accept[0])
