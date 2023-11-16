@@ -67,7 +67,7 @@ def cost(x, e_data, MS, logger):
         _cost += np.sum((sol + scale_shift - vals_c)**2 / (MS.MCMC_fields["current_sigma"][meas_type]**2 + 2*uncs_c**2))
 
     current_num_iters = len(MS.H.accept[0])
-    if MS.latest_iter > current_num_iters:
+    if MS.latest_iter >= current_num_iters:
         MS.H.extend(2 * current_num_iters, MS.param_info)
     MS.H.update(MS.latest_iter, MS.means, MS.means, MS.param_info)
     MS.H.loglikelihood[0, MS.latest_iter] = _cost * -1
@@ -107,12 +107,12 @@ def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, log
 
 
     cost_ = lambda x: cost(x, e_data, MS, logger)
-    opt = minimize(cost_, x0)
+    opt = minimize(cost_, x0, method="Nelder-Mead")
     x = opt.x
-    print(10 ** x)
+    logger.info(10 ** x)
     final_logll = opt.fun * -1
-    print(final_logll)
-    print(opt.message)
+    logger.info(final_logll)
+    logger.info(opt.message)
 
     current_num_iters = len(MS.H.accept[0])
     if MS.latest_iter < current_num_iters:
