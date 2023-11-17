@@ -453,23 +453,6 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.info(f"Retrying hmax={hmax}")
 
-        #elif MCMC_fields.get("verify_hmax", False):
-        #    hmax[i] = max(MIN_HMAX, hmax[i] / 2)
-        #    logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
-        #    tSteps, sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
-        #                                 meas=meas_type, solver=MCMC_fields["solver"], model=MCMC_fields["model"],
-        #                                 rtol=RTOL, atol=ATOL)
-        #    if almost_equal(sol, sol2, threshold=RTOL):
-        #        logger.info("Success!")
-        #        break
-        #    else:
-        #        logger.info(f"{i}: Fail - not converged")
-        #        if hmax[i] <= MIN_HMAX:
-        #            logger.warning(f"{i}: MIN_HMAX reached")
-
-        #else:
-        #    break
-
     return tSteps, sol, success
 
 

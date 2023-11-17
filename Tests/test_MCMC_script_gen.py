@@ -117,7 +117,6 @@ class TestUtils(unittest.TestCase):
                             "rtol": 1e-7,
                             "atol": 1e-10,
                             "hmax": 4,
-                            "verify_hmax": 0,
                             "likel2variance_ratio": {"TRPL": 500},
                             "override_equal_mu": 0,
                             "override_equal_s": 0,
