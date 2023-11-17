@@ -57,8 +57,8 @@ def cost(x, e_data, MS, logger):
         std = e_data[2][ic_num]
 
         tSteps, sol = do_simulation(MS.means, thickness, nx, MS.iniPar[ic_num], times, 1, meas=meas_type,
-                                    solver=("solveivp",), model="std")
-        
+                                    solver=MS.MCMC_fields["solver"], model=MS.MCMC_fields["model"])
+
         if irf_convolution is not None and irf_convolution[ic_num] != 0:
             wave = int(irf_convolution[ic_num])
             tSteps, sol, success = do_irf_convolution(
