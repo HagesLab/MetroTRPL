@@ -409,6 +409,7 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
         Whether the final simulation passed all convergence criteria.
 
     """
+    success = True
     thickness, nx, meas_type = unpack_simpar(sim_info, i)
 
     STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
@@ -420,10 +421,16 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
 
     # Repeat until all criteria are satisfied.
     while hmax[i] > MIN_HMAX:
-        tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
-                                    meas=meas_type,
-                                    solver=MCMC_fields["solver"], model=MCMC_fields["model"],
-                                    rtol=RTOL, atol=ATOL)
+        try:
+            tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
+                                        meas=meas_type,
+                                        solver=MCMC_fields["solver"], model=MCMC_fields["model"],
+                                        rtol=RTOL, atol=ATOL)
+        except ValueError as e:
+            tSteps = np.array(times)
+            sol = np.zeros_like(tSteps)
+            success = False
+            logger.warning(f"{i}: Simulation error occurred: {e}")
 
         if MCMC_fields["solver"][0] == "diagnostic":
             # Replace this with curve_fitting code as needed
@@ -433,34 +440,41 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
             logger.info(f"{i}: Simulation complete hmax={hmax}; t {tSteps[0]}-{tSteps[-1]}; x {thickness}")
 
         sol, fail = detect_sim_fail(sol, vals)
-        if fail and logger is not None:
-            logger.warning(f"{i}: Simulation terminated early!")
+        if fail:
+            success = False
+            if logger is not None:
+                logger.warning(f"{i}: Simulation terminated early!")
 
         sol, fail = detect_sim_depleted(sol)
         if fail:
-            hmax[i] = max(MIN_HMAX, hmax[i] / 2)
+            success = False
             if logger is not None:
                 logger.warning(f"{i}: Carriers depleted!")
-                logger.warning(f"{i}: Retrying hmax={hmax}")
 
-        elif MCMC_fields.get("verify_hmax", False):
-            hmax[i] = max(MIN_HMAX, hmax[i] / 2)
-            logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
-            tSteps, sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
-                                         meas=meas_type, solver=MCMC_fields["solver"], model=MCMC_fields["model"],
-                                         rtol=RTOL, atol=ATOL)
-            if almost_equal(sol, sol2, threshold=RTOL):
-                logger.info("Success!")
-                break
-            else:
-                logger.info(f"{i}: Fail - not converged")
-                if hmax[i] <= MIN_HMAX:
-                    logger.warning(f"{i}: MIN_HMAX reached")
-
-        else:
+        if success:
             break
+        else:
+            hmax[i] = max(MIN_HMAX, hmax[i] / 2)
+            logger.info(f"Retrying hmax={hmax}")
 
-    return tSteps, sol, not fail
+        #elif MCMC_fields.get("verify_hmax", False):
+        #    hmax[i] = max(MIN_HMAX, hmax[i] / 2)
+        #    logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
+        #    tSteps, sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
+        #                                 meas=meas_type, solver=MCMC_fields["solver"], model=MCMC_fields["model"],
+        #                                 rtol=RTOL, atol=ATOL)
+        #    if almost_equal(sol, sol2, threshold=RTOL):
+        #        logger.info("Success!")
+        #        break
+        #    else:
+        #        logger.info(f"{i}: Fail - not converged")
+        #        if hmax[i] <= MIN_HMAX:
+        #            logger.warning(f"{i}: MIN_HMAX reached")
+
+        #else:
+        #    break
+
+    return tSteps, sol, success
 
 
 def roll_acceptance(logratio):
@@ -563,6 +577,11 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
 
     tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
                                                hmax, MCMC_fields, logger, verbose)
+    if not success:
+        likelihood = -np.inf
+        err_sq = np.inf
+        return likelihood, err_sq
+
     try:
         if irf_convolution is not None and irf_convolution[i] != 0:
             if verbose and logger is not None:
