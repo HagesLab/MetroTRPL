@@ -213,12 +213,15 @@ def check_approved_param(new_p, param_info):
     """
     order = list(param_info['names'])
     do_log = param_info["do_log"]
+    active = param_info["active"]
     checks = {}
     prior_dist = param_info["prior_dist"]
 
     # Ensure proposal stays within bounds of prior distribution
     for param in order:
         if param not in order:
+            continue
+        if not active[param]:
             continue
 
         lb = prior_dist[param][0]
@@ -622,6 +625,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
                 logger.warning(f"min_y: {min_y}")
                 if n_set > 0:
                     logger.warning(f"{n_set} values raised to min_y")
+
         err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
 
         # Compatibility with single sigma
