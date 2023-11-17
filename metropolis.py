@@ -430,7 +430,8 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
             tSteps = np.array(times)
             sol = np.zeros_like(tSteps)
             success = False
-            logger.warning(f"{i}: Simulation error occurred: {e}")
+            if logger is not None:
+                logger.warning(f"{i}: Simulation error occurred: {e}")
 
         if MCMC_fields["solver"][0] == "diagnostic":
             # Replace this with curve_fitting code as needed
@@ -445,15 +446,10 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
             if logger is not None:
                 logger.warning(f"{i}: Simulation terminated early!")
 
-        sol, fail = detect_sim_depleted(sol)
-        if fail:
-            success = False
-            if logger is not None:
-                logger.warning(f"{i}: Carriers depleted!")
-
         if success:
             break
         else:
+            # Sometimes limiting the solver to a smaller time step resolves convergence issues
             hmax[i] = max(MIN_HMAX, hmax[i] / 2)
             logger.info(f"Retrying hmax={hmax}")
 
@@ -533,14 +529,6 @@ def set_min_y(sol, vals, scale_shift):
     i_final = np.searchsorted(-sol, -min_y)
     sol[i_final:] = min_y
     return sol, min_y, len(sol[i_final:])
-
-
-def detect_sim_depleted(sol):
-    fail = np.any(sol < 0)
-    if fail:
-        sol = np.abs(sol) + sys.float_info.min
-    return sol, fail
-
 
 def almost_equal(x, x0, threshold=1e-10):
     if x.shape != x0.shape:
