@@ -35,6 +35,10 @@ MAX_PROPOSALS = 100
 MSG_FREQ = 100
 MSG_COOLDOWN = 3 # Log first few states regardless of verbose
 
+# Allow this proportion of simulation values to become negative due to convolution,
+# else the simulation is failed.
+NEGATIVE_FRAC_TOL = 0.2
+
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
         E = corner_E + q_C / (PA.eps * eps0) * dx * \
@@ -46,6 +50,7 @@ def E_field(N, P, PA, dx, corner_E=0):
         num_tsteps = len(N)
         E = np.concatenate((np.ones(shape=(num_tsteps, 1))*corner_E, E), axis=1)
     return E
+
 
 def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
           RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
@@ -205,6 +210,7 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
 
     else:
         raise NotImplementedError
+
 
 def check_approved_param(new_p, param_info):
     """ Raise a warning for non-physical or unrealistic proposed trial moves,
@@ -427,6 +433,8 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
         if logger is not None:
             logger.warning(f"{i}: Simulation error occurred: {e}")
         return t_steps, sol, success
+    
+    # Other tests for validity may be inserted here
 
     if MCMC_fields["solver"][0] == "diagnostic":
         # Replace this with curve_fitting code as needed
@@ -440,14 +448,12 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
 
 def roll_acceptance(logratio):
     accepted = False
-    if logratio >= 0:
-        # Continue
+    if logratio >= 0: # Automatic accept
         accepted = True
 
     else:
         accept = np.random.random()
         if accept < 10 ** logratio:
-            # Continue
             accepted = True
     return accepted
 
@@ -457,6 +463,7 @@ def unpack_simpar(sim_info, i):
     nx = sim_info["nx"][i]
     meas_type = sim_info["meas_types"][i]
     return thickness, nx, meas_type
+
 
 def search_c_grps(c_grps : list[tuple], i : int) -> int:
     """
@@ -468,6 +475,7 @@ def search_c_grps(c_grps : list[tuple], i : int) -> int:
             if i == c:
                 return c_grp[0]
     return i
+
 
 def set_min_y(sol, vals, scale_shift):
     """
@@ -485,6 +493,7 @@ def set_min_y(sol, vals, scale_shift):
     i_final = np.searchsorted(-sol, -min_y)
     sol[i_final:] = min_y
     return sol, min_y, len(sol[i_final:])
+
 
 def almost_equal(x, x0, threshold=1e-10):
     if x.shape != x0.shape:
@@ -554,17 +563,17 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
     if verbose and logger is not None:
         logger.info(f"Comparing times {times_c[0]}-{times_c[-1]}")
 
+    if (MCMC_fields["self_normalize"] is not None and
+        sim_info["meas_types"][i] in MCMC_fields["self_normalize"]):
+        if verbose and logger is not None:
+            logger.info("Normalizing sim result...")
+        sol /= np.nanmax(sol)
+
+        # Suppress scale_factor for all measurements being normalized
+        p.suppress_scale_factor(MCMC_fields.get("scale_factor", None), i)
+        scale_shift = 0
+
     try:
-        if (MCMC_fields["self_normalize"] is not None and
-                sim_info["meas_types"][i] in MCMC_fields["self_normalize"]):
-            if verbose and logger is not None:
-                logger.info("Normalizing sim result...")
-            sol /= np.nanmax(sol)
-
-            # Suppress scale_factor for all measurements being normalized
-            p.suppress_scale_factor(MCMC_fields.get("scale_factor", None), i)
-            scale_shift = 0
-
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect
         # A few negative values may also be introduced during convolution -
@@ -573,7 +582,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
 
         where_failed = sol < 0
         n_fails = np.sum(where_failed)
-        success = n_fails < 0.2 * len(sol)
+        success = n_fails < NEGATIVE_FRAC_TOL * len(sol)
         if not success:
             raise ValueError(f"{i}: Simulation failed: too many negative vals")
 
@@ -581,14 +590,20 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
             logger.warning(f"{i}: {n_fails} / {len(sol)} non-positive vals")
 
         sol[where_failed] *= -1
+    except ValueError as e:
+        logger.warning(e)
+        likelihood = -np.inf
+        err_sq = np.inf
+        return likelihood, err_sq
 
-        if MCMC_fields.get("force_min_y", False):
-            sol, min_y, n_set = set_min_y(sol, vals_c, scale_shift)
-            if verbose and logger is not None:
-                logger.warning(f"min_y: {min_y}")
-                if n_set > 0:
-                    logger.warning(f"{n_set} values raised to min_y")
+    if MCMC_fields.get("force_min_y", False):
+        sol, min_y, n_set = set_min_y(sol, vals_c, scale_shift)
+        if verbose and logger is not None:
+            logger.warning(f"min_y: {min_y}")
+            if n_set > 0:
+                logger.warning(f"{n_set} values raised to min_y")
 
+    try:
         err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
 
         # Compatibility with single sigma
