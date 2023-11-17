@@ -28,7 +28,6 @@ eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
 q = 1.0  # [e]
 q_C = 1.602e-19  # [C]
 kB = 8.61773e-5  # [eV / K]
-MIN_HMAX = 1e-2  # [ns]
 DEFAULT_RTOL = 1e-7
 DEFAULT_ATOL = 1e-10
 DEFAULT_HMAX = 4
@@ -412,48 +411,36 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     success = True
     thickness, nx, meas_type = unpack_simpar(sim_info, i)
 
-    STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
     RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
     ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
 
-    # Always attempt a slightly larger hmax than what worked previously
-    hmax[i] = min(STARTING_HMAX, hmax[i] * 2)
+    t_steps = np.array(times)
+    sol = np.zeros_like(t_steps)
 
-    # Repeat until all criteria are satisfied.
-    while hmax[i] > MIN_HMAX:
-        try:
-            tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
-                                        meas=meas_type,
-                                        solver=MCMC_fields["solver"], model=MCMC_fields["model"],
-                                        rtol=RTOL, atol=ATOL)
-        except ValueError as e:
-            tSteps = np.array(times)
-            sol = np.zeros_like(tSteps)
-            success = False
-            if logger is not None:
-                logger.warning(f"{i}: Simulation error occurred: {e}")
+    try:
+        t_steps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
+                                    meas=meas_type,
+                                    solver=MCMC_fields["solver"], model=MCMC_fields["model"],
+                                    rtol=RTOL, atol=ATOL)
+    except ValueError as e:
+        success = False
+        if logger is not None:
+            logger.warning(f"{i}: Simulation error occurred: {e}")
 
-        if MCMC_fields["solver"][0] == "diagnostic":
-            # Replace this with curve_fitting code as needed
-            pass
+    if MCMC_fields["solver"][0] == "diagnostic":
+        # Replace this with curve_fitting code as needed
+        pass
 
-        if verbose and logger is not None:
-            logger.info(f"{i}: Simulation complete hmax={hmax}; t {tSteps[0]}-{tSteps[-1]}; x {thickness}")
+    if verbose and logger is not None:
+        logger.info(f"{i}: Simulation complete hmax={hmax}; t {t_steps[0]}-{t_steps[-1]}; x {thickness}")
 
-        sol, fail = detect_sim_fail(sol, vals)
-        if fail:
-            success = False
-            if logger is not None:
-                logger.warning(f"{i}: Simulation terminated early!")
+    sol, fail = detect_sim_fail(sol, vals)
+    if fail:
+        success = False
+        if logger is not None:
+            logger.warning(f"{i}: Simulation terminated early!")
 
-        if success:
-            break
-        else:
-            # Sometimes limiting the solver to a smaller time step resolves convergence issues
-            hmax[i] = max(MIN_HMAX, hmax[i] / 2)
-            logger.info(f"Retrying hmax={hmax}")
-
-    return tSteps, sol, success
+    return t_steps, sol, success
 
 
 def roll_acceptance(logratio):
