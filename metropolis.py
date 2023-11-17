@@ -411,8 +411,8 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     success = True
     thickness, nx, meas_type = unpack_simpar(sim_info, i)
 
-    RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
-    ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
+    rtol = MCMC_fields.get("rtol", DEFAULT_RTOL)
+    atol = MCMC_fields.get("atol", DEFAULT_ATOL)
 
     t_steps = np.array(times)
     sol = np.zeros_like(t_steps)
@@ -421,11 +421,12 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
         t_steps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
                                     meas=meas_type,
                                     solver=MCMC_fields["solver"], model=MCMC_fields["model"],
-                                    rtol=RTOL, atol=ATOL)
+                                    rtol=rtol, atol=atol)
     except ValueError as e:
         success = False
         if logger is not None:
             logger.warning(f"{i}: Simulation error occurred: {e}")
+        return t_steps, sol, success
 
     if MCMC_fields["solver"][0] == "diagnostic":
         # Replace this with curve_fitting code as needed
@@ -433,12 +434,6 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
 
     if verbose and logger is not None:
         logger.info(f"{i}: Simulation complete hmax={hmax}; t {t_steps[0]}-{t_steps[-1]}; x {thickness}")
-
-    sol, fail = detect_sim_fail(sol, vals)
-    if fail:
-        success = False
-        if logger is not None:
-            logger.warning(f"{i}: Simulation terminated early!")
 
     return t_steps, sol, success
 
@@ -473,15 +468,6 @@ def search_c_grps(c_grps : list[tuple], i : int) -> int:
             if i == c:
                 return c_grp[0]
     return i
-
-def detect_sim_fail(sol, ref_vals):
-    fail = len(sol) < len(ref_vals)
-    if fail:
-        sol2 = np.ones_like(ref_vals) * sys.float_info.min
-        sol2[:len(sol)] = sol
-        sol = np.array(sol2)
-
-    return sol, fail
 
 def set_min_y(sol, vals, scale_shift):
     """

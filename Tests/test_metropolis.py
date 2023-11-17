@@ -7,7 +7,7 @@ from scipy.integrate import trapz
 from metropolis import all_signal_handler
 from metropolis import E_field, solve, select_next_params
 from metropolis import do_simulation, roll_acceptance, unpack_simpar
-from metropolis import detect_sim_fail, detect_sim_depleted, almost_equal
+from metropolis import almost_equal
 from metropolis import check_approved_param
 from metropolis import run_iteration
 from metropolis import search_c_grps
@@ -705,18 +705,6 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(sol[-1], sol2[-1])
 
         return
-
-    def test_sim_fail(self):
-        # Suppose our sim aborted halfway through...
-        reference = np.ones(100)
-        sim_output = np.zeros(50)
-        sim_output, fail = detect_sim_fail(sim_output, reference)
-        np.testing.assert_equal(sim_output, [0]*50 + [sys.float_info.min]*50)
-
-    def test_sim_depleted(self):
-        sim_output = np.ones(10) * -1
-        sim_output, fail = detect_sim_depleted(sim_output)
-        np.testing.assert_equal(sim_output, [1 + sys.float_info.min] * 10)
 
     def test_almost_equal(self):
         threshold = 1e-7
