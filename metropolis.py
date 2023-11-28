@@ -849,7 +849,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                 MS.prev_p.likelihood = MS.H.loglikelihood[0, -1]
             else:
                 starting_iter = MS.latest_iter + 1
-            MS.H.extend(num_iters, MS.param_info)
+
+            MS.H.extend(num_iters, param_info)
             MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
             # Induce annealing, which also corrects the prev_likelihood and adjust the step size
             # MS.anneal(-1, MS.uncs, force=True)
