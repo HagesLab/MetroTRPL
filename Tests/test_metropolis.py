@@ -408,7 +408,8 @@ class TestUtils(unittest.TestCase):
         info = {'names': ['tauP', 'tauN', 'somethingelse'],
                 'prior_dist': {'tauP': (0.1, np.inf), 'tauN': (0.1, np.inf),
                                'somethingelse': (-np.inf, np.inf)},
-                'do_log': {'tauP': 1, 'tauN': 1, 'somethingelse': 1}}
+                'do_log': {'tauP': 1, 'tauN': 1, 'somethingelse': 1},
+                "active": {'tauP': 1, 'tauN': 1, 'somethingelse': 1}}
         # taun, taup must be within 2 OM
         # Accepts new_p as log10
         # [n0, p0, mu_n, mu_p, ks, sf, sb, taun, taup, eps, m]
@@ -425,11 +426,21 @@ class TestUtils(unittest.TestCase):
         new_p = np.log10([0.11, 0.1, 1])
         self.assertTrue("tauN_size" in check_approved_param(new_p, info))
 
+        # If params are inactive, they should not be checked
+        info = {'names': ['tauP', 'tauN', 'somethingelse'],
+                'prior_dist': {'tauP': (0.1, np.inf), 'tauN': (0.1, np.inf),
+                               'somethingelse': (-np.inf, np.inf)},
+                'do_log': {'tauP': 1, 'tauN': 1, 'somethingelse': 1},
+                "active": {'tauP': 0, 'tauN': 0, 'somethingelse': 1}}
+        new_p = np.log10([0.11, 0.1, 1])
+        self.assertTrue(len(check_approved_param(new_p, info)) == 0)
+
         # These should still work if p is not logscaled
         info = {'names': ['tauP', 'tauN', 'somethingelse'],
                 'prior_dist': {'tauP': (0.1, np.inf), 'tauN': (0.1, np.inf),
                                'somethingelse': (-np.inf, np.inf)},
-                'do_log': {'tauP': 0, 'tauN': 0, 'somethingelse': 1}}
+                'do_log': {'tauP': 0, 'tauN': 0, 'somethingelse': 1},
+                "active": {'tauP': 1, 'tauN': 1, 'somethingelse': 1}}
         new_p = np.array([511, 511e2, 1])
         self.assertTrue(len(check_approved_param(new_p, info)) == 0)
         new_p = np.array([511, 511e2+1,  1])
@@ -446,7 +457,8 @@ class TestUtils(unittest.TestCase):
         info = {"names": ["mu_n", "mu_p", "Sf", "Sb"],
                 'prior_dist': {'mu_n': (0.1, 1e6), 'mu_p': (0.1, 1e6),
                                'Sf': (0, 1e7), 'Sb': (0, 1e7)},
-                'do_log': {"mu_n": 1, "mu_p": 1, "Sf": 1, "Sb": 1}}
+                'do_log': {"mu_n": 1, "mu_p": 1, "Sf": 1, "Sb": 1},
+                "active": {"mu_n": 1, "mu_p": 1, "Sf": 1, "Sb": 1}}
         new_p = np.log10([1e6-1, 1e6-1, 1e7-1, 1e7-1])
         self.assertTrue(len(check_approved_param(new_p, info)) == 0)
 
@@ -463,7 +475,8 @@ class TestUtils(unittest.TestCase):
         info = {"names": ["mu_n", "mu_p", "Sf", "Sb"],
                 'prior_dist': {'mu_n': (0.1, 1e6), 'mu_p': (0.1, 1e6),
                                'Sf': (0, 1e7), 'Sb': (0, 1e7)},
-                'do_log': {"mu_n": 0, "mu_p": 0, "Sf": 0, "Sb": 0}}
+                'do_log': {"mu_n": 0, "mu_p": 0, "Sf": 0, "Sb": 0},
+                "active": {"mu_n": 1, "mu_p": 1, "Sf": 1, "Sb": 1}}
         new_p = np.array([1e6-1, 1e6-1, 1e7-1, 1e7-1])
         self.assertTrue(len(check_approved_param(new_p, info)) == 0)
 
@@ -480,7 +493,8 @@ class TestUtils(unittest.TestCase):
         info = {"names": ["ks", "Cn", "Cp"],
                 'prior_dist': {'ks': (0, 1e-7), 'Cn': (0, 1e-21),
                                'Cp': (0, 1e-21)},
-                "do_log": {"ks": 1, "Cn": 1, "Cp": 1}}
+                "do_log": {"ks": 1, "Cn": 1, "Cp": 1},
+                "active": {"ks": 1, "Cn": 1, "Cp": 1}}
         new_p = np.log10([1e-7*0.9, 1e-21*0.9, 1e-21*0.9])
         self.assertTrue(len(check_approved_param(new_p, info)) == 0)
 
@@ -495,7 +509,8 @@ class TestUtils(unittest.TestCase):
         info = {"names": ["ks", "Cn", "Cp"],
                 'prior_dist': {'ks': (0, 1e-7), 'Cn': (0, 1e-21),
                                'Cp': (0, 1e-21)},
-                "do_log": {"ks": 0, "Cn": 0, "Cp": 0}}
+                "do_log": {"ks": 0, "Cn": 0, "Cp": 0},
+                "active": {"ks": 1, "Cn": 1, "Cp": 1}}
         new_p = np.array([1e-7*0.9, 1e-21*0.9, 1e-21*0.9])
         self.assertTrue(len(check_approved_param(new_p, info)) == 0)
 
@@ -509,7 +524,8 @@ class TestUtils(unittest.TestCase):
         # Check p0, which has a size limit and must also be larger than n0
         info = {"names": ["n0", "p0"],
                 'prior_dist': {'n0': (0, 1e19), 'p0': (0, 1e19)},
-                "do_log": {"n0": 1, "p0": 1}}
+                "do_log": {"n0": 1, "p0": 1},
+                "active": {"n0": 1, "p0": 1}}
         new_p = np.log10([1e19 * 0.8, 1e19 * 0.9])
         self.assertTrue(len(check_approved_param(new_p, info)) == 0)
 
@@ -521,7 +537,8 @@ class TestUtils(unittest.TestCase):
         # Should work without log
         info = {"names": ["n0", "p0"],
                 'prior_dist': {'n0': (0, 1e19), 'p0': (0, 1e19)},
-                "do_log": {"n0": 0, "p0": 0}}
+                "do_log": {"n0": 0, "p0": 0},
+                "active": {"n0": 1, "p0": 1}}
         new_p = np.array([1e19 * 0.8, 1e19 * 0.9])
         self.assertTrue(len(check_approved_param(new_p, info)) == 0)
 
@@ -532,6 +549,7 @@ class TestUtils(unittest.TestCase):
 
         info_without_taus = {'names': ['tauQ', 'somethingelse'],
                              "do_log": {'tauQ': 1, 'somethingelse': 1},
+                             "active": {'tauQ': 1, 'somethingelse': 1},
                              'prior_dist': {'tauQ': (-np.inf, np.inf),
                                             'somethingelse': (-np.inf, np.inf)}}
         # No failures if criteria do not cover params
