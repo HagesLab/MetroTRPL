@@ -1,6 +1,8 @@
 import numpy as np
 from forward_solver import MODELS # To verify that the chosen model exists
 
+MODELS["pa"] = lambda x: x
+
 def check_valid_filename(file_name):
     """Screens file_name for prohibited characters
         This one allows slashes
@@ -55,7 +57,7 @@ def check_fittable_fluence(ff : None | tuple | list) -> bool:
 
     return True
 
-def validate_grid(grid: dict, supported_meas_types=("TRPL", "TRTS")):
+def validate_grid(grid: dict, supported_meas_types=("TRPL", "TRTS", "pa")):
     if not isinstance(grid, dict):
         raise TypeError("MCMC simPar must be type 'dict'")
 

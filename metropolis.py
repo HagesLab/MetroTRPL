@@ -39,6 +39,15 @@ MSG_COOLDOWN = 3 # Log first few states regardless of verbose
 # else the simulation is failed.
 NEGATIVE_FRAC_TOL = 0.2
 
+def U(x):
+    return 1000 * (x < -2) + 1 * (1 + np.sin(2*np.pi*x)) * np.logical_and(-2 <= x, x <= -1.25) \
+                             + 2 * (1 + np.sin(2*np.pi*x)) * np.logical_and(-1.25 <= x, x <= -0.25) \
+                             + 3 * (1 + np.sin(2*np.pi*x)) * np.logical_and(-0.25 <= x, x <= 0.75) \
+                             + 4 * (1 + np.sin(2*np.pi*x)) * np.logical_and(0.75 <= x, x <= 1.75) \
+                             + 5 * (1 + np.sin(2*np.pi*x)) * np.logical_and(1.75 <= x, x <= 2) \
+                             + 1000 * (x > 2)
+
+
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
         E = corner_E + q_C / (PA.eps * eps0) * dx * \
@@ -528,8 +537,13 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
     else:
         scale_shift = 0
 
-    tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
-                                               hmax, MCMC_fields, logger, verbose)
+    if meas_type == "pa":
+        tSteps = np.array([0])
+        sol = np.array([U(p.x)])
+        success = True
+    else:
+        tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
+                                                   hmax, MCMC_fields, logger, verbose)
     if not success:
         likelihood = -np.inf
         err_sq = np.inf
@@ -603,23 +617,27 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
             if n_set > 0:
                 logger.warning(f"{n_set} values raised to min_y")
 
-    try:
-        err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
+    if meas_type == "pa":
+        likelihood = -sol[0] / MCMC_fields["current_sigma"][meas_type]
+        err_sq = -sol[0]
+    else:
+        try:
+            err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
 
-        # Compatibility with single sigma
-        if isinstance(MCMC_fields["current_sigma"], dict):
-            likelihood = - \
-                np.sum(err_sq / (MCMC_fields["current_sigma"][meas_type]**2 + 2*uncs_c**2))
-        else:
-            likelihood = - \
-                np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs_c**2))
+            # Compatibility with single sigma
+            if isinstance(MCMC_fields["current_sigma"], dict):
+                likelihood = - \
+                    np.sum(err_sq / (MCMC_fields["current_sigma"][meas_type]**2 + 2*uncs_c**2))
+            else:
+                likelihood = - \
+                    np.sum(err_sq / (MCMC_fields["current_sigma"]**2 + 2*uncs_c**2))
 
-        if np.isnan(likelihood):
-            raise ValueError(f"{i}: Simulation failed: invalid likelihood")
-    except ValueError as e:
-        logger.warning(e)
-        likelihood = -np.inf
-        err_sq = np.inf
+            if np.isnan(likelihood):
+                raise ValueError(f"{i}: Simulation failed: invalid likelihood")
+        except ValueError as e:
+            logger.warning(e)
+            likelihood = -np.inf
+            err_sq = np.inf
     return likelihood, err_sq
 
 
@@ -628,10 +646,10 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
     # Calculates likelihood of a new proposed parameter set
     accepted = True
     logratio = 0  # acceptance ratio = 1
-    p.likelihood = np.zeros(len(iniPar))
+    p.likelihood = np.zeros(sim_info["num_meas"])
 
     # Can't use ndarray - err_sq for each sim can be different length
-    p.err_sq = [[] for i in iniPar]
+    p.err_sq = [[] * sim_info["num_meas"]]
 
     if MCMC_fields.get("use_multi_cpus", False):
         raise NotImplementedError("WIP - multi_cpus")
@@ -639,10 +657,10 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
         #    likelihoods = pool.map(partial(one_sim_likelihood, p, sim_info, hmax, MCMC_fields, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
         #    p.likelihood = np.array(likelihoods)
 
-    for i, init_cond in enumerate(iniPar):
+    for i in range(sim_info["num_meas"]):
         p.likelihood[i], p.err_sq[i] = one_sim_likelihood(
             p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbose,
-            (i, np.array(init_cond), times[i], vals[i], uncs[i]))
+            (i, np.array(iniPar[i]), times[i], vals[i], uncs[i]))
 
     if prev_p is not None:
         if verbose and logger is not None:
