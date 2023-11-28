@@ -28,13 +28,16 @@ eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
 q = 1.0  # [e]
 q_C = 1.602e-19  # [C]
 kB = 8.61773e-5  # [eV / K]
-MIN_HMAX = 1e-2  # [ns]
 DEFAULT_RTOL = 1e-7
 DEFAULT_ATOL = 1e-10
 DEFAULT_HMAX = 4
 MAX_PROPOSALS = 100
 MSG_FREQ = 100
 MSG_COOLDOWN = 3 # Log first few states regardless of verbose
+
+# Allow this proportion of simulation values to become negative due to convolution,
+# else the simulation is failed.
+NEGATIVE_FRAC_TOL = 0.2
 
 def E_field(N, P, PA, dx, corner_E=0):
     if N.ndim == 1:
@@ -47,6 +50,7 @@ def E_field(N, P, PA, dx, corner_E=0):
         num_tsteps = len(N)
         E = np.concatenate((np.ones(shape=(num_tsteps, 1))*corner_E, E), axis=1)
     return E
+
 
 def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
           RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
@@ -207,18 +211,22 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
     else:
         raise NotImplementedError
 
+
 def check_approved_param(new_p, param_info):
     """ Raise a warning for non-physical or unrealistic proposed trial moves,
         or proposed moves that exceed the prior distribution.
     """
     order = list(param_info['names'])
     do_log = param_info["do_log"]
+    active = param_info["active"]
     checks = {}
     prior_dist = param_info["prior_dist"]
 
     # Ensure proposal stays within bounds of prior distribution
     for param in order:
         if param not in order:
+            continue
+        if not active[param]:
             continue
 
         lb = prior_dist[param][0]
@@ -406,70 +414,46 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
         Whether the final simulation passed all convergence criteria.
 
     """
+    success = True
     thickness, nx, meas_type = unpack_simpar(sim_info, i)
 
-    STARTING_HMAX = MCMC_fields.get("hmax", DEFAULT_HMAX)
-    RTOL = MCMC_fields.get("rtol", DEFAULT_RTOL)
-    ATOL = MCMC_fields.get("atol", DEFAULT_ATOL)
+    rtol = MCMC_fields.get("rtol", DEFAULT_RTOL)
+    atol = MCMC_fields.get("atol", DEFAULT_ATOL)
 
-    # Always attempt a slightly larger hmax than what worked previously
-    hmax[i] = min(STARTING_HMAX, hmax[i] * 2)
+    t_steps = np.array(times)
+    sol = np.zeros_like(t_steps)
 
-    # Repeat until all criteria are satisfied.
-    while hmax[i] > MIN_HMAX:
-        tSteps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
+    try:
+        t_steps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
                                     meas=meas_type,
                                     solver=MCMC_fields["solver"], model=MCMC_fields["model"],
-                                    rtol=RTOL, atol=ATOL)
+                                    rtol=rtol, atol=atol)
+    except ValueError as e:
+        success = False
+        if logger is not None:
+            logger.warning(f"{i}: Simulation error occurred: {e}")
+        return t_steps, sol, success
+    
+    # Other tests for validity may be inserted here
 
-        if MCMC_fields["solver"][0] == "diagnostic":
-            # Replace this with curve_fitting code as needed
-            pass
+    if MCMC_fields["solver"][0] == "diagnostic":
+        # Replace this with curve_fitting code as needed
+        pass
 
-        if verbose and logger is not None:
-            logger.info(f"{i}: Simulation complete hmax={hmax}; t {tSteps[0]}-{tSteps[-1]}; x {thickness}")
+    if verbose and logger is not None:
+        logger.info(f"{i}: Simulation complete hmax={hmax}; t {t_steps[0]}-{t_steps[-1]}; x {thickness}")
 
-        sol, fail = detect_sim_fail(sol, vals)
-        if fail and logger is not None:
-            logger.warning(f"{i}: Simulation terminated early!")
-
-        sol, fail = detect_sim_depleted(sol)
-        if fail:
-            hmax[i] = max(MIN_HMAX, hmax[i] / 2)
-            if logger is not None:
-                logger.warning(f"{i}: Carriers depleted!")
-                logger.warning(f"{i}: Retrying hmax={hmax}")
-
-        elif MCMC_fields.get("verify_hmax", False):
-            hmax[i] = max(MIN_HMAX, hmax[i] / 2)
-            logger.info(f"{i}: Verifying convergence with hmax={hmax}...")
-            tSteps, sol2 = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
-                                         meas=meas_type, solver=MCMC_fields["solver"], model=MCMC_fields["model"],
-                                         rtol=RTOL, atol=ATOL)
-            if almost_equal(sol, sol2, threshold=RTOL):
-                logger.info("Success!")
-                break
-            else:
-                logger.info(f"{i}: Fail - not converged")
-                if hmax[i] <= MIN_HMAX:
-                    logger.warning(f"{i}: MIN_HMAX reached")
-
-        else:
-            break
-
-    return tSteps, sol, not fail
+    return t_steps, sol, success
 
 
 def roll_acceptance(logratio):
     accepted = False
-    if logratio >= 0:
-        # Continue
+    if logratio >= 0: # Automatic accept
         accepted = True
 
     else:
         accept = np.random.random()
         if accept < 10 ** logratio:
-            # Continue
             accepted = True
     return accepted
 
@@ -479,6 +463,7 @@ def unpack_simpar(sim_info, i):
     nx = sim_info["nx"][i]
     meas_type = sim_info["meas_types"][i]
     return thickness, nx, meas_type
+
 
 def search_c_grps(c_grps : list[tuple], i : int) -> int:
     """
@@ -491,14 +476,6 @@ def search_c_grps(c_grps : list[tuple], i : int) -> int:
                 return c_grp[0]
     return i
 
-def detect_sim_fail(sol, ref_vals):
-    fail = len(sol) < len(ref_vals)
-    if fail:
-        sol2 = np.ones_like(ref_vals) * sys.float_info.min
-        sol2[:len(sol)] = sol
-        sol = np.array(sol2)
-
-    return sol, fail
 
 def set_min_y(sol, vals, scale_shift):
     """
@@ -516,13 +493,6 @@ def set_min_y(sol, vals, scale_shift):
     i_final = np.searchsorted(-sol, -min_y)
     sol[i_final:] = min_y
     return sol, min_y, len(sol[i_final:])
-
-
-def detect_sim_depleted(sol):
-    fail = np.any(sol < 0)
-    if fail:
-        sol = np.abs(sol) + sys.float_info.min
-    return sol, fail
 
 
 def almost_equal(x, x0, threshold=1e-10):
@@ -560,6 +530,11 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
 
     tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
                                                hmax, MCMC_fields, logger, verbose)
+    if not success:
+        likelihood = -np.inf
+        err_sq = np.inf
+        return likelihood, err_sq
+
     try:
         if irf_convolution is not None and irf_convolution[i] != 0:
             if verbose and logger is not None:
@@ -588,17 +563,17 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
     if verbose and logger is not None:
         logger.info(f"Comparing times {times_c[0]}-{times_c[-1]}")
 
+    if (MCMC_fields["self_normalize"] is not None and
+        sim_info["meas_types"][i] in MCMC_fields["self_normalize"]):
+        if verbose and logger is not None:
+            logger.info("Normalizing sim result...")
+        sol /= np.nanmax(sol)
+
+        # Suppress scale_factor for all measurements being normalized
+        p.suppress_scale_factor(MCMC_fields.get("scale_factor", None), i)
+        scale_shift = 0
+
     try:
-        if (MCMC_fields["self_normalize"] is not None and
-                sim_info["meas_types"][i] in MCMC_fields["self_normalize"]):
-            if verbose and logger is not None:
-                logger.info("Normalizing sim result...")
-            sol /= np.nanmax(sol)
-
-            # Suppress scale_factor for all measurements being normalized
-            p.suppress_scale_factor(MCMC_fields.get("scale_factor", None), i)
-            scale_shift = 0
-
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect
         # A few negative values may also be introduced during convolution -
@@ -607,7 +582,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
 
         where_failed = sol < 0
         n_fails = np.sum(where_failed)
-        success = n_fails < 0.2 * len(sol)
+        success = n_fails < NEGATIVE_FRAC_TOL * len(sol)
         if not success:
             raise ValueError(f"{i}: Simulation failed: too many negative vals")
 
@@ -615,13 +590,20 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
             logger.warning(f"{i}: {n_fails} / {len(sol)} non-positive vals")
 
         sol[where_failed] *= -1
+    except ValueError as e:
+        logger.warning(e)
+        likelihood = -np.inf
+        err_sq = np.inf
+        return likelihood, err_sq
 
-        if MCMC_fields.get("force_min_y", False):
-            sol, min_y, n_set = set_min_y(sol, vals_c, scale_shift)
-            if verbose and logger is not None:
-                logger.warning(f"min_y: {min_y}")
-                if n_set > 0:
-                    logger.warning(f"{n_set} values raised to min_y")
+    if MCMC_fields.get("force_min_y", False):
+        sol, min_y, n_set = set_min_y(sol, vals_c, scale_shift)
+        if verbose and logger is not None:
+            logger.warning(f"min_y: {min_y}")
+            if n_set > 0:
+                logger.warning(f"{n_set} values raised to min_y")
+
+    try:
         err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
 
         # Compatibility with single sigma
@@ -867,7 +849,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                 MS.prev_p.likelihood = MS.H.loglikelihood[0, -1]
             else:
                 starting_iter = MS.latest_iter + 1
-            MS.H.extend(num_iters, MS.param_info)
+
+            MS.H.extend(num_iters, param_info)
             MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
             # Induce annealing, which also corrects the prev_likelihood and adjust the step size
             # MS.anneal(-1, MS.uncs, force=True)

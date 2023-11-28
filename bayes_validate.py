@@ -378,14 +378,6 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("hmax must be a non-negative value")
 
-    if "verify_hmax" in MCMC_fields:
-        verify_hmax = MCMC_fields["verify_hmax"]
-        if (isinstance(verify_hmax, (int, np.integer)) and
-                (verify_hmax == 0 or verify_hmax == 1)):
-            pass
-        else:
-            raise ValueError("verify_hmax invalid - must be 0 or 1")
-
     if "annealing" in MCMC_fields:
         annealing = MCMC_fields["annealing"]
 

@@ -414,8 +414,6 @@ def read_config_script_file(path):
                         MCMC_fields["atol"] = float(line_split[1])
                     elif line.startswith("Solver hmax"):
                         MCMC_fields["hmax"] = float(line_split[1])
-                    elif line.startswith("Repeat hmax"):
-                        MCMC_fields["verify_hmax"] = int(line_split[1])
                     elif line.startswith("Annealing Controls"):
                         splits = line_split[1].split("\t")
 
@@ -778,11 +776,7 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             ofstream.write(f"Solver hmax: {hmax}\n")
 
         if "verify_hmax" in MCMC_fields:
-            if verbose:
-                ofstream.write("# (Experimental) If 1 or True, MCMC will repeat simulations "
-                               "with progressively smaller hmax until the results converge.\n")
-            verify_hmax = MCMC_fields["verify_hmax"]
-            ofstream.write(f"Repeat hmax: {verify_hmax}\n")
+            print("Script generator warning: setting \"verify_hmax\" is deprecated and will have no effect.")
 
         if "annealing" in MCMC_fields:
             if verbose:
