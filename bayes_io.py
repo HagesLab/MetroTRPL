@@ -272,19 +272,6 @@ def remap_constraint_grps(c_grps : list[tuple], select_obs_sets : list) -> list[
 
     return new_c_grps
 
-def add_annealing(MCMC_fields, initial_variance, meas_types, annealing_step=999999, min_sigma=0.01):
-    """Append the annealing tuple to MCMC_fields"""
-
-    if isinstance(MCMC_fields["likel2variance_ratio"], (int, float)):
-        MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"]
-                                     for m in meas_types},
-                                    annealing_step,
-                                    {m:min_sigma for m in meas_types})
-    elif isinstance(MCMC_fields["likel2variance_ratio"], dict):
-        MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"][m]
-                                     for m in meas_types},
-                                    annealing_step,
-                                    {m:min_sigma for m in meas_types})
 
 def read_config_script_file(path):
     with open(path, 'r') as ifstream:
@@ -414,17 +401,6 @@ def read_config_script_file(path):
                         MCMC_fields["atol"] = float(line_split[1])
                     elif line.startswith("Solver hmax"):
                         MCMC_fields["hmax"] = float(line_split[1])
-                    elif line.startswith("Annealing Controls"):
-                        splits = line_split[1].split("\t")
-
-                        starts = extract_tuples(splits[0], delimiter="|", dtype=float)
-                        starts = {m[0]:float(m[1]) for m in starts}
-
-                        stops = extract_tuples(splits[2], delimiter="|", dtype=float)
-                        stops = {m[0]:float(m[1]) for m in stops}
-
-
-                        MCMC_fields["annealing"] = (starts, int(splits[1]), stops)
                     elif line.startswith("Likelihood-to-variance"):
                         try:
                             l2v = float(line_split[1])
@@ -578,7 +554,6 @@ def read_config_script_file(path):
 
 def generate_config_script_file(path, simPar, param_info, measurement_flags,
                                 MCMC_fields, verbose=False):
-    add_annealing(MCMC_fields, param_info["init_variance"], simPar["meas_types"])
     validate_grid(simPar)
     validate_param_info(param_info)
     validate_meas_flags(measurement_flags, simPar["num_meas"])
@@ -779,37 +754,7 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             print("Script generator warning: setting \"verify_hmax\" is deprecated and will have no effect.")
 
         if "annealing" in MCMC_fields:
-            if verbose:
-                ofstream.write("# Annealing schedule parameters.\n"
-                            "# (Starting model uncertainty, steprate, final model uncertainty)\n"
-                            "# Starting and final model uncertainty will be dicts with one value per measurement type;\n"
-                            "# Steprate should be an integer number of steps.\n"
-                            "# Will drop one order of magnitude per STEPRATE samples until FINAL is reached.\n")
-            anneal = MCMC_fields["annealing"]
-            ofstream.write("Annealing Controls: ")
-            anneal_0 = iter(anneal[0].items())
-            meas_type, start = next(anneal_0)
-            while True:
-                try:
-                    ofstream.write(f"({meas_type}, {start})")
-                    meas_type, start = next(anneal_0)
-                    ofstream.write("|")
-                except StopIteration:
-                    break
-            ofstream.write("\t")
-            ofstream.write(f"{anneal[1]}")
-            ofstream.write("\t")
-
-            anneal_2 = iter(anneal[2].items())
-            meas_type, stop = next(anneal_2)
-            while True:
-                try:
-                    ofstream.write(f"({meas_type}, {stop})")
-                    meas_type, stop = next(anneal_2)
-                    ofstream.write("|")
-                except StopIteration:
-                    break
-            ofstream.write("\n")
+            print("Script generator warning: setting \"annealing\" is deprecated and will have no effect.")
 
         if verbose:
             ofstream.write("# Ratio to maintain betwen Model uncertainty and proposal variance.\n"

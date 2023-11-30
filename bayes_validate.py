@@ -380,26 +380,6 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("hmax must be a non-negative value")
 
-    if "annealing" in MCMC_fields:
-        annealing = MCMC_fields["annealing"]
-
-        if isinstance(annealing, tuple):
-            pass
-        else:
-            raise TypeError("Annealing must be tuple")
-
-        if len(annealing) == 3:
-            pass
-        else:
-            raise ValueError("Annealing must contain 3 values - "
-                            "start, steprate, and stop")
-
-        for meas_type, start in annealing[0].items():
-            if start >= annealing[2][meas_type]:
-                pass
-            else:
-                raise ValueError(f"{meas_type}: Annealing start must be at least as large as stop")
-
     l2v = MCMC_fields["likel2variance_ratio"]
 
     if isinstance(l2v, (int, np.integer, float)):
