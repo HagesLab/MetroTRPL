@@ -12,7 +12,7 @@ import numpy as np
 from scipy.integrate import solve_ivp, odeint
 
 from forward_solver import MODELS
-from sim_utils import MetroState, Grid, Solution
+from sim_utils import Ensemble, Grid, Solution
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import make_dir
 from laplace import make_I_tables, do_irf_convolution, post_conv_trim
@@ -680,16 +680,17 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
     return accepted
 
 
-def main_metro_loop(MS, starting_iter, num_iters,
+def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                     need_initial_state=True, logger=None, verbose=False):
     """
-    Run the Metropolis loop for a specified number of iterations,
-    storing all info in a MetroState() object and saving the MetroState()
+    Run the Metropolis loop for each chain in an Ensemble()
+    over a specified number of iterations,
+    storing all info in MetroState() objects and saving the Ensemble()
     as occasional checkpoints.
 
     Parameters
     ----------
-    MS : MetroState() object
+    MS_list : Ensemble() object
 
     starting_iter : int
         Index of first iter. 1 if starting from scratch, checkpoint-dependent
@@ -707,87 +708,94 @@ def main_metro_loop(MS, starting_iter, num_iters,
 
     Returns
     -------
-    None. MetroState() object is updated throughout.
+    None. Ensemble() and MetroStates is updated throughout.
 
     """
-    DA_mode = MS.MCMC_fields.get("delayed_acceptance", "off")
-    checkpoint_freq = MS.MCMC_fields["checkpoint_freq"]
+    DA_mode = MS_list.ensemble_fields.get("delayed_acceptance", "off")
+    checkpoint_freq = MS_list.ensemble_fields["checkpoint_freq"]
 
     if need_initial_state:
-        logger.info("Simulating initial state:")
+        if logger is not None: logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
-        STARTING_HMAX = MS.MCMC_fields.get("hmax", DEFAULT_HMAX)
-        MS.running_hmax = [STARTING_HMAX] * len(MS.iniPar)
-        run_iteration(MS.prev_p, MS.sim_info, MS.iniPar,
-                      MS.times, MS.vals, MS.uncs, MS.IRF_tables,
-                      MS.running_hmax, MS.MCMC_fields, verbose, logger)
-        MS.H.update(0, MS.prev_p, MS.means, MS.param_info)
+        for MS in MS_list.MS:
+            STARTING_HMAX = MS.MCMC_fields.get("hmax", DEFAULT_HMAX)
+            # TODO: Deprecate running_hmax, since hmax is now fixed on startup
+            MS.running_hmax = [STARTING_HMAX] * len(MS_list.iniPar)
+            run_iteration(MS.prev_p, MS_list.sim_info, MS_list.iniPar,
+                        MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
+                        MS.running_hmax, MS.MCMC_fields, verbose, logger)
+            MS.H.update(0, MS.prev_p, MS.means, MS.param_info)
     for k in range(starting_iter, num_iters):
         try:
-            logger.info("#####")
-            logger.info(f"Iter {k}")
-            logger.info("#####")
+            if logger is not None:
+                logger.info("#####")
+                logger.info(f"Iter {k}")
 
-            # Check if anneal needed
-            MS.anneal(k, MS.uncs)
-            if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
-                logger.debug(f"Current model sigma: {MS.MCMC_fields['current_sigma']}")
-                logger.debug(f"Current variances: {MS.variances.trace()}")
+            for m, MS in enumerate(MS_list.MS):
+                if logger is not None:
+                    logger.info(f"MetroState #{m}")
+                if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
+                    logger.debug(f"Current model sigma: {MS.MCMC_fields['current_sigma']}")
+                    logger.debug(f"Current variances: {MS.variances.trace()}")
 
-            # Identify which parameter to move
-            if MS.MCMC_fields.get("one_param_at_a_time", 0):
-                picked_param = MS.means.actives[k % len(MS.means.actives)]
-            else:
-                picked_param = None
+                # Identify which parameter to move
+                # TODO: consider deprecating
+                if MS.MCMC_fields.get("one_param_at_a_time", 0):
+                    picked_param = MS.means.actives[k % len(MS.means.actives)]
+                else:
+                    picked_param = None
 
-            # Select next sample from distribution
+                # Select next sample from distribution
+                # TODO: consider deprecating
+                if MS.MCMC_fields.get("adaptive_covariance", "None") == "None":
+                    MS.variances.mask_covariance(picked_param)
 
-            if MS.MCMC_fields.get("adaptive_covariance", "None") == "None":
-                MS.variances.mask_covariance(picked_param)
+                select_next_params(MS.p, MS.means, MS.variances, MS.param_info,
+                                   MS.MCMC_fields["proposal_function"],
+                                   MS.MCMC_fields.get("hard_bounds", 0), logger)
 
-            select_next_params(MS.p, MS.means, MS.variances, MS.param_info,
-                               MS.MCMC_fields["proposal_function"],
-                               MS.MCMC_fields.get("hard_bounds", 0), logger)
+                if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
+                    MS.print_status(logger)
 
-            if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
-                MS.print_status(logger)
+                MS.H.record_best_logll(k, MS.prev_p)
 
-            MS.H.record_best_logll(k, MS.prev_p)
+                if DA_mode == "off":
+                    accepted = run_iteration(MS.p, MS_list.sim_info, MS_list.iniPar,
+                                             MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
+                                             MS.running_hmax, MS.MCMC_fields, verbose,
+                                             logger, prev_p=MS.prev_p, t=k)
 
-            if DA_mode == "off":
-                accepted = run_iteration(MS.p, MS.sim_info, MS.iniPar,
-                                         MS.times, MS.vals, MS.uncs, MS.IRF_tables,
-                                         MS.running_hmax, MS.MCMC_fields, verbose,
-                                         logger, prev_p=MS.prev_p, t=k)
+                elif DA_mode == 'DEBUG':
+                    accepted = False
 
-            elif DA_mode == 'DEBUG':
-                accepted = False
+                else:
+                    raise ValueError("Invalid DA mode - must be \"off\" or \"DEBUG\"")
 
-            else:
-                raise ValueError("Invalid DA mode - must be \"off\" or \"DEBUG\"")
+                if verbose and not accepted and logger is not None:
+                    logger.info("Rejected!")
 
-            if verbose and not accepted and logger is not None:
-                logger.info("Rejected!")
+                if accepted:
+                    MS.means.transfer_from(MS.p, MS.param_info)
+                    MS.H.accept[0, k] = 1
 
-            if accepted:
-                MS.means.transfer_from(MS.p, MS.param_info)
-                MS.H.accept[0, k] = 1
-
-            MS.H.update(k, MS.p, MS.means, MS.param_info)
-            MS.latest_iter = k
+                MS.H.update(k, MS.p, MS.means, MS.param_info)
+            MS_list.latest_iter = k
 
         except KeyboardInterrupt:
-            logger.warning(f"Terminating with k={k-1} iters completed:")
-            MS.H.truncate(k, MS.param_info)
+            if logger is not None:
+                logger.warning(f"Terminating with k={k-1} iters completed:")
+            for MS in MS_list.MS:
+                MS.H.truncate(k, MS.param_info)
             break
 
         if checkpoint_freq is not None and k % checkpoint_freq == 0:
-            chpt_header = MS.MCMC_fields["checkpoint_header"]
-            chpt_fname = os.path.join(MS.MCMC_fields["checkpoint_dirname"],
-                                    f"{chpt_header}.pik")
-            logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
-            MS.random_state = np.random.get_state()
-            MS.checkpoint(chpt_fname)
+            chpt_header = MS_list.ensemble_fields["checkpoint_header"]
+            chpt_fname = os.path.join(MS_list.ensemble_fields["checkpoint_dirname"],
+                                      f"{chpt_header}.pik")
+            if logger is not None:
+                logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
+            MS_list.random_state = np.random.get_state()
+            MS_list.checkpoint(chpt_fname)
     return
 
 
@@ -825,20 +833,19 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     load_checkpoint = MCMC_fields["load_checkpoint"]
     num_iters = MCMC_fields["num_iters"]
     if load_checkpoint is None:
-        MS = MetroState(param_info, MCMC_fields, num_iters)
-        MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
-        if "checkpoint_header" not in MS.MCMC_fields:
-            MS.MCMC_fields["checkpoint_header"] = export_path[:export_path.find(".pik")]
+        MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, n_states=2)
+        MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
+        if "checkpoint_header" not in MS_list.ensemble_fields:
+            MS_list.ensemble_fields["checkpoint_header"] = export_path[:export_path.find(".pik")]
 
         starting_iter = 1
 
         # Just so MS saves a record of these
-        MS.sim_info = sim_info
-        MS.iniPar = iniPar
-        MS.times, MS.vals, MS.uncs = e_data
+        MS_list.iniPar = iniPar
+        MS_list.times, MS_list.vals, MS_list.uncs = e_data
 
         if logger is not None:
-            for i, unc in enumerate(MS.uncs):
+            for i, unc in enumerate(MS_list.uncs):
                 logger.info(f"{i} exp unc max: {np.amax(unc)} avg: {np.mean(unc)}")
 
         if MCMC_fields.get("irf_convolution", None) is not None:
@@ -848,46 +855,50 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                     irfs[int(i)] = np.loadtxt(os.path.join("IRFs", f"irf_{int(i)}nm.csv"),
                                               delimiter=",")
 
-            MS.IRF_tables = make_I_tables(irfs)
+            MS_list.IRF_tables = make_I_tables(irfs)
         else:
-            MS.IRF_tables = {}
+            MS_list.IRF_tables = {}
 
     else:
         with open(os.path.join(MCMC_fields["checkpoint_dirname"],
                                load_checkpoint), 'rb') as ifstream:
-            MS = pickle.load(ifstream)
-            np.random.set_state(MS.random_state)
-
-            if "starting_iter" in MCMC_fields and MCMC_fields["starting_iter"] < MS.latest_iter:
+            MS_list : Ensemble = pickle.load(ifstream)
+            np.random.set_state(MS_list.random_state)
+            if "starting_iter" in MCMC_fields and MCMC_fields["starting_iter"] < MS_list.latest_iter:
                 starting_iter = MCMC_fields["starting_iter"]
-                MS.H.extend(starting_iter, MS.param_info)
-                for param in MS.param_info["names"]:
-                    setattr(MS.means, param, getattr(MS.H, f"mean_{param}")[0, starting_iter - 1])
-                MS.prev_p.likelihood = np.zeros_like(MS.prev_p.likelihood)
-                MS.prev_p.likelihood = MS.H.loglikelihood[0, -1]
+                for MS in MS_list.MS:
+                    MS.H.extend(starting_iter, MS.param_info)
+                    for param in MS.param_info["names"]:
+                        setattr(MS.means, param, getattr(MS.H, f"mean_{param}")[0, starting_iter - 1])
+                    MS.prev_p.likelihood = np.zeros_like(MS.prev_p.likelihood)
+                    MS.prev_p.likelihood = MS.H.loglikelihood[0, -1]
             else:
-                starting_iter = MS.latest_iter + 1
+                starting_iter = MS_list.latest_iter + 1
 
-            MS.H.extend(num_iters, param_info)
-            MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
-            # Induce annealing, which also corrects the prev_likelihood and adjust the step size
-            # MS.anneal(-1, MS.uncs, force=True)
+                for MS in MS_list.MS:
+                    MS.H.extend(num_iters, MS.param_info)
+                    MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
+                    # Induce annealing, which also corrects the prev_likelihood and adjust the step size
+                    # MS.anneal(-1, MS.uncs, force=True)
 
-    # From this point on, for consistency, work with ONLY the MetroState object!
-    logger.info(f"Sim info: {MS.sim_info}")
-    logger.info(f"Param infos: {MS.param_info}")
-    logger.info(f"MCMC fields: {MS.MCMC_fields}")
+    # From this point on, for consistency, work with ONLY the MetroState objects
+    logger.info(f"Sim info: {MS_list.sim_info}")
+    logger.info(f"Ensemble fields: {MS_list.ensemble_fields}")
+    for i, MS in enumerate(MS_list.MS):
+        logger.info(f"Metrostate #{i}:")
+        logger.info(f"Param infos: {MS.param_info}")
+        logger.info(f"MCMC fields: {MS.MCMC_fields}")
 
     need_initial_state = (load_checkpoint is None)
-    main_metro_loop(MS, starting_iter, num_iters,
+    main_metro_loop(MS_list, starting_iter, num_iters,
                     need_initial_state=need_initial_state,
                     logger=logger, verbose=verbose)
 
-    MS.random_state = np.random.get_state()
+    MS_list.random_state = np.random.get_state()
     if export_path is not None:
-        logger.info(f"Exporting to {MS.MCMC_fields['output_path']}")
-        MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
+        logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
+        MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
 
     if using_default_logger:
         stop_logging(logger, handler, 0)
-    return MS
+    return MS_list

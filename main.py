@@ -83,26 +83,29 @@ if __name__ == "__main__":
     export_path = f"CPU{jobid}-final.pik"
 
     clock0 = perf_counter()
-    MS = metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False,
+    MS_list = metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False,
                export_path=export_path, logger=logger)
 
     final_t = perf_counter() - clock0
 
     logger.info(f"Metro took {final_t} s ({final_t / 3600} hr)")
     logger.info(f"Avg: {final_t / MCMC_fields['num_iters']} s per iter")
-    logger.info(f"Acceptance rate: {np.sum(MS.H.accept) / len(MS.H.accept.flatten())}")
+    for i, MS in enumerate(MS_list.MS):
+        logger.info(f"Metrostate #{i}:")
+        logger.info(f"Acceptance rate: {np.sum(MS.H.accept) / len(MS.H.accept.flatten())}")
 
     # Successful completion - remove all non-final checkpoints
-    if "checkpoint_header" in MS.MCMC_fields:
-        chpt_header = MS.MCMC_fields["checkpoint_header"]
-        for chpt in os.listdir(MS.MCMC_fields["checkpoint_dirname"]):
+    if "checkpoint_header" in MS_list.ensemble_fields:
+        chpt_header = MS_list.ensemble_fields["checkpoint_header"]
+        for chpt in os.listdir(MS_list.ensemble_fields["checkpoint_dirname"]):
             if (chpt.startswith(chpt_header)
                 and not chpt.endswith("final.pik")
                 and not chpt.endswith(".log")):
-                os.remove(os.path.join(MS.MCMC_fields["checkpoint_dirname"], chpt))
-    # os.rmdir(MS.MCMC_fields["checkpoint_dirname"])
+                os.remove(os.path.join(MS_list.ensemble_fields["checkpoint_dirname"], chpt))
+        if len(os.listdir(MS_list.ensemble_fields["checkpoint_dirname"])) == 0:
+            os.rmdir(MS_list.ensemble_fields["checkpoint_dirname"])
 
     stop_logging(logger, handler, 0)
 
-    output_path = MCMC_fields["output_path"]
+    output_path = MS_list.ensemble_fields["output_path"]
     print(f"{jobid} Finished - {output_path}")

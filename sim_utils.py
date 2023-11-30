@@ -7,25 +7,65 @@ Created on Thu Jan 13 13:04:20 2022
 from sys import float_info
 import os
 import pickle
+import warnings
+
 import numpy as np
 from numba import njit
+
+warnings.simplefilter("always", DeprecationWarning)
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
 q_C = 1.602e-19  # [C per carrier]
 DEFAULT_ANN_STEP = np.sqrt(0.5)
+
+
+class Ensemble():
+    """ Ensemble of MetroStates controlled by a single process.
+    
+    """
+    iniPar: np.ndarray      # Initial conditions for simulations
+    times: list[np.ndarray] # Measurement delay times
+    vals: list[np.ndarray]  # Measurement values
+    uncs: list[np.ndarray]  # Measurement uncertainties
+    IRF_tables: dict        # Instrument response functions
+
+    def __init__(self, param_info, sim_info, MCMC_fields, num_iters, n_states=1):
+        self.ensemble_fields = {}
+        self.ensemble_fields["output_path"] = MCMC_fields.pop("output_path")
+        self.ensemble_fields["checkpoint_dirname"] = MCMC_fields.pop("checkpoint_dirname")
+        if "checkpoint_header" in MCMC_fields:
+            self.ensemble_fields["checkpoint_header"] = MCMC_fields.pop("checkpoint_header")
+        self.ensemble_fields["checkpoint_freq"] = MCMC_fields.pop("checkpoint_freq")
+        self.ensemble_fields["delayed_acceptance"] = MCMC_fields.pop("delayed_acceptance", "off")
+
+        self.MS = []
+        for i in range(n_states):
+            if isinstance(MCMC_fields["likel2variance_ratio"], (int, float)):
+                MCMC_fields["likel2variance_ratio"] = [1, 20, 50][i]
+            elif isinstance(MCMC_fields["likel2variance_ratio"], dict):
+                MCMC_fields["likel2variance_ratio"] = {}
+                for m in sim_info["meas_types"]:
+                    MCMC_fields["likel2variance_ratio"][m] = [1, 20, 50][i]
+            self.MS.append(MetroState(param_info, dict(MCMC_fields), num_iters, sim_info["meas_types"]))
+            
+        self.sim_info = sim_info
+        self.random_state = np.random.get_state()
+        self.latest_iter = 0
+
+
+    def checkpoint(self, fname):
+        """ Save the current ensemble as a pickle object. """
+        with open(fname, "wb+") as ofstream:
+            pickle.dump(self, ofstream)
+        return
+
 
 class MetroState():
     """ Overall management of the metropolis random walker: its current state,
         the states it's been to, and the trial move function used to get the
         next state.
     """
-    sim_info: dict
-    iniPar: np.ndarray
-    times: list[np.ndarray]
-    vals: list[np.ndarray]
-    uncs: list[np.ndarray]
-    IRF_tables: dict
-    def __init__(self, param_info, MCMC_fields, num_iters):
+    def __init__(self, param_info, MCMC_fields, num_iters, meas_types):
         self.p = Parameters(param_info)
 
         self.H = History(num_iters, param_info)
@@ -39,15 +79,21 @@ class MetroState():
 
         self.param_info = param_info
         self.MCMC_fields = MCMC_fields
-        self.MCMC_fields["current_sigma"] = dict(self.MCMC_fields["annealing"][0])
-        self.latest_iter = 0
-        self.random_state = np.random.get_state()
+        if isinstance(MCMC_fields["likel2variance_ratio"], dict):
+            self.MCMC_fields["current_sigma"] = {m:max(param_info["init_variance"].values()) * MCMC_fields["likel2variance_ratio"][m]
+                                                 for m in meas_types}
+        else:
+            self.MCMC_fields["current_sigma"] = {m:max(param_info["init_variance"].values()) * MCMC_fields["likel2variance_ratio"]
+                                                 for m in meas_types}
         return
 
     def anneal(self, k, uncs=None, force=False, step=DEFAULT_ANN_STEP):
-        """ "Adjust the model sigma according to an annealing schedule -
+        """ 
+        DEPRECATED
+        Adjust the model sigma according to an annealing schedule -
             sigma *= sqrt(0.5) every kth step
         """
+        warnings.warn("Annealing has been deprecated in favor of parallel tempering and will be removed in the future", DeprecationWarning)
         steprate = self.MCMC_fields["annealing"][1]
         min_sigma = self.MCMC_fields["annealing"][2]
         l2v = self.MCMC_fields["likel2variance_ratio"]
@@ -91,11 +137,11 @@ class MetroState():
 
         return
 
-    def checkpoint(self, fname):
-        """ Save the current state as a pickle object. """
-        with open(fname, "wb+") as ofstream:
-            pickle.dump(self, ofstream)
-        return
+    # def checkpoint(self, fname):
+    #     """ Save the current state as a pickle object. """
+    #     with open(fname, "wb+") as ofstream:
+    #         pickle.dump(self, ofstream)
+    #     return
 
 
 class Parameters():
@@ -116,7 +162,7 @@ class Parameters():
     tauP: float    # Hole bulk nonradiative decayl lifetime
     eps: float     # Relative dielectric cofficient
     Tm: float      # Temperature
-    likelihood: list # Current likelihood of each simulation vs its respective measurement
+    likelihood: np.ndarray # Current likelihood of each simulation vs its respective measurement
     err_sq: list     # Current squared error of each simulation vs its respective measurement
 
     def __init__(self, param_info):

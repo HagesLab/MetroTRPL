@@ -240,64 +240,65 @@ class Window(TkGUI):
 
         self.chains = []
         for file_name in file_names:
-            chain = Chain(file_name)
-
             with open(file_name, "rb") as rfile:
-                metrostate: sim_utils.MetroState = pickle.load(rfile)
+                MS_list : sim_utils.Ensemble = pickle.load(rfile)
 
-            chain.active_sampled = metrostate.param_info["active"]
-            chain.param_names = metrostate.param_info["names"]
+            for i, metrostate in enumerate(MS_list.MS):
+                chain = Chain(file_name + f"-{i}")
 
-            logl = getattr(metrostate.H, "loglikelihood")
-            if logl.ndim == 2 and logl.shape[0] == 1:
-                logl = logl[0]
-            elif logl.ndim == 1:
-                pass
-            else:
-                raise ValueError("Invalid chain states format - "
-                                    "must be 1D or 2D of size (1, num_states)")
+                chain.active_sampled = metrostate.param_info["active"]
+                chain.param_names = metrostate.param_info["names"]
 
-            chain.data["log likelihood"] = logl[1:]
+                logl = getattr(metrostate.H, "loglikelihood")
+                if logl.ndim == 2 and logl.shape[0] == 1:
+                    logl = logl[0]
+                elif logl.ndim == 1:
+                    pass
+                else:
+                    raise ValueError("Invalid chain states format - "
+                                        "must be 1D or 2D of size (1, num_states)")
 
-            accept = getattr(metrostate.H, "accept")
-            if accept.ndim == 2 and accept.shape[0] == 1:
-                accept = accept[0]
-            elif accept.ndim == 1:
-                pass
-            else:
-                raise ValueError("Invalid chain states format - "
-                                    "must be 1D or 2D of size (1, num_states)")
-            
-            bins = np.arange(0, len(accept), int(ACC_BIN_SIZE))
-            accepted_subs = np.split(accept, bins)
-            num_bins = len(accepted_subs)
-            sub_means = np.zeros((num_bins))
-            for s, sub in enumerate(accepted_subs):
-                sub_means[s] = np.mean(sub)
-            chain.data["accept"] = sub_means
+                chain.data["log likelihood"] = logl[1:]
 
-            try:
-                for key in metrostate.param_info["names"]:
-                    mean_states = getattr(metrostate.H, f"mean_{key}")
-                    if mean_states.ndim == 2 and mean_states.shape[0] == 1:
-                        mean_states = mean_states[0]
-                    elif mean_states.ndim == 1:
-                        pass
-                    else:
-                        raise ValueError("Invalid chain states format - "
-                                            "must be 1D or 2D of size (1, num_states)")
+                accept = getattr(metrostate.H, "accept")
+                if accept.ndim == 2 and accept.shape[0] == 1:
+                    accept = accept[0]
+                elif accept.ndim == 1:
+                    pass
+                else:
+                    raise ValueError("Invalid chain states format - "
+                                        "must be 1D or 2D of size (1, num_states)")
+                
+                bins = np.arange(0, len(accept), int(ACC_BIN_SIZE))
+                accepted_subs = np.split(accept, bins)
+                num_bins = len(accepted_subs)
+                sub_means = np.zeros((num_bins))
+                for s, sub in enumerate(accepted_subs):
+                    sub_means[s] = np.mean(sub)
+                chain.data["accept"] = sub_means
 
-                    chain.data[key] = mean_states
+                try:
+                    for key in metrostate.param_info["names"]:
+                        mean_states = getattr(metrostate.H, f"mean_{key}")
+                        if mean_states.ndim == 2 and mean_states.shape[0] == 1:
+                            mean_states = mean_states[0]
+                        elif mean_states.ndim == 1:
+                            pass
+                        else:
+                            raise ValueError("Invalid chain states format - "
+                                                "must be 1D or 2D of size (1, num_states)")
 
-                for key in self.sp.func:
-                    # TODO: Option to precalculate all of these
-                    chain.data[key] = np.zeros(0)
-            except ValueError as err:
-                self.status(f"Error: {err}")
-                continue   
+                        chain.data[key] = mean_states
 
-            chain.visible.trace_id = chain.visible.trace("w", self.on_active_chain_update)
-            self.chains.append(chain)         
+                    for key in self.sp.func:
+                        # TODO: Option to precalculate all of these
+                        chain.data[key] = np.zeros(0)
+                except ValueError as err:
+                    self.status(f"Error: {err}")
+                    continue   
+
+                chain.visible.trace_id = chain.visible.trace("w", self.on_active_chain_update)
+                self.chains.append(chain)         
 
         # Generate a button for each parameter
         self.mini_panel.widgets["chart menu"].configure(state=tk.NORMAL) # type: ignore
@@ -411,7 +412,7 @@ class Window(TkGUI):
                     else:
                         hline = (float(hline),)
                 except ValueError:
-                    hline = (-1.0,)
+                    hline = tuple()
 
                 title = f"{x_val}"
 
@@ -475,8 +476,8 @@ class Window(TkGUI):
                         vals = np.hstack((vals, chain.data[x_val][equi:]))
 
                     # Print some statistics
-                    mean = np.mean(vals)
-                    stdev = np.std(vals, ddof=1)
+                    mean = np.nanmean(vals)
+                    stdev = np.nanstd(vals, ddof=1)
                     self.status(f"Mean: {mean}, stdev: {stdev}")
 
                     color = PLOT_COLOR_CYCLE[0]
