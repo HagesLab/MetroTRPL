@@ -464,7 +464,7 @@ def roll_acceptance(logratio):
 
     else:
         accept = np.random.random()
-        if accept < 10 ** logratio:
+        if accept < np.exp(logratio):
             accepted = True
     return accepted
 
@@ -672,7 +672,7 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
             logratio = -np.inf
 
         if verbose and logger is not None:
-            logger.info(f"Partial Ratio: {10 ** logratio}")
+            logger.info(f"Partial Ratio: {np.exp(logratio)}")
 
         accepted = roll_acceptance(logratio)
 
