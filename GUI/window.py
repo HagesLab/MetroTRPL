@@ -241,9 +241,14 @@ class Window(TkGUI):
         self.chains = []
         for file_name in file_names:
             with open(file_name, "rb") as rfile:
-                MS_list : sim_utils.Ensemble = pickle.load(rfile)
+                MS_list = pickle.load(rfile)
+                # Compatibility prior to ensembles
+                if isinstance(MS_list, sim_utils.MetroState):
+                    MS_list = [MS_list]
+                else:
+                    MS_list = MS_list.MS
 
-            for i, metrostate in enumerate(MS_list.MS):
+            for i, metrostate in enumerate(MS_list):
                 chain = Chain(file_name + f"-{i}")
 
                 chain.active_sampled = metrostate.param_info["active"]
