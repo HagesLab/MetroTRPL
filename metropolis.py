@@ -35,6 +35,8 @@ MAX_PROPOSALS = 100
 MSG_FREQ = 100
 MSG_COOLDOWN = 3 # Log first few states regardless of verbose
 
+TEMPER_FREQ = 2000 # Make every nth move a Hamiltonian exchange (parallel tempering move)
+
 # Allow this proportion of simulation values to become negative due to convolution,
 # else the simulation is failed.
 NEGATIVE_FRAC_TOL = 0.2
@@ -619,7 +621,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
 
     if meas_type == "pa":
         likelihood = -sol[0] / MCMC_fields["current_sigma"][meas_type]
-        err_sq = -sol[0]
+        err_sq = sol[0]
     else:
         try:
             err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
@@ -731,54 +733,92 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                 logger.info("#####")
                 logger.info(f"Iter {k}")
 
-            for m, MS in enumerate(MS_list.MS):
+            if k % TEMPER_FREQ == 0:
+                continue
+                # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
+                i = np.random.choice(np.arange(len(MS_list.MS)-1))
                 if logger is not None:
-                    logger.info(f"MetroState #{m}")
-                if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
-                    logger.debug(f"Current model sigma: {MS.MCMC_fields['current_sigma']}")
-                    logger.debug(f"Current variances: {MS.variances.trace()}")
+                    logger.info(f"Tempering - swapping chains {i} and {i+1}")
+                MS_I = MS_list.MS[i]
+                MS_J = MS_list.MS[i+1]
 
-                # Identify which parameter to move
-                # TODO: consider deprecating
-                if MS.MCMC_fields.get("one_param_at_a_time", 0):
-                    picked_param = MS.means.actives[k % len(MS.means.actives)]
-                else:
-                    picked_param = None
+                # TODO: Generalize this to multiple measurements, then adapt to our loglikelihood
+                meas_type = MS_list.sim_info["meas_types"][0]
+                logratio = - \
+                    (MS_I.MCMC_fields["current_sigma"][meas_type]**-1 - 
+                    MS_J.MCMC_fields["current_sigma"][meas_type]**-1) * \
+                    (MS_J.prev_p.err_sq[0] - MS_I.prev_p.err_sq[0])
+                
+                if logger is not None:
+                    logger.info(f"tempering partial Ratio: {10 ** logratio}")
 
-                # Select next sample from distribution
-                # TODO: consider deprecating
-                if MS.MCMC_fields.get("adaptive_covariance", "None") == "None":
-                    MS.variances.mask_covariance(picked_param)
+                accepted = roll_acceptance(logratio)
 
-                select_next_params(MS.p, MS.means, MS.variances, MS.param_info,
-                                   MS.MCMC_fields["proposal_function"],
-                                   MS.MCMC_fields.get("hard_bounds", 0), logger)
-
-                if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
-                    MS.print_status(logger)
-
-                MS.H.record_best_logll(k, MS.prev_p)
-
-                if DA_mode == "off":
-                    accepted = run_iteration(MS.p, MS_list.sim_info, MS_list.iniPar,
-                                             MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
-                                             MS.running_hmax, MS.MCMC_fields, verbose,
-                                             logger, prev_p=MS.prev_p, t=k)
-
-                elif DA_mode == 'DEBUG':
-                    accepted = False
-
-                else:
-                    raise ValueError("Invalid DA mode - must be \"off\" or \"DEBUG\"")
-
-                if verbose and not accepted and logger is not None:
-                    logger.info("Rejected!")
+                if not accepted and logger is not None:
+                    logger.info("tempering move rejected")
 
                 if accepted:
-                    MS.means.transfer_from(MS.p, MS.param_info)
-                    MS.H.accept[0, k] = 1
+                    MS_I.prev_p.likelihood[0], MS_J.prev_p.likelihood[0] = (-MS_J.prev_p.err_sq[0] / MS_I.MCMC_fields["current_sigma"][meas_type],
+                                                                            -MS_I.prev_p.err_sq[0] / MS_J.MCMC_fields["current_sigma"][meas_type])
 
-                MS.H.update(k, MS.p, MS.means, MS.param_info)
+                    for param in MS_I.param_info['names']:
+                        setattr(MS_list.mean_buffer, param, getattr(MS_J.means, param))
+                        setattr(MS_J.means, param, getattr(MS_I.means, param))
+                        setattr(MS_I.means, param, getattr(MS_list.mean_buffer, param))
+
+                MS_J.H.update(k, MS_J.p, MS_J.means, MS_J.param_info)
+                MS_I.H.update(k, MS_I.p, MS_I.means, MS_I.param_info)
+
+            else:
+                # Do an ordinary move
+                for m, MS in enumerate(MS_list.MS):
+                    if logger is not None:
+                        logger.info(f"MetroState #{m}")
+                    if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
+                        logger.debug(f"Current model sigma: {MS.MCMC_fields['current_sigma']}")
+                        logger.debug(f"Current variances: {MS.variances.trace()}")
+
+                    # Identify which parameter to move
+                    # TODO: consider deprecating
+                    if MS.MCMC_fields.get("one_param_at_a_time", 0):
+                        picked_param = MS.means.actives[k % len(MS.means.actives)]
+                    else:
+                        picked_param = None
+
+                    # Select next sample from distribution
+                    # TODO: consider deprecating
+                    if MS.MCMC_fields.get("adaptive_covariance", "None") == "None":
+                        MS.variances.mask_covariance(picked_param)
+
+                    select_next_params(MS.p, MS.means, MS.variances, MS.param_info,
+                                    MS.MCMC_fields["proposal_function"],
+                                    MS.MCMC_fields.get("hard_bounds", 0), logger)
+
+                    if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
+                        MS.print_status(logger)
+
+                    MS.H.record_best_logll(k, MS.prev_p)
+
+                    if DA_mode == "off":
+                        accepted = run_iteration(MS.p, MS_list.sim_info, MS_list.iniPar,
+                                                MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
+                                                MS.running_hmax, MS.MCMC_fields, verbose,
+                                                logger, prev_p=MS.prev_p, t=k)
+
+                    elif DA_mode == 'DEBUG':
+                        accepted = False
+
+                    else:
+                        raise ValueError("Invalid DA mode - must be \"off\" or \"DEBUG\"")
+
+                    if verbose and not accepted and logger is not None:
+                        logger.info("Rejected!")
+
+                    if accepted:
+                        MS.means.transfer_from(MS.p, MS.param_info)
+                        MS.H.accept[0, k] = 1
+
+                    MS.H.update(k, MS.p, MS.means, MS.param_info)
             MS_list.latest_iter = k
 
         except KeyboardInterrupt:

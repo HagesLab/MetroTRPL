@@ -41,13 +41,14 @@ class Ensemble():
         self.MS = []
         for i in range(n_states):
             if isinstance(MCMC_fields["likel2variance_ratio"], (int, float)):
-                MCMC_fields["likel2variance_ratio"] = [1, 20, 50][i]
+                MCMC_fields["likel2variance_ratio"] = [20, 3, 0.5][i]
             elif isinstance(MCMC_fields["likel2variance_ratio"], dict):
                 MCMC_fields["likel2variance_ratio"] = {}
                 for m in sim_info["meas_types"]:
-                    MCMC_fields["likel2variance_ratio"][m] = [1, 20, 50][i]
+                    MCMC_fields["likel2variance_ratio"][m] = [20, 3, 0.5][i]
             self.MS.append(MetroState(param_info, dict(MCMC_fields), num_iters, sim_info["meas_types"]))
             
+        self.mean_buffer = Parameters(param_info)
         self.sim_info = sim_info
         self.random_state = np.random.get_state()
         self.latest_iter = 0
