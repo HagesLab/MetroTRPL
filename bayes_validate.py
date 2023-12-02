@@ -482,6 +482,18 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("MCMC control 'irf_convolution' must be None, or a list with "
                              "one positive wavelength value per measurement")
+        
+    if "parallel_tempering" in MCMC_fields:
+        pa = MCMC_fields["parallel_tempering"]
+        if pa is None:
+            pass
+        elif (isinstance(pa, (list, np.ndarray)) and
+              len(pa) > 0 and
+                all(map(lambda x: x > 0, pa))):
+            pass
+        else:
+            raise ValueError("MCMC control 'parallel_tempering' must be None, or a list with "
+                             "at least one positive temperature value")
 
     oneaat = MCMC_fields["one_param_at_a_time"]
     if (isinstance(oneaat, (int, np.integer)) and
