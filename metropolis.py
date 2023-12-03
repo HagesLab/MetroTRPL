@@ -364,7 +364,7 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
 
 
 def converge_simulation(i, p, sim_info, iniPar, times, vals,
-                        hmax, MCMC_fields, logger=None, verbose=True):
+                        MCMC_fields, logger=None, verbose=True):
     """
     Retest and repeat simulation until all stipulated convergence criteria
     are met.
@@ -387,9 +387,6 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
         Time points at which to evaluate the simulation.
     vals : ndarray
         Actual values to compare simulation output against.
-    hmax : list
-        List of length n, indexable by i, containing adaptive time steps
-        to be used for each simulation.
     MCMC_fields : dict
         Dictionary of MMC control parameters.
     logger : logger
@@ -412,12 +409,13 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
 
     rtol = MCMC_fields.get("rtol", DEFAULT_RTOL)
     atol = MCMC_fields.get("atol", DEFAULT_ATOL)
+    hmax = MCMC_fields.get("hmax", DEFAULT_HMAX)
 
     t_steps = np.array(times)
     sol = np.zeros_like(t_steps)
 
     try:
-        t_steps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax[i],
+        t_steps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax=hmax,
                                     meas=meas_type,
                                     solver=MCMC_fields["solver"], model=MCMC_fields["model"],
                                     rtol=rtol, atol=atol)
@@ -495,7 +493,7 @@ def almost_equal(x, x0, threshold=1e-10):
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
 
-def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbose, args):
+def one_sim_likelihood(p, sim_info, IRF_tables, MCMC_fields, logger, verbose, args):
     i, iniPar, times, vals, uncs = args
     meas_type = sim_info["meas_types"][i]
     irf_convolution = MCMC_fields.get("irf_convolution", None)
@@ -527,7 +525,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
         success = True
     else:
         tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
-                                                   hmax, MCMC_fields, logger, verbose)
+                                                   MCMC_fields, logger, verbose)
     if not success:
         likelihood = -np.inf
         err_sq = np.inf
@@ -625,7 +623,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
     return likelihood, err_sq
 
 
-def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
+def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables,
                   MCMC_fields, verbose, logger, prev_p=None, t=0):
     # Calculates likelihood of a new proposed parameter set
     accepted = True
@@ -643,7 +641,7 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
 
     for i in range(sim_info["num_meas"]):
         p.likelihood[i], p.err_sq[i] = one_sim_likelihood(
-            p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbose,
+            p, sim_info, IRF_tables, MCMC_fields, logger, verbose,
             (i, np.array(iniPar[i]), times[i], vals[i], uncs[i]))
 
     if prev_p is not None:
@@ -701,12 +699,9 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
         if logger is not None: logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
         for MS in MS_list.MS:
-            STARTING_HMAX = MS.MCMC_fields.get("hmax", DEFAULT_HMAX)
-            # TODO: Deprecate running_hmax, since hmax is now fixed on startup
-            MS.running_hmax = [STARTING_HMAX] * len(MS_list.iniPar)
             run_iteration(MS.prev_p, MS_list.sim_info, MS_list.iniPar,
-                        MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
-                        MS.running_hmax, MS.MCMC_fields, verbose, logger)
+                          MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
+                          MS.MCMC_fields, verbose, logger)
             MS.H.update(0, MS.prev_p, MS.means, MS.param_info)
     for k in range(starting_iter, num_iters):
         try:
@@ -776,9 +771,9 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                     MS.H.record_best_logll(k, MS.prev_p)
 
                     accepted = run_iteration(MS.p, MS_list.sim_info, MS_list.iniPar,
-                                            MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
-                                            MS.running_hmax, MS.MCMC_fields, verbose,
-                                            logger, prev_p=MS.prev_p, t=k)
+                                             MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
+                                             MS.MCMC_fields, verbose,
+                                             logger, prev_p=MS.prev_p, t=k)
 
                     if verbose and not accepted and logger is not None:
                         logger.info("Rejected!")

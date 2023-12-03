@@ -808,12 +808,11 @@ class TestUtils(unittest.TestCase):
         p2 = Parameters(param_info)
 
         nt = 1000
-        running_hmax = [4] * len(iniPar)
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
         accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                                 running_hmax, sim_flags, verbose=True,
+                                 sim_flags, verbose=True,
                                  logger=self.logger, prev_p=None)
 
         # First iter; auto-accept
@@ -823,7 +822,7 @@ class TestUtils(unittest.TestCase):
 
         # Second iter same as the first; auto-accept with likelihood ratio exactly 1
         accepted = run_iteration(p2, simPar, iniPar, times, vals, uncs, None,
-                                 running_hmax, sim_flags, verbose=True,
+                                 sim_flags, verbose=True,
                                  logger=self.logger, prev_p=p)
         self.assertTrue(accepted)
         # Accept should overwrite p2 (new) into p (old)
@@ -875,12 +874,11 @@ class TestUtils(unittest.TestCase):
         p = Parameters(param_info)
 
         nt = 1000
-        running_hmax = [4] * len(iniPar)
         times = [np.linspace(0, 100, nt+1)]
         vals = [np.log10(2e14 * np.exp(-times[0] / 8))]
         uncs = [np.ones(nt+1) * 1e-99]
         run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                      running_hmax, sim_flags, verbose=True,
+                      sim_flags, verbose=True,
                       logger=self.logger, prev_p=None)
 
         # A small move toward the true lifetime of 10 makes the likelihood better
@@ -890,7 +888,7 @@ class TestUtils(unittest.TestCase):
 
         p2 = Parameters(param_info)
         run_iteration(p2, simPar, iniPar, times, vals, uncs, None,
-                      running_hmax, sim_flags, verbose=True,
+                      sim_flags, verbose=True,
                       logger=self.logger, prev_p=None)
         self.assertTrue(p2.likelihood[0] > p.likelihood[0])
 
@@ -954,16 +952,14 @@ class TestUtils(unittest.TestCase):
                      "model": "std"}
 
         p = Parameters(param_info)
-        p2 = Parameters(param_info)
 
         nt = 500
-        running_hmax = [4] * len(iniPar)
         times = [np.linspace(50, 100, nt+1), np.linspace(50, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                                 running_hmax, sim_flags, verbose=True,
-                                 logger=self.logger, prev_p=None)
+        run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                      sim_flags, verbose=True,
+                      logger=self.logger, prev_p=None)
 
         # First iter; auto-accept
         np.testing.assert_almost_equal(
@@ -1016,16 +1012,14 @@ class TestUtils(unittest.TestCase):
                      "model": "std"}
 
         p = Parameters(param_info)
-        p2 = Parameters(param_info)
 
         nt = 1000
-        running_hmax = [4] * len(iniPar)
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.zeros(nt+1), np.zeros(nt+1)]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                                 running_hmax, sim_flags, verbose=True,
-                                 logger=self.logger, prev_p=None)
+        run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                      sim_flags, verbose=True,
+                      logger=self.logger, prev_p=None)
 
         np.testing.assert_almost_equal(
             p.likelihood, [0, 0], decimal=0)  # rtol=1e-5
@@ -1083,13 +1077,12 @@ class TestUtils(unittest.TestCase):
         setattr(p, "_s0", 2e-17 ** -1)
         setattr(p, "_s1", 2e-15 ** -1)
         nt = 1000
-        running_hmax = [4] * len(iniPar)
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
 
         run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                      running_hmax, sim_flags, verbose=True,
+                      sim_flags, verbose=True,
                       logger=self.logger, prev_p=None)
 
         np.testing.assert_almost_equal(
@@ -1142,15 +1135,13 @@ class TestUtils(unittest.TestCase):
                      "model": "std"}
 
         p = Parameters(param_info)
-        p2 = Parameters(param_info)
 
         nt = 1000
-        running_hmax = [4] * len(iniPar)
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * -2]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
         accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                                 running_hmax, sim_flags, verbose=True,
+                                 sim_flags, verbose=True,
                                  logger=self.logger, prev_p=None)
 
         # First iter; auto-accept
