@@ -79,7 +79,7 @@ class TestUtils(unittest.TestCase):
                          "m": 0}
 
         # Other options
-        initial_variance = {"n0": 1e-2,
+        trial_move = {"n0": 1e-2,
                             "p0": 1e-2,
                             "mu_n": 1e-2,
                             "mu_p": 1e-2,
@@ -100,7 +100,7 @@ class TestUtils(unittest.TestCase):
                            "do_log": do_log,
                            "prior_dist": prior_dist,
                            "init_guess": initial_guesses,
-                           "init_variance": initial_variance}
+                           "trial_move": trial_move}
 
         self.measurement_fields = {"time_cutoff": [0, np.inf],
                                    "select_obs_sets": [0, 1, 2],
@@ -117,7 +117,7 @@ class TestUtils(unittest.TestCase):
                             "rtol": 1e-7,
                             "atol": 1e-10,
                             "hmax": 4,
-                            "likel2variance_ratio": {"TRPL": 500},
+                            "likel2move_ratio": {"TRPL": 500},
                             "override_equal_mu": 0,
                             "override_equal_s": 0,
                             "log_pl": 1,

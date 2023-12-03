@@ -33,7 +33,7 @@ class TestUtils(unittest.TestCase):
                       "do_log": {},
                       "prior_dist": {},
                       "init_guess": {},
-                      "init_variance": {}}
+                      "trial_move": {}}
         fluences = np.random.random(size=num_meas)
         meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], None, fluences)}
         expected_ffs = [0, 1, 2, 3, 4, 5]
@@ -46,7 +46,7 @@ class TestUtils(unittest.TestCase):
             self.assertEqual(param_info["do_log"][f"_f{i}"], 1)
             self.assertEqual(param_info["prior_dist"][f"_f{i}"], (0, np.inf))
             self.assertEqual(param_info["init_guess"][f"_f{i}"], fluences[i])
-            self.assertEqual(param_info["init_variance"][f"_f{i}"], 0.02)
+            self.assertEqual(param_info["trial_move"][f"_f{i}"], 0.02)
 
         # Null constraint groups
         param_info = {"names": [],
@@ -55,7 +55,7 @@ class TestUtils(unittest.TestCase):
                       "do_log": {},
                       "prior_dist": {},
                       "init_guess": {},
-                      "init_variance": {}}
+                      "trial_move": {}}
         fluences = np.random.random(size=num_meas)
         meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [], fluences)}
         expected_ffs = [0, 1, 2, 3, 4, 5]
@@ -71,7 +71,7 @@ class TestUtils(unittest.TestCase):
                       "do_log": {},
                       "prior_dist": {},
                       "init_guess": {},
-                      "init_variance": {}}
+                      "trial_move": {}}
         fluences = np.random.random(size=num_meas)
         meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(1, 2)], fluences)}
         expected_ffs = [0, 1, 3, 4, 5]
@@ -87,7 +87,7 @@ class TestUtils(unittest.TestCase):
                       "do_log": {},
                       "prior_dist": {},
                       "init_guess": {},
-                      "init_variance": {}}
+                      "trial_move": {}}
         fluences = np.random.random(size=num_meas)
         meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 1, 2, 3, 4, 5)], fluences)}
         expected_ffs = [0]
@@ -104,7 +104,7 @@ class TestUtils(unittest.TestCase):
                       "do_log": {},
                       "prior_dist": {},
                       "init_guess": {},
-                      "init_variance": {}}
+                      "trial_move": {}}
         fluences = np.random.random(size=num_meas)
         meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (3, 4, 5)], fluences)}
         expected_ffs = [0, 1, 3]
@@ -121,7 +121,7 @@ class TestUtils(unittest.TestCase):
                       "do_log": {},
                       "prior_dist": {},
                       "init_guess": {},
-                      "init_variance": {}}
+                      "trial_move": {}}
         fluences = np.random.random(size=num_meas)
         meas_fields = {"fittable_fluences": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)], fluences)}
         expected_ffs = [0, 1, 3]
@@ -141,7 +141,7 @@ class TestUtils(unittest.TestCase):
                       "do_log": {},
                       "prior_dist": {},
                       "init_guess": {},
-                      "init_variance": {}}
+                      "trial_move": {}}
         alphas = np.random.random(size=num_meas)
         meas_fields = {"fittable_absps": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)], alphas)}
         expected_ffs = [0, 1, 3]
@@ -161,7 +161,7 @@ class TestUtils(unittest.TestCase):
                       "do_log": {},
                       "prior_dist": {},
                       "init_guess": {},
-                      "init_variance": {}}
+                      "trial_move": {}}
         scale_fs = np.random.random(size=num_meas)
         meas_fields = {"scale_factor": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2), (1, 4), (3, 5)], scale_fs)}
         expected_ffs = [0, 1, 3]

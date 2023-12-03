@@ -84,7 +84,7 @@ class TestUtils(unittest.TestCase):
                          "Tm": 0,
                          "m": 0}
         # Proposal function search widths
-        initial_variance = {param: 0.1 for param in param_names}
+        trial_move = {param: 0.1 for param in param_names}
 
         param_info = {"names": param_names,
                       "active": active_params,
@@ -92,7 +92,7 @@ class TestUtils(unittest.TestCase):
                       "do_log": do_log,
                       "prior_dist": prior_dist,
                       "init_guess": initial_guesses,
-                      "init_variance": initial_variance}
+                      "trial_move": trial_move}
 
         starting_iter = 1
         num_iters = 10
@@ -103,7 +103,7 @@ class TestUtils(unittest.TestCase):
                        "num_iters": num_iters,
                        "solver": ("solveivp",),
                        "model": "std",
-                       "likel2variance_ratio": {"TRPL": 500},
+                       "likel2move_ratio": {"TRPL": 500},
                        "log_pl": 1,
                        "self_normalize": None,
                        "hard_bounds": 1,
@@ -114,13 +114,6 @@ class TestUtils(unittest.TestCase):
                        # f"checkpointCPU{jobid}_30000.pik",
                        "load_checkpoint": None,
                        }
-
-        annealing_step = 2000
-        min_sigma = 0.01
-        MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"][m]
-                                    for m in sim_info["meas_types"]},
-                                    annealing_step,
-                                    {m:min_sigma for m in sim_info["meas_types"]})
 
         self.MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters)
         self.ensemble_from_chpt = None

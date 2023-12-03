@@ -118,7 +118,6 @@ def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, log
     # Not needed for MLE
     del MS.p
     del MS.prev_p
-    del MS.variances
 
     # Prefer having these attached to MS, to match the original MCMC method
     MS.sim_info = sim_params

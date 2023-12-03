@@ -50,11 +50,11 @@ class Ensemble():
         for i in range(n_states):
             self.MS.append(MetroState(param_info, dict(MCMC_fields), num_iters))
             self.MS[-1].MCMC_fields["_beta"] = temperatures[i] ** -1
-            if isinstance(MCMC_fields["likel2variance_ratio"], dict):
-                self.MS[-1].MCMC_fields["current_sigma"] = {m:max(param_info["init_variance"].values()) * MCMC_fields["likel2variance_ratio"][m]
+            if isinstance(MCMC_fields["likel2move_ratio"], dict):
+                self.MS[-1].MCMC_fields["current_sigma"] = {m:max(param_info["trial_move"].values()) * MCMC_fields["likel2move_ratio"][m]
                                                             for m in sim_info["meas_types"]}
             else:
-                self.MS[-1].MCMC_fields["current_sigma"] = {m:max(param_info["init_variance"].values()) * MCMC_fields["likel2variance_ratio"]
+                self.MS[-1].MCMC_fields["current_sigma"] = {m:max(param_info["trial_move"].values()) * MCMC_fields["likel2move_ratio"]
                                                             for m in sim_info["meas_types"]}
             
         self.ensemble_fields["do_parallel_tempering"] = (n_states > 1)
@@ -88,9 +88,6 @@ class MetroState():
         self.prev_p = Parameters(param_info)
 
         self.means = Parameters(param_info)
-
-        self.variances = Covariance(param_info)
-        self.variances.apply_values(param_info["init_variance"])
 
         self.param_info = param_info
         self.MCMC_fields = MCMC_fields
@@ -193,73 +190,6 @@ class Parameters():
         if scale_info is None:
             return
         setattr(self, f"_s{i}", 1)
-        return
-
-
-class Covariance():
-    """ The covariance matrix used to select the next trial move. """
-
-    def __init__(self, param_info):
-        self.names = param_info["names"]
-        self.actives = param_info['active']
-        d = len(self.names)
-        self.cov = np.zeros((d, d))
-        return
-
-    def set_variance(self, param, var):
-        """ Update the variance of one parameter, telling the trial move
-            function at most how far away the next state should wander
-            from the current state.
-        """
-        # Type safety - names could be an ndarray which lacks the .index mtd
-        i = list(self.names).index(param)
-
-        if isinstance(var, (int, float)):
-            self.cov[i, i] = var
-        elif isinstance(var, dict):
-            self.cov[i, i] = var[param]
-        return
-
-    def trace(self):
-        return np.diag(self.cov)
-
-    def apply_values(self, initial_variance):
-        """ Initialize the covariance matrix for active paramters. Inactive
-            parameters are assigned a variance of zero, preventing the walk from
-            ever moving in their direction.
-
-            The little-sigma big-sigma decomposition is needed for some
-            adaptive covariance MC algorithms and also preserves the original
-            cov after mask_covariance().
-        """
-        for param in self.names:
-            if self.actives[param]:
-                self.set_variance(param, initial_variance)
-
-        iv_arr = 0
-        if isinstance(initial_variance, dict):
-            iv_arr = np.ones(len(self.cov))
-            for i, param in enumerate(self.names):
-                if self.actives[param]:
-                    iv_arr[i] = initial_variance[param]
-
-        elif isinstance(initial_variance, (float, int)):
-            iv_arr = initial_variance
-
-        self.little_sigma = np.ones(len(self.cov)) * iv_arr
-        self.big_sigma = self.cov * iv_arr**-1
-        return
-
-    def mask_covariance(self, picked_param):
-        """ Induce a univariate gaussian if doing one-param-at-a-time
-            picked_param = tuple(param_name, its index)
-        """
-        if picked_param is None:
-            self.cov = self.little_sigma * self.big_sigma
-        else:
-            i = picked_param[1]
-            self.cov = np.zeros_like(self.cov)
-            self.cov[i, i] = self.little_sigma[i] * self.big_sigma[i, i]
         return
 
 

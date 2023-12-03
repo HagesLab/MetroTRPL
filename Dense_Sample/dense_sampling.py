@@ -169,7 +169,7 @@ def simulate(model, e_data, P, X, param_info,
     # END LOOP OVER ICs
 
 def modify_scale_factors(param_info, sim_flags):
-    """Replace the (0, inf) default bounds for scale factors with their init_guess * or / their variance"""
+    """Replace the (0, inf) default bounds for scale factors with their init_guess * or / their trial move size"""
     spread = sim_flags["scale_factor"][0]
     for name in param_info["names"]:
         if name.startswith("_s"):

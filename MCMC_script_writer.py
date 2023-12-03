@@ -117,7 +117,7 @@ if __name__ == "__main__":
                      "Tm": 0,
                      }
     # Proposal function search widths
-    initial_variance = {param: 0.02 for param in param_names}
+    trial_move = {param: 0.02 for param in param_names}
 
     # Randomize the initial guess a little
     for name in param_names:
@@ -130,7 +130,7 @@ if __name__ == "__main__":
                   "do_log": do_log,
                   "prior_dist": prior_dist,
                   "init_guess": initial_guesses,
-                  "init_variance": initial_variance}
+                  "trial_move": trial_move}
 
     # Measurement preprocessing options
     meas_fields = {"time_cutoff": [0, 2000],
@@ -145,7 +145,7 @@ if __name__ == "__main__":
                    "num_iters": 50,
                    "solver": ("solveivp",),
                    "model": "std",
-                   "likel2variance_ratio": 500,
+                   "likel2move_ratio": 500,
                    "log_pl": 1,
                    "self_normalize": None,
                    "scale_factor": None,
@@ -156,11 +156,6 @@ if __name__ == "__main__":
                    "checkpoint_freq": 12000,
                    "load_checkpoint": None,
                    }
-
-    # Compute properly scaled initial model uncertainty from initial variance
-    MCMC_fields["annealing"] = (
-        max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"],
-        999999, 1e-2)
 
     generate_config_script_file(script_path, simPar, param_info,
                                 meas_fields, MCMC_fields, verbose=True)

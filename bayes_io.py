@@ -211,7 +211,7 @@ def insert_param(param_info, MCMC_fields, mode="fluences"):
         param_info["do_log"][f"{name_base}{i}"] = 1
         param_info["prior_dist"][f"{name_base}{i}"] = (0, np.inf)
         param_info["init_guess"][f"{name_base}{i}"] = ff[3][i]
-        param_info["init_variance"][f"{name_base}{i}"] = f_var
+        param_info["trial_move"][f"{name_base}{i}"] = f_var
         param_info["active"][f"{name_base}{i}"] = 1
     return
 
@@ -346,10 +346,10 @@ def read_config_script_file(path):
                         vals = extract_tuples(line_split[1], delimiter='\t')
                         put_into_param_info(param_info, vals, "prior_dist")
 
-                    elif line.startswith("Initial variance"):
+                    elif line.startswith("Trial move size"):
                         vals = extract_values(
                             line_split[1], delimiter='\t', dtype=float)
-                        put_into_param_info(param_info, vals, "init_variance")
+                        put_into_param_info(param_info, vals, "trial_move")
 
                     elif line.startswith("Mu constraint"):
                         vals = extract_values(
@@ -395,13 +395,13 @@ def read_config_script_file(path):
                         MCMC_fields["atol"] = float(line_split[1])
                     elif line.startswith("Solver hmax"):
                         MCMC_fields["hmax"] = float(line_split[1])
-                    elif line.startswith("Likelihood-to-variance"):
+                    elif line.startswith("Likelihood-to-trial-move"):
                         try:
                             l2v = float(line_split[1])
-                            MCMC_fields["likel2variance_ratio"] = {m:l2v for m in grid["meas_types"]}
+                            MCMC_fields["likel2move_ratio"] = {m:l2v for m in grid["meas_types"]}
                         except ValueError: # Not a float; must be dict
                             l2v = extract_tuples(line_split[1], delimiter="|", dtype=float)
-                            MCMC_fields["likel2variance_ratio"] = {m[0]:float(m[1]) for m in l2v}
+                            MCMC_fields["likel2move_ratio"] = {m[0]:float(m[1]) for m in l2v}
                     elif line.startswith("Force equal mu"):
                         MCMC_fields["override_equal_mu"] = int(line_split[1])
                     elif line.startswith("Force equal S"):
@@ -648,13 +648,13 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         ofstream.write('\n')
 
         if verbose:
-            ofstream.write("# Initial proposal variance for each parameter. "
+            ofstream.write("# Trial move size for each parameter. "
                            "I.e. how far from the current parameters new proposals will go.\n")
-        init_variance = param_info["init_variance"]
+        trial_move = param_info["trial_move"]
         ofstream.write(
-            f"Initial variance: {init_variance.get(param_names[0], 0)}")
+            f"Trial move size: {trial_move.get(param_names[0], 0)}")
         for name in param_names[1:]:
-            ofstream.write(f"\t{init_variance.get(name, 0)}")
+            ofstream.write(f"\t{trial_move.get(name, 0)}")
         ofstream.write('\n')
 
         if "do_mu_constraint" in param_info:
@@ -753,16 +753,16 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             print("Script generator warning: setting \"one_param_at_a_time\" is deprecated and will have no effect.")
 
         if verbose:
-            ofstream.write("# Ratio to maintain betwen Model uncertainty and proposal variance.\n"
-                           "# Model uncertainty will be taken as this times proposal variance.\n"
+            ofstream.write("# Ratio to maintain betwen Model uncertainty and trial move size.\n"
+                           "# Model uncertainty will be taken as this times trial move size.\n"
                            "# Should be a single value, or \n"
                            "# Should be a dict with one value per unique measurement type, \n"
                            "# which will be shared by all measurements with that type.\n")
-        l2v = MCMC_fields["likel2variance_ratio"]
+        l2v = MCMC_fields["likel2move_ratio"]
         if isinstance(l2v, (int, np.integer, float)):
-            ofstream.write(f"Likelihood-to-variance: {l2v}\n")
+            ofstream.write(f"Likelihood-to-trial-move: {l2v}\n")
         else:
-            ofstream.write("Likelihood-to-variance: ")
+            ofstream.write("Likelihood-to-trial-move: ")
             l2v = iter(l2v.items())
             meas_type, val = next(l2v)
             while True:
@@ -814,8 +814,8 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             if verbose:
                 ofstream.write("# Whether to try inferring the fluences. None means it will keep"
                                " the fluence values as entered;\n# otherwise, a list of three (optionally, 4) elements:\n"
-                               "# 1. An initial variance value, as in initial_variance.\n"
-                               "# All fluences are fitted by log scale and will use the same variance.\n"
+                               "# 1. A trial move size, as for other parameters.\n"
+                               "# All fluences are fitted by log scale and will use the same move size.\n"
                                "# 2. A list of indices for measurements for which fluences will be fitted.\n"
                                "# e.g. [0, 1, 2] means vary the fluences for the first, second, and third measurements.\n"
                                "# Additional parameters named _f0, _f1, _f2... will be created for such measurements.\n"

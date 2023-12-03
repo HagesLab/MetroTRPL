@@ -3,7 +3,7 @@ import logging
 import sys
 
 sys.path.append("..")
-from sim_utils import Parameters, Covariance, MetroState
+from sim_utils import Parameters, MetroState
 
 
 class TestUtils(unittest.TestCase):
@@ -19,24 +19,17 @@ class TestUtils(unittest.TestCase):
         dummy_do_log = {'a': True, 'b': 0, 'c': 0, 'mu_n': 1, 'mu_p': True}
         dummy_active = {'a': 1, 'b': 1, 'c': 1, 'mu_n': 1}
         dummy_initial_guesses = {'a': 1, 'b': 2, 'c': 3, 'mu_n': 4}
-        dummy_initial_variance = {'a': 2, 'b': 2, 'c': 2, 'mu_n': 2}
+        dummy_trial_move = {'a': 2, 'b': 2, 'c': 2, 'mu_n': 2}
 
         dummy_param_info = {'names': dummy_names,
                             'unit_conversions': dummy_unitconversions,
                             'do_log': dummy_do_log,
                             'active': dummy_active,
                             'init_guess': dummy_initial_guesses,
-                            'init_variance': dummy_initial_variance}
+                            'trial_move': dummy_trial_move}
 
-        dummy_sim_flags = {"likel2variance_ratio": {"TRPL":1000, "TRTS": 2000},
+        dummy_sim_flags = {"likel2move_ratio": {"TRPL":1000, "TRTS": 2000},
                            "annealing": tuple[dict, int, dict]}
-        
-        annealing_step = 2
-        min_sigma = 1
-        dummy_sim_flags["annealing"] = ({m:max(dummy_initial_variance.values()) * dummy_sim_flags["likel2variance_ratio"][m]
-                                    for m in dummy_simPar["meas_types"]},
-                                    annealing_step,
-                                    {m:min_sigma for m in dummy_simPar["meas_types"]})
         
         num_iters = 100
         self.ms = MetroState(dummy_param_info, dummy_sim_flags, num_iters)
@@ -46,7 +39,6 @@ class TestUtils(unittest.TestCase):
         self.assertIsInstance(self.ms.p, Parameters)
         self.assertIsInstance(self.ms.prev_p, Parameters)
         self.assertIsInstance(self.ms.means, Parameters)
-        self.assertIsInstance(self.ms.variances, Covariance)
 
         with self.assertLogs() as captured:
             self.ms.print_status(logger=self.logger)

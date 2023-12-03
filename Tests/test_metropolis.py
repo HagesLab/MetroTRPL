@@ -12,7 +12,7 @@ from metropolis import check_approved_param
 from metropolis import run_iteration
 from metropolis import search_c_grps
 from metropolis import set_min_y
-from sim_utils import Parameters, Grid, Covariance, calculate_PL, calculate_TRTS
+from sim_utils import Parameters, Grid, calculate_PL, calculate_TRTS
 q = 1.0  # [e]
 q_C = 1.602e-19  # [C]
 kB = 8.61773e-5  # [eV / K]
@@ -579,29 +579,30 @@ class TestUtils(unittest.TestCase):
                          "c": 1,
                          "d": 1, }
 
+        trial_move = {"a": 10,
+                      "b": 0.1,
+                      "c": 0,
+                      "d": 1}
+
         param_info = {"active": active_params,
                       "do_log": do_log,
                       "names": param_names,
                       "prior_dist": prior_dist,
-                      "init_guess": initial_guesses}
+                      "init_guess": initial_guesses,
+                      "trial_move": trial_move}
 
         pa = Parameters(param_info)
         means = Parameters(param_info)
-        variances = Covariance(param_info)
-        variances.set_variance('a', 10)
-        variances.set_variance('b', 0.1)
-        variances.set_variance('c', 0)
-        variances.set_variance('d', 1)
 
         # Try box selection
-        select_next_params(pa, means, variances, param_info, logger=self.logger)
+        select_next_params(pa, means, param_info, logger=self.logger)
 
         # Inactive and shouldn't change
         self.assertEqual(pa.a, initial_guesses['a'])
         self.assertEqual(pa.c, initial_guesses['c'])
         num_tests = 100
         for t in range(num_tests):
-            select_next_params(pa, means, variances, param_info, logger=self.logger)
+            select_next_params(pa, means, param_info, logger=self.logger)
             self.assertTrue(np.abs(np.log10(pa.b) - np.log10(initial_guesses['b'])) <= 0.1,
                             msg="Uniform step #{} failed: {} from mean {} and width 0.1".format(t, pa.b, initial_guesses['b']))
             self.assertTrue(np.abs(pa.d-initial_guesses['d']) <= 1,
@@ -627,22 +628,23 @@ class TestUtils(unittest.TestCase):
         active_params = {"mu_n": 1,
                          "mu_p": 1,
                          }
+        
+        trial_move = {"mu_n": 0.1,
+                      "mu_p": 0.1}
 
         param_info = {"active": active_params,
                       "do_log": do_log,
                       "names": param_names,
                       "do_mu_constraint": (20, 3),
                       "prior_dist": prior_dist,
-                      "init_guess": initial_guesses}
+                      "init_guess": initial_guesses,
+                      "trial_move": trial_move}
 
         pa = Parameters(param_info)
         means = Parameters(param_info)
-        variances = Covariance(param_info)
-        variances.set_variance('mu_n', 0.1)
-        variances.set_variance('mu_p', 0.1)
 
         for i in range(10):
-            select_next_params(pa, means, variances, param_info, logger=self.logger)
+            select_next_params(pa, means, param_info, logger=self.logger)
 
             self.assertTrue(2 / (pa.mu_n**-1 + pa.mu_p**-1) <= 23)
             self.assertTrue(2 / (pa.mu_n**-1 + pa.mu_p**-1) >= 17)

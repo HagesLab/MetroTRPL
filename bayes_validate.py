@@ -104,7 +104,7 @@ def validate_param_info(param_info: dict):
         raise TypeError("MCMC param_info must be type 'dict'")
 
     required_keys = ("names", "active", "unit_conversions", "do_log",
-                     "init_guess", "init_variance", "prior_dist")
+                     "init_guess", "trial_move", "prior_dist")
     for k in required_keys:
         if k not in param_info:
             raise ValueError(f"MCMC param_info missing entry '{k}'")
@@ -215,17 +215,17 @@ def validate_param_info(param_info: dict):
             raise ValueError(f"prior_dist param {k} lower bound must be smaller"
                              " than upper bound")
 
-        if k in param_info["init_variance"]:
+        if k in param_info["trial_move"]:
             pass
         else:
-            raise KeyError(f"init_variance missing param {k}")
+            raise KeyError(f"trial_move missing param {k}")
 
-        if (isinstance(param_info["init_variance"][k], (int, np.integer, float))
-                and param_info["init_variance"][k] >= 0):
+        if (isinstance(param_info["trial_move"][k], (int, np.integer, float))
+                and param_info["trial_move"][k] >= 0):
             pass
         else:
             raise ValueError(
-                f"init_variance param {k} invalid - must be non-negative")
+                f"trial_move param {k} invalid - must be non-negative")
 
     return
 
@@ -299,7 +299,7 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
 
     required_keys = ("init_cond_path", "measurement_path", "output_path",
                      "num_iters", "solver", "model",
-                     "likel2variance_ratio",
+                     "likel2move_ratio",
                      "log_pl", "self_normalize",
                      "checkpoint_freq",
                      "load_checkpoint",
@@ -379,20 +379,20 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("hmax must be a non-negative value")
 
-    l2v = MCMC_fields["likel2variance_ratio"]
+    l2v = MCMC_fields["likel2move_ratio"]
 
     if isinstance(l2v, (int, np.integer, float)):
         if l2v < 0:
-            raise ValueError("Likelihood-to-variance must be non-negative value")
+            raise ValueError("Likelihood-to-trial-move must be non-negative value")
     elif isinstance(l2v, dict):
         for meas_type, val in l2v.items():
             if isinstance(meas_type, str) and isinstance(val, (int, np.integer, float)) and val >= 0:
                 pass
             else:
-                raise ValueError(f"{meas_type}: Likelihood-to-variance must have one non-negative value"
+                raise ValueError(f"{meas_type}: Likelihood-to-trial-move must have one non-negative value"
                                  " per measurement type")
     else:
-        raise ValueError("Invalid likelihood-to-variance")
+        raise ValueError("Invalid likelihood-to-trial-move")
         
 
     if "override_equal_mu" in MCMC_fields:

@@ -276,14 +276,14 @@ def check_approved_param(new_p, param_info):
     return failed_checks
 
 
-def select_next_params(p, means, variances, param_info, coerce_hard_bounds=False, logger=None, verbose=False):
+def select_next_params(p, means, param_info, coerce_hard_bounds=False, logger=None, verbose=False):
     """ Trial move function:
         box: uniform rectangle centered about current state.
-        gauss: gaussian centered about current state.
     """
     is_active = param_info["active"]
     do_log = param_info["do_log"]
     names = param_info["names"]
+    trial_move = param_info["trial_move"]
 
     mu_constraint = param_info.get("do_mu_constraint", None)
 
@@ -291,8 +291,6 @@ def select_next_params(p, means, variances, param_info, coerce_hard_bounds=False
     for i, param in enumerate(names):
         if do_log[param]:
             mean[i] = np.log10(mean[i])
-
-    cov = variances.cov
 
     tries = 0
 
@@ -309,7 +307,7 @@ def select_next_params(p, means, variances, param_info, coerce_hard_bounds=False
 
         for i, param in enumerate(names):
             new_p[i] = np.random.uniform(
-                mean[i]-cov[i, i], mean[i]+cov[i, i])
+                mean[i]-trial_move[param], mean[i]+trial_move[param])
             if mu_constraint is not None and param == "mu_p":
                 ambi = mu_constraint[0]
                 ambi_std = mu_constraint[1]
@@ -755,14 +753,8 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                     # Non-tempering move, or all other chains not selected for tempering
                     if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
                         logger.debug(f"Current model sigma: {MS.MCMC_fields['current_sigma']}")
-                        logger.debug(f"Current variances: {MS.variances.trace()}")
 
-                    # Select next sample from distribution
-                    # TODO: consider deprecating
-                    if MS.MCMC_fields.get("adaptive_covariance", "None") == "None":
-                        MS.variances.mask_covariance(None)
-
-                    select_next_params(MS.p, MS.means, MS.variances, MS.param_info,
+                    select_next_params(MS.p, MS.means, MS.param_info,
                                        MS.MCMC_fields.get("hard_bounds", 0), logger)
 
                     if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:

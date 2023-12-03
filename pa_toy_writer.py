@@ -74,7 +74,7 @@ if __name__ == "__main__":
     active_params = {"x": 1,
                      }
     # Proposal function search widths
-    initial_variance = {param: 0.1 for param in param_names}
+    trial_move = {param: 0.1 for param in param_names}
 
 
 
@@ -84,7 +84,7 @@ if __name__ == "__main__":
                   "do_log": do_log,
                   "prior_dist": prior_dist,
                   "init_guess": initial_guesses,
-                  "init_variance": initial_variance}
+                  "trial_move": trial_move}
 
     # Measurement preprocessing options
     meas_fields = {"time_cutoff": [0, 2000],
@@ -99,7 +99,7 @@ if __name__ == "__main__":
                    "num_iters": 100000,
                    "solver": ("solveivp",),
                    "model": "pa",
-                   "likel2variance_ratio": 10,
+                   "likel2move_ratio": 10,
                    "log_pl": 0,
                    "self_normalize": None,
                    "scale_factor": None,
