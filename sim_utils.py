@@ -49,8 +49,14 @@ class Ensemble():
         
         self.MS = []
         for i in range(n_states):
-            self.MS.append(MetroState(param_info, dict(MCMC_fields), num_iters, sim_info["meas_types"]))
+            self.MS.append(MetroState(param_info, dict(MCMC_fields), num_iters))
             self.MS[-1].MCMC_fields["_beta"] = temperatures[i] ** -1
+            if isinstance(MCMC_fields["likel2variance_ratio"], dict):
+                self.MS[-1].MCMC_fields["current_sigma"] = {m:max(param_info["init_variance"].values()) * MCMC_fields["likel2variance_ratio"][m]
+                                                            for m in sim_info["meas_types"]}
+            else:
+                self.MS[-1].MCMC_fields["current_sigma"] = {m:max(param_info["init_variance"].values()) * MCMC_fields["likel2variance_ratio"]
+                                                            for m in sim_info["meas_types"]}
             
         self.ensemble_fields["do_parallel_tempering"] = (n_states > 1)
         if self.ensemble_fields["do_parallel_tempering"]:
@@ -75,7 +81,7 @@ class MetroState():
         the states it's been to, and the trial move function used to get the
         next state.
     """
-    def __init__(self, param_info, MCMC_fields, num_iters, meas_types):
+    def __init__(self, param_info, MCMC_fields, num_iters):
         self.p = Parameters(param_info)
 
         self.H = History(num_iters, param_info)
@@ -89,12 +95,7 @@ class MetroState():
 
         self.param_info = param_info
         self.MCMC_fields = MCMC_fields
-        if isinstance(MCMC_fields["likel2variance_ratio"], dict):
-            self.MCMC_fields["current_sigma"] = {m:max(param_info["init_variance"].values()) * MCMC_fields["likel2variance_ratio"][m]
-                                                 for m in meas_types}
-        else:
-            self.MCMC_fields["current_sigma"] = {m:max(param_info["init_variance"].values()) * MCMC_fields["likel2variance_ratio"]
-                                                 for m in meas_types}
+
         return
 
     def print_status(self, logger):
