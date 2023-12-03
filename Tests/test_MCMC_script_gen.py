@@ -123,7 +123,6 @@ class TestUtils(unittest.TestCase):
                             "log_pl": 1,
                             "self_normalize": None,
                             "proposal_function": "box",
-                            "one_param_at_a_time": 0,
                             "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
                             "checkpoint_header": "CPU0",
                             "checkpoint_freq": 12000,

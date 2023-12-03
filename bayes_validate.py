@@ -301,7 +301,7 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
                      "num_iters", "solver", "model",
                      "likel2variance_ratio",
                      "log_pl", "self_normalize",
-                     "proposal_function", "one_param_at_a_time",
+                     "proposal_function",
                      "checkpoint_freq",
                      "load_checkpoint",
                      )
@@ -501,13 +501,6 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
             pass
         else:
             raise ValueError("temper_freq must be positive integer")
-
-    oneaat = MCMC_fields["one_param_at_a_time"]
-    if (isinstance(oneaat, (int, np.integer)) and
-            (oneaat == 0 or oneaat == 1)):
-        pass
-    else:
-        raise ValueError("one_param_at_a_time invalid - must be 0 or 1")
 
     if "checkpoint_dirname" in MCMC_fields:
         chpt_d = MCMC_fields["checkpoint_dirname"]

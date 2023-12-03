@@ -108,7 +108,6 @@ class TestUtils(unittest.TestCase):
                        "log_pl": 1,
                        "self_normalize": None,
                        "proposal_function": "box",
-                       "one_param_at_a_time": 0,
                        "hard_bounds": 1,
                        "checkpoint_dirname": os.path.join(".",
                                                           "test-Checkpoints"),

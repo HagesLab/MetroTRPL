@@ -518,8 +518,6 @@ def read_config_script_file(path):
                                                                                dtype=float)
                     elif line.startswith("Tempering frequency"):
                         MCMC_fields["temper_freq"] = int(line_split[1])
-                    elif line.startswith("Propose params one-at-a-time"):
-                        MCMC_fields["one_param_at_a_time"] = int(line_split[1])
                     elif line.startswith("Checkpoint dir"):
                         MCMC_fields["checkpoint_dirname"] = os.path.join(
                             line_split[1])
@@ -759,11 +757,8 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             hmax = MCMC_fields["hmax"]
             ofstream.write(f"Solver hmax: {hmax}\n")
 
-        if "verify_hmax" in MCMC_fields:
-            print("Script generator warning: setting \"verify_hmax\" is deprecated and will have no effect.")
-
-        if "annealing" in MCMC_fields:
-            print("Script generator warning: setting \"annealing\" is deprecated and will have no effect.")
+        if "one_param_at_a_time" in MCMC_fields:
+            print("Script generator warning: setting \"one_param_at_a_time\" is deprecated and will have no effect.")
 
         if verbose:
             ofstream.write("# Ratio to maintain betwen Model uncertainty and proposal variance.\n"
@@ -952,12 +947,6 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                 )
             tf = MCMC_fields["temper_freq"]
             ofstream.write(f"Tempering frequency: {tf}\n")
-
-        if verbose:
-            ofstream.write(
-                "# Whether a proposed move should change in one param or all params at once.\n")
-        gibbs = MCMC_fields["one_param_at_a_time"]
-        ofstream.write(f"Propose params one-at-a-time: {gibbs}\n")
 
         if verbose:
             ofstream.write("# Directory checkpoint files stored in.\n")

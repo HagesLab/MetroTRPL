@@ -779,17 +779,10 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                         logger.debug(f"Current model sigma: {MS.MCMC_fields['current_sigma']}")
                         logger.debug(f"Current variances: {MS.variances.trace()}")
 
-                    # Identify which parameter to move
-                    # TODO: consider deprecating
-                    if MS.MCMC_fields.get("one_param_at_a_time", 0):
-                        picked_param = MS.means.actives[k % len(MS.means.actives)]
-                    else:
-                        picked_param = None
-
                     # Select next sample from distribution
                     # TODO: consider deprecating
                     if MS.MCMC_fields.get("adaptive_covariance", "None") == "None":
-                        MS.variances.mask_covariance(picked_param)
+                        MS.variances.mask_covariance(None)
 
                     select_next_params(MS.p, MS.means, MS.variances, MS.param_info,
                                     MS.MCMC_fields["proposal_function"],
