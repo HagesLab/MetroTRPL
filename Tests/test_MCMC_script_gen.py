@@ -128,14 +128,6 @@ class TestUtils(unittest.TestCase):
                             "checkpoint_freq": 12000,
                             "load_checkpoint": None,
                             }
-
-        # Compute properly scaled initial model uncertainty from initial variance
-        annealing_step = 2000
-        min_sigma = 0.01
-        self.MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * self.MCMC_fields["likel2variance_ratio"][m]
-                                    for m in self.simPar["meas_types"]},
-                                    annealing_step,
-                                    {m:min_sigma for m in self.simPar["meas_types"]})
         return
 
     def test_create_script(self):
