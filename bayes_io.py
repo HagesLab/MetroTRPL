@@ -516,6 +516,8 @@ def read_config_script_file(path):
                             MCMC_fields["parallel_tempering"] = extract_values(line_split[1],
                                                                                delimiter='\t',
                                                                                dtype=float)
+                    elif line.startswith("Tempering frequency"):
+                        MCMC_fields["temper_freq"] = int(line_split[1])
                     elif line.startswith("Propose params one-at-a-time"):
                         MCMC_fields["one_param_at_a_time"] = int(line_split[1])
                     elif line.startswith("Checkpoint dir"):
@@ -916,12 +918,12 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             fy = MCMC_fields["force_min_y"]
             ofstream.write(f"Force min y: {fy}\n")
 
-        if verbose:
-            ofstream.write(
-                "# None for no convolution, or a list of wavelengths whose IRF profiles\n"
-                "# will be used to convolute each simulated TRPL curve. One wavelength per"
-                " measurement.\n")
         if "irf_convolution" in MCMC_fields:
+            if verbose:
+                ofstream.write(
+                    "# None for no convolution, or a list of wavelengths whose IRF profiles\n"
+                    "# will be used to convolute each simulated TRPL curve. One wavelength per"
+                    " measurement.\n")
             irf = MCMC_fields["irf_convolution"]
             if irf is None:
                 ofstream.write(f"IRF: {irf}")
@@ -929,18 +931,27 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                 ofstream.write("IRF: " + "\t".join(map(str, irf)))
             ofstream.write('\n')
 
-        if verbose:
-            ofstream.write(
-                "# None for no parallel tempering, or a list of values each corresponding\n"
-                "# to the temperature of a chain that will be run as part of a parallel\n"
-                "# tempering ensemble.\n")
         if "parallel_tempering" in MCMC_fields:
+            if verbose:
+                ofstream.write(
+                    "# None for no parallel tempering, or a list of values each corresponding\n"
+                    "# to the temperature of a chain that will be run as part of a parallel\n"
+                    "# tempering ensemble.\n")
             pa = MCMC_fields["parallel_tempering"]
             if pa is None:
                 ofstream.write(f"Parallel tempering: {pa}")
             else:
                 ofstream.write("Parallel tempering: " + '\t'.join(map(str, pa)))
             ofstream.write('\n')
+
+        if "temper_freq" in MCMC_fields:
+            if verbose:
+                ofstream.write(
+                    "# Interval to make chain swapping moves according to parallel tempering. \n"
+                    "# Makes one swap attempt per this many moves. Ignored if parallel_tempering is disabled. \n"
+                )
+            tf = MCMC_fields["temper_freq"]
+            ofstream.write(f"Tempering frequency: {tf}\n")
 
         if verbose:
             ofstream.write(

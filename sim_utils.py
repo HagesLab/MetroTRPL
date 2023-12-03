@@ -17,7 +17,7 @@ warnings.simplefilter("always", DeprecationWarning)
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
 q_C = 1.602e-19  # [C per carrier]
 DEFAULT_ANN_STEP = np.sqrt(0.5)
-
+DEFAULT_TEMPER_FREQ = 10
 
 class Ensemble():
     """ Ensemble of MetroStates controlled by a single process.
@@ -29,7 +29,7 @@ class Ensemble():
     uncs: list[np.ndarray]  # Measurement uncertainties
     IRF_tables: dict        # Instrument response functions
 
-    def __init__(self, param_info, sim_info, MCMC_fields, num_iters, n_states=1):
+    def __init__(self, param_info, sim_info, MCMC_fields, num_iters):
         self.ensemble_fields = {}
         self.ensemble_fields["output_path"] = MCMC_fields.pop("output_path")
         self.ensemble_fields["checkpoint_dirname"] = MCMC_fields.pop("checkpoint_dirname")
@@ -37,18 +37,27 @@ class Ensemble():
             self.ensemble_fields["checkpoint_header"] = MCMC_fields.pop("checkpoint_header")
         self.ensemble_fields["checkpoint_freq"] = MCMC_fields.pop("checkpoint_freq")
         self.ensemble_fields["delayed_acceptance"] = MCMC_fields.pop("delayed_acceptance", "off")
+        self.ensemble_fields["parallel_tempering"] = MCMC_fields.pop("parallel_tempering", None)
+        self.ensemble_fields["temper_freq"] = MCMC_fields.pop("temper_freq", DEFAULT_TEMPER_FREQ)
 
+        if self.ensemble_fields["parallel_tempering"] is None:
+            n_states = 1
+            temperatures = [1]
+        else:
+            n_states = len(self.ensemble_fields["parallel_tempering"])
+            temperatures = self.ensemble_fields["parallel_tempering"]
+        
         self.MS = []
         for i in range(n_states):
-            if isinstance(MCMC_fields["likel2variance_ratio"], (int, float)):
-                MCMC_fields["likel2variance_ratio"] = [20, 3, 0.5][i]
-            elif isinstance(MCMC_fields["likel2variance_ratio"], dict):
-                MCMC_fields["likel2variance_ratio"] = {}
-                for m in sim_info["meas_types"]:
-                    MCMC_fields["likel2variance_ratio"][m] = [20, 3, 0.5][i]
             self.MS.append(MetroState(param_info, dict(MCMC_fields), num_iters, sim_info["meas_types"]))
+            self.MS[-1].MCMC_fields["_beta"] = temperatures[i] ** -1
             
-        self.mean_buffer = Parameters(param_info)
+        self.ensemble_fields["do_parallel_tempering"] = (n_states > 1)
+        if self.ensemble_fields["do_parallel_tempering"]:
+            self.mean_buffer = Parameters(param_info)
+        else:
+            self.mean_buffer = None
+
         self.sim_info = sim_info
         self.random_state = np.random.get_state()
         self.latest_iter = 0
@@ -88,42 +97,6 @@ class MetroState():
                                                  for m in meas_types}
         return
 
-    def anneal(self, k, uncs=None, force=False, step=DEFAULT_ANN_STEP):
-        """ 
-        DEPRECATED
-        Adjust the model sigma according to an annealing schedule -
-            sigma *= sqrt(0.5) every kth step
-        """
-        warnings.warn("Annealing has been deprecated in favor of parallel tempering and will be removed in the future", DeprecationWarning)
-        steprate = self.MCMC_fields["annealing"][1]
-        min_sigma = self.MCMC_fields["annealing"][2]
-        l2v = self.MCMC_fields["likel2variance_ratio"]
-        if force or (k > 0 and k % steprate == 0):
-
-            for m in self.MCMC_fields["current_sigma"]:
-                self.MCMC_fields["current_sigma"][m] *= step
-
-                self.MCMC_fields["current_sigma"][m] = max(self.MCMC_fields["current_sigma"][m],
-                                                        min_sigma[m])
-
-            # Doesn't matter which meas_type, because all current_sigma are proportional to init_variance
-            random_m = next(iter(self.MCMC_fields["current_sigma"].keys()))
-            new_variance = self.MCMC_fields["current_sigma"][random_m] / l2v[random_m]
-            self.variances.apply_values(
-                {param: new_variance for param in self.param_info["names"]})
-
-            # Recalculate the previous state's likelihood, for consistency
-            meas_types = self.sim_info["meas_types"]
-            for i in range(len(self.prev_p.likelihood)):
-                if uncs is not None:
-                    exp_unc = 2 * uncs[i] ** 2
-                else:
-                    exp_unc = 0
-                new_uncertainty = self.MCMC_fields["current_sigma"][meas_types[i]]**2 + exp_unc
-                self.prev_p.likelihood[i] = - \
-                    np.sum(self.prev_p.err_sq[i] / new_uncertainty)
-        return
-
     def print_status(self, logger):
         is_active = self.param_info['active']
 
@@ -137,12 +110,6 @@ class MetroState():
                 logger.info("Next {}: {:.6e} from mean {:.6e}".format(param, trial, mean))
 
         return
-
-    # def checkpoint(self, fname):
-    #     """ Save the current state as a pickle object. """
-    #     with open(fname, "wb+") as ofstream:
-    #         pickle.dump(self, ofstream)
-    #     return
 
 
 class Parameters():

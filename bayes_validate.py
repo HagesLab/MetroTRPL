@@ -494,6 +494,13 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("MCMC control 'parallel_tempering' must be None, or a list with "
                              "at least one positive temperature value")
+        
+    if "temper_freq" in MCMC_fields:
+        tf = MCMC_fields["temper_freq"]
+        if isinstance(tf, (int, np.integer)) and tf > 0:
+            pass
+        else:
+            raise ValueError("temper_freq must be positive integer")
 
     oneaat = MCMC_fields["one_param_at_a_time"]
     if (isinstance(oneaat, (int, np.integer)) and

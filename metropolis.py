@@ -35,8 +35,6 @@ MAX_PROPOSALS = 100
 MSG_FREQ = 100
 MSG_COOLDOWN = 3 # Log first few states regardless of verbose
 
-TEMPER_FREQ = 2000 # Make every nth move a Hamiltonian exchange (parallel tempering move)
-
 # Allow this proportion of simulation values to become negative due to convolution,
 # else the simulation is failed.
 NEGATIVE_FRAC_TOL = 0.2
@@ -620,7 +618,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, hmax, MCMC_fields, logger, verbo
                 logger.warning(f"{n_set} values raised to min_y")
 
     if meas_type == "pa":
-        likelihood = -sol[0] / MCMC_fields["current_sigma"][meas_type]
+        likelihood = -sol[0]
         err_sq = sol[0]
     else:
         try:
@@ -666,8 +664,8 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
 
     if prev_p is not None:
         if verbose and logger is not None:
-            logger.info(f"Likelihood of proposed move: {np.sum(p.likelihood)}")
-        logratio = (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
+            logger.info(f"Likelihood of proposed move: {MCMC_fields['_beta'] * np.sum(p.likelihood)}")
+        logratio = MCMC_fields['_beta'] * (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
         if np.isnan(logratio):
             logratio = -np.inf
 
@@ -733,47 +731,50 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                 logger.info("#####")
                 logger.info(f"Iter {k}")
 
-            if k % TEMPER_FREQ == 0:
-                continue
-                # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
+            if MS_list.ensemble_fields["do_parallel_tempering"] and k % MS_list.ensemble_fields["temper_freq"] == 0:
+                # Select a pair (the ith and (i+1)th) of chains
                 i = np.random.choice(np.arange(len(MS_list.MS)-1))
-                if logger is not None:
-                    logger.info(f"Tempering - swapping chains {i} and {i+1}")
-                MS_I = MS_list.MS[i]
-                MS_J = MS_list.MS[i+1]
-
-                # TODO: Generalize this to multiple measurements, then adapt to our loglikelihood
-                meas_type = MS_list.sim_info["meas_types"][0]
-                logratio = - \
-                    (MS_I.MCMC_fields["current_sigma"][meas_type]**-1 - 
-                    MS_J.MCMC_fields["current_sigma"][meas_type]**-1) * \
-                    (MS_J.prev_p.err_sq[0] - MS_I.prev_p.err_sq[0])
-                
-                if logger is not None:
-                    logger.info(f"tempering partial Ratio: {10 ** logratio}")
-
-                accepted = roll_acceptance(logratio)
-
-                if not accepted and logger is not None:
-                    logger.info("tempering move rejected")
-
-                if accepted:
-                    MS_I.prev_p.likelihood[0], MS_J.prev_p.likelihood[0] = (-MS_J.prev_p.err_sq[0] / MS_I.MCMC_fields["current_sigma"][meas_type],
-                                                                            -MS_I.prev_p.err_sq[0] / MS_J.MCMC_fields["current_sigma"][meas_type])
-
-                    for param in MS_I.param_info['names']:
-                        setattr(MS_list.mean_buffer, param, getattr(MS_J.means, param))
-                        setattr(MS_J.means, param, getattr(MS_I.means, param))
-                        setattr(MS_I.means, param, getattr(MS_list.mean_buffer, param))
-
-                MS_J.H.update(k, MS_J.p, MS_J.means, MS_J.param_info)
-                MS_I.H.update(k, MS_I.p, MS_I.means, MS_I.param_info)
-
             else:
-                # Do an ordinary move
-                for m, MS in enumerate(MS_list.MS):
+                i = -1337
+
+            for m, MS in enumerate(MS_list.MS):
+                if logger is not None:
+                    logger.info(f"MetroState #{m}")
+                if m == i:
+                    # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
                     if logger is not None:
-                        logger.info(f"MetroState #{m}")
+                        logger.info(f"Tempering - swapping chains {i} and {i+1}")
+                    MS_I = MS_list.MS[i]
+                    MS_J = MS_list.MS[i+1]
+                    beta_j = MS_J.MCMC_fields["_beta"]
+                    beta_i = MS_I.MCMC_fields["_beta"]
+                    logratio = -(beta_j - beta_i) * (np.sum(MS_J.prev_p.likelihood) - np.sum(MS_I.prev_p.likelihood))
+                    
+                    if logger is not None:
+                        logger.info(f"tempering partial Ratio: {np.exp(logratio)}")
+
+                    accepted = roll_acceptance(logratio)
+
+                    if not accepted and logger is not None:
+                        logger.info("tempering move rejected")
+
+                    if accepted:
+                        MS_I.prev_p.likelihood, MS_J.prev_p.likelihood = MS_J.prev_p.likelihood, MS_I.prev_p.likelihood
+
+                        for param in MS_I.param_info['names']:
+                            setattr(MS_list.mean_buffer, param, getattr(MS_J.means, param))
+                            setattr(MS_J.means, param, getattr(MS_I.means, param))
+                            setattr(MS_I.means, param, getattr(MS_list.mean_buffer, param))
+
+                    MS_J.H.update(k, MS_J.p, MS_J.means, MS_J.param_info)
+                    MS_I.H.update(k, MS_I.p, MS_I.means, MS_I.param_info)
+
+                elif m == i+1:
+                    # Skip the (i+1)th chain if it was just swapped
+                    continue
+
+                else:
+                    # Non-tempering move, or all other chains not selected for tempering
                     if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
                         logger.debug(f"Current model sigma: {MS.MCMC_fields['current_sigma']}")
                         logger.debug(f"Current variances: {MS.variances.trace()}")
@@ -873,7 +874,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     load_checkpoint = MCMC_fields["load_checkpoint"]
     num_iters = MCMC_fields["num_iters"]
     if load_checkpoint is None:
-        MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, n_states=2)
+        MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters)
         MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
         if "checkpoint_header" not in MS_list.ensemble_fields:
             MS_list.ensemble_fields["checkpoint_header"] = export_path[:export_path.find(".pik")]
@@ -918,8 +919,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                 for MS in MS_list.MS:
                     MS.H.extend(num_iters, MS.param_info)
                     MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
-                    # Induce annealing, which also corrects the prev_likelihood and adjust the step size
-                    # MS.anneal(-1, MS.uncs, force=True)
 
     # From this point on, for consistency, work with ONLY the MetroState objects
     logger.info(f"Sim info: {MS_list.sim_info}")
