@@ -649,7 +649,7 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
     p.likelihood = np.zeros(sim_info["num_meas"])
 
     # Can't use ndarray - err_sq for each sim can be different length
-    p.err_sq = [[] * sim_info["num_meas"]]
+    p.err_sq = [[] for _ in range(sim_info["num_meas"])]
 
     if MCMC_fields.get("use_multi_cpus", False):
         raise NotImplementedError("WIP - multi_cpus")
@@ -664,8 +664,8 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables, hmax,
 
     if prev_p is not None:
         if verbose and logger is not None:
-            logger.info(f"Likelihood of proposed move: {MCMC_fields['_beta'] * np.sum(p.likelihood)}")
-        logratio = MCMC_fields['_beta'] * (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
+            logger.info(f"Likelihood of proposed move: {MCMC_fields.get('_beta', 1) * np.sum(p.likelihood)}")
+        logratio = MCMC_fields.get('_beta', 1) * (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
         if np.isnan(logratio):
             logratio = -np.inf
 

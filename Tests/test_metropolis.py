@@ -754,7 +754,8 @@ class TestUtils(unittest.TestCase):
         for i in range(len(accept)):
             accept[i] = roll_acceptance(logratio)
 
-        self.assertEqual(accept.sum(), 1003)
+        # Should accept around np.exp(-1) ~ 3679
+        self.assertEqual(accept.sum(), 3695)
         return
 
     def test_unpack_simpar(self):
@@ -1256,4 +1257,4 @@ class TestUtils(unittest.TestCase):
 if __name__ == "__main__":
     t = TestUtils()
     t.setUp()
-    t.test_run_iter_depletion()
+    t.test_run_iter()
