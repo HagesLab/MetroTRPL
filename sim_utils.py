@@ -36,7 +36,6 @@ class Ensemble():
         if "checkpoint_header" in MCMC_fields:
             self.ensemble_fields["checkpoint_header"] = MCMC_fields.pop("checkpoint_header")
         self.ensemble_fields["checkpoint_freq"] = MCMC_fields.pop("checkpoint_freq")
-        self.ensemble_fields["delayed_acceptance"] = MCMC_fields.pop("delayed_acceptance", "off")
         self.ensemble_fields["parallel_tempering"] = MCMC_fields.pop("parallel_tempering", None)
         self.ensemble_fields["temper_freq"] = MCMC_fields.pop("temper_freq", DEFAULT_TEMPER_FREQ)
 

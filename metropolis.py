@@ -711,7 +711,6 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
     None. Ensemble() and MetroStates is updated throughout.
 
     """
-    DA_mode = MS_list.ensemble_fields.get("delayed_acceptance", "off")
     checkpoint_freq = MS_list.ensemble_fields["checkpoint_freq"]
 
     if need_initial_state:
@@ -793,17 +792,10 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
 
                     MS.H.record_best_logll(k, MS.prev_p)
 
-                    if DA_mode == "off":
-                        accepted = run_iteration(MS.p, MS_list.sim_info, MS_list.iniPar,
-                                                MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
-                                                MS.running_hmax, MS.MCMC_fields, verbose,
-                                                logger, prev_p=MS.prev_p, t=k)
-
-                    elif DA_mode == 'DEBUG':
-                        accepted = False
-
-                    else:
-                        raise ValueError("Invalid DA mode - must be \"off\" or \"DEBUG\"")
+                    accepted = run_iteration(MS.p, MS_list.sim_info, MS_list.iniPar,
+                                            MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
+                                            MS.running_hmax, MS.MCMC_fields, verbose,
+                                            logger, prev_p=MS.prev_p, t=k)
 
                     if verbose and not accepted and logger is not None:
                         logger.info("Rejected!")
