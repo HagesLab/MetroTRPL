@@ -151,7 +151,6 @@ if __name__ == "__main__":
                    "scale_factor": None,
                    "fittable_fluences": None,
                    "irf_convolution": None,
-                   "proposal_function": "box",
                    "hard_bounds": 1,
                    "force_min_y": 0,
                    "checkpoint_freq": 12000,

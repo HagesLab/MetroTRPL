@@ -276,8 +276,7 @@ def check_approved_param(new_p, param_info):
     return failed_checks
 
 
-def select_next_params(p, means, variances, param_info, trial_function="box",
-                       coerce_hard_bounds=False, logger=None, verbose=False):
+def select_next_params(p, means, variances, param_info, coerce_hard_bounds=False, logger=None, verbose=False):
     """ Trial move function:
         box: uniform rectangle centered about current state.
         gauss: gaussian centered about current state.
@@ -308,32 +307,17 @@ def select_next_params(p, means, variances, param_info, trial_function="box",
     while tries < max_tries:
         tries += 1
 
-        if trial_function == "box":
-            for i, param in enumerate(names):
-                new_p[i] = np.random.uniform(
-                    mean[i]-cov[i, i], mean[i]+cov[i, i])
-                if mu_constraint is not None and param == "mu_p":
-                    ambi = mu_constraint[0]
-                    ambi_std = mu_constraint[1]
-                    if verbose and logger is not None:
-                        logger.debug(f"mu constraint: ambi {ambi} +/- {ambi_std}")
-                    new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
-                    new_p[i] = np.log10(
-                        (2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
-
-        elif trial_function == "gauss":
-            try:
-                if not np.all(cov >= 0):
-                    raise RuntimeError
-                new_p = np.random.multivariate_normal(mean, cov)
-            except RuntimeError:
-                if logger is not None:
-                    logger.error(
-                        f"multivar_norm failed: mean {mean}, cov {cov}")
-                new_p = mean
-
-        else:
-            raise ValueError("Invalid trial function - must be \"box\" or \"gauss\"")
+        for i, param in enumerate(names):
+            new_p[i] = np.random.uniform(
+                mean[i]-cov[i, i], mean[i]+cov[i, i])
+            if mu_constraint is not None and param == "mu_p":
+                ambi = mu_constraint[0]
+                ambi_std = mu_constraint[1]
+                if verbose and logger is not None:
+                    logger.debug(f"mu constraint: ambi {ambi} +/- {ambi_std}")
+                new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
+                new_p[i] = np.log10(
+                    (2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
 
         failed_checks = check_approved_param(new_p, param_info)
         success = len(failed_checks) == 0
@@ -784,8 +768,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                         MS.variances.mask_covariance(None)
 
                     select_next_params(MS.p, MS.means, MS.variances, MS.param_info,
-                                    MS.MCMC_fields["proposal_function"],
-                                    MS.MCMC_fields.get("hard_bounds", 0), logger)
+                                       MS.MCMC_fields.get("hard_bounds", 0), logger)
 
                     if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
                         MS.print_status(logger)

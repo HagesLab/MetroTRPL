@@ -293,7 +293,7 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
 
 def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
                          supported_solvers=("odeint", "solveivp", "NN", "diagnostic"),
-                         supported_prop_funcs=("box", "gauss", "None")):
+                         ):
     if not isinstance(MCMC_fields, dict):
         raise TypeError("MCMC control flags must be type 'dict'")
 
@@ -301,7 +301,6 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
                      "num_iters", "solver", "model",
                      "likel2variance_ratio",
                      "log_pl", "self_normalize",
-                     "proposal_function",
                      "checkpoint_freq",
                      "load_checkpoint",
                      )
@@ -448,12 +447,6 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
     else:
         raise ValueError("self_normalize invalid - must be None, or a list of measurement types "
                          "that should be normalized.")
-
-    if MCMC_fields["proposal_function"] in supported_prop_funcs:
-        pass
-    else:
-        raise ValueError("MCMC control 'proposal_function' must be a supported proposal function.\n"
-                         f"Supported funcs are {supported_prop_funcs}")
 
     if "hard_bounds" in MCMC_fields:
         bound = MCMC_fields["hard_bounds"]

@@ -106,7 +106,6 @@ class TestUtils(unittest.TestCase):
                        "likel2variance_ratio": {"TRPL": 500},
                        "log_pl": 1,
                        "self_normalize": None,
-                       "proposal_function": "box",
                        "hard_bounds": 1,
                        "checkpoint_dirname": os.path.join(".",
                                                           "test-Checkpoints"),

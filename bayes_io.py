@@ -490,8 +490,6 @@ def read_config_script_file(path):
                             MCMC_fields["self_normalize"] = None
                         else:
                             MCMC_fields["self_normalize"] = line_split[1].split('\t')
-                    elif line.startswith("Proposal function"):
-                        MCMC_fields["proposal_function"] = line_split[1]
                     elif line.startswith("Use hard boundaries"):
                         MCMC_fields["hard_bounds"] = int(line_split[1])
                     elif line.startswith("Force min y"):
@@ -885,11 +883,8 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                         ofstream.write(f"\t{scale_f[3]}")
                     ofstream.write('\n')
 
-        if verbose:
-            ofstream.write("# Proposal function used to generate new states. "
-                           "Box for joint uniform box and Gauss for multivariate Gaussian. \n")
-        prop_f = MCMC_fields["proposal_function"]
-        ofstream.write(f"Proposal function: {prop_f}\n")
+        if "proposal_function" in MCMC_fields:
+            print("Script generator warning: setting \"proposal_function\" is deprecated and will have no effect.")
 
         if "hard_bounds" in MCMC_fields:
             if verbose:

@@ -107,7 +107,6 @@ if __name__ == "__main__":
                    "irf_convolution": None,
                    "parallel_tempering": [0.05, 0.3, 2],
                    "temper_freq": 5000,
-                   "proposal_function": "box",
                    "hard_bounds": 1,
                    "force_min_y": 0,
                    "checkpoint_freq": 100000000,
