@@ -649,9 +649,6 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables,
         if np.isnan(logratio):
             logratio = -np.inf
 
-        if verbose and logger is not None:
-            logger.info(f"Partial Ratio: {np.exp(logratio)}")
-
         accepted = roll_acceptance(logratio)
 
     if prev_p is not None and accepted:
@@ -694,7 +691,8 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
     checkpoint_freq = MS_list.ensemble_fields["checkpoint_freq"]
 
     if need_initial_state:
-        if logger is not None: logger.info("Simulating initial state:")
+        if logger is not None:
+            logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
         for MS in MS_list.MS:
             run_iteration(MS.prev_p, MS_list.sim_info, MS_list.iniPar,
@@ -725,14 +723,8 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                     beta_j = MS_J.MCMC_fields["_beta"]
                     beta_i = MS_I.MCMC_fields["_beta"]
                     logratio = -(beta_j - beta_i) * (np.sum(MS_J.prev_p.likelihood) - np.sum(MS_I.prev_p.likelihood))
-                    
-                    if logger is not None:
-                        logger.info(f"tempering partial Ratio: {np.exp(logratio)}")
 
                     accepted = roll_acceptance(logratio)
-
-                    if not accepted and logger is not None:
-                        logger.info("tempering move rejected")
 
                     if accepted:
                         MS_I.prev_p.likelihood, MS_J.prev_p.likelihood = MS_J.prev_p.likelihood, MS_I.prev_p.likelihood
@@ -751,8 +743,6 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
 
                 else:
                     # Non-tempering move, or all other chains not selected for tempering
-                    if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
-                        logger.debug(f"Current model sigma: {MS.MCMC_fields['current_sigma']}")
 
                     select_next_params(MS.p, MS.means, MS.param_info,
                                        MS.MCMC_fields.get("hard_bounds", 0), logger)
@@ -766,9 +756,6 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                                              MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
                                              MS.MCMC_fields, verbose,
                                              logger, prev_p=MS.prev_p, t=k)
-
-                    if verbose and not accepted and logger is not None:
-                        logger.info("Rejected!")
 
                     if accepted:
                         MS.means.transfer_from(MS.p, MS.param_info)
