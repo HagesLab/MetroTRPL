@@ -818,7 +818,7 @@ class TestUtils(unittest.TestCase):
 
         # First iter; auto-accept
         np.testing.assert_almost_equal(
-            p.likelihood, [-59340.105083, -32560.139058], decimal=0)  # rtol=1e-5
+            p.likelihood, np.sum([-59340.105083, -32560.139058]), decimal=0)  # rtol=1e-5
         self.assertTrue(accepted)
 
         # Second iter same as the first; auto-accept with likelihood ratio exactly 1
@@ -890,7 +890,7 @@ class TestUtils(unittest.TestCase):
         run_iteration(p2, simPar, iniPar, times, vals, uncs, None,
                       sim_flags, verbose=True,
                       logger=self.logger, prev_p=None)
-        self.assertTrue(p2.likelihood[0] > p.likelihood[0])
+        self.assertTrue(p2.likelihood > p.likelihood)
 
     def test_set_min_y(self):
         t = np.linspace(0, 100, 100)
@@ -962,7 +962,7 @@ class TestUtils(unittest.TestCase):
 
         # First iter; auto-accept
         np.testing.assert_almost_equal(
-            p.likelihood, [-29701, -16309], decimal=0)  # rtol=1e-5
+            p.likelihood, np.sum([-29701, -16309]), decimal=0)  # rtol=1e-5
 
 
     def test_run_iter_scale(self):
@@ -1026,7 +1026,7 @@ class TestUtils(unittest.TestCase):
                       logger=self.logger, prev_p=None)
 
         np.testing.assert_almost_equal(
-            p.likelihood, [0, 0], decimal=0)  # rtol=1e-5
+            p.likelihood, 0, decimal=0)  # rtol=1e-5
 
     def test_run_iter_mixed_types(self):
         # Will basically need to set up a full simulation for this
@@ -1085,7 +1085,7 @@ class TestUtils(unittest.TestCase):
 
         # First iter; auto-accept
         np.testing.assert_almost_equal(
-            p.likelihood, [-59340.105083, -517.98], decimal=0)  # rtol=1e-5
+            p.likelihood, np.sum([-59340.105083, -517.98]), decimal=0)  # rtol=1e-5
         self.assertTrue(accepted)
 
     def test_one_sim_ll_errata(self):

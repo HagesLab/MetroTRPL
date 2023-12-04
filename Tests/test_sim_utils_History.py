@@ -123,7 +123,6 @@ class TestUtils(unittest.TestCase):
 
         p = DummyParameters()
         p.c = 5
-        p.likelihood = [1, 1, 1]
         means = DummyParameters()
         means.c = 50
 
@@ -144,12 +143,11 @@ class TestUtils(unittest.TestCase):
                 return
 
         prev_p = DummyParameters()
-        prev_p.likelihood = [1, 1, 1]
-
+        prev_p.likelihood = 1
         self.tasth.record_best_logll(k, prev_p)
 
         expected_loglikelihood = np.zeros((1, self.num_iters))
-        expected_loglikelihood[0, k] = np.sum(prev_p.likelihood)
+        expected_loglikelihood[0, k] = prev_p.likelihood
         np.testing.assert_equal(self.tasth.loglikelihood,
                                 expected_loglikelihood)
 

@@ -98,8 +98,7 @@ class MetroState():
         is_active = self.param_info['active']
 
         if hasattr(self.prev_p, "likelihood"):
-            logger.info("Current loglikelihood : {:.6e} ".format(
-                np.sum(self.prev_p.likelihood)))
+            logger.info("Current loglikelihood : {:.6e} ".format(self.prev_p.likelihood))
         for param in self.param_info['names']:
             if is_active.get(param, 0):
                 trial = getattr(self.p, param)
@@ -197,7 +196,7 @@ class History():
 
     def record_best_logll(self, k, prev_p):
         # prev_p is essentially the latest accepted move
-        self.loglikelihood[0, k] = np.sum(prev_p.likelihood)
+        self.loglikelihood[0, k] = prev_p.likelihood
         return
 
     def update(self, k, p, means, param_info):

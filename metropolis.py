@@ -616,7 +616,7 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables,
     # Calculates likelihood of a new proposed parameter set
     accepted = True
     logratio = 0  # acceptance ratio = 1
-    p.likelihood = np.zeros(sim_info["num_meas"])
+    logll = np.zeros(sim_info["num_meas"])
 
     # Can't use ndarray - err_sq for each sim can be different length
     p.err_sq = [[] for _ in range(sim_info["num_meas"])]
@@ -628,21 +628,25 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables,
         #    p.likelihood = np.array(likelihoods)
 
     for i in range(sim_info["num_meas"]):
-        p.likelihood[i], p.err_sq[i] = one_sim_likelihood(
+        logll[i], p.err_sq[i] = one_sim_likelihood(
             p, sim_info, IRF_tables, MCMC_fields, logger, verbose,
             (i, np.array(iniPar[i]), times[i], vals[i], uncs[i]))
+        
+    logll = np.sum(logll)
 
     if prev_p is not None:
         if verbose and logger is not None:
-            logger.info(f"Likelihood of proposed move: {MCMC_fields.get('_beta', 1) * np.sum(p.likelihood)}")
-        logratio = MCMC_fields.get('_beta', 1) * (np.sum(p.likelihood) - np.sum(prev_p.likelihood))
+            logger.info(f"Log likelihood of proposed move: {MCMC_fields.get('_beta', 1) * logll}")
+        logratio = MCMC_fields.get('_beta', 1) * (logll - prev_p.likelihood)
         if np.isnan(logratio):
             logratio = -np.inf
 
         accepted = roll_acceptance(logratio)
 
+    p.likelihood = logll
+
     if prev_p is not None and accepted:
-        prev_p.likelihood = np.array(p.likelihood)
+        prev_p.likelihood = p.likelihood
         prev_p.err_sq = list(p.err_sq)
     return accepted
 
@@ -712,7 +716,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                     MS_J = MS_list.MS[i+1]
                     beta_j = MS_J.MCMC_fields["_beta"]
                     beta_i = MS_I.MCMC_fields["_beta"]
-                    logratio = -(beta_j - beta_i) * (np.sum(MS_J.prev_p.likelihood) - np.sum(MS_I.prev_p.likelihood))
+                    logratio = -(beta_j - beta_i) * (MS_J.prev_p.likelihood - MS_I.prev_p.likelihood)
 
                     accepted = roll_acceptance(logratio)
 
@@ -843,7 +847,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                     MS.H.extend(starting_iter, MS.param_info)
                     for param in MS.param_info["names"]:
                         setattr(MS.means, param, getattr(MS.H, f"mean_{param}")[0, starting_iter - 1])
-                    MS.prev_p.likelihood = np.zeros_like(MS.prev_p.likelihood)
+                    MS.prev_p.likelihood = 0
                     MS.prev_p.likelihood = MS.H.loglikelihood[0, -1]
             else:
                 starting_iter = MS_list.latest_iter + 1
