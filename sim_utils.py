@@ -256,6 +256,18 @@ class History():
         return
 
 
+class Covariance():
+    """
+    The covariance matrix used to select the next trial move.
+    This class is deprecated - and available only for compatibility
+    with older pickle files.
+    
+    """
+
+    def __init__(self, param_info):
+        print("Warning - Covariance class is deprecated and will have no effect or functionality.")
+        return
+
 class Grid():
     """
     Collection of values describing the grid dimensions for the simulation.
