@@ -101,7 +101,6 @@ if __name__ == "__main__":
                    "model": "pa",
                    "likel2move_ratio": 10,
                    "log_pl": 0,
-                   "self_normalize": None,
                    "scale_factor": None,
                    "fittable_fluences": None,
                    "irf_convolution": None,

@@ -121,7 +121,6 @@ class TestUtils(unittest.TestCase):
                             "override_equal_mu": 0,
                             "override_equal_s": 0,
                             "log_pl": 1,
-                            "self_normalize": None,
                             "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
                             "checkpoint_header": "CPU0",
                             "checkpoint_freq": 12000,

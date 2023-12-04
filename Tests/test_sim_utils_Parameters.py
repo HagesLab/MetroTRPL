@@ -96,23 +96,3 @@ class TestUtils(unittest.TestCase):
         
         for param in self.dummy_names:
             self.assertEqual(getattr(self.testp, param), other_parameters[param])
-
-    def test_suppress_scale_factor(self):
-        self.testP = Parameters(self.dummy_param_info)
-
-        self.testP._s0 = 1000
-        self.testP._s1 = 1000
-
-        self.testP.suppress_scale_factor(None, 0)
-        self.assertEqual(self.testP._s0, 1000)
-        self.assertEqual(self.testP._s1, 1000)
-
-        scale_factor = [0.02, [0, 1, 2, 3, 4, 5], [(0, 2, 4), (1, 3, 5)]]
-
-        self.testP.suppress_scale_factor(scale_factor, 0)
-        self.assertEqual(self.testP._s0, 1)
-        self.assertEqual(self.testP._s1, 1000)
-
-        self.testP.suppress_scale_factor(scale_factor, 1)
-        self.assertEqual(self.testP._s0, 1)
-        self.assertEqual(self.testP._s1, 1)

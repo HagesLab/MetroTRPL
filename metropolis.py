@@ -557,16 +557,6 @@ def one_sim_likelihood(p, sim_info, IRF_tables, MCMC_fields, logger, verbose, ar
     if verbose and logger is not None:
         logger.info(f"Comparing times {times_c[0]}-{times_c[-1]}")
 
-    if (MCMC_fields["self_normalize"] is not None and
-        sim_info["meas_types"][i] in MCMC_fields["self_normalize"]):
-        if verbose and logger is not None:
-            logger.info("Normalizing sim result...")
-        sol /= np.nanmax(sol)
-
-        # Suppress scale_factor for all measurements being normalized
-        p.suppress_scale_factor(MCMC_fields.get("scale_factor", None), i)
-        scale_shift = 0
-
     try:
         # TRPL must be positive!
         # Any simulation which results in depleted carrier is clearly incorrect

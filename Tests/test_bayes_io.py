@@ -178,8 +178,7 @@ class TestUtils(unittest.TestCase):
                     'select_obs_sets': None,
                     'noise_level': None}
 
-        sim_flags = {'log_pl': False,
-                     'self_normalize': None}
+        sim_flags = {'log_pl': False}
 
         where_inits = os.path.join("Tests", "testfiles", "test_data.csv")
 
@@ -223,53 +222,15 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(uncs, expected_uncs)
 
     def test_get_data_transform(self):
-        # Normalization and log operators
+        # Log operators
         meas_types = ["TRPL"] * 5
         ic_flags = {'time_cutoff': None,
                     'select_obs_sets': None,
                     'noise_level': None}
 
-        sim_flags = {'log_pl': False,
-                     'self_normalize': None}
+        sim_flags = {'log_pl': False}
 
         where_inits = os.path.join("Tests", "testfiles", "test_data.csv")
-        ic_flags['time_cutoff'] = [-np.inf, 1] # type: ignore
-        ic_flags['select_obs_sets'] = [0, 4] # type: ignore
-
-        sim_flags["self_normalize"] = ["TRPL"]
-        with np.errstate(divide='ignore', invalid='ignore'):
-            times, vals, uncs = get_data(
-                where_inits, meas_types, ic_flags, sim_flags)
-        expected_times = [np.array([0]), np.array([0, 1])]
-        # First curve is a single datapoint with val=0, so norm should fail
-        # Second curve orig vals is 4, so should be divided by 4
-        expected_vals = [np.array([np.nan]), np.array([1, 1])]
-        expected_uncs = [np.array([np.nan]), np.array([10, 10])]
-
-        np.testing.assert_equal(times, expected_times)
-        np.testing.assert_equal(vals, expected_vals)
-        np.testing.assert_equal(uncs, expected_uncs)
-
-        # Order of ops: should norm then log
-        sim_flags["log_pl"] = True
-        with np.errstate(divide='ignore', invalid='ignore'):
-            times, vals, uncs = get_data(
-                where_inits, meas_types, ic_flags, sim_flags)
-        expected_times = [np.array([0]), np.array([0, 1])]
-
-        expected_vals = [np.array([np.nan]), np.array([0, 0])]
-        expected_uncs = [np.array([np.nan]), np.array([10, 10]) / np.log(10)]
-
-        np.testing.assert_equal(times, expected_times)
-        np.testing.assert_equal(vals, expected_vals)
-        np.testing.assert_equal(uncs, expected_uncs)
-
-        ic_flags = {'time_cutoff': None,
-                    'select_obs_sets': None,
-                    'noise_level': None}
-
-        sim_flags = {'log_pl': False,
-                     'self_normalize': None}
 
         ic_flags['select_obs_sets'] = [1] # type: ignore
 

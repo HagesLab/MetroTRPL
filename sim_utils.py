@@ -183,15 +183,6 @@ class Parameters():
             setattr(self, param, getattr(sender, param))
         return
 
-    def suppress_scale_factor(self, scale_info, i):
-        """ Force _s scale factors to 1 if they aren't needed, such as if self_normalize
-            is used.
-        """
-        if scale_info is None:
-            return
-        setattr(self, f"_s{i}", 1)
-        return
-
 
 class History():
     """ Record of past states the walk has been to. """

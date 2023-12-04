@@ -74,7 +74,6 @@ def get_data(exp_file, meas_types, ic_flags, MCMC_fields, verbose=False):
     NOISE_LEVEL = ic_flags.get('noise_level', 0)
 
     LOG_PL = MCMC_fields['log_pl']
-    NORMALIZE = MCMC_fields["self_normalize"]
     resample = ic_flags.get("resample", 1)
 
     bval_cutoff = sys.float_info.min
@@ -115,13 +114,6 @@ def get_data(exp_file, meas_types, ic_flags, MCMC_fields, verbose=False):
         t_list[i] = t_list[i][::resample]
         y_list[i] = y_list[i][::resample]
         u_list[i] = u_list[i][::resample]
-
-    if NORMALIZE is not None:
-        for i in range(len(t_list)):
-            if meas_types[i] in NORMALIZE:
-                norm_f = np.nanmax(y_list[i])
-                y_list[i] /= norm_f
-                u_list[i] /= norm_f
 
     if LOG_PL:
         # Deal with noisy negative values before taking log
@@ -485,11 +477,6 @@ def read_config_script_file(path):
                                 c_grps = extract_tuples(c_grps, delimiter="|", dtype=int)
 
                             MCMC_fields["fittable_absps"] = [init_var, inds, c_grps, guesses]
-                    elif line.startswith("Normalize these meas and sim types"):
-                        if line_split[1] == "None":
-                            MCMC_fields["self_normalize"] = None
-                        else:
-                            MCMC_fields["self_normalize"] = line_split[1].split('\t')
                     elif line.startswith("Use hard boundaries"):
                         MCMC_fields["hard_bounds"] = int(line_split[1])
                     elif line.startswith("Force min y"):
@@ -792,23 +779,8 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         logpl = MCMC_fields["log_pl"]
         ofstream.write(f"Use log of measurements: {logpl}\n")
 
-        if verbose:
-            ofstream.write("# Normalize all individual measurements and simulations "
-                           "to maximum of 1 before likelihood evaluation. "
-                           "\n# Global scaling coefficients named '_s#' may optionally be defined in MCMC_fields by "
-                           "\n# enabling the scale_factor setting. "
-                           "\n# If the absolute units or efficiency of the measurement is unknown, "
-                           "\n# it is recommended to try fitting '_s' instead of relying on normalization. "
-                           "\n# Enabling this will disable _s for the selected measurements. \n")
-        norm = MCMC_fields["self_normalize"]
-
-        if norm is None:
-            ofstream.write(f"Normalize these meas and sim types: {norm}")
-        else:
-            ofstream.write(f"Normalize these meas and sim types: {norm[0]}")
-            for value in norm[1:]:
-                ofstream.write(f"\t{value}")
-        ofstream.write('\n')
+        if "self_normalize" in MCMC_fields:
+            print("Script writer warning: self_normalize is deprecated and will have no effect.")
 
         if "fittable_fluences" in MCMC_fields:
             if verbose:

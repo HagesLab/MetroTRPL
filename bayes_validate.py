@@ -300,7 +300,7 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
     required_keys = ("init_cond_path", "measurement_path", "output_path",
                      "num_iters", "solver", "model",
                      "likel2move_ratio",
-                     "log_pl", "self_normalize",
+                     "log_pl",
                      "checkpoint_freq",
                      "load_checkpoint",
                      )
@@ -438,15 +438,6 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         if not success:
             raise ValueError("Invalid fittable_absps - must be None, or tuple"
                              "(see printed description when verbose=True)")
-
-    norm = MCMC_fields["self_normalize"]
-    if norm is None:
-        pass
-    elif (isinstance(norm, list)) and all(map(lambda x: isinstance(x, str), norm)):
-        pass
-    else:
-        raise ValueError("self_normalize invalid - must be None, or a list of measurement types "
-                         "that should be normalized.")
 
     if "hard_bounds" in MCMC_fields:
         bound = MCMC_fields["hard_bounds"]

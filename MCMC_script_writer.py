@@ -147,7 +147,6 @@ if __name__ == "__main__":
                    "model": "std",
                    "likel2move_ratio": 500,
                    "log_pl": 1,
-                   "self_normalize": None,
                    "scale_factor": None,
                    "fittable_fluences": None,
                    "irf_convolution": None,
