@@ -88,8 +88,6 @@ class MetroState():
 
         self.H = History(num_iters, param_info)
 
-        self.prev_p = Parameters(param_info)
-
         self.param_info = param_info
         self.MCMC_fields = MCMC_fields
 
@@ -103,8 +101,7 @@ class MetroState():
     def print_status(self, k, new_state, logger):
         is_active = self.param_info['active']
 
-        if hasattr(self.prev_p, "likelihood"):
-            logger.info(f"Current loglikelihood : {self.H.loglikelihood[0, k]:.6e}")
+        logger.info(f"Current loglikelihood : {self.H.loglikelihood[0, k]:.6e}")
         for i, param in enumerate(self.param_info['names']):
             if is_active.get(param, 0):
                 logger.info(f"Next {param}: {new_state[i]:.6e} from mean {self.H.states[i, k]:.6e}")

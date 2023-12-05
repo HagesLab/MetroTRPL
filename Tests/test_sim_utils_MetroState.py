@@ -38,11 +38,10 @@ class TestUtils(unittest.TestCase):
     def test_MetroState(self):
         # The functionality for each of these has already been covered
         self.assertIsInstance(self.ms.p, Parameters)
-        self.assertIsInstance(self.ms.prev_p, Parameters)
 
         with self.assertLogs() as captured:
             self.ms.print_status(0, self.new_state, logger=self.logger)
 
-        # One message per active param
+        # One message per active param + one for log likelihood
         self.assertEqual(len(captured.records), sum(
-            self.ms.param_info['active'].values()))
+            self.ms.param_info['active'].values() + 1))
