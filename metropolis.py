@@ -238,28 +238,25 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
         raise NotImplementedError
 
 
-def check_approved_param(new_state, param_info):
+def check_approved_param(new_state, param_info, do_log):
     """ Raise a warning for non-physical or unrealistic proposed trial moves,
         or proposed moves that exceed the prior distribution.
     """
     order = param_info['names']
-    do_log = param_info["do_log"]
     active = param_info["active"]
     checks = {}
     prior_dist = param_info["prior_dist"]
 
     # Ensure proposal stays within bounds of prior distribution
+    
+    diff = np.where(do_log, 10 ** new_state, new_state)
     for i, param in enumerate(order):
         if not active[param]:
             continue
 
         lb = prior_dist[param][0]
         ub = prior_dist[param][1]
-        if do_log[param]:
-            diff = 10 ** new_state[i]
-        else:
-            diff = new_state[i]
-        checks[f"{param}_size"] = (lb < diff < ub)
+        checks[f"{param}_size"] = (lb < diff[i] < ub)
 
     # TRPL specific checks:
     # p0 > n0 by definition of a p-doped material
@@ -273,11 +270,11 @@ def check_approved_param(new_state, param_info):
     if 'tauN' in order and 'tauP' in order:
         # Compel logscale for this one - makes for easier check
         logtn = new_state[order.index('tauN')]
-        if not do_log["tauN"]:
+        if not do_log[order.index("tauN")]:
             logtn = np.log10(logtn)
 
         logtp = new_state[order.index('tauP')]
-        if not do_log["tauP"]:
+        if not do_log[order.index("tauP")]:
             logtp = np.log10(logtp)
 
         diff = np.abs(logtn - logtp)
@@ -291,21 +288,18 @@ def check_approved_param(new_state, param_info):
     return failed_checks
 
 
-def select_next_params(current_state, param_info, coerce_hard_bounds=False, logger=None, verbose=False):
+def select_next_params(current_state, param_info, do_log, coerce_hard_bounds=False, logger=None, verbose=False):
     """ 
     Trial move function: returns a new proposed state equal to the current_state plus a uniform random displacement
     """
     is_active = param_info["active"]
-    do_log = param_info["do_log"]
     names = param_info["names"]
     trial_move = param_info["trial_move"]
     _current_state = np.array(current_state, dtype=float)
 
     mu_constraint = param_info.get("do_mu_constraint", None)
 
-    for i, param in enumerate(names):
-        if do_log[param]:
-            _current_state[i] = np.log10(_current_state[i])
+    _current_state = np.where(do_log, np.log10(_current_state), _current_state)
 
     tries = 0
 
@@ -334,7 +328,7 @@ def select_next_params(current_state, param_info, coerce_hard_bounds=False, logg
                 new_state[i] = np.log10(
                     (2 / new_muambi - 1 / 10 ** new_state[i-1])**-1)
 
-        failed_checks = check_approved_param(new_state, param_info)
+        failed_checks = check_approved_param(new_state, param_info, do_log)
         success = len(failed_checks) == 0
         if success:
             if verbose and logger is not None:
@@ -344,9 +338,7 @@ def select_next_params(current_state, param_info, coerce_hard_bounds=False, logg
         if logger is not None and len(failed_checks) > 0:
             logger.warning(f"Failed checks: {failed_checks}")
 
-    for i, param in enumerate(names):
-        if do_log[param]:
-            new_state[i] =  10 ** new_state[i]
+    new_state = np.where(do_log, 10 ** new_state, new_state)
     return new_state
 
 
@@ -741,7 +733,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                 else:
                     # Non-tempering move, or all other chains not selected for tempering
 
-                    new_state = select_next_params(MS.H.states[:, k-1], MS.param_info,
+                    new_state = select_next_params(MS.H.states[:, k-1], MS.param_info, MS_list.ensemble_fields["do_log"],
                                                    MS.MCMC_fields.get("hard_bounds", 0), logger)
 
                     if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
@@ -773,7 +765,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
             if logger is not None:
                 logger.warning(f"Terminating with k={k-1} iters completed:")
             for MS in MS_list.MS:
-                MS.H.truncate(k, MS.param_info)
+                MS.H.truncate(k)
             break
 
         if checkpoint_freq is not None and k % checkpoint_freq == 0:

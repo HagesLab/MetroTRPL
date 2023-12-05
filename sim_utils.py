@@ -39,6 +39,10 @@ class Ensemble():
         self.ensemble_fields["parallel_tempering"] = MCMC_fields.pop("parallel_tempering", None)
         self.ensemble_fields["temper_freq"] = MCMC_fields.pop("temper_freq", DEFAULT_TEMPER_FREQ)
 
+        self.ensemble_fields["do_log"] = param_info.pop("do_log")
+        self.ensemble_fields["do_log"] = np.array([self.ensemble_fields["do_log"][param]
+                                                   for param in param_info["names"]], dtype=bool)
+
         if self.ensemble_fields["parallel_tempering"] is None:
             n_states = 1
             temperatures = [1]
@@ -119,8 +123,6 @@ class History():
     """ Record of past states the walk has been to. """
 
     def __init__(self, num_iters, param_info):
-        # for param in param_info["names"]:
-        #     setattr(self, f"mean_{param}", np.zeros((1, num_iters)))
         self.states_are_one_array = True
         self.states = np.zeros((len(param_info["names"]), num_iters))
         self.accept = np.zeros((1, num_iters))
@@ -141,10 +143,6 @@ class History():
 
     def truncate(self, k):
         """ Cut off any incomplete iterations should the walk be terminated early"""
-        # for param in param_info["names"]:
-        #     val = getattr(self, f"mean_{param}")
-        #     setattr(self, f"mean_{param}", val[:, :k])
-
         self.states = self.states[:, :k]
         self.accept = self.accept[:, :k]
         self.loglikelihood = self.loglikelihood[:, :k]
@@ -167,11 +165,6 @@ class History():
         
         self.states = np.concatenate(
             (self.states, np.zeros((self.states.shape[0], addtl_iters))), axis=1)
-
-        # for param in param_info["names"]:
-        #     val = getattr(self, f"mean_{param}")
-        #     setattr(self, f"mean_{param}", np.concatenate(
-        #         (val, np.zeros((1, addtl_iters))), axis=1))
         return
 
 

@@ -42,4 +42,4 @@ class TestUtils(unittest.TestCase):
 
         # One message per active param + one for log likelihood
         self.assertEqual(len(captured.records), sum(
-            self.ms.param_info['active'].values() + 1))
+            self.ms.param_info['active'].values()) + 1)
