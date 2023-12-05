@@ -58,10 +58,6 @@ class Ensemble():
                                                             for m in sim_info["meas_types"]}
             
         self.ensemble_fields["do_parallel_tempering"] = (n_states > 1)
-        if self.ensemble_fields["do_parallel_tempering"]:
-            self.mean_buffer = Parameters(param_info)
-        else:
-            self.mean_buffer = None
 
         self.sim_info = sim_info
         self.random_state = np.random.get_state()
@@ -84,8 +80,6 @@ class MetroState():
         next state.
     """
     def __init__(self, param_info, MCMC_fields, num_iters):
-        self.p = Parameters(param_info)
-
         self.H = History(num_iters, param_info)
 
         self.param_info = param_info
@@ -110,76 +104,14 @@ class MetroState():
 
 
 class Parameters():
-    """ Collection of parameters defining where the metropolis walker is right
-        now. For the OneLayer (single isolated absorber) carrier dynamics model,
-        these parameters are:
     """
-    Sf: float      # Front surface recombination velocity
-    Sb: float      # Back surface recombination velocity
-    mu_n: float    # Electron mobility
-    mu_p: float    # Hole mobility
-    n0: float      # Electron doping level
-    p0: float      # Hole doping level
-    B: float       # Radiative recombination rate
-    Cn: float      # Auger coef for two-electron one-hole
-    Cp: float      # Auger coef for two-hole one-electron
-    tauN: float    # Electron bulk nonradiative decay lifetime
-    tauP: float    # Hole bulk nonradiative decayl lifetime
-    eps: float     # Relative dielectric cofficient
-    Tm: float      # Temperature
-    likelihood: float #  Log likelihood of the current state
-
+    Collection of parameters defining where the metropolis walker is right
+    now.
+    This class is deprecated - and available only for compatibility
+    with older pickle files.
+    """
     def __init__(self, param_info):
-        self.param_names = param_info["names"]
-        self.ucs = param_info.get("unit_conversions", dict[str, float]())
-        self.actives = [(param, index) for index, param in enumerate(self.param_names)
-                        if param_info["active"].get(param, False)]
-
-        for param in self.param_names:
-            if hasattr(self, param):
-                raise KeyError(f"Param with name {param} already exists")
-            setattr(self, param, param_info["init_guess"][param])
-
-
-        return
-
-    def apply_unit_conversions(self, reverse=False):
-        """ Multiply the currently stored parameters according to a stored
-            unit conversion dictionary.
-        """
-        for param in self.param_names:
-            val = getattr(self, param)
-            if reverse:
-                setattr(self, param, val / self.ucs.get(param, 1))
-            else:
-                setattr(self, param, val * self.ucs.get(param, 1))
-        return
-
-    def make_log(self, param_info=None):
-        """ Convert currently stored parameters to log space.
-            This is nearly always recommended for TRPL, as TRPL decay can span
-            many orders of magnitude.
-        """
-        for param in self.param_names:
-            if param_info["do_log"].get(param, 0) and hasattr(self, param):
-                val = getattr(self, param)
-                setattr(self, param, np.log10(val))
-        return
-
-    def to_array(self, param_info=None):
-        """ Compress the currently stored parameters into a 1D array. Some
-            operations are easier with matrix operations while others are more
-            intuitive when params are callable by name.
-        """
-        arr = np.array([getattr(self, param)
-                       for param in self.param_names], dtype=float)
-        return arr
-
-    def transfer_from(self, sender, param_info):
-        """ Update this Parameters() stored parameters with values from another
-            Parameters(). """
-        for param in param_info['names']:
-            setattr(self, param, getattr(sender, param))
+        print("Warning - Parameters class is deprecated and will have no effect or functionality.")
         return
 
 

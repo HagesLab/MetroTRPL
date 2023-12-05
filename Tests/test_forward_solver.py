@@ -2,8 +2,8 @@ import unittest
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from forward_solver import dydt, dydt_numba
-from sim_utils import Grid, Parameters, Solution
+from forward_solver import dydt_numba
+from sim_utils import Grid, Solution
 from metropolis import E_field
 
 ## Define constants

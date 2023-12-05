@@ -3,7 +3,7 @@ import logging
 import sys
 
 sys.path.append("..")
-from sim_utils import Parameters, MetroState
+from sim_utils import MetroState
 
 
 class TestUtils(unittest.TestCase):
@@ -36,8 +36,6 @@ class TestUtils(unittest.TestCase):
         self.new_state = [dummy_initial_guesses[name] for name in dummy_names]
 
     def test_MetroState(self):
-        # The functionality for each of these has already been covered
-        self.assertIsInstance(self.ms.p, Parameters)
 
         with self.assertLogs() as captured:
             self.ms.print_status(0, self.new_state, logger=self.logger)

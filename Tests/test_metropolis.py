@@ -12,7 +12,7 @@ from metropolis import check_approved_param
 from metropolis import run_iteration
 from metropolis import search_c_grps
 from metropolis import set_min_y
-from sim_utils import Parameters, Grid, calculate_PL, calculate_TRTS
+from sim_utils import Grid, calculate_PL, calculate_TRTS
 q = 1.0  # [e]
 q_C = 1.602e-19  # [C]
 kB = 8.61773e-5  # [eV / K]

@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import sys
 sys.path.append("..")
-from sim_utils import Parameters, Solution, Grid
+from sim_utils import Solution, Grid
 from sim_utils import check_threshold, calculate_PL, calculate_TRTS, integrate_1D, q_C
 
 class TestUtils(unittest.TestCase):
