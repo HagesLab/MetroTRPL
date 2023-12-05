@@ -4,39 +4,22 @@ from scipy.optimize import minimize
 
 from metropolis import do_simulation, search_c_grps
 from laplace import make_I_tables, do_irf_convolution, post_conv_trim
-from sim_utils import MetroState
+from sim_utils import Ensemble
 
 DEFAULT_NUM_ITERS = 1000
-class Par():
 
-    def __init__(self):
-        """Dummy class to hold material parameters"""
-        self.param_names = dict()
-        self.ucs = dict()
-        return
-
-    def apply_unit_conversions(self, reverse=False):
-        """ Multiply the currently stored parameters according to a stored
-            unit conversion dictionary.
-        """
-        for param in self.param_names:
-            val = getattr(self, param)
-            if reverse:
-                setattr(self, param, val / self.ucs.get(param, 1))
-            else:
-                setattr(self, param, val * self.ucs.get(param, 1))
-        return
-
-def cost(x, e_data, MS, logger):
+def cost(x, e_data, MS_list, logger):
     """
     Cost function to minimize. As we are seeking a max likelihood,
     this function should return the negative log likelihood.
     """
     _cost = 0
     j = 0
+    MS = MS_list.MS[0]
+    MS.H.states[:, MS_list.latest_iter] = MS.H.states[:, MS_list.latest_iter - 1]
     for n in MS.param_info["names"]:
         if MS.param_info["active"][n]:
-            setattr(MS.means, n, 10 ** x[j])
+            MS.H.states[MS.param_indexes[n], MS_list.latest_iter] =  10 ** x[j]
             j += 1
 
     logger.info("#####")
@@ -46,18 +29,18 @@ def cost(x, e_data, MS, logger):
     scale_f_info = MS.MCMC_fields.get("scale_factor", None)
     irf_convolution = MS.MCMC_fields.get("irf_convolution", None)
     IRF_tables = MS.MCMC_fields.get("IRF_tables", None)
-    thicknesses = MS.sim_info["lengths"]
-    nxes = MS.sim_info["nx"]
-    for ic_num in range(MS.sim_info["num_meas"]):
+    thicknesses = MS_list.sim_info["lengths"]
+    nxes = MS_list.sim_info["nx"]
+    for ic_num in range(MS_list.sim_info["num_meas"]):
         thickness = thicknesses[ic_num]
         nx = nxes[ic_num]
-        meas_type = MS.sim_info["meas_types"][ic_num]
+        meas_type = MS_list.sim_info["meas_types"][ic_num]
         times = e_data[0][ic_num]
         values = e_data[1][ic_num]
         std = e_data[2][ic_num]
 
-        tSteps, sol = do_simulation(MS.means, thickness, nx, MS.iniPar[ic_num], times, 1, meas=meas_type,
-                                    solver=MS.MCMC_fields["solver"], model=MS.MCMC_fields["model"])
+        tSteps, sol = do_simulation(MS.H.states[:, MS_list.latest_iter], MS.param_indexes, thickness, nx, MS_list.iniPar[ic_num], times, 1, meas=meas_type,
+                                    units=MS.param_info["unit_conversions"], solver=MS.MCMC_fields["solver"], model=MS.MCMC_fields["model"])
 
         if irf_convolution is not None and irf_convolution[ic_num] != 0:
             wave = int(irf_convolution[ic_num])
@@ -90,39 +73,31 @@ def cost(x, e_data, MS, logger):
                 s_name = f"_s{search_c_grps(scale_f_info[2], ic_num)}"
             else:
                 s_name = f"_s{ic_num}"
-            scale_shift = np.log10(getattr(MS.means, s_name))
+            scale_shift = np.log10(MS.H.states[MS.param_indexes[s_name]])
         else:
             scale_shift = 0
 
         _cost += np.sum((sol + scale_shift - vals_c)**2 / (MS.MCMC_fields["current_sigma"][meas_type]**2 + 2*uncs_c**2))
 
     current_num_iters = len(MS.H.accept[0])
-    if MS.latest_iter >= current_num_iters:
-        MS.H.extend(2 * current_num_iters, MS.param_info)
-    MS.H.update(MS.latest_iter, MS.means, MS.means, MS.param_info)
-    MS.H.loglikelihood[0, MS.latest_iter] = _cost * -1
+    if MS_list.latest_iter >= current_num_iters:
+        MS.H.extend(2 * current_num_iters)
 
-    for n in MS.param_info['names']:
-        if MS.param_info["active"][n]:
-            mean = getattr(MS.means, n)
-            logger.info("Current {}: {:.6e}".format(n, mean))
-    logger.info(f"Iter {MS.latest_iter} Cost: {_cost}")
+    MS.H.loglikelihood[0, MS_list.latest_iter] = _cost * -1
+
+    MS.print_status(MS_list.latest_iter - 1, MS.H.states[:, MS_list.latest_iter], logger)
+    logger.info(f"Iter {MS_list.latest_iter} Cost: {_cost}")
     logger.info("#####")
-
-    MS.latest_iter += 1
+    MS_list.latest_iter += 1
     return _cost
 
 def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, logger):
-    MS = MetroState(param_info, sim_flags, DEFAULT_NUM_ITERS)
+    MS_list = Ensemble(param_info, sim_params, sim_flags, DEFAULT_NUM_ITERS)
+    MS = MS_list.MS[0]
 
-    # Not needed for MLE
-    del MS.p
-    del MS.prev_p
-
-    # Prefer having these attached to MS, to match the original MCMC method
-    MS.sim_info = sim_params
-    MS.iniPar = init_params
-    logger.info(f"Sim info: {MS.sim_info}")
+    # Prefer having these attached to MS ensemble, to match the original MCMC method
+    MS_list.iniPar = init_params
+    logger.info(f"Sim info: {MS_list.sim_info}")
     logger.info(f"Param infos: {MS.param_info}")
     logger.info(f"MCMC fields: {MS.MCMC_fields}")
 
@@ -141,14 +116,14 @@ def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, log
 
     # Optimize over only active params, while holding all others constant
     x0 = []
-    for n in MS.means.param_names:
+    for n in param_info["names"]:
         if param_info["active"][n]:
             x0.append(np.log10(param_info["init_guess"][n]))
-        else:
-            setattr(MS.means, n, param_info["init_guess"][n])
 
+    MS.H.states[:, 0] = MS.init_state
+    MS_list.latest_iter = 1
 
-    cost_ = lambda x: cost(x, e_data, MS, logger)
+    cost_ = lambda x: cost(x, e_data, MS_list, logger)
     opt = minimize(cost_, x0, method="Nelder-Mead")
     x = opt.x
     logger.info(10 ** x)
@@ -157,10 +132,10 @@ def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, log
     logger.info(opt.message)
 
     current_num_iters = len(MS.H.accept[0])
-    if MS.latest_iter < current_num_iters:
-        MS.H.truncate(MS.latest_iter, MS.param_info)
+    if MS_list.latest_iter < current_num_iters:
+        MS.H.truncate(MS_list.latest_iter)
     if export_path is not None:
-        logger.info(f"Exporting to {MS.MCMC_fields['output_path']}")
-        MS.checkpoint(os.path.join(MS.MCMC_fields["output_path"], export_path))
+        logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
+        MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
 
     return MS

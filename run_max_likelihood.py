@@ -91,6 +91,3 @@ if __name__ == "__main__":
     logger.info(f"MLE took {final_t} s ({final_t / 3600} hr)")
 
     stop_logging(logger, handler, 0)
-
-    output_path = MCMC_fields["output_path"]
-    print(f"{jobid} Finished - {output_path}")
