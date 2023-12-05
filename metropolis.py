@@ -526,8 +526,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, MCMC_fields, logger, verbose, ar
                                                    MCMC_fields, logger, verbose)
     if not success:
         likelihood = -np.inf
-        err_sq = np.inf
-        return likelihood, err_sq
+        return likelihood
 
     try:
         if irf_convolution is not None and irf_convolution[i] != 0:
@@ -551,8 +550,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, MCMC_fields, logger, verbose, ar
     except ValueError as e:
         logger.warning(e)
         likelihood = -np.inf
-        err_sq = np.inf
-        return likelihood, err_sq
+        return likelihood
 
     if verbose and logger is not None:
         logger.info(f"Comparing times {times_c[0]}-{times_c[-1]}")
@@ -577,8 +575,7 @@ def one_sim_likelihood(p, sim_info, IRF_tables, MCMC_fields, logger, verbose, ar
     except ValueError as e:
         logger.warning(e)
         likelihood = -np.inf
-        err_sq = np.inf
-        return likelihood, err_sq
+        return likelihood
 
     if MCMC_fields.get("force_min_y", False):
         sol, min_y, n_set = set_min_y(sol, vals_c, scale_shift)
@@ -589,7 +586,6 @@ def one_sim_likelihood(p, sim_info, IRF_tables, MCMC_fields, logger, verbose, ar
 
     if meas_type == "pa":
         likelihood = -sol[0]
-        err_sq = sol[0]
     else:
         try:
             err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
@@ -607,19 +603,17 @@ def one_sim_likelihood(p, sim_info, IRF_tables, MCMC_fields, logger, verbose, ar
         except ValueError as e:
             logger.warning(e)
             likelihood = -np.inf
-            err_sq = np.inf
-    return likelihood, err_sq
+    return likelihood
 
 
 def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables,
-                  MCMC_fields, verbose, logger, prev_p=None, t=0):
-    # Calculates likelihood of a new proposed parameter set
-    accepted = True
-    logratio = 0  # acceptance ratio = 1
+                  MCMC_fields, logger, verbose=False):
+    """
+    Calculates likelihood of a new proposed parameter set
+    """
+
     logll = np.zeros(sim_info["num_meas"])
 
-    # Can't use ndarray - err_sq for each sim can be different length
-    p.err_sq = [[] for _ in range(sim_info["num_meas"])]
 
     if MCMC_fields.get("use_multi_cpus", False):
         raise NotImplementedError("WIP - multi_cpus")
@@ -628,27 +622,13 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables,
         #    p.likelihood = np.array(likelihoods)
 
     for i in range(sim_info["num_meas"]):
-        logll[i], p.err_sq[i] = one_sim_likelihood(
+        logll[i] = one_sim_likelihood(
             p, sim_info, IRF_tables, MCMC_fields, logger, verbose,
             (i, np.array(iniPar[i]), times[i], vals[i], uncs[i]))
         
     logll = np.sum(logll)
 
-    if prev_p is not None:
-        if verbose and logger is not None:
-            logger.info(f"Log likelihood of proposed move: {MCMC_fields.get('_beta', 1) * logll}")
-        logratio = MCMC_fields.get('_beta', 1) * (logll - prev_p.likelihood)
-        if np.isnan(logratio):
-            logratio = -np.inf
-
-        accepted = roll_acceptance(logratio)
-
-    p.likelihood = logll
-
-    if prev_p is not None and accepted:
-        prev_p.likelihood = p.likelihood
-        prev_p.err_sq = list(p.err_sq)
-    return accepted
+    return logll
 
 
 def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
@@ -689,9 +669,11 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
             logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
         for MS in MS_list.MS:
-            run_iteration(MS.prev_p, MS_list.sim_info, MS_list.iniPar,
-                          MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
-                          MS.MCMC_fields, verbose, logger)
+            logll = run_iteration(MS.prev_p, MS_list.sim_info, MS_list.iniPar,
+                                  MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
+                                  MS.MCMC_fields, logger, verbose)
+
+            MS.prev_p.likelihood = logll
             MS.H.update(0, MS.prev_p, MS.means, MS.param_info)
     for k in range(starting_iter, num_iters):
         try:
@@ -746,12 +728,20 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
 
                     MS.H.record_best_logll(k, MS.prev_p)
 
-                    accepted = run_iteration(MS.p, MS_list.sim_info, MS_list.iniPar,
-                                             MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
-                                             MS.MCMC_fields, verbose,
-                                             logger, prev_p=MS.prev_p, t=k)
+                    logll = run_iteration(MS.p, MS_list.sim_info, MS_list.iniPar,
+                                          MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
+                                          MS.MCMC_fields, logger, verbose)
+                    
+                    if verbose and logger is not None:
+                        logger.info(f"Log likelihood of proposed move: {MS.MCMC_fields.get('_beta', 1) * logll}")
+                    logratio = MS.MCMC_fields.get('_beta', 1) * (logll - MS.prev_p.likelihood)
+                    if np.isnan(logratio):
+                        logratio = -np.inf
+
+                    accepted = roll_acceptance(logratio)
 
                     if accepted:
+                        MS.prev_p.likelihood = logll
                         MS.means.transfer_from(MS.p, MS.param_info)
                         MS.H.accept[0, k] = 1
 

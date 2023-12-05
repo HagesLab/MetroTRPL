@@ -126,8 +126,7 @@ class Parameters():
     tauP: float    # Hole bulk nonradiative decayl lifetime
     eps: float     # Relative dielectric cofficient
     Tm: float      # Temperature
-    likelihood: np.ndarray # Current likelihood of each simulation vs its respective measurement
-    err_sq: list     # Current squared error of each simulation vs its respective measurement
+    likelihood: float #  Log likelihood of the current state
 
     def __init__(self, param_info):
         self.param_names = param_info["names"]

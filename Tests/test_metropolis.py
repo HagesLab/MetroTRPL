@@ -806,29 +806,16 @@ class TestUtils(unittest.TestCase):
                      "model": "std"}
 
         p = Parameters(param_info)
-        p2 = Parameters(param_info)
 
         nt = 1000
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                                 sim_flags, verbose=True,
-                                 logger=self.logger, prev_p=None)
+        logll = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                              sim_flags, logger=self.logger)
 
-        # First iter; auto-accept
         np.testing.assert_almost_equal(
-            p.likelihood, np.sum([-59340.105083, -32560.139058]), decimal=0)  # rtol=1e-5
-        self.assertTrue(accepted)
-
-        # Second iter same as the first; auto-accept with likelihood ratio exactly 1
-        accepted = run_iteration(p2, simPar, iniPar, times, vals, uncs, None,
-                                 sim_flags, verbose=True,
-                                 logger=self.logger, prev_p=p)
-        self.assertTrue(accepted)
-        # Accept should overwrite p2 (new) into p (old)
-        np.testing.assert_equal(p.likelihood, p2.likelihood)
-        np.testing.assert_equal(p.err_sq, p2.err_sq)
+            logll, np.sum([-59340.105083, -32560.139058]), decimal=0)  # rtol=1e-5
 
     def test_run_iter_depletion(self):
         """Prove that the truncation allows likelihood of two carrier-depleting simulations to be reliably determined."""
@@ -877,9 +864,8 @@ class TestUtils(unittest.TestCase):
         times = [np.linspace(0, 100, nt+1)]
         vals = [np.log10(2e14 * np.exp(-times[0] / 8))]
         uncs = [np.ones(nt+1) * 1e-99]
-        run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                      sim_flags, verbose=True,
-                      logger=self.logger, prev_p=None)
+        logll1 = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                               sim_flags, logger=self.logger)
 
         # A small move toward the true lifetime of 10 makes the likelihood better
         # Without min_y truncation, the likelihoods were so small they weren't even comparable
@@ -887,10 +873,9 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"]["tauP"] = 4.01
 
         p2 = Parameters(param_info)
-        run_iteration(p2, simPar, iniPar, times, vals, uncs, None,
-                      sim_flags, verbose=True,
-                      logger=self.logger, prev_p=None)
-        self.assertTrue(p2.likelihood > p.likelihood)
+        logll2 = run_iteration(p2, simPar, iniPar, times, vals, uncs, None,
+                               sim_flags, logger=self.logger)
+        self.assertTrue(logll2 > logll1)
 
     def test_set_min_y(self):
         t = np.linspace(0, 100, 100)
@@ -956,13 +941,12 @@ class TestUtils(unittest.TestCase):
         times = [np.linspace(50, 100, nt+1), np.linspace(50, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                      sim_flags, verbose=True,
-                      logger=self.logger, prev_p=None)
+        logll = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                              sim_flags, logger=self.logger)
 
         # First iter; auto-accept
         np.testing.assert_almost_equal(
-            p.likelihood, np.sum([-29701, -16309]), decimal=0)  # rtol=1e-5
+            logll, np.sum([-29701, -16309]), decimal=0)  # rtol=1e-5
 
 
     def test_run_iter_scale(self):
@@ -1021,12 +1005,11 @@ class TestUtils(unittest.TestCase):
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
 
-        run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                      sim_flags, verbose=True,
-                      logger=self.logger, prev_p=None)
+        logll = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                              sim_flags, logger=self.logger)
 
         np.testing.assert_almost_equal(
-            p.likelihood, 0, decimal=0)  # rtol=1e-5
+            logll, 0, decimal=0)  # rtol=1e-5
 
     def test_run_iter_mixed_types(self):
         # Will basically need to set up a full simulation for this
@@ -1079,14 +1062,12 @@ class TestUtils(unittest.TestCase):
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * -2]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        accepted = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
-                                 sim_flags, verbose=True,
-                                 logger=self.logger, prev_p=None)
+        logll = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+                              sim_flags, logger=self.logger)
 
         # First iter; auto-accept
         np.testing.assert_almost_equal(
-            p.likelihood, np.sum([-59340.105083, -517.98]), decimal=0)  # rtol=1e-5
-        self.assertTrue(accepted)
+            logll, np.sum([-59340.105083, -517.98]), decimal=0)  # rtol=1e-5
 
     def test_one_sim_ll_errata(self):
         # TODO: The next time odeint fails to do a simulation, upload it into this
