@@ -90,8 +90,6 @@ class MetroState():
 
         self.prev_p = Parameters(param_info)
 
-        self.means = Parameters(param_info)
-
         self.param_info = param_info
         self.MCMC_fields = MCMC_fields
 

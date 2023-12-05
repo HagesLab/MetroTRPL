@@ -856,8 +856,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                 starting_iter = MCMC_fields["starting_iter"]
                 for MS in MS_list.MS:
                     MS.H.extend(starting_iter)
-                    for param in MS.param_info["names"]:
-                        setattr(MS.means, param, getattr(MS.H, f"mean_{param}")[0, starting_iter - 1])
 
             else:
                 starting_iter = MS_list.latest_iter + 1

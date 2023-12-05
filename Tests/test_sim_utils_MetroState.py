@@ -39,7 +39,6 @@ class TestUtils(unittest.TestCase):
         # The functionality for each of these has already been covered
         self.assertIsInstance(self.ms.p, Parameters)
         self.assertIsInstance(self.ms.prev_p, Parameters)
-        self.assertIsInstance(self.ms.means, Parameters)
 
         with self.assertLogs() as captured:
             self.ms.print_status(0, self.new_state, logger=self.logger)
