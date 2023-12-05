@@ -39,16 +39,14 @@ class TestUtils(unittest.TestCase):
         initial_guesses = {"ks":0, 'n0':0, 'p0':0}
 
         param_info["init_guess"] = initial_guesses
-        testP = Parameters(param_info)
-        testS.calculate_PL(testG, testP)
+        testS.calculate_PL(testG, param_info["init_guess"]["ks"], param_info["init_guess"]["n0"], param_info["init_guess"]["p0"])
         np.testing.assert_equal(np.zeros(num_tsteps), testS.PL)
 
         # Some PL
         initial_guesses = {"ks":1, 'n0':0, 'p0':0}
         param_info["init_guess"] = initial_guesses
         testS.P = np.ones((num_tsteps, num_nodes)) * 10
-        testP = Parameters(param_info)
-        testS.calculate_PL(testG, testP)
+        testS.calculate_PL(testG, param_info["init_guess"]["ks"], param_info["init_guess"]["n0"], param_info["init_guess"]["p0"])
         expected_PL = initial_guesses["ks"] * (testS.N * testS.P - initial_guesses["n0"]*initial_guesses["p0"])
         # Like integrating, since dx=1
         np.testing.assert_almost_equal(expected_PL[:,0] * num_nodes, testS.PL)
@@ -57,8 +55,7 @@ class TestUtils(unittest.TestCase):
         initial_guesses = {"ks":2, 'n0':1, 'p0':1}
         param_info["init_guess"] = initial_guesses
         testS.P = np.ones((num_tsteps, num_nodes)) * 10
-        testP = Parameters(param_info)
-        testS.calculate_PL(testG, testP)
+        testS.calculate_PL(testG, param_info["init_guess"]["ks"], param_info["init_guess"]["n0"], param_info["init_guess"]["p0"])
         expected_PL = initial_guesses["ks"] * (testS.N * testS.P - initial_guesses["n0"]*initial_guesses["p0"])
         np.testing.assert_almost_equal(expected_PL[:,0] * num_nodes, testS.PL)
 
@@ -68,8 +65,7 @@ class TestUtils(unittest.TestCase):
         initial_guesses = {"mu_n":1, "mu_p":1, 'n0':1, 'p0':1}
         param_info["init_guess"] = initial_guesses
         testS.P = np.ones((num_tsteps, num_nodes)) * 10
-        testP = Parameters(param_info)
-        testS.calculate_TRTS(testG, testP)
+        testS.calculate_TRTS(testG, param_info["init_guess"]["mu_n"], param_info["init_guess"]["mu_p"], param_info["init_guess"]["n0"], param_info["init_guess"]["p0"])
         expected_TRTS = q_C * (initial_guesses["mu_n"] * (testS.N - initial_guesses["n0"]) +
                        initial_guesses["mu_p"] * (testS.P - initial_guesses["p0"]))
         np.testing.assert_almost_equal(expected_TRTS[:,0] * num_nodes, testS.trts)
@@ -93,8 +89,7 @@ class TestUtils(unittest.TestCase):
         # Some PL
         initial_guesses = {"ks":2, 'n0':1, 'p0':1}
         param_info["init_guess"] = initial_guesses
-        testP = Parameters(param_info)
-        testS.calculate_PL(testG, testP)
+        testS.calculate_PL(testG, param_info["init_guess"]["ks"], param_info["init_guess"]["n0"], param_info["init_guess"]["p0"])
         expected_PL = initial_guesses["ks"] * (testS.N * testS.P - initial_guesses["n0"]*initial_guesses["p0"])
         np.testing.assert_almost_equal(expected_PL[0] * num_nodes, testS.PL)
 
@@ -104,8 +99,7 @@ class TestUtils(unittest.TestCase):
         initial_guesses = {"mu_n":1, "mu_p":1, 'n0':1, 'p0':1}
         param_info["init_guess"] = initial_guesses
         testS.P = np.ones(num_nodes) * 10
-        testP = Parameters(param_info)
-        testS.calculate_TRTS(testG, testP)
+        testS.calculate_TRTS(testG, param_info["init_guess"]["mu_n"], param_info["init_guess"]["mu_p"], param_info["init_guess"]["n0"], param_info["init_guess"]["p0"])
         expected_TRTS = q_C * (initial_guesses["mu_n"] * (testS.N - initial_guesses["n0"]) +
                        initial_guesses["mu_p"] * (testS.P - initial_guesses["p0"]))
         np.testing.assert_almost_equal(expected_TRTS[0] * num_nodes, testS.trts)

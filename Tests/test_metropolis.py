@@ -43,38 +43,34 @@ class TestUtils(unittest.TestCase):
         vals = {'n0': 0,
                 'p0': 0,
                 'eps': 1}
-        param_info = {"names": ["n0", "p0", "eps"],
-                      "active": {"n0": 1, "p0": 1, "eps": 1},
-                      "init_guess": vals}
 
-        pa = Parameters(param_info)
         nx = 10
         dx = 1
         # Test N=P
         N = np.zeros(nx)
         P = np.zeros(nx)
-        E = E_field(N, P, pa, dx)
+        E = E_field(N, P, vals["n0"], vals["p0"], vals["eps"], dx)
 
         np.testing.assert_equal(E, np.zeros_like(E))
 
         # Test N>P
         P = np.ones(nx) * 2
         N = np.ones(nx)
-        E = E_field(N, P, pa, dx)
+        E = E_field(N, P, vals["n0"], vals["p0"], vals["eps"], dx)
 
         np.testing.assert_equal(E[1:], np.ones_like(
             E[1:]) * q_C/eps0 * np.cumsum(N))
 
         # Test N<P
         P = np.ones(nx) * -1
-        E = E_field(N, P, pa, dx)
+        E = E_field(N, P, vals["n0"], vals["p0"], vals["eps"], dx)
 
         np.testing.assert_equal(
             E[1:], -2 * np.ones_like(E[1:]) * q_C/eps0 * np.cumsum(N))
 
         # Test corner_E != 0
         corner_E = 24
-        E = E_field(N, P, pa, dx, corner_E=corner_E)
+        E = E_field(N, P, vals["n0"], vals["p0"], vals["eps"], dx, corner_E=corner_E)
 
         np.testing.assert_equal(
             E[1:], -2 * np.ones_like(E[1:]) * q_C/eps0 * np.cumsum(N) + corner_E)
@@ -82,7 +78,7 @@ class TestUtils(unittest.TestCase):
         # Test 2D
         N = np.ones((nx, nx+1))
         P = np.ones((nx, nx+1)) * -1
-        E = E_field(N, P, pa, dx, corner_E=corner_E)
+        E = E_field(N, P, vals["n0"], vals["p0"], vals["eps"], dx, corner_E=corner_E)
         np.testing.assert_equal(
             E[:, 1:], -2 * np.ones_like(E[:, 1:]) * q_C/eps0 * np.cumsum(N, axis=1) + corner_E)
 
@@ -90,11 +86,9 @@ class TestUtils(unittest.TestCase):
         vals = {'n0': 1,
                 'p0': 1,
                 'eps': 1}
-        param_info["init_guess"] = vals
-        pa = Parameters(param_info)
         N = np.ones((nx, nx+1))
         P = np.ones((nx, nx+1))
-        E = E_field(N, P, pa, dx, corner_E=corner_E)
+        E = E_field(N, P, vals["n0"], vals["p0"], vals["eps"], dx, corner_E=corner_E)
         np.testing.assert_equal(E[1:], np.zeros_like(E[1:]) + corner_E)
 
         return
@@ -139,34 +133,35 @@ class TestUtils(unittest.TestCase):
                 'eps': 1}
 
         param_info["init_guess"] = vals
-        pa = Parameters(param_info)
+        indexes = {name: i for i, name in enumerate(param_info["names"])}
+        state = [param_info["init_guess"][name] for name in param_info["names"]]
         init_dN = 1e20 * np.ones(g.nx) # [cm^-3]
 
         # with solveivp
-        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+        test_PL, out_dN = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
                                 RTOL=1e-10, ATOL=1e-14)
         # Calculate expected output in simulation units
-        pa.apply_unit_conversions()
-        rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
+        for name in indexes:
+            state[indexes[name]] *= unit_conversions.get(name, 1)
+        rr = state[indexes["ks"]] * (out_dN * out_dN - state[indexes["n0"]] * state[indexes["p0"]])
         expected_out = trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2
         expected_out *= 1e23
-        pa.apply_unit_conversions(reverse=True)
+        for name in indexes:
+            state[indexes[name]] /= unit_conversions.get(name, 1)
         self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]))
 
         # with odeint
-        test_PL, out_DN = solve(init_dN, g, pa, meas="TRPL", solver=("odeint",),
+        test_PL, out_DN = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("odeint",),
                                 RTOL=1e-10, ATOL=1e-14)
-        pa.apply_unit_conversions()
-        rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
+        for name in indexes:
+            state[indexes[name]] *= unit_conversions.get(name, 1)
+        rr = state[indexes["ks"]] * (out_dN * out_dN - state[indexes["n0"]] * state[indexes["p0"]])
         expected_out = trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2
         expected_out *= 1e23
-        pa.apply_unit_conversions(reverse=True)
+        for name in indexes:
+            state[indexes[name]] /= unit_conversions.get(name, 1)
         self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]),
             places=6)
-
-        # No change should be seen by Parameters()
-        for n in param_info["names"]:
-            self.assertEqual(getattr(pa, n), vals[n])
 
         # try a trts
 
@@ -183,27 +178,30 @@ class TestUtils(unittest.TestCase):
                 "Tm": 300,
                 'eps': 1}
         param_info["init_guess"] = vals
-        pa = Parameters(param_info)
+        indexes = {name: i for i, name in enumerate(param_info["names"])}
+        state = [param_info["init_guess"][name] for name in param_info["names"]]
 
         test_TRTS, out_dN = solve(
-            init_dN, g, pa, meas="TRTS", solver=("solveivp",))
-        pa.apply_unit_conversions()
-        trts = q_C * (pa.mu_n * out_dN + pa.mu_p * out_dN)
+            init_dN, g, state, indexes, meas="TRTS", units=param_info["unit_conversions"], solver=("solveivp",))
+        for name in indexes:
+            state[indexes[name]] *= unit_conversions.get(name, 1)
+        trts = q_C * (state[indexes["mu_n"]] * out_dN + state[indexes["mu_p"]] * out_dN)
         expected_out = trapz(trts, dx=g.dx) + trts[0]*g.dx/2 + trts[-1]*g.dx/2
         expected_out *= 1e9
-        pa.apply_unit_conversions(reverse=True)
+        for name in indexes:
+            state[indexes[name]] /= unit_conversions.get(name, 1)
         self.assertAlmostEqual(test_TRTS[-1] / np.amax(test_TRTS[-1]), expected_out / np.amax(test_TRTS[-1]))
 
         for n in param_info["names"]:
-            self.assertEqual(getattr(pa, n), vals[n])
+            self.assertEqual(state[indexes[n]], vals[n])
 
         # try an undefined measurement
         with self.assertRaises(NotImplementedError):
-            solve(init_dN, g, pa, meas="something else")
+            solve(init_dN, g, state, indexes, meas="something else")
 
         # try an undefined solver
         with self.assertRaises(NotImplementedError):
-            solve(init_dN, g, pa, meas="TRPL", solver=("somethign else",))
+            solve(init_dN, g, state, indexes, meas="TRPL", solver=("somethign else",))
 
         return
 
@@ -248,18 +246,19 @@ class TestUtils(unittest.TestCase):
                 'eps': 1}
 
         param_info["init_guess"] = vals
-        pa = Parameters(param_info)
+        indexes = {name: i for i, name in enumerate(param_info["names"])}
+        state = [param_info["init_guess"][name] for name in param_info["names"]]
         init_dN = 1e18 * np.ones(g.nx) # [cm^-3]
 
         PL0 = calculate_PL(g.dx * 1e-7, init_dN, init_dN, vals["ks"], vals["n0"], vals["p0"]) # in cm/s units
         # No or large range - PL runs to conclusion
-        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+        test_PL, out_dN = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
                                 RTOL=1e-10, ATOL=1e-14)
         self.assertEqual(len(g.tSteps), len(test_PL))
 
         # Smaller range - PL decay stops early at PL_final, and signal over remaining time is set to PL_final
         g.min_y = PL0 * 1e-2
-        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+        test_PL, out_dN = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
                                 RTOL=1e-10, ATOL=1e-14)
 
         self.assertTrue(min(test_PL) >= g.min_y)
@@ -269,14 +268,14 @@ class TestUtils(unittest.TestCase):
         TRTS0 = calculate_TRTS(g.dx * 1e-7, init_dN, init_dN, vals["mu_n"], vals["mu_p"], vals["n0"], vals["p0"])
         # No or large range - PL runs to conclusion
         g.min_y = TRTS0 * 1e-10
-        test_TRTS, out_dN = solve(init_dN, g, pa, meas="TRTS", solver=("solveivp",),
+        test_TRTS, out_dN = solve(init_dN, g, state, indexes, meas="TRTS", units=param_info["unit_conversions"], solver=("solveivp",),
                                 RTOL=1e-10, ATOL=1e-14)
         self.assertEqual(len(g.tSteps), len(test_TRTS))
 
 
         # Smaller range - TRTS is truncated
         g.min_y = TRTS0 * 1e-1
-        test_TRTS, out_dN = solve(init_dN, g, pa, meas="TRTS", solver=("solveivp",),
+        test_TRTS, out_dN = solve(init_dN, g, state, indexes, meas="TRTS", units=param_info["unit_conversions"], solver=("solveivp",),
                                 RTOL=1e-10, ATOL=1e-14)
         self.assertTrue(min(test_TRTS) >= g.min_y)
         np.testing.assert_equal(test_TRTS[-10:], g.min_y)
@@ -330,18 +329,21 @@ class TestUtils(unittest.TestCase):
                 "tauE": 1e99}
 
         param_info["init_guess"] = vals
-        pa = Parameters(param_info)
+        indexes = {name: i for i, name in enumerate(param_info["names"])}
+        state = [param_info["init_guess"][name] for name in param_info["names"]]
         init_dN = 1e20 * np.ones(g.nx) # [cm^-3]
 
         # with solveivp
-        test_PL, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",), model="traps",
+        test_PL, out_dN = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",), model="traps",
                                 RTOL=1e-10, ATOL=1e-14)
         # Calculate expected output in simulation units
-        pa.apply_unit_conversions()
-        rr = pa.ks * (out_dN * out_dN - pa.n0 * pa.p0)
+        for name in indexes:
+            state[indexes[name]] *= unit_conversions.get(name, 1)
+        rr = state[indexes["ks"]] * (out_dN * out_dN - state[indexes["n0"]] * state[indexes["p0"]])
         expected_out = trapz(rr, dx=g.dx) + rr[0]*g.dx/2 + rr[-1]*g.dx/2
         expected_out *= 1e23
-        pa.apply_unit_conversions(reverse=True)
+        for name in indexes:
+            state[indexes[name]] /= unit_conversions.get(name, 1)
         self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]))
 
         return
@@ -387,7 +389,8 @@ class TestUtils(unittest.TestCase):
                 'eps': 1}
 
         param_info["init_guess"] = vals
-        pa = Parameters(param_info)
+        indexes = {name: i for i, name in enumerate(param_info["names"])}
+        state = [param_info["init_guess"][name] for name in param_info["names"]]
 
         fluence = 1e15 # Fluence, alpha in cm units
         alpha = 6e4
@@ -395,10 +398,10 @@ class TestUtils(unittest.TestCase):
 
         init_dN = fluence * alpha * np.exp(-alpha * g.xSteps * 1e-7)  # In cm units
 
-        PL_by_initvals, out_dN = solve(init_dN, g, pa, meas="TRPL", solver=("solveivp",),
+        PL_by_initvals, out_dN = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
                                        RTOL=1e-10, ATOL=1e-14)
 
-        PL_by_initparams, out_dN = solve([fluence, alpha], g, pa, meas="TRPL", solver=("solveivp",),
+        PL_by_initparams, out_dN = solve([fluence, alpha], g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
                                          RTOL=1e-10, ATOL=1e-14)
 
         np.testing.assert_almost_equal(PL_by_initvals / np.amax(PL_by_initvals), PL_by_initparams / np.amax(PL_by_initvals))
@@ -591,22 +594,22 @@ class TestUtils(unittest.TestCase):
                       "init_guess": initial_guesses,
                       "trial_move": trial_move}
 
-        pa = Parameters(param_info)
-        means = Parameters(param_info)
+        indexes = {name: param_names.index(name) for name in param_names}
+        state = [initial_guesses[name] for name in param_names]
 
         # Try box selection
-        select_next_params(pa, means, param_info, logger=self.logger)
+        new_state = select_next_params(state, param_info, logger=self.logger)
 
         # Inactive and shouldn't change
-        self.assertEqual(pa.a, initial_guesses['a'])
-        self.assertEqual(pa.c, initial_guesses['c'])
+        self.assertEqual(new_state[indexes["a"]], initial_guesses['a'])
+        self.assertEqual(new_state[indexes["c"]], initial_guesses['c'])
         num_tests = 100
         for t in range(num_tests):
-            select_next_params(pa, means, param_info, logger=self.logger)
-            self.assertTrue(np.abs(np.log10(pa.b) - np.log10(initial_guesses['b'])) <= 0.1,
-                            msg="Uniform step #{} failed: {} from mean {} and width 0.1".format(t, pa.b, initial_guesses['b']))
-            self.assertTrue(np.abs(pa.d-initial_guesses['d']) <= 1,
-                            msg="Uniform step #{} failed: {} from mean {} and width 1".format(t, pa.d, initial_guesses['d']))
+            new_state = select_next_params(state, param_info, logger=self.logger)
+            self.assertTrue(np.abs(np.log10(new_state[indexes["b"]]) - np.log10(initial_guesses['b'])) <= 0.1,
+                            msg="Uniform step #{} failed: {} from mean {} and width 0.1".format(t, new_state[indexes["b"]], initial_guesses['b']))
+            self.assertTrue(np.abs(new_state[indexes["d"]]-initial_guesses['d']) <= 1,
+                            msg="Uniform step #{} failed: {} from mean {} and width 1".format(t, new_state[indexes["d"]], initial_guesses['d']))
 
         return
 
@@ -640,14 +643,14 @@ class TestUtils(unittest.TestCase):
                       "init_guess": initial_guesses,
                       "trial_move": trial_move}
 
-        pa = Parameters(param_info)
-        means = Parameters(param_info)
+        indexes = {name: param_names.index(name) for name in param_names}
+        state = [initial_guesses[name] for name in param_names]
 
-        for i in range(10):
-            select_next_params(pa, means, param_info, logger=self.logger)
+        for _ in range(10):
+            new_state = select_next_params(state, param_info, logger=self.logger)
 
-            self.assertTrue(2 / (pa.mu_n**-1 + pa.mu_p**-1) <= 23)
-            self.assertTrue(2 / (pa.mu_n**-1 + pa.mu_p**-1) >= 17)
+            self.assertTrue(2 / (new_state[indexes["mu_n"]]**-1 + new_state[indexes["mu_p"]]**-1) <= 23)
+            self.assertTrue(2 / (new_state[indexes["mu_n"]]**-1 + new_state[indexes["mu_p"]]**-1) >= 17)
 
         return
 
@@ -679,18 +682,19 @@ class TestUtils(unittest.TestCase):
                 "Tm": 300}
 
         param_info["init_guess"] = vals
-        pa = Parameters(param_info)
+        indexes = {name: param_info["names"].index(name) for name in param_info["names"]}
+        state = [param_info["init_guess"][name] for name in param_info["names"]]
 
         thickness = 1000
         nx = 100
         times = np.linspace(10, 100, 901)
 
         iniPar = np.logspace(19, 14, nx)
-        tSteps, sol = do_simulation(pa, thickness, nx, iniPar, times, hmax=4)
+        tSteps, sol = do_simulation(state, indexes, thickness, nx, iniPar, times, hmax=4, units=param_info["unit_conversions"])
         np.testing.assert_equal(tSteps[0], 0)
 
         times = np.linspace(0, 100, 1001)
-        tSteps2, sol2 = do_simulation(pa, thickness, nx, iniPar, times, hmax=4)
+        tSteps2, sol2 = do_simulation(state, indexes, thickness, nx, iniPar, times, hmax=4, units=param_info["unit_conversions"])
         np.testing.assert_equal(sol[0], sol2[0])
         np.testing.assert_equal(sol[-1], sol2[-1])
 
@@ -805,13 +809,14 @@ class TestUtils(unittest.TestCase):
                      "solver": ("solveivp",),
                      "model": "std"}
 
-        p = Parameters(param_info)
+        indexes = {name: param_names.index(name) for name in param_names}
+        state = [param_info["init_guess"][name] for name in param_names]
 
         nt = 1000
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        logll = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+        logll = run_iteration(state, indexes, unit_conversions, simPar, iniPar, times, vals, uncs, None,
                               sim_flags, logger=self.logger)
 
         np.testing.assert_almost_equal(
@@ -858,13 +863,14 @@ class TestUtils(unittest.TestCase):
                      "force_min_y": True,
                      "model": "std"}
 
-        p = Parameters(param_info)
+        indexes = {name: param_names.index(name) for name in param_names}
+        state = [param_info["init_guess"][name] for name in param_names]
 
         nt = 1000
         times = [np.linspace(0, 100, nt+1)]
         vals = [np.log10(2e14 * np.exp(-times[0] / 8))]
         uncs = [np.ones(nt+1) * 1e-99]
-        logll1 = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+        logll1 = run_iteration(state, indexes, unit_conversions, simPar, iniPar, times, vals, uncs, None,
                                sim_flags, logger=self.logger)
 
         # A small move toward the true lifetime of 10 makes the likelihood better
@@ -872,8 +878,8 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"]["tauN"] = 4.01
         param_info["init_guess"]["tauP"] = 4.01
 
-        p2 = Parameters(param_info)
-        logll2 = run_iteration(p2, simPar, iniPar, times, vals, uncs, None,
+        state = [param_info["init_guess"][name] for name in param_names]
+        logll2 = run_iteration(state, indexes, unit_conversions, simPar, iniPar, times, vals, uncs, None,
                                sim_flags, logger=self.logger)
         self.assertTrue(logll2 > logll1)
 
@@ -935,13 +941,14 @@ class TestUtils(unittest.TestCase):
                      "solver": ("solveivp",),
                      "model": "std"}
 
-        p = Parameters(param_info)
+        indexes = {name: param_names.index(name) for name in param_names}
+        state = [param_info["init_guess"][name] for name in param_names]
 
         nt = 500
         times = [np.linspace(50, 100, nt+1), np.linspace(50, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        logll = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+        logll = run_iteration(state, indexes, unit_conversions, simPar, iniPar, times, vals, uncs, None,
                               sim_flags, logger=self.logger)
 
         # First iter; auto-accept
@@ -996,16 +1003,21 @@ class TestUtils(unittest.TestCase):
                      "solver": ("solveivp",),
                      "model": "std"}
 
-        p = Parameters(param_info)
+        # These would normally be inserted when the script file is read by bayes_io
+        param_info["names"].append("_s0")
+        param_info["names"].append("_s1")
         # By setting individual scale factors in this simple case the likelihood can be made perfect
-        setattr(p, "_s0", 2e-17 ** -1)
-        setattr(p, "_s1", 2e-15 ** -1)
+        param_info["init_guess"]["_s0"] = 2e-17 ** -1
+        param_info["init_guess"]["_s1"] = 2e-15 ** -1
+        indexes = {name: param_names.index(name) for name in param_names}
+        state = [param_info["init_guess"][name] for name in param_names]
+
         nt = 1000
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
 
-        logll = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+        logll = run_iteration(state, indexes, unit_conversions, simPar, iniPar, times, vals, uncs, None,
                               sim_flags, logger=self.logger)
 
         np.testing.assert_almost_equal(
@@ -1056,13 +1068,14 @@ class TestUtils(unittest.TestCase):
                      "solver": ("solveivp",),
                      "model": "std"}
 
-        p = Parameters(param_info)
+        indexes = {name: param_names.index(name) for name in param_names}
+        state = [param_info["init_guess"][name] for name in param_names]
 
         nt = 1000
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * -2]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        logll = run_iteration(p, simPar, iniPar, times, vals, uncs, None,
+        logll = run_iteration(state, indexes, unit_conversions, simPar, iniPar, times, vals, uncs, None,
                               sim_flags, logger=self.logger)
 
         # First iter; auto-accept
@@ -1138,4 +1151,4 @@ class TestUtils(unittest.TestCase):
 if __name__ == "__main__":
     t = TestUtils()
     t.setUp()
-    t.test_run_iter()
+    t.test_select_next_params()

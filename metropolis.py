@@ -48,20 +48,20 @@ def U(x):
                              + 1000 * (x > 2)
 
 
-def E_field(N, P, PA, dx, corner_E=0):
+def E_field(N, P, n0, p0, eps, dx, corner_E=0):
     if N.ndim == 1:
-        E = corner_E + q_C / (PA.eps * eps0) * dx * \
-            np.cumsum(((P - PA.p0) - (N - PA.n0)))
+        E = corner_E + q_C / (eps * eps0) * dx * \
+            np.cumsum(((P - p0) - (N - n0)))
         E = np.concatenate(([corner_E], E))
     elif N.ndim == 2:
-        E = corner_E + q_C / (PA.eps * eps0) * dx * \
-            np.cumsum(((P - PA.p0) - (N - PA.n0)), axis=1)
+        E = corner_E + q_C / (eps * eps0) * dx * \
+            np.cumsum(((P - p0) - (N - n0)), axis=1)
         num_tsteps = len(N)
         E = np.concatenate((np.ones(shape=(num_tsteps, 1))*corner_E, E), axis=1)
     return E
 
 
-def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
+def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp",), model="std",
           RTOL=DEFAULT_RTOL, ATOL=DEFAULT_ATOL):
     """
     Calculate one simulation. Outputs in same units as measurement data,
@@ -74,10 +74,15 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
         of parameters (e.g. [fluence, alpha, direction]) usable to generate the initial condition.
     g : Grid
         Object containing space and time grid information.
-    p : Parameters
-        Object corresponding to current state of MMC walk.
+    state : ndarray
+        An array of parameters, ordered according to param_info["names"],
+        corresponding to a state in the parameter space.
+    indexes : dict[str, int]
+        A map of parameter names and their corresponding indices in the state array.
     meas : str, optional
         Type of measurement (e.g. TRPL, TRTS) being simulated. The default is "TRPL".
+    units : dict[str], optional
+        Unit conversions to be applied to each parameter. The default is None.
     solver : tuple(str), optional
         Solution method used to perform simulation and optional related args.
         The first element is the solver type.
@@ -103,6 +108,8 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
         Values (e.g. the electron profile) at the final time of the simulation.
 
     """
+    if units is None:
+        units = {}
     if solver[0] == "solveivp" or solver[0] == "odeint" or solver[0] == "diagnostic":
         if len(iniPar) == g.nx:         # If list of initial values
             init_dN = iniPar * 1e-21    # [cm^-3] to [nm^-3]
@@ -115,22 +122,27 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
             except (IndexError, ValueError):
                 pass
 
-        p.apply_unit_conversions()
-        N = init_dN + p.n0
-        P = init_dN + p.p0
-        E_f = E_field(N, P, p, g.dx)
+        for name in indexes:
+            state[indexes[name]] *= units.get(name, 1)
+        N = init_dN + state[indexes["n0"]]
+        P = init_dN + state[indexes["p0"]]
+        E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], g.dx)
 
 
         # Depends on how many dependent variables and parameters are in the selected model
         if model == "std":
             init_condition = np.concatenate([N, P, E_f], axis=None)
-            args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
-                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm,)
+            args = (g.nx, g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                    state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                    state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                    ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]],)
         elif model == "traps":
             init_condition = np.concatenate([N, np.zeros_like(N), P, E_f], axis=None)
-            args = (g.nx, g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp,
-                p.Sf, p.Sb, p.tauN, p.tauP, ((q_C) / (p.eps * eps0)), p.Tm,
-                p.kC, p.Nt, p.tauE)
+            args = (g.nx, g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                    state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                    state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                    ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]],
+                    state[indexes["kC"]], state[indexes["Nt"]], state[indexes["tauE"]],)
         else:
             raise ValueError(f"Invalid model {model}")
 
@@ -180,18 +192,20 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
             s.N, s.N_trap, s.P, E_f = np.split(data, [g.nx, 2*g.nx, 3*g.nx], axis=1)
 
         if meas == "TRPL":
-            s.calculate_PL(g, p)
-            next_init = s.N[-1] - p.n0
-            p.apply_unit_conversions(reverse=True)  # [nm, V, ns] to [cm, V, s]
+            s.calculate_PL(g, state[indexes["ks"]], state[indexes["n0"]], state[indexes["p0"]])
+            next_init = s.N[-1] - state[indexes["n0"]]
+            for name in indexes:
+                state[indexes[name]] /= units.get(name, 1)  # [nm, V, ns] to [cm, V, s]
             s.PL *= 1e23                            # [nm^-2 ns^-1] to [cm^-2 s^-1]
             i_final = np.argmax(s.PL < g.min_y)
             if s.PL[i_final] < g.min_y:
                 s.PL[i_final:] = g.min_y
             return s.PL, next_init
         elif meas == "TRTS":
-            s.calculate_TRTS(g, p)
-            next_init = s.N[-1] - p.n0
-            p.apply_unit_conversions(reverse=True)
+            s.calculate_TRTS(g, state[indexes["mu_n"]], state[indexes["mu_p"]], state[indexes["n0"]], state[indexes["p0"]])
+            next_init = s.N[-1] - state[indexes["n0"]]
+            for name in indexes:
+                state[indexes[name]] /= units.get(name, 1)
             s.trts *= 1e9
             i_final = np.argmax(s.trts < g.min_y)
             if s.trts[i_final] < g.min_y:
@@ -211,7 +225,10 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
             nn.load_model(solver[1], solver[2])
 
         scaled_matPar = np.zeros((1, 14))
-        scaled_matPar[0] = [p.p0, p.mu_n, p.mu_p, p.ks, p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, p.eps**-1,
+        scaled_matPar[0] = [state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                            state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                            state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                            state[indexes["eps"]]**-1,
                             iniPar[0], iniPar[1], g.thickness]
 
         pl_from_NN = nn.predict(g.tSteps, scaled_matPar)
@@ -221,47 +238,45 @@ def solve(iniPar, g, p, meas="TRPL", solver=("solveivp",), model="std",
         raise NotImplementedError
 
 
-def check_approved_param(new_p, param_info):
+def check_approved_param(new_state, param_info):
     """ Raise a warning for non-physical or unrealistic proposed trial moves,
         or proposed moves that exceed the prior distribution.
     """
-    order = list(param_info['names'])
+    order = param_info['names']
     do_log = param_info["do_log"]
     active = param_info["active"]
     checks = {}
     prior_dist = param_info["prior_dist"]
 
     # Ensure proposal stays within bounds of prior distribution
-    for param in order:
-        if param not in order:
-            continue
+    for i, param in enumerate(order):
         if not active[param]:
             continue
 
         lb = prior_dist[param][0]
         ub = prior_dist[param][1]
         if do_log[param]:
-            diff = 10 ** new_p[order.index(param)]
+            diff = 10 ** new_state[i]
         else:
-            diff = new_p[order.index(param)]
+            diff = new_state[i]
         checks[f"{param}_size"] = (lb < diff < ub)
 
     # TRPL specific checks:
     # p0 > n0 by definition of a p-doped material
     if 'p0' in order and 'n0' in order:
-        checks["p0_greater"] = (new_p[order.index('p0')]
-                                > new_p[order.index('n0')])
+        checks["p0_greater"] = (new_state[order.index('p0')]
+                                > new_state[order.index('n0')])
     else:
         checks["p0_greater"] = True
 
     # tau_n and tau_p must be *close* (within 2 OM) for a reasonable midgap SRH
     if 'tauN' in order and 'tauP' in order:
         # Compel logscale for this one - makes for easier check
-        logtn = new_p[order.index('tauN')]
+        logtn = new_state[order.index('tauN')]
         if not do_log["tauN"]:
             logtn = np.log10(logtn)
 
-        logtp = new_p[order.index('tauP')]
+        logtp = new_state[order.index('tauP')]
         if not do_log["tauP"]:
             logtp = np.log10(logtp)
 
@@ -276,21 +291,21 @@ def check_approved_param(new_p, param_info):
     return failed_checks
 
 
-def select_next_params(p, means, param_info, coerce_hard_bounds=False, logger=None, verbose=False):
-    """ Trial move function:
-        box: uniform rectangle centered about current state.
+def select_next_params(current_state, param_info, coerce_hard_bounds=False, logger=None, verbose=False):
+    """ 
+    Trial move function: returns a new proposed state equal to the current_state plus a uniform random displacement
     """
     is_active = param_info["active"]
     do_log = param_info["do_log"]
     names = param_info["names"]
     trial_move = param_info["trial_move"]
+    _current_state = np.array(current_state, dtype=float)
 
     mu_constraint = param_info.get("do_mu_constraint", None)
 
-    mean = means.to_array(param_info)
     for i, param in enumerate(names):
         if do_log[param]:
-            mean[i] = np.log10(mean[i])
+            _current_state[i] = np.log10(_current_state[i])
 
     tries = 0
 
@@ -301,23 +316,25 @@ def select_next_params(p, means, param_info, coerce_hard_bounds=False, logger=No
     else:
         max_tries = 1
 
-    new_p = np.zeros_like(mean)
+    new_state = np.array(_current_state)
     while tries < max_tries:
         tries += 1
 
         for i, param in enumerate(names):
-            new_p[i] = np.random.uniform(
-                mean[i]-trial_move[param], mean[i]+trial_move[param])
+            if not is_active[param]:
+                continue
+            new_state[i] = np.random.uniform(
+                _current_state[i]-trial_move[param], _current_state[i]+trial_move[param])
             if mu_constraint is not None and param == "mu_p":
                 ambi = mu_constraint[0]
                 ambi_std = mu_constraint[1]
                 if verbose and logger is not None:
                     logger.debug(f"mu constraint: ambi {ambi} +/- {ambi_std}")
                 new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
-                new_p[i] = np.log10(
-                    (2 / new_muambi - 1 / 10 ** new_p[i-1])**-1)
+                new_state[i] = np.log10(
+                    (2 / new_muambi - 1 / 10 ** new_state[i-1])**-1)
 
-        failed_checks = check_approved_param(new_p, param_info)
+        failed_checks = check_approved_param(new_state, param_info)
         success = len(failed_checks) == 0
         if success:
             if verbose and logger is not None:
@@ -328,15 +345,12 @@ def select_next_params(p, means, param_info, coerce_hard_bounds=False, logger=No
             logger.warning(f"Failed checks: {failed_checks}")
 
     for i, param in enumerate(names):
-        if is_active[param]:
-            if do_log[param]:
-                setattr(p, param, 10 ** new_p[i])
-            else:
-                setattr(p, param, new_p[i])
-    return
+        if do_log[param]:
+            new_state[i] =  10 ** new_state[i]
+    return new_state
 
 
-def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
+def do_simulation(state, indexes, thickness, nx, iniPar, times, hmax, meas="TRPL", units=None,
                   solver=("solveivp",), model="std", rtol=DEFAULT_RTOL, atol=DEFAULT_ATOL):
     """ Set up one simulation. """
     g = Grid()
@@ -357,11 +371,11 @@ def do_simulation(p, thickness, nx, iniPar, times, hmax, meas="TRPL",
         g.tSteps = np.concatenate((np.arange(0, times[0], dt_estimate), g.tSteps))
 
     sol, next_init_condition = solve(
-        iniPar, g, p, meas=meas, solver=solver, model=model, RTOL=rtol, ATOL=atol)
+        iniPar, g, state, indexes, meas=meas, units=units, solver=solver, model=model, RTOL=rtol, ATOL=atol)
     return g.tSteps, sol
 
 
-def converge_simulation(i, p, sim_info, iniPar, times, vals,
+def converge_simulation(i, state, indexes, sim_info, iniPar, times, vals, units,
                         MCMC_fields, logger=None, verbose=True):
     """
     Retest and repeat simulation until all stipulated convergence criteria
@@ -373,8 +387,11 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     ----------
     i : int
         Index of ith simulation in a measurement set requiring n simulations.
-    p : Parameters
-        Object corresponding to current state of MMC walk.
+    state : ndarray
+        An array of parameters, ordered according to param_info["names"],
+        corresponding to a state in the parameter space.
+    indexes : dict[str, int]
+        A map of parameter names and their corresponding indices in the state array.
     sim_info : dict
         Dictionary compatible with unpack_simpar(),
         containing a thickness, nx, and measurement type info
@@ -413,8 +430,8 @@ def converge_simulation(i, p, sim_info, iniPar, times, vals,
     sol = np.zeros_like(t_steps)
 
     try:
-        t_steps, sol = do_simulation(p, thickness, nx, iniPar, times, hmax=hmax,
-                                    meas=meas_type,
+        t_steps, sol = do_simulation(state, indexes, thickness, nx, iniPar, times, hmax=hmax,
+                                    meas=meas_type, units=units,
                                     solver=MCMC_fields["solver"], model=MCMC_fields["model"],
                                     rtol=rtol, atol=atol)
     except ValueError as e:
@@ -491,7 +508,7 @@ def almost_equal(x, x0, threshold=1e-10):
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
 
-def one_sim_likelihood(p, sim_info, IRF_tables, MCMC_fields, logger, verbose, args):
+def one_sim_likelihood(state, indexes, units, sim_info, IRF_tables, MCMC_fields, logger, verbose, args):
     i, iniPar, times, vals, uncs = args
     meas_type = sim_info["meas_types"][i]
     irf_convolution = MCMC_fields.get("irf_convolution", None)
@@ -499,30 +516,33 @@ def one_sim_likelihood(p, sim_info, IRF_tables, MCMC_fields, logger, verbose, ar
     ff = MCMC_fields.get("fittable_fluences", None)
     if (ff is not None and i in ff[1]):
         if ff[2] is not None and len(ff[2]) > 0:
-            iniPar[0] *= getattr(p, f"_f{search_c_grps(ff[2], i)}")
+            name = f"_f{search_c_grps(ff[2], i)}"
         else:
-            iniPar[0] *= getattr(p, f"_f{i}")
+            name = f"_f{i}"
+        iniPar[0] *= state[indexes[name]]
     fa = MCMC_fields.get("fittable_absps", None)
     if (fa is not None and i in fa[1]):
         if fa[2] is not None and len(fa[2]) > 0:
-            iniPar[1] *= getattr(p, f"_a{search_c_grps(fa[2], i)}")
+            name = f"_a{search_c_grps(fa[2], i)}"
         else:
-            iniPar[1] *= getattr(p, f"_a{i}")
+            name = f"_a{i}"
+        iniPar[1] *= state[indexes[name]]
     fs = MCMC_fields.get("scale_factor", None)
     if (fs is not None and i in fs[1]):
         if fs[2] is not None and len(fs[2]) > 0:
-            scale_shift = np.log10(getattr(p, f"_s{search_c_grps(fs[2], i)}"))
+            name = f"_s{search_c_grps(fs[2], i)}"
         else:
-            scale_shift = np.log10(getattr(p, f"_s{i}"))
+            name = f"_s{i}"
+        scale_shift = np.log10(state[indexes[name]])
     else:
         scale_shift = 0
 
     if meas_type == "pa":
         tSteps = np.array([0])
-        sol = np.array([U(p.x)])
+        sol = np.array([U(state[0])])
         success = True
     else:
-        tSteps, sol, success = converge_simulation(i, p, sim_info, iniPar, times, vals,
+        tSteps, sol, success = converge_simulation(i, state, indexes, sim_info, iniPar, times, vals, units,
                                                    MCMC_fields, logger, verbose)
     if not success:
         likelihood = -np.inf
@@ -606,10 +626,10 @@ def one_sim_likelihood(p, sim_info, IRF_tables, MCMC_fields, logger, verbose, ar
     return likelihood
 
 
-def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables,
+def run_iteration(state, indexes, units, sim_info, iniPar, times, vals, uncs, IRF_tables,
                   MCMC_fields, logger, verbose=False):
     """
-    Calculates likelihood of a new proposed parameter set
+    Calculates likelihood of a new proposed state
     """
 
     logll = np.zeros(sim_info["num_meas"])
@@ -623,7 +643,7 @@ def run_iteration(p, sim_info, iniPar, times, vals, uncs, IRF_tables,
 
     for i in range(sim_info["num_meas"]):
         logll[i] = one_sim_likelihood(
-            p, sim_info, IRF_tables, MCMC_fields, logger, verbose,
+            state, indexes, units, sim_info, IRF_tables, MCMC_fields, logger, verbose,
             (i, np.array(iniPar[i]), times[i], vals[i], uncs[i]))
         
     logll = np.sum(logll)
@@ -669,12 +689,12 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
             logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
         for MS in MS_list.MS:
-            logll = run_iteration(MS.prev_p, MS_list.sim_info, MS_list.iniPar,
+            logll = run_iteration(MS.init_state, MS.param_indexes, MS.param_info["unit_conversions"], MS_list.sim_info, MS_list.iniPar,
                                   MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
                                   MS.MCMC_fields, logger, verbose)
 
-            MS.prev_p.likelihood = logll
-            MS.H.update(0, MS.prev_p, MS.means, MS.param_info)
+            MS.H.loglikelihood[0, 0] = logll
+            MS.H.states[:, 0] = MS.init_state
     for k in range(starting_iter, num_iters):
         try:
             if logger is not None:
@@ -698,20 +718,21 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                     MS_J = MS_list.MS[i+1]
                     beta_j = MS_J.MCMC_fields["_beta"]
                     beta_i = MS_I.MCMC_fields["_beta"]
-                    logratio = -(beta_j - beta_i) * (MS_J.prev_p.likelihood - MS_I.prev_p.likelihood)
+                    logratio = -(beta_j - beta_i) * (MS_J.H.loglikelihood[0, k-1] - MS_I.H.loglikelihood[0, k-1])
 
                     accepted = roll_acceptance(logratio)
 
                     if accepted:
-                        MS_I.prev_p.likelihood, MS_J.prev_p.likelihood = MS_J.prev_p.likelihood, MS_I.prev_p.likelihood
+                        MS_I.H.loglikelihood[0, k] = MS_J.H.loglikelihood[0, k-1]
+                        MS_J.H.loglikelihood[0, k] = MS_I.H.loglikelihood[0, k-1]
+                        MS_I.H.states[:, k] = MS_J.H.states[:, k-1]
+                        MS_J.H.states[:, k] = MS_I.H.states[:, k-1]
 
-                        for param in MS_I.param_info['names']:
-                            setattr(MS_list.mean_buffer, param, getattr(MS_J.means, param))
-                            setattr(MS_J.means, param, getattr(MS_I.means, param))
-                            setattr(MS_I.means, param, getattr(MS_list.mean_buffer, param))
-
-                    MS_J.H.update(k, MS_J.p, MS_J.means, MS_J.param_info)
-                    MS_I.H.update(k, MS_I.p, MS_I.means, MS_I.param_info)
+                    else:
+                        MS_I.H.loglikelihood[0, k] = MS_I.H.loglikelihood[0, k-1]
+                        MS_J.H.loglikelihood[0, k] = MS_J.H.loglikelihood[0, k-1]
+                        MS_I.H.states[:, k] = MS_I.H.states[:, k-1]
+                        MS_J.H.states[:, k] = MS_J.H.states[:, k-1]
 
                 elif m == i+1:
                     # Skip the (i+1)th chain if it was just swapped
@@ -720,32 +741,32 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                 else:
                     # Non-tempering move, or all other chains not selected for tempering
 
-                    select_next_params(MS.p, MS.means, MS.param_info,
-                                       MS.MCMC_fields.get("hard_bounds", 0), logger)
+                    new_state = select_next_params(MS.H.states[:, k-1], MS.param_info,
+                                                   MS.MCMC_fields.get("hard_bounds", 0), logger)
 
                     if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
-                        MS.print_status(logger)
+                        MS.print_status(k - 1, new_state, logger)
 
-                    MS.H.record_best_logll(k, MS.prev_p)
-
-                    logll = run_iteration(MS.p, MS_list.sim_info, MS_list.iniPar,
+                    logll = run_iteration(new_state, MS.param_indexes, MS.param_info["unit_conversions"], MS_list.sim_info, MS_list.iniPar,
                                           MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
                                           MS.MCMC_fields, logger, verbose)
                     
                     if verbose and logger is not None:
                         logger.info(f"Log likelihood of proposed move: {MS.MCMC_fields.get('_beta', 1) * logll}")
-                    logratio = MS.MCMC_fields.get('_beta', 1) * (logll - MS.prev_p.likelihood)
+                    logratio = MS.MCMC_fields.get('_beta', 1) * (logll - MS.H.loglikelihood[0, k-1])
                     if np.isnan(logratio):
                         logratio = -np.inf
 
                     accepted = roll_acceptance(logratio)
 
                     if accepted:
-                        MS.prev_p.likelihood = logll
-                        MS.means.transfer_from(MS.p, MS.param_info)
+                        MS.H.loglikelihood[0, k] = logll
+                        MS.H.states[:, k] = new_state
                         MS.H.accept[0, k] = 1
+                    else:
+                        MS.H.loglikelihood[0, k] = MS.H.loglikelihood[0, k-1]
+                        MS.H.states[:, k] = MS.H.states[:, k-1]
 
-                    MS.H.update(k, MS.p, MS.means, MS.param_info)
             MS_list.latest_iter = k
 
         except KeyboardInterrupt:
@@ -834,16 +855,15 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             if "starting_iter" in MCMC_fields and MCMC_fields["starting_iter"] < MS_list.latest_iter:
                 starting_iter = MCMC_fields["starting_iter"]
                 for MS in MS_list.MS:
-                    MS.H.extend(starting_iter, MS.param_info)
+                    MS.H.extend(starting_iter)
                     for param in MS.param_info["names"]:
                         setattr(MS.means, param, getattr(MS.H, f"mean_{param}")[0, starting_iter - 1])
-                    MS.prev_p.likelihood = 0
-                    MS.prev_p.likelihood = MS.H.loglikelihood[0, -1]
+
             else:
                 starting_iter = MS_list.latest_iter + 1
 
                 for MS in MS_list.MS:
-                    MS.H.extend(num_iters, MS.param_info)
+                    MS.H.extend(num_iters)
                     MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
 
     # From this point on, for consistency, work with ONLY the MetroState objects

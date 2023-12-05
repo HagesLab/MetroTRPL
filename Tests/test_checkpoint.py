@@ -155,10 +155,12 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_equal(self.MS_list.MS[0].H.loglikelihood,
                                 self.ensemble_from_chpt.MS[0].H.loglikelihood)
 
+        np.testing.assert_equal(self.MS_list.MS[0].H.states, self.ensemble_from_chpt.MS[0].H.states)
+
+        # Saving a checkpoint should also unravel H.states into attributes
         for param in self.MS_list.MS[0].param_info['names']:
-            h1_mean = getattr(self.MS_list.MS[0].H, f"mean_{param}")
-            h2_mean = getattr(self.ensemble_from_chpt.MS[0].H, f"mean_{param}")
-            np.testing.assert_equal(h1_mean, h2_mean)
+            h1_mean = getattr(self.ensemble_from_chpt.MS[0].H, f"mean_{param}")
+            np.testing.assert_equal(len(h1_mean), self.MS_list.MS[0].H.states.shape[1])
         return
 
 

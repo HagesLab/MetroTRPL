@@ -31,6 +31,8 @@ class TestUtils(unittest.TestCase):
         self.g = g
         param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp",
                        "Sf", "Sb", "tauN", "tauP", "eps", "Tm", "m"]
+        
+        self.indexes = {name: i for i, name in enumerate(param_names)}
         self.unit_conversions = {"n0":((1e-7) ** 3), "p0":((1e-7) ** 3), 
                                  "mu_n":((1e7) ** 2) / (1e9), "mu_p":((1e7) ** 2) / (1e9), 
                                  "ks":((1e7) ** 3) / (1e9), 
@@ -70,18 +72,22 @@ class TestUtils(unittest.TestCase):
                         "m":0}
         
         self.param_info["init_guess"] = initial_guess
-        p = Parameters(self.param_info)
-        p.apply_unit_conversions()
+        indexes = self.indexes
+        state = [initial_guess[name] for name in self.param_info["names"]]
+        for name in indexes:
+            state[indexes[name]] *= self.unit_conversions.get(name, 1)
         init_dN = np.ones(self.g.nx) * 1e10 * self.unit_conversions["n0"]
-        N = init_dN + p.n0
-        P = init_dN + p.p0
-        E_f = E_field(N, P, p, self.g.dx)
+        N = init_dN + state[indexes["n0"]]
+        P = init_dN + state[indexes["p0"]]
+        E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], self.g.dx)
         
         init_condition = np.concatenate([N, P, E_f], axis=None)
-        args = (self.g,p)
-        sol = solve_ivp(dydt, [self.g.start_time,self.g.time], init_condition, 
-                        args=args, t_eval=self.g.tSteps, method='LSODA', 
-                        max_step=self.g.hmax)
+        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
+                         args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                                state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                                state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                                ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
+                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
         
         s = self.s
@@ -89,15 +95,7 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_almost_equal(s.N, np.ones_like(s.N) * init_dN)
         np.testing.assert_almost_equal(s.P, np.ones_like(s.P) * init_dN)
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
-        
-        # The numba version should give same output as the non-numba version
-        sol2 = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
-                         args=(self.g.nx, self.g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks,
-                               p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, (q_C / (p.eps * eps0)),
-                               p.Tm),
-                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
-        data2 = sol2.y.T
-        np.testing.assert_equal(data, data2)
+
         ##############
         
     def test_solver_diffusion(self):
@@ -118,19 +116,23 @@ class TestUtils(unittest.TestCase):
                         "m":0}
         
         self.param_info["init_guess"] = initial_guess
-        p = Parameters(self.param_info)
-        p.apply_unit_conversions()
+        indexes = self.indexes
+        state = [initial_guess[name] for name in self.param_info["names"]]
+        for name in indexes:
+            state[indexes[name]] *= self.unit_conversions.get(name, 1)
         init_dN = np.logspace(14, 8, self.g.nx) * self.unit_conversions["n0"]
-        N = init_dN + p.n0
-        P = init_dN + p.p0
-        E_f = E_field(N, P, p, self.g.dx)
+        N = init_dN + state[indexes["n0"]]
+        P = init_dN + state[indexes["p0"]]
+        E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], self.g.dx)
         total_N = np.sum(N)
         
         init_condition = np.concatenate([N, P, E_f], axis=None)
-        args = (self.g,p)
-        sol = solve_ivp(dydt, [self.g.start_time,self.g.time], init_condition, 
-                        args=args, t_eval=self.g.tSteps, method='LSODA', 
-                        max_step=self.g.hmax)
+        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
+                         args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                                state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                                state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                                ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
+                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
         
         s = self.s
@@ -138,16 +140,6 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_almost_equal(s.N, np.ones_like(s.N) * total_N / self.g.nx)
         np.testing.assert_almost_equal(s.P, np.ones_like(s.P) * total_N / self.g.nx)
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
-        
-        sol2 = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
-                         args=(self.g.nx, self.g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks,
-                               p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, (q_C / (p.eps * eps0)),
-                               p.Tm),
-                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
-        data2 = sol2.y.T
-        
-        # Diffusion is more prone to uncertainty than uniform recombination
-        np.testing.assert_almost_equal(data, data2)
         ################
         
     def test_solver_LI_SRH(self):
@@ -168,18 +160,22 @@ class TestUtils(unittest.TestCase):
                         "m":0}
         
         self.param_info["init_guess"] = initial_guess
-        p = Parameters(self.param_info)
-        p.apply_unit_conversions()
+        indexes = self.indexes
+        state = [initial_guess[name] for name in self.param_info["names"]]
+        for name in indexes:
+            state[indexes[name]] *= self.unit_conversions.get(name, 1)
         init_dN = 1e10 * np.ones(self.g.nx) * self.unit_conversions["n0"]
-        N = init_dN + p.n0
-        P = init_dN + p.p0
-        E_f = E_field(N, P, p, self.g.dx)
+        N = init_dN + state[indexes["n0"]]
+        P = init_dN + state[indexes["p0"]]
+        E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], self.g.dx)
 
         init_condition = np.concatenate([N, P, E_f], axis=None)
-        args = (self.g,p)
-        sol = solve_ivp(dydt, [self.g.start_time,self.g.time], init_condition, 
-                        args=args, t_eval=self.g.tSteps, method='LSODA', 
-                        max_step=self.g.hmax)
+        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
+                         args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                                state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                                state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                                ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
+                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
         
         s = self.s
@@ -188,13 +184,6 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_almost_equal(s.N[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
         np.testing.assert_almost_equal(s.P[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
-        sol2 = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
-                         args=(self.g.nx, self.g.dx, p.n0, p.p0, p.mu_n, p.mu_p, p.ks,
-                               p.Cn, p.Cp, p.Sf, p.Sb, p.tauN, p.tauP, (q_C / (p.eps * eps0)),
-                               p.Tm),
-                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
-        data2 = sol2.y.T
-        np.testing.assert_equal(data, data2)
         ################
         
     def test_solver_HI_srh(self):
@@ -211,22 +200,26 @@ class TestUtils(unittest.TestCase):
                         "tauN":1, 
                         "tauP":1, 
                         "eps":10, 
-                        "Tm":300,
+                        "Tm":300.0,
                         "m":0}
         
         self.param_info["init_guess"] = initial_guess
-        p = Parameters(self.param_info)
-        p.apply_unit_conversions()
+        indexes = self.indexes
+        state = [initial_guess[name] for name in self.param_info["names"]]
+        for name in indexes:
+            state[indexes[name]] *= self.unit_conversions.get(name, 1)
         init_dN = 1e10 * np.ones(self.g.nx) * self.unit_conversions["n0"]
-        N = init_dN + p.n0
-        P = init_dN + p.p0
-        E_f = E_field(N, P, p, self.g.dx)
+        N = init_dN + state[indexes["n0"]]
+        P = init_dN + state[indexes["p0"]]
+        E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], self.g.dx)
 
         init_condition = np.concatenate([N, P, E_f], axis=None)
-        args = (self.g,p)
-        sol = solve_ivp(dydt, [self.g.start_time,self.g.time], init_condition, 
-                        args=args, t_eval=self.g.tSteps, method='LSODA', 
-                        max_step=self.g.hmax)
+        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
+                         args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                                state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                                state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                                ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
+                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
         
         s = self.s
@@ -255,18 +248,22 @@ class TestUtils(unittest.TestCase):
                         "m":0}
         
         self.param_info["init_guess"] = initial_guess
-        p = Parameters(self.param_info)
-        p.apply_unit_conversions()
+        indexes = self.indexes
+        state = [initial_guess[name] for name in self.param_info["names"]]
+        for name in indexes:
+            state[indexes[name]] *= self.unit_conversions.get(name, 1)
         init_dN = 1e10 * np.ones(self.g.nx) * self.unit_conversions["n0"]
-        N = init_dN + p.n0
-        P = init_dN + p.p0
-        E_f = E_field(N, P, p, self.g.dx)
+        N = init_dN + state[indexes["n0"]]
+        P = init_dN + state[indexes["p0"]]
+        E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], self.g.dx)
 
         init_condition = np.concatenate([N, P, E_f], axis=None)
-        args = (self.g,p)
-        sol = solve_ivp(dydt, [self.g.start_time,self.g.time], init_condition, 
-                        args=args, t_eval=self.g.tSteps, method='LSODA', 
-                        max_step=self.g.hmax)
+        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
+                         args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                                state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                                state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                                ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
+                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
         
         s = self.s
@@ -296,18 +293,22 @@ class TestUtils(unittest.TestCase):
                         "m":0}
         
         self.param_info["init_guess"] = initial_guess
-        p = Parameters(self.param_info)
-        p.apply_unit_conversions()
+        indexes = self.indexes
+        state = [initial_guess[name] for name in self.param_info["names"]]
+        for name in indexes:
+            state[indexes[name]] *= self.unit_conversions.get(name, 1)
         init_dN = 1e10 * np.ones(self.g.nx) * self.unit_conversions["n0"]
-        N = init_dN + p.n0
-        P = init_dN + p.p0
-        E_f = E_field(N, P, p, self.g.dx)
+        N = init_dN + state[indexes["n0"]]
+        P = init_dN + state[indexes["p0"]]
+        E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], self.g.dx)
 
         init_condition = np.concatenate([N, P, E_f], axis=None)
-        args = (self.g,p)
-        sol = solve_ivp(dydt, [self.g.start_time,self.g.time], init_condition, 
-                        args=args, t_eval=self.g.tSteps, method='LSODA', 
-                        max_step=self.g.hmax)
+        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
+                         args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                                state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                                state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                                ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
+                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
         
         s = self.s

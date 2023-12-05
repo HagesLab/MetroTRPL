@@ -53,9 +53,6 @@ if __name__ == "__main__":
               "num_meas": num_measurements}
 
     # Info regarding the parameters
-    # Here the global scale factor 'm' is also defined,
-    # which will shift the simulation output by x10**m before calculating
-    # likelihood vs measurement
     param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp",
                    "Sf", "Sb", "tauN", "tauP", "eps", "Tm"]
 

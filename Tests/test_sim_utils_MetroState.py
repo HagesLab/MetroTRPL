@@ -33,6 +33,7 @@ class TestUtils(unittest.TestCase):
         
         num_iters = 100
         self.ms = MetroState(dummy_param_info, dummy_sim_flags, num_iters)
+        self.new_state = [dummy_initial_guesses[name] for name in dummy_names]
 
     def test_MetroState(self):
         # The functionality for each of these has already been covered
@@ -41,7 +42,7 @@ class TestUtils(unittest.TestCase):
         self.assertIsInstance(self.ms.means, Parameters)
 
         with self.assertLogs() as captured:
-            self.ms.print_status(logger=self.logger)
+            self.ms.print_status(0, self.new_state, logger=self.logger)
 
         # One message per active param
         self.assertEqual(len(captured.records), sum(

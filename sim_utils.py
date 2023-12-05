@@ -46,7 +46,7 @@ class Ensemble():
             n_states = len(self.ensemble_fields["parallel_tempering"])
             temperatures = self.ensemble_fields["parallel_tempering"]
         
-        self.MS = []
+        self.MS : list[MetroState] = []
         for i in range(n_states):
             self.MS.append(MetroState(param_info, dict(MCMC_fields), num_iters))
             self.MS[-1].MCMC_fields["_beta"] = temperatures[i] ** -1
@@ -70,6 +70,9 @@ class Ensemble():
 
     def checkpoint(self, fname):
         """ Save the current ensemble as a pickle object. """
+        for MS in self.MS:
+            MS.H.update(MS.param_info)
+
         with open(fname, "wb+") as ofstream:
             pickle.dump(self, ofstream)
         return
@@ -92,18 +95,21 @@ class MetroState():
         self.param_info = param_info
         self.MCMC_fields = MCMC_fields
 
+        self.init_state = np.array([self.param_info["init_guess"][param]
+                                    for param in self.param_info["names"]], dtype=float)
+        
+        self.param_indexes = {name: self.param_info["names"].index(name) for name in self.param_info["names"]}
+
         return
 
-    def print_status(self, logger):
+    def print_status(self, k, new_state, logger):
         is_active = self.param_info['active']
 
         if hasattr(self.prev_p, "likelihood"):
-            logger.info("Current loglikelihood : {:.6e} ".format(self.prev_p.likelihood))
-        for param in self.param_info['names']:
+            logger.info(f"Current loglikelihood : {self.H.loglikelihood[0, k]:.6e}")
+        for i, param in enumerate(self.param_info['names']):
             if is_active.get(param, 0):
-                trial = getattr(self.p, param)
-                mean = getattr(self.means, param)
-                logger.info("Next {}: {:.6e} from mean {:.6e}".format(param, trial, mean))
+                logger.info(f"Next {param}: {new_state[i]:.6e} from mean {self.H.states[i, k]:.6e}")
 
         return
 
@@ -186,48 +192,42 @@ class History():
     """ Record of past states the walk has been to. """
 
     def __init__(self, num_iters, param_info):
-        for param in param_info["names"]:
-            setattr(self, f"mean_{param}", np.zeros((1, num_iters)))
-
+        # for param in param_info["names"]:
+        #     setattr(self, f"mean_{param}", np.zeros((1, num_iters)))
+        self.states_are_one_array = True
+        self.states = np.zeros((len(param_info["names"]), num_iters))
         self.accept = np.zeros((1, num_iters))
         self.loglikelihood = np.zeros((1, num_iters))
         return
 
-    def record_best_logll(self, k, prev_p):
-        # prev_p is essentially the latest accepted move
-        self.loglikelihood[0, k] = prev_p.likelihood
+    def update(self, param_info):
+        """Compatibility - repackage self.states array into attributes per parameter"""
+        for i, param in enumerate(param_info['names']):
+            setattr(self, f"mean_{param}", self.states[i])
         return
+    
+    def pack(self, param_info, num_iters):
+        """Compatibility - turn individual attributes into self.states"""
+        self.states = np.zeros((len(param_info["names"]), num_iters))
+        for k, param in enumerate(param_info["names"]):
+            self.states[k] = getattr(self, f"mean_{param}")
 
-    def update(self, k, p, means, param_info):
-        for param in param_info['names']:
-            h_mean = getattr(self, f"mean_{param}")
-            h_mean[0, k] = getattr(means, param)
-        return
-
-    def export(self, param_info, out_pathname):
-        for param in param_info["names"]:
-            np.save(os.path.join(out_pathname, f"mean_{param}"), getattr(
-                self, f"mean_{param}"))
-
-        np.save(os.path.join(out_pathname, "accept"), self.accept)
-        np.save(os.path.join(out_pathname, "loglikelihood"), self.loglikelihood)
-        return
-
-    def truncate(self, k, param_info):
+    def truncate(self, k):
         """ Cut off any incomplete iterations should the walk be terminated early"""
-        for param in param_info["names"]:
-            val = getattr(self, f"mean_{param}")
-            setattr(self, f"mean_{param}", val[:, :k])
+        # for param in param_info["names"]:
+        #     val = getattr(self, f"mean_{param}")
+        #     setattr(self, f"mean_{param}", val[:, :k])
 
+        self.states = self.states[:, :k]
         self.accept = self.accept[:, :k]
         self.loglikelihood = self.loglikelihood[:, :k]
         return
 
-    def extend(self, new_num_iters, param_info):
+    def extend(self, new_num_iters):
         """ Enlarge an existing MC chain to length new_num_iters, if needed """
         current_num_iters = len(self.accept[0])
         if new_num_iters < current_num_iters:  # No extension needed
-            self.truncate(new_num_iters, param_info)
+            self.truncate(new_num_iters)
             return
         if new_num_iters == current_num_iters:
             return
@@ -237,11 +237,14 @@ class History():
             (self.accept, np.zeros((1, addtl_iters))), axis=1)
         self.loglikelihood = np.concatenate(
             (self.loglikelihood, np.zeros((1, addtl_iters))), axis=1)
+        
+        self.states = np.concatenate(
+            (self.states, np.zeros((self.states.shape[0], addtl_iters))), axis=1)
 
-        for param in param_info["names"]:
-            val = getattr(self, f"mean_{param}")
-            setattr(self, f"mean_{param}", np.concatenate(
-                (val, np.zeros((1, addtl_iters))), axis=1))
+        # for param in param_info["names"]:
+        #     val = getattr(self, f"mean_{param}")
+        #     setattr(self, f"mean_{param}", np.concatenate(
+        #         (val, np.zeros((1, addtl_iters))), axis=1))
         return
 
 
@@ -273,13 +276,13 @@ class Solution():
     def __init__(self):
         return
 
-    def calculate_PL(self, g, p):
+    def calculate_PL(self, g, ks, n0, p0):
         """ Time-resolved photoluminescence """
-        self.PL = calculate_PL(g.dx, self.N, self.P, p.ks, p.n0, p.p0)
+        self.PL = calculate_PL(g.dx, self.N, self.P, ks, n0, p0)
 
-    def calculate_TRTS(self, g, p):
+    def calculate_TRTS(self, g, mu_n, mu_p, n0, p0):
         """ Transient terahertz decay """
-        self.trts = calculate_TRTS(g.dx, self.N, self.P, p.mu_n, p.mu_p, p.n0, p.p0)
+        self.trts = calculate_TRTS(g.dx, self.N, self.P, mu_n, mu_p, n0, p0)
 
 def calculate_PL(dx, N, P, ks, n0, p0):
     rr = calculate_RR(N, P, ks, n0, p0)
@@ -340,17 +343,3 @@ def check_threshold(t, y, L, dx, min_y=0, mode="TRPL", ks=0, mu_n=0, mu_p=0, n0=
         return 0
     else:
         return 1
-
-if __name__ == "__main__":
-    S = Solution()
-    g = Grid()
-    g.dx = 20
-    p = Grid()
-    p.mu_n = 20 * 1e5
-    p.mu_p = 20 * 1e5
-    S.N = 1e15 * np.ones((1, 100)) * 1e-21
-    S.P = 1e15 * np.ones((1, 100)) * 1e-21
-    p.n0 = 1e8 * 1e-21
-    p.p0 = 1e13 * 1e-21
-    S.calculate_TRTS(g, p)
-    print(S.trts)
