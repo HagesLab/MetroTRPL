@@ -109,7 +109,7 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
 
     """
     if units is None:
-        units = {}
+        units = np.ones_like(state)
     if solver[0] == "solveivp" or solver[0] == "odeint" or solver[0] == "diagnostic":
         if len(iniPar) == g.nx:         # If list of initial values
             init_dN = iniPar * 1e-21    # [cm^-3] to [nm^-3]
@@ -122,8 +122,7 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
             except (IndexError, ValueError):
                 pass
 
-        for name in indexes:
-            state[indexes[name]] *= units.get(name, 1)
+        state *= units
         N = init_dN + state[indexes["n0"]]
         P = init_dN + state[indexes["p0"]]
         E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], g.dx)
@@ -193,8 +192,7 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
 
         if meas == "TRPL":
             s.calculate_PL(g, state[indexes["ks"]], state[indexes["n0"]], state[indexes["p0"]])
-            for name in indexes:
-                state[indexes[name]] /= units.get(name, 1)  # [nm, V, ns] to [cm, V, s]
+            state /= units  # [nm, V, ns] to [cm, V, s]
             s.PL *= 1e23                            # [nm^-2 ns^-1] to [cm^-2 s^-1]
             i_final = np.argmax(s.PL < g.min_y)
             if s.PL[i_final] < g.min_y:
@@ -202,8 +200,7 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
             return s.PL
         elif meas == "TRTS":
             s.calculate_TRTS(g, state[indexes["mu_n"]], state[indexes["mu_p"]], state[indexes["n0"]], state[indexes["p0"]])
-            for name in indexes:
-                state[indexes[name]] /= units.get(name, 1)
+            state /= units
             s.trts *= 1e9
             i_final = np.argmax(s.trts < g.min_y)
             if s.trts[i_final] < g.min_y:
@@ -662,7 +659,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
             logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
         for MS in MS_list.MS:
-            logll = run_iteration(MS.init_state, MS_list.param_indexes, MS.param_info["unit_conversions"], MS_list.sim_info, MS_list.iniPar,
+            logll = run_iteration(MS.init_state, MS_list.param_indexes, MS_list.ensemble_fields["units"], MS_list.sim_info, MS_list.iniPar,
                                   MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
                                   MS.MCMC_fields, logger, verbose)
 
@@ -721,7 +718,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                     if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
                         MS.print_status(k - 1, MS_list.ensemble_fields["active"], new_state, logger)
 
-                    logll = run_iteration(new_state, MS_list.param_indexes, MS.param_info["unit_conversions"], MS_list.sim_info, MS_list.iniPar,
+                    logll = run_iteration(new_state, MS_list.param_indexes, MS_list.ensemble_fields["units"], MS_list.sim_info, MS_list.iniPar,
                                           MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
                                           MS.MCMC_fields, logger, verbose)
                     

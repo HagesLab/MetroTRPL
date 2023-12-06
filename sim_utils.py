@@ -51,6 +51,10 @@ class Ensemble():
         self.ensemble_fields["active"] = np.array([self.ensemble_fields["active"][param]
                                                    for param in param_info["names"]], dtype=bool)
         
+        self.ensemble_fields["units"] = param_info.pop("unit_conversions")
+        self.ensemble_fields["units"] = np.array([self.ensemble_fields["units"].get(param, 1)
+                                                   for param in param_info["names"]], dtype=float)
+        
         self.param_indexes = {name: param_info["names"].index(name) for name in param_info["names"]}
 
         if self.ensemble_fields["parallel_tempering"] is None:
