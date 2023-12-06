@@ -136,9 +136,9 @@ class TestUtils(unittest.TestCase):
         indexes = {name: i for i, name in enumerate(param_info["names"])}
         state = [param_info["init_guess"][name] for name in param_info["names"]]
         init_dN = 1e20 * np.ones(g.nx) # [cm^-3]
-
+        out_dN = np.full_like(init_dN, 0.0009900990095719482)
         # with solveivp
-        test_PL, out_dN = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
+        test_PL = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
                                 RTOL=1e-10, ATOL=1e-14)
         # Calculate expected output in simulation units
         for name in indexes:
@@ -151,7 +151,7 @@ class TestUtils(unittest.TestCase):
         self.assertAlmostEqual(test_PL[-1] / np.amax(test_PL[-1]), expected_out / np.amax(test_PL[-1]))
 
         # with odeint
-        test_PL, out_DN = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("odeint",),
+        test_PL = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("odeint",),
                                 RTOL=1e-10, ATOL=1e-14)
         for name in indexes:
             state[indexes[name]] *= unit_conversions.get(name, 1)
@@ -180,8 +180,8 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"] = vals
         indexes = {name: i for i, name in enumerate(param_info["names"])}
         state = [param_info["init_guess"][name] for name in param_info["names"]]
-
-        test_TRTS, out_dN = solve(
+        out_dN = np.full_like(init_dN, 0.0009900986886696803)
+        test_TRTS = solve(
             init_dN, g, state, indexes, meas="TRTS", units=param_info["unit_conversions"], solver=("solveivp",))
         for name in indexes:
             state[indexes[name]] *= unit_conversions.get(name, 1)
@@ -252,14 +252,14 @@ class TestUtils(unittest.TestCase):
 
         PL0 = calculate_PL(g.dx * 1e-7, init_dN, init_dN, vals["ks"], vals["n0"], vals["p0"]) # in cm/s units
         # No or large range - PL runs to conclusion
-        test_PL, out_dN = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
-                                RTOL=1e-10, ATOL=1e-14)
+        test_PL = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
+                        RTOL=1e-10, ATOL=1e-14)
         self.assertEqual(len(g.tSteps), len(test_PL))
 
         # Smaller range - PL decay stops early at PL_final, and signal over remaining time is set to PL_final
         g.min_y = PL0 * 1e-2
-        test_PL, out_dN = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
-                                RTOL=1e-10, ATOL=1e-14)
+        test_PL = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
+                        RTOL=1e-10, ATOL=1e-14)
 
         self.assertTrue(min(test_PL) >= g.min_y)
         np.testing.assert_equal(test_PL[-10:], g.min_y)
@@ -268,15 +268,15 @@ class TestUtils(unittest.TestCase):
         TRTS0 = calculate_TRTS(g.dx * 1e-7, init_dN, init_dN, vals["mu_n"], vals["mu_p"], vals["n0"], vals["p0"])
         # No or large range - PL runs to conclusion
         g.min_y = TRTS0 * 1e-10
-        test_TRTS, out_dN = solve(init_dN, g, state, indexes, meas="TRTS", units=param_info["unit_conversions"], solver=("solveivp",),
-                                RTOL=1e-10, ATOL=1e-14)
+        test_TRTS = solve(init_dN, g, state, indexes, meas="TRTS", units=param_info["unit_conversions"], solver=("solveivp",),
+                          RTOL=1e-10, ATOL=1e-14)
         self.assertEqual(len(g.tSteps), len(test_TRTS))
 
 
         # Smaller range - TRTS is truncated
         g.min_y = TRTS0 * 1e-1
-        test_TRTS, out_dN = solve(init_dN, g, state, indexes, meas="TRTS", units=param_info["unit_conversions"], solver=("solveivp",),
-                                RTOL=1e-10, ATOL=1e-14)
+        test_TRTS = solve(init_dN, g, state, indexes, meas="TRTS", units=param_info["unit_conversions"], solver=("solveivp",),
+                          RTOL=1e-10, ATOL=1e-14)
         self.assertTrue(min(test_TRTS) >= g.min_y)
         np.testing.assert_equal(test_TRTS[-10:], g.min_y)
 
@@ -332,10 +332,10 @@ class TestUtils(unittest.TestCase):
         indexes = {name: i for i, name in enumerate(param_info["names"])}
         state = [param_info["init_guess"][name] for name in param_info["names"]]
         init_dN = 1e20 * np.ones(g.nx) # [cm^-3]
-
+        out_dN = np.full_like(init_dN, 0.0009900990095719482)
         # with solveivp
-        test_PL, out_dN = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",), model="traps",
-                                RTOL=1e-10, ATOL=1e-14)
+        test_PL= solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",), model="traps",
+                       RTOL=1e-10, ATOL=1e-14)
         # Calculate expected output in simulation units
         for name in indexes:
             state[indexes[name]] *= unit_conversions.get(name, 1)
@@ -398,11 +398,11 @@ class TestUtils(unittest.TestCase):
 
         init_dN = fluence * alpha * np.exp(-alpha * g.xSteps * 1e-7)  # In cm units
 
-        PL_by_initvals, out_dN = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
-                                       RTOL=1e-10, ATOL=1e-14)
+        PL_by_initvals = solve(init_dN, g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
+                               RTOL=1e-10, ATOL=1e-14)
 
-        PL_by_initparams, out_dN = solve([fluence, alpha], g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
-                                         RTOL=1e-10, ATOL=1e-14)
+        PL_by_initparams = solve([fluence, alpha], g, state, indexes, meas="TRPL", units=param_info["unit_conversions"], solver=("solveivp",),
+                                 RTOL=1e-10, ATOL=1e-14)
 
         np.testing.assert_almost_equal(PL_by_initvals / np.amax(PL_by_initvals), PL_by_initparams / np.amax(PL_by_initvals))
 
@@ -1182,4 +1182,4 @@ class TestUtils(unittest.TestCase):
 if __name__ == "__main__":
     t = TestUtils()
     t.setUp()
-    t.test_mu_constraint()
+    t.test_solve_traps()

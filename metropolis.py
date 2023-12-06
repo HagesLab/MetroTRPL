@@ -193,24 +193,22 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
 
         if meas == "TRPL":
             s.calculate_PL(g, state[indexes["ks"]], state[indexes["n0"]], state[indexes["p0"]])
-            next_init = s.N[-1] - state[indexes["n0"]]
             for name in indexes:
                 state[indexes[name]] /= units.get(name, 1)  # [nm, V, ns] to [cm, V, s]
             s.PL *= 1e23                            # [nm^-2 ns^-1] to [cm^-2 s^-1]
             i_final = np.argmax(s.PL < g.min_y)
             if s.PL[i_final] < g.min_y:
                 s.PL[i_final:] = g.min_y
-            return s.PL, next_init
+            return s.PL
         elif meas == "TRTS":
             s.calculate_TRTS(g, state[indexes["mu_n"]], state[indexes["mu_p"]], state[indexes["n0"]], state[indexes["p0"]])
-            next_init = s.N[-1] - state[indexes["n0"]]
             for name in indexes:
                 state[indexes[name]] /= units.get(name, 1)
             s.trts *= 1e9
             i_final = np.argmax(s.trts < g.min_y)
             if s.trts[i_final] < g.min_y:
                 s.trts[i_final:] = g.min_y
-            return s.trts, next_init
+            return s.trts
         else:
             raise NotImplementedError("TRTS or TRPL only")
 
@@ -232,7 +230,7 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
                             iniPar[0], iniPar[1], g.thickness]
 
         pl_from_NN = nn.predict(g.tSteps, scaled_matPar)
-        return pl_from_NN, None
+        return pl_from_NN
 
     else:
         raise NotImplementedError
@@ -294,7 +292,6 @@ def select_next_params(current_state, param_info, indexes, is_active, trial_move
     if RNG is None:
         RNG = np.random.default_rng(235817049752375780)
 
-    names = param_info["names"]
     _current_state = np.array(current_state, dtype=float)
 
     mu_constraint = param_info.get("do_mu_constraint", None)
@@ -359,7 +356,7 @@ def do_simulation(state, indexes, thickness, nx, iniPar, times, hmax, meas="TRPL
         dt_estimate = times[1] - times[0]
         g.tSteps = np.concatenate((np.arange(0, times[0], dt_estimate), g.tSteps))
 
-    sol, next_init_condition = solve(
+    sol = solve(
         iniPar, g, state, indexes, meas=meas, units=units, solver=solver, model=model, RTOL=rtol, ATOL=atol)
     return g.tSteps, sol
 
@@ -428,12 +425,6 @@ def converge_simulation(i, state, indexes, sim_info, iniPar, times, vals, units,
         if logger is not None:
             logger.warning(f"{i}: Simulation error occurred: {e}")
         return t_steps, sol, success
-    
-    # Other tests for validity may be inserted here
-
-    if MCMC_fields["solver"][0] == "diagnostic":
-        # Replace this with curve_fitting code as needed
-        pass
 
     if verbose and logger is not None:
         logger.info(f"{i}: Simulation complete hmax={hmax}; t {t_steps[0]}-{t_steps[-1]}; x {thickness}")
@@ -622,13 +613,6 @@ def run_iteration(state, indexes, units, sim_info, iniPar, times, vals, uncs, IR
     """
 
     logll = np.zeros(sim_info["num_meas"])
-
-
-    if MCMC_fields.get("use_multi_cpus", False):
-        raise NotImplementedError("WIP - multi_cpus")
-        # with Pool(MCMC_fields["num_cpus"]) as pool:
-        #    likelihoods = pool.map(partial(one_sim_likelihood, p, sim_info, hmax, MCMC_fields, logger), zip(np.arange(len(iniPar)), iniPar, times, vals))
-        #    p.likelihood = np.array(likelihoods)
 
     for i in range(sim_info["num_meas"]):
         logll[i] = one_sim_likelihood(
