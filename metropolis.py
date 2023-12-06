@@ -238,12 +238,11 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
         raise NotImplementedError
 
 
-def check_approved_param(new_state, param_info, do_log):
+def check_approved_param(new_state, param_info, active, do_log):
     """ Raise a warning for non-physical or unrealistic proposed trial moves,
         or proposed moves that exceed the prior distribution.
     """
     order = param_info['names']
-    active = param_info["active"]
     checks = {}
     prior_dist = param_info["prior_dist"]
 
@@ -251,7 +250,7 @@ def check_approved_param(new_state, param_info, do_log):
     
     diff = np.where(do_log, 10 ** new_state, new_state)
     for i, param in enumerate(order):
-        if not active[param]:
+        if not active[i]:
             continue
 
         lb = prior_dist[param][0]
@@ -288,13 +287,14 @@ def check_approved_param(new_state, param_info, do_log):
     return failed_checks
 
 
-def select_next_params(current_state, param_info, do_log, coerce_hard_bounds=False, logger=None, verbose=False):
+def select_next_params(current_state, param_info, is_active, trial_move, do_log, RNG=None, coerce_hard_bounds=False, logger=None, verbose=False):
     """ 
     Trial move function: returns a new proposed state equal to the current_state plus a uniform random displacement
     """
-    is_active = param_info["active"]
+    if RNG is None:
+        RNG = np.random.default_rng(235817049752375780)
+
     names = param_info["names"]
-    trial_move = param_info["trial_move"]
     _current_state = np.array(current_state, dtype=float)
 
     mu_constraint = param_info.get("do_mu_constraint", None)
@@ -314,21 +314,18 @@ def select_next_params(current_state, param_info, do_log, coerce_hard_bounds=Fal
     while tries < max_tries:
         tries += 1
 
-        for i, param in enumerate(names):
-            if not is_active[param]:
-                continue
-            new_state[i] = np.random.uniform(
-                _current_state[i]-trial_move[param], _current_state[i]+trial_move[param])
-            if mu_constraint is not None and param == "mu_p":
-                ambi = mu_constraint[0]
-                ambi_std = mu_constraint[1]
-                if verbose and logger is not None:
-                    logger.debug(f"mu constraint: ambi {ambi} +/- {ambi_std}")
-                new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
-                new_state[i] = np.log10(
-                    (2 / new_muambi - 1 / 10 ** new_state[i-1])**-1)
+        new_state = np.where(is_active, RNG.uniform(_current_state-trial_move, _current_state+trial_move), _current_state)
 
-        failed_checks = check_approved_param(new_state, param_info, do_log)
+        if mu_constraint is not None:
+            ambi = mu_constraint[0]
+            ambi_std = mu_constraint[1]
+            if verbose and logger is not None:
+                logger.debug(f"mu constraint: ambi {ambi} +/- {ambi_std}")
+            new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
+            new_state[names.index("mu_p")] = np.log10(
+                (2 / new_muambi - 1 / 10 ** new_state[names.index("mu_n")])**-1)
+
+        failed_checks = check_approved_param(new_state, param_info, is_active, do_log)
         success = len(failed_checks) == 0
         if success:
             if verbose and logger is not None:
@@ -733,11 +730,12 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                 else:
                     # Non-tempering move, or all other chains not selected for tempering
 
-                    new_state = select_next_params(MS.H.states[:, k-1], MS.param_info, MS_list.ensemble_fields["do_log"],
+                    new_state = select_next_params(MS.H.states[:, k-1], MS.param_info, MS_list.ensemble_fields["active"],
+                                                   MS_list.ensemble_fields["trial_move"], MS_list.ensemble_fields["do_log"], MS_list.RNG,
                                                    MS.MCMC_fields.get("hard_bounds", 0), logger)
 
                     if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
-                        MS.print_status(k - 1, new_state, logger)
+                        MS.print_status(k - 1, MS_list.ensemble_fields["active"], new_state, logger)
 
                     logll = run_iteration(new_state, MS.param_indexes, MS.param_info["unit_conversions"], MS_list.sim_info, MS_list.iniPar,
                                           MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,

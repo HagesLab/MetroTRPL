@@ -244,14 +244,17 @@ class Window(TkGUI):
                 MS_list = pickle.load(rfile)
                 # Compatibility prior to ensembles
                 if isinstance(MS_list, sim_utils.MetroState):
+                    active = MS_list.param_info["active"]
                     MS_list = [MS_list]
                 else:
+                    active = MS_list.ensemble_fields["active"]
                     MS_list = MS_list.MS
+                    
 
             for i, metrostate in enumerate(MS_list):
                 chain = Chain(file_name + f"-{i}")
 
-                chain.active_sampled = metrostate.param_info["active"]
+                chain.active_sampled = active
                 chain.param_names = metrostate.param_info["names"]
 
                 logl = getattr(metrostate.H, "loglikelihood")

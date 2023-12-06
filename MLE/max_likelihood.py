@@ -18,7 +18,7 @@ def cost(x, e_data, MS_list, logger):
     MS = MS_list.MS[0]
     MS.H.states[:, MS_list.latest_iter] = MS.H.states[:, MS_list.latest_iter - 1]
     for n in MS.param_info["names"]:
-        if MS.param_info["active"][n]:
+        if MS_list.ensemble_fields["active"][n]:
             MS.H.states[MS.param_indexes[n], MS_list.latest_iter] =  10 ** x[j]
             j += 1
 

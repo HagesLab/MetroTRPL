@@ -414,21 +414,22 @@ class TestUtils(unittest.TestCase):
                 'do_log': {'tauP': 1, 'tauN': 1, 'somethingelse': 1},
                 "active": {'tauP': 1, 'tauN': 1, 'somethingelse': 1}}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
+        active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
         # taun, taup must be within 2 OM
         # Accepts new_p as log10
         # [n0, p0, mu_n, mu_p, ks, sf, sb, taun, taup, eps, m]
         new_p = np.log10([511, 511e2, 1])
-        self.assertTrue(len(check_approved_param(new_p, info, do_log)) == 0)
+        self.assertTrue(len(check_approved_param(new_p, info, active, do_log)) == 0)
         new_p = np.log10([511, 511e2+1,  1])
-        self.assertTrue("tn_tp_close" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("tn_tp_close" in check_approved_param(new_p, info, active, do_log))
 
         # tn, tp size limit
         new_p = np.log10([0.11, 0.11, 1])
-        self.assertTrue(len(check_approved_param(new_p, info, do_log)) == 0)
+        self.assertTrue(len(check_approved_param(new_p, info, active, do_log)) == 0)
         new_p = np.log10([0.1, 0.11, 1])
-        self.assertTrue("tauP_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("tauP_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.log10([0.11, 0.1, 1])
-        self.assertTrue("tauN_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("tauN_size" in check_approved_param(new_p, info, active, do_log))
 
         # If params are inactive, they should not be checked
         info = {'names': ['tauP', 'tauN', 'somethingelse'],
@@ -437,8 +438,9 @@ class TestUtils(unittest.TestCase):
                 'do_log': {'tauP': 1, 'tauN': 1, 'somethingelse': 1},
                 "active": {'tauP': 0, 'tauN': 0, 'somethingelse': 1}}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
+        active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
         new_p = np.log10([0.11, 0.1, 1])
-        self.assertTrue(len(check_approved_param(new_p, info, do_log)) == 0)
+        self.assertTrue(len(check_approved_param(new_p, info, active, do_log)) == 0)
 
         # These should still work if p is not logscaled
         info = {'names': ['tauP', 'tauN', 'somethingelse'],
@@ -447,17 +449,18 @@ class TestUtils(unittest.TestCase):
                 'do_log': {'tauP': 0, 'tauN': 0, 'somethingelse': 1},
                 "active": {'tauP': 1, 'tauN': 1, 'somethingelse': 1}}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
+        active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
         new_p = np.array([511, 511e2, 1])
-        self.assertTrue(len(check_approved_param(new_p, info, do_log)) == 0)
+        self.assertTrue(len(check_approved_param(new_p, info, active, do_log)) == 0)
         new_p = np.array([511, 511e2+1,  1])
-        self.assertTrue("tn_tp_close" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("tn_tp_close" in check_approved_param(new_p, info, active, do_log))
 
         new_p = np.array([0.11, 0.11, 1])
-        self.assertTrue(len(check_approved_param(new_p, info, do_log)) == 0)
+        self.assertTrue(len(check_approved_param(new_p, info, active, do_log)) == 0)
         new_p = np.array([0.1, 0.11, 1])
-        self.assertTrue("tauP_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("tauP_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.array([0.11, 0.1, 1])
-        self.assertTrue("tauN_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("tauN_size" in check_approved_param(new_p, info, active, do_log))
 
         # Check mu_n, mu_p, Sf, and Sb size limits
         info = {"names": ["mu_n", "mu_p", "Sf", "Sb"],
@@ -466,17 +469,18 @@ class TestUtils(unittest.TestCase):
                 'do_log': {"mu_n": 1, "mu_p": 1, "Sf": 1, "Sb": 1},
                 "active": {"mu_n": 1, "mu_p": 1, "Sf": 1, "Sb": 1}}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
+        active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
         new_p = np.log10([1e6-1, 1e6-1, 1e7-1, 1e7-1])
-        self.assertTrue(len(check_approved_param(new_p, info, do_log)) == 0)
+        self.assertTrue(len(check_approved_param(new_p, info, active, do_log)) == 0)
 
         new_p = np.log10([1e6, 1e6-1, 1e7-1, 1e7-1])
-        self.assertTrue("mu_n_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("mu_n_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.log10([1e6-1, 1e6, 1e7-1, 1e7-1])
-        self.assertTrue("mu_p_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("mu_p_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.log10([1e6-1, 1e6-1, 1e7, 1e7-1])
-        self.assertTrue("Sf_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("Sf_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.log10([1e6-1, 1e6-1, 1e7-1, 1e7])
-        self.assertTrue("Sb_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("Sb_size" in check_approved_param(new_p, info, active, do_log))
 
         # These should still work if p is not logscaled
         info = {"names": ["mu_n", "mu_p", "Sf", "Sb"],
@@ -485,17 +489,18 @@ class TestUtils(unittest.TestCase):
                 'do_log': {"mu_n": 0, "mu_p": 0, "Sf": 0, "Sb": 0},
                 "active": {"mu_n": 1, "mu_p": 1, "Sf": 1, "Sb": 1}}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
+        active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
         new_p = np.array([1e6-1, 1e6-1, 1e7-1, 1e7-1])
-        self.assertTrue(len(check_approved_param(new_p, info, do_log)) == 0)
+        self.assertTrue(len(check_approved_param(new_p, info, active, do_log)) == 0)
 
         new_p = np.array([1e6, 1e6-1, 1e7-1, 1e7-1])
-        self.assertTrue("mu_n_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("mu_n_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.array([1e6-1, 1e6, 1e7-1, 1e7-1])
-        self.assertTrue("mu_p_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("mu_p_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.array([1e6-1, 1e6-1, 1e7, 1e7-1])
-        self.assertTrue("Sf_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("Sf_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.array([1e6-1, 1e6-1, 1e7-1, 1e7])
-        self.assertTrue("Sb_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("Sb_size" in check_approved_param(new_p, info, active, do_log))
 
         # Check ks, Cn, Cp size limits
         info = {"names": ["ks", "Cn", "Cp"],
@@ -504,15 +509,16 @@ class TestUtils(unittest.TestCase):
                 "do_log": {"ks": 1, "Cn": 1, "Cp": 1},
                 "active": {"ks": 1, "Cn": 1, "Cp": 1}}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
+        active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
         new_p = np.log10([1e-7*0.9, 1e-21*0.9, 1e-21*0.9])
-        self.assertTrue(len(check_approved_param(new_p, info, do_log)) == 0)
+        self.assertTrue(len(check_approved_param(new_p, info, active, do_log)) == 0)
 
         new_p = np.log10([1e-7, 1e-21*0.9, 1e-21*0.9])
-        self.assertTrue("ks_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("ks_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.log10([1e-7*0.9, 1e-21, 1e-21*0.9])
-        self.assertTrue("Cn_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("Cn_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.log10([1e-7*0.9, 1e-21*0.9, 1e-21])
-        self.assertTrue("Cp_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("Cp_size" in check_approved_param(new_p, info, active, do_log))
 
         # Should work without log
         info = {"names": ["ks", "Cn", "Cp"],
@@ -521,15 +527,16 @@ class TestUtils(unittest.TestCase):
                 "do_log": {"ks": 0, "Cn": 0, "Cp": 0},
                 "active": {"ks": 1, "Cn": 1, "Cp": 1}}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
+        active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
         new_p = np.array([1e-7*0.9, 1e-21*0.9, 1e-21*0.9])
-        self.assertTrue(len(check_approved_param(new_p, info, do_log)) == 0)
+        self.assertTrue(len(check_approved_param(new_p, info, active, do_log)) == 0)
 
         new_p = np.array([1e-7, 1e-21*0.9, 1e-21*0.9])
-        self.assertTrue("ks_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("ks_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.array([1e-7*0.9, 1e-21, 1e-21*0.9])
-        self.assertTrue("Cn_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("Cn_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.array([1e-7*0.9, 1e-21*0.9, 1e-21])
-        self.assertTrue("Cp_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("Cp_size" in check_approved_param(new_p, info, active, do_log))
 
         # Check p0, which has a size limit and must also be larger than n0
         info = {"names": ["n0", "p0"],
@@ -537,13 +544,14 @@ class TestUtils(unittest.TestCase):
                 "do_log": {"n0": 1, "p0": 1},
                 "active": {"n0": 1, "p0": 1}}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
+        active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
         new_p = np.log10([1e19 * 0.8, 1e19 * 0.9])
-        self.assertTrue(len(check_approved_param(new_p, info, do_log)) == 0)
+        self.assertTrue(len(check_approved_param(new_p, info, active, do_log)) == 0)
 
         new_p = np.log10([1e19 * 0.8, 1e19])
-        self.assertTrue("p0_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("p0_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.log10([1e19, 1e19 * 0.9])
-        self.assertTrue("p0_greater" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("p0_greater" in check_approved_param(new_p, info, active, do_log))
 
         # Should work without log
         info = {"names": ["n0", "p0"],
@@ -551,13 +559,14 @@ class TestUtils(unittest.TestCase):
                 "do_log": {"n0": 0, "p0": 0},
                 "active": {"n0": 1, "p0": 1}}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
+        active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
         new_p = np.array([1e19 * 0.8, 1e19 * 0.9])
-        self.assertTrue(len(check_approved_param(new_p, info, do_log)) == 0)
+        self.assertTrue(len(check_approved_param(new_p, info, active, do_log)) == 0)
 
         new_p = np.array([1e19 * 0.8, 1e19])  # p0 too large
-        self.assertTrue("p0_size" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("p0_size" in check_approved_param(new_p, info, active, do_log))
         new_p = np.array([1e19, 1e19 * 0.9])  # p0 smaller than n0
-        self.assertTrue("p0_greater" in check_approved_param(new_p, info, do_log))
+        self.assertTrue("p0_greater" in check_approved_param(new_p, info, active, do_log))
 
         info_without_taus = {'names': ['tauQ', 'somethingelse'],
                              "do_log": {'tauQ': 1, 'somethingelse': 1},
@@ -565,10 +574,11 @@ class TestUtils(unittest.TestCase):
                              'prior_dist': {'tauQ': (-np.inf, np.inf),
                                             'somethingelse': (-np.inf, np.inf)}}
         do_log = np.array([info_without_taus["do_log"][param] for param in info_without_taus["names"]], dtype=bool)
+        active = np.array([info_without_taus["active"][name] for name in info_without_taus["names"]], dtype=bool)
         # No failures if criteria do not cover params
         new_p = np.log10([1, 1e10])
         self.assertTrue(
-            len(check_approved_param(new_p, info_without_taus, do_log)) == 0)
+            len(check_approved_param(new_p, info_without_taus, active, do_log)) == 0)
 
     def test_select_next_params(self):
         # This function assigns a set of randomly generated values
@@ -597,24 +607,25 @@ class TestUtils(unittest.TestCase):
                       "c": 0,
                       "d": 1}
 
-        param_info = {"active": active_params,
-                      "names": param_names,
+        param_info = {"names": param_names,
                       "prior_dist": prior_dist,
                       "init_guess": initial_guesses,
-                      "trial_move": trial_move}
+                      }
 
         indexes = {name: param_names.index(name) for name in param_names}
         state = [initial_guesses[name] for name in param_names]
         do_log = np.array([do_log[name] for name in param_names], dtype=bool)
+        active_params = np.array([active_params[name] for name in param_names], dtype=bool)
+        trial_move = np.array([trial_move[name] for name in param_names], dtype=float)
         # Try box selection
-        new_state = select_next_params(state, param_info, do_log, logger=self.logger)
+        new_state = select_next_params(state, param_info, active_params, trial_move, do_log, logger=self.logger)
 
         # Inactive and shouldn't change
         self.assertEqual(new_state[indexes["a"]], initial_guesses['a'])
         self.assertEqual(new_state[indexes["c"]], initial_guesses['c'])
         num_tests = 100
         for t in range(num_tests):
-            new_state = select_next_params(state, param_info, do_log, logger=self.logger)
+            new_state = select_next_params(state, param_info, active_params, trial_move, do_log, logger=self.logger)
             self.assertTrue(np.abs(np.log10(new_state[indexes["b"]]) - np.log10(initial_guesses['b'])) <= 0.1,
                             msg="Uniform step #{} failed: {} from mean {} and width 0.1".format(t, new_state[indexes["b"]], initial_guesses['b']))
             self.assertTrue(np.abs(new_state[indexes["d"]]-initial_guesses['d']) <= 1,
@@ -644,18 +655,20 @@ class TestUtils(unittest.TestCase):
         trial_move = {"mu_n": 0.1,
                       "mu_p": 0.1}
 
-        param_info = {"active": active_params,
-                      "names": param_names,
+        param_info = {"names": param_names,
                       "do_mu_constraint": (20, 3),
                       "prior_dist": prior_dist,
                       "init_guess": initial_guesses,
-                      "trial_move": trial_move}
+                      }
 
         indexes = {name: param_names.index(name) for name in param_names}
         state = [initial_guesses[name] for name in param_names]
+        do_log = np.array([do_log[name] for name in param_names], dtype=bool)
+        active_params = np.array([active_params[name] for name in param_names], dtype=bool)
+        trial_move = np.array([trial_move[name] for name in param_names], dtype=float)
 
         for _ in range(10):
-            new_state = select_next_params(state, param_info, do_log, logger=self.logger)
+            new_state = select_next_params(state, param_info, active_params, trial_move, do_log, logger=self.logger)
 
             self.assertTrue(2 / (new_state[indexes["mu_n"]]**-1 + new_state[indexes["mu_p"]]**-1) <= 23)
             self.assertTrue(2 / (new_state[indexes["mu_n"]]**-1 + new_state[indexes["mu_p"]]**-1) >= 17)
@@ -1159,4 +1172,4 @@ class TestUtils(unittest.TestCase):
 if __name__ == "__main__":
     t = TestUtils()
     t.setUp()
-    t.test_select_next_params()
+    t.test_mu_constraint()

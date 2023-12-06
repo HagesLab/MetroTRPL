@@ -3,6 +3,7 @@ import logging
 import sys
 
 sys.path.append("..")
+import numpy as np
 from sim_utils import MetroState
 
 
@@ -34,11 +35,12 @@ class TestUtils(unittest.TestCase):
         num_iters = 100
         self.ms = MetroState(dummy_param_info, dummy_sim_flags, num_iters)
         self.new_state = [dummy_initial_guesses[name] for name in dummy_names]
+        self.active = np.array([dummy_active[name] for name in dummy_names], dtype=bool)
 
     def test_MetroState(self):
 
         with self.assertLogs() as captured:
-            self.ms.print_status(0, self.new_state, logger=self.logger)
+            self.ms.print_status(0, self.new_state, self.active, logger=self.logger)
 
         # One message per active param + one for log likelihood
         self.assertEqual(len(captured.records), sum(

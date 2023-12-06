@@ -42,6 +42,14 @@ class Ensemble():
         self.ensemble_fields["do_log"] = param_info.pop("do_log")
         self.ensemble_fields["do_log"] = np.array([self.ensemble_fields["do_log"][param]
                                                    for param in param_info["names"]], dtype=bool)
+        
+        self.ensemble_fields["trial_move"] = param_info.pop("trial_move")
+        self.ensemble_fields["trial_move"] = np.array([self.ensemble_fields["trial_move"][param]
+                                                   for param in param_info["names"]], dtype=float)
+        
+        self.ensemble_fields["active"] = param_info.pop("active")
+        self.ensemble_fields["active"] = np.array([self.ensemble_fields["active"][param]
+                                                   for param in param_info["names"]], dtype=bool)
 
         if self.ensemble_fields["parallel_tempering"] is None:
             n_states = 1
@@ -55,15 +63,16 @@ class Ensemble():
             self.MS.append(MetroState(param_info, dict(MCMC_fields), num_iters))
             self.MS[-1].MCMC_fields["_beta"] = temperatures[i] ** -1
             if isinstance(MCMC_fields["likel2move_ratio"], dict):
-                self.MS[-1].MCMC_fields["current_sigma"] = {m:max(param_info["trial_move"].values()) * MCMC_fields["likel2move_ratio"][m]
+                self.MS[-1].MCMC_fields["current_sigma"] = {m:max(self.ensemble_fields["trial_move"]) * MCMC_fields["likel2move_ratio"][m]
                                                             for m in sim_info["meas_types"]}
             else:
-                self.MS[-1].MCMC_fields["current_sigma"] = {m:max(param_info["trial_move"].values()) * MCMC_fields["likel2move_ratio"]
+                self.MS[-1].MCMC_fields["current_sigma"] = {m:max(self.ensemble_fields["trial_move"]) * MCMC_fields["likel2move_ratio"]
                                                             for m in sim_info["meas_types"]}
             
         self.ensemble_fields["do_parallel_tempering"] = (n_states > 1)
 
         self.sim_info = sim_info
+        self.RNG = np.random.default_rng(235817049752375780)
         self.random_state = np.random.get_state()
         self.latest_iter = 0
 
@@ -96,12 +105,10 @@ class MetroState():
 
         return
 
-    def print_status(self, k, new_state, logger):
-        is_active = self.param_info['active']
-
+    def print_status(self, k, is_active, new_state, logger):
         logger.info(f"Current loglikelihood : {self.H.loglikelihood[0, k]:.6e}")
         for i, param in enumerate(self.param_info['names']):
-            if is_active.get(param, 0):
+            if is_active[i]:
                 logger.info(f"Next {param}: {new_state[i]:.6e} from mean {self.H.states[i, k]:.6e}")
 
         return
