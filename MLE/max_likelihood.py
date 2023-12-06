@@ -19,7 +19,7 @@ def cost(x, e_data, MS_list, logger):
     MS.H.states[:, MS_list.latest_iter] = MS.H.states[:, MS_list.latest_iter - 1]
     for n in MS.param_info["names"]:
         if MS_list.ensemble_fields["active"][n]:
-            MS.H.states[MS.param_indexes[n], MS_list.latest_iter] =  10 ** x[j]
+            MS.H.states[MS_list.param_indexes[n], MS_list.latest_iter] =  10 ** x[j]
             j += 1
 
     logger.info("#####")
@@ -39,7 +39,7 @@ def cost(x, e_data, MS_list, logger):
         values = e_data[1][ic_num]
         std = e_data[2][ic_num]
 
-        tSteps, sol = do_simulation(MS.H.states[:, MS_list.latest_iter], MS.param_indexes, thickness, nx, MS_list.iniPar[ic_num], times, 1, meas=meas_type,
+        tSteps, sol = do_simulation(MS.H.states[:, MS_list.latest_iter], MS_list.param_indexes, thickness, nx, MS_list.iniPar[ic_num], times, 1, meas=meas_type,
                                     units=MS.param_info["unit_conversions"], solver=MS.MCMC_fields["solver"], model=MS.MCMC_fields["model"])
 
         if irf_convolution is not None and irf_convolution[ic_num] != 0:
@@ -73,7 +73,7 @@ def cost(x, e_data, MS_list, logger):
                 s_name = f"_s{search_c_grps(scale_f_info[2], ic_num)}"
             else:
                 s_name = f"_s{ic_num}"
-            scale_shift = np.log10(MS.H.states[MS.param_indexes[s_name]])
+            scale_shift = np.log10(MS.H.states[MS_list.param_indexes[s_name]])
         else:
             scale_shift = 0
 

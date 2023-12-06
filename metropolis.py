@@ -238,7 +238,7 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
         raise NotImplementedError
 
 
-def check_approved_param(new_state, param_info, active, do_log):
+def check_approved_param(new_state, param_info, indexes, active, do_log):
     """ Raise a warning for non-physical or unrealistic proposed trial moves,
         or proposed moves that exceed the prior distribution.
     """
@@ -260,20 +260,20 @@ def check_approved_param(new_state, param_info, active, do_log):
     # TRPL specific checks:
     # p0 > n0 by definition of a p-doped material
     if 'p0' in order and 'n0' in order:
-        checks["p0_greater"] = (new_state[order.index('p0')]
-                                > new_state[order.index('n0')])
+        checks["p0_greater"] = (new_state[indexes["p0"]]
+                                > new_state[indexes["n0"]])
     else:
         checks["p0_greater"] = True
 
     # tau_n and tau_p must be *close* (within 2 OM) for a reasonable midgap SRH
     if 'tauN' in order and 'tauP' in order:
         # Compel logscale for this one - makes for easier check
-        logtn = new_state[order.index('tauN')]
-        if not do_log[order.index("tauN")]:
+        logtn = new_state[indexes['tauN']]
+        if not do_log[indexes["tauN"]]:
             logtn = np.log10(logtn)
 
-        logtp = new_state[order.index('tauP')]
-        if not do_log[order.index("tauP")]:
+        logtp = new_state[indexes['tauP']]
+        if not do_log[indexes["tauP"]]:
             logtp = np.log10(logtp)
 
         diff = np.abs(logtn - logtp)
@@ -287,7 +287,7 @@ def check_approved_param(new_state, param_info, active, do_log):
     return failed_checks
 
 
-def select_next_params(current_state, param_info, is_active, trial_move, do_log, RNG=None, coerce_hard_bounds=False, logger=None, verbose=False):
+def select_next_params(current_state, param_info, indexes, is_active, trial_move, do_log, RNG=None, coerce_hard_bounds=False, logger=None, verbose=False):
     """ 
     Trial move function: returns a new proposed state equal to the current_state plus a uniform random displacement
     """
@@ -322,10 +322,10 @@ def select_next_params(current_state, param_info, is_active, trial_move, do_log,
             if verbose and logger is not None:
                 logger.debug(f"mu constraint: ambi {ambi} +/- {ambi_std}")
             new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
-            new_state[names.index("mu_p")] = np.log10(
-                (2 / new_muambi - 1 / 10 ** new_state[names.index("mu_n")])**-1)
+            new_state[indexes["mu_p"]] = np.log10(
+                (2 / new_muambi - 1 / 10 ** new_state[indexes["mu_n"]])**-1)
 
-        failed_checks = check_approved_param(new_state, param_info, is_active, do_log)
+        failed_checks = check_approved_param(new_state, param_info, indexes, is_active, do_log)
         success = len(failed_checks) == 0
         if success:
             if verbose and logger is not None:
@@ -678,7 +678,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
             logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
         for MS in MS_list.MS:
-            logll = run_iteration(MS.init_state, MS.param_indexes, MS.param_info["unit_conversions"], MS_list.sim_info, MS_list.iniPar,
+            logll = run_iteration(MS.init_state, MS_list.param_indexes, MS.param_info["unit_conversions"], MS_list.sim_info, MS_list.iniPar,
                                   MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
                                   MS.MCMC_fields, logger, verbose)
 
@@ -730,14 +730,14 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                 else:
                     # Non-tempering move, or all other chains not selected for tempering
 
-                    new_state = select_next_params(MS.H.states[:, k-1], MS.param_info, MS_list.ensemble_fields["active"],
+                    new_state = select_next_params(MS.H.states[:, k-1], MS.param_info, MS_list.param_indexes, MS_list.ensemble_fields["active"],
                                                    MS_list.ensemble_fields["trial_move"], MS_list.ensemble_fields["do_log"], MS_list.RNG,
                                                    MS.MCMC_fields.get("hard_bounds", 0), logger)
 
                     if (verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN) and logger is not None:
                         MS.print_status(k - 1, MS_list.ensemble_fields["active"], new_state, logger)
 
-                    logll = run_iteration(new_state, MS.param_indexes, MS.param_info["unit_conversions"], MS_list.sim_info, MS_list.iniPar,
+                    logll = run_iteration(new_state, MS_list.param_indexes, MS.param_info["unit_conversions"], MS_list.sim_info, MS_list.iniPar,
                                           MS_list.times, MS_list.vals, MS_list.uncs, MS_list.IRF_tables,
                                           MS.MCMC_fields, logger, verbose)
                     

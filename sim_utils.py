@@ -50,6 +50,8 @@ class Ensemble():
         self.ensemble_fields["active"] = param_info.pop("active")
         self.ensemble_fields["active"] = np.array([self.ensemble_fields["active"][param]
                                                    for param in param_info["names"]], dtype=bool)
+        
+        self.param_indexes = {name: param_info["names"].index(name) for name in param_info["names"]}
 
         if self.ensemble_fields["parallel_tempering"] is None:
             n_states = 1
@@ -100,9 +102,6 @@ class MetroState():
 
         self.init_state = np.array([self.param_info["init_guess"][param]
                                     for param in self.param_info["names"]], dtype=float)
-        
-        self.param_indexes = {name: self.param_info["names"].index(name) for name in self.param_info["names"]}
-
         return
 
     def print_status(self, k, is_active, new_state, logger):
