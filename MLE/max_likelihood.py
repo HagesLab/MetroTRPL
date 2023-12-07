@@ -111,13 +111,12 @@ def cost(x, e_data, MS_list, logger):
 
 
 def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, logger):
-    MS_list = Ensemble(param_info, sim_params, sim_flags, DEFAULT_NUM_ITERS)
+    MS_list = Ensemble(param_info["names"], sim_params, sim_flags, DEFAULT_NUM_ITERS, logger_name="MLE0")
     MS = MS_list.MS[0]
 
     # Prefer having these attached to MS ensemble, to match the original MCMC method
     MS_list.iniPar = init_params
     logger.info(f"Sim info: {MS_list.sim_info}")
-    logger.info(f"Param infos: {MS.param_info}")
     logger.info(f"MCMC fields: {MS.MCMC_fields}")
 
     if MS.MCMC_fields.get("irf_convolution", None) is not None:

@@ -245,9 +245,11 @@ class Window(TkGUI):
                 # Compatibility prior to ensembles
                 if isinstance(MS_list, sim_utils.MetroState):
                     active = MS_list.param_info["active"]
+                    names = MS_list.param_info["names"]
                     MS_list = [MS_list]
                 else:
                     active = MS_list.ensemble_fields["active"]
+                    names = MS_list.ensemble_fields["names"]
                     MS_list = MS_list.MS
                     
 
@@ -255,7 +257,7 @@ class Window(TkGUI):
                 chain = Chain(file_name + f"-{i}")
 
                 chain.active_sampled = active
-                chain.param_names = metrostate.param_info["names"]
+                chain.param_names = names
 
                 logl = getattr(metrostate.H, "loglikelihood")
                 if logl.ndim == 2 and logl.shape[0] == 1:
@@ -286,7 +288,7 @@ class Window(TkGUI):
                 chain.data["accept"] = sub_means
 
                 try:
-                    for key in metrostate.param_info["names"]:
+                    for key in chain.param_names:
                         mean_states = getattr(metrostate.H, f"mean_{key}")
                         if mean_states.ndim == 2 and mean_states.shape[0] == 1:
                             mean_states = mean_states[0]

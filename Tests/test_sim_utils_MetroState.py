@@ -39,7 +39,7 @@ class TestUtils(unittest.TestCase):
             ],
             dtype=float,
         )
-        self.ms = MetroState(dummy_param_info, init_state, dummy_sim_flags, num_iters)
+        self.ms = MetroState(dummy_names, init_state, dummy_sim_flags, num_iters)
         self.new_state = [dummy_initial_guesses[name] for name in dummy_names]
         self.active = np.array([dummy_active[name] for name in dummy_names], dtype=bool)
 
@@ -50,4 +50,4 @@ class TestUtils(unittest.TestCase):
 
         # One message per active param + one for log likelihood
         self.assertEqual(len(captured.records), sum(
-            self.ms.param_info['active'].values()) + 1)
+            self.active) + 1)

@@ -34,10 +34,10 @@ class MetroState:
     next state.
     """
 
-    def __init__(self, param_info, init_state, MCMC_fields, num_iters):
-        self.H = History(num_iters, param_info["names"])
+    def __init__(self, names, init_state, MCMC_fields, num_iters):
+        self.H = History(num_iters, names)
 
-        self.param_info = param_info
+        self.names = names
         self.MCMC_fields = MCMC_fields
 
         self.init_state = init_state
@@ -45,7 +45,7 @@ class MetroState:
 
     def print_status(self, k, is_active, new_state, logger):
         logger.info(f"Current loglikelihood : {self.H.loglikelihood[0, k]:.6e}")
-        for i, param in enumerate(self.param_info["names"]):
+        for i, param in enumerate(self.names):
             if is_active[i]:
                 logger.info(
                     f"Next {param}: {new_state[i]:.6e} from mean {self.H.states[i, k]:.6e}"
@@ -82,7 +82,7 @@ class EnsembleTemplate:
     def checkpoint(self, fname):
         """Save the current ensemble as a pickle object."""
         for MS in self.MS:
-            MS.H.update(MS.param_info["names"])
+            MS.H.update(MS.names)
 
         with open(fname, "wb+") as ofstream:
             handler = self.handler  # FileHandlers aren't pickleable
@@ -307,11 +307,11 @@ class EnsembleTemplate:
         )
         return g.tSteps, sol
 
-    def check_approved_param(self, new_state, param_info):
+    def check_approved_param(self, new_state):
         """ Raise a warning for non-physical or unrealistic proposed trial moves,
             or proposed moves that exceed the prior distribution.
         """
-        order = param_info['names']
+        order = self.ensemble_fields['names']
         checks = {}
         prior_dist = self.ensemble_fields["prior_dist"]
 
@@ -354,7 +354,7 @@ class EnsembleTemplate:
 
         return failed_checks
 
-    def select_next_params(self, current_state, param_info):
+    def select_next_params(self, current_state):
         """ 
         Trial move function: returns a new proposed state equal to the current_state plus a uniform random displacement
         """
@@ -393,7 +393,7 @@ class EnsembleTemplate:
                 new_state[self.param_indexes["mu_p"]] = np.log10(
                     (2 / new_muambi - 1 / 10 ** new_state[self.param_indexes["mu_n"]])**-1)
 
-            failed_checks = self.check_approved_param(new_state, param_info)
+            failed_checks = self.check_approved_param(new_state)
             success = len(failed_checks) == 0
             if success:
                 self.logger.debug(f"Found params in {tries} tries")
@@ -484,16 +484,18 @@ class Ensemble(EnsembleTemplate):
             n_states = len(self.ensemble_fields["parallel_tempering"])
             temperatures = self.ensemble_fields["parallel_tempering"]
 
+        self.ensemble_fields["names"] = param_info.pop("names")
+
         self.MS: list[MetroState] = []
         for i in range(n_states):
             init_state = np.array(
                 [
                     param_info["init_guess"][param]
-                    for param in param_info["names"]
+                    for param in self.ensemble_fields["names"]
                 ],
             dtype=float,
         )
-            self.MS.append(MetroState(param_info, init_state, dict(MCMC_fields), num_iters))
+            self.MS.append(MetroState(self.ensemble_fields["names"], init_state, dict(MCMC_fields), num_iters))
             self.MS[-1].MCMC_fields["_beta"] = temperatures[i] ** -1
             if isinstance(MCMC_fields["likel2move_ratio"], dict):
                 self.MS[-1].MCMC_fields["current_sigma"] = {

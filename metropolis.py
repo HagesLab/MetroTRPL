@@ -122,7 +122,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                 else:
                     # Non-tempering move, or all other chains not selected for tempering
 
-                    new_state = MS_list.select_next_params(MS.H.states[:, k-1], MS.param_info)
+                    new_state = MS_list.select_next_params(MS.H.states[:, k-1])
 
                     logll = MS_list.eval_trial_move(new_state, MS.MCMC_fields)
 
@@ -241,7 +241,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     MS_list.logger.info(f"Ensemble fields: {MS_list.ensemble_fields}")
     for i, MS in enumerate(MS_list.MS):
         MS_list.logger.info(f"Metrostate #{i}:")
-        MS_list.logger.info(f"Param infos: {MS.param_info}")
         MS_list.logger.info(f"MCMC fields: {MS.MCMC_fields}")
 
     need_initial_state = (load_checkpoint is None)
