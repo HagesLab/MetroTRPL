@@ -311,6 +311,52 @@ class EnsembleTemplate:
         )
         return g.tSteps, sol
 
+    def check_approved_param(self, new_state, param_info):
+        """ Raise a warning for non-physical or unrealistic proposed trial moves,
+            or proposed moves that exceed the prior distribution.
+        """
+        order = param_info['names']
+        checks = {}
+        prior_dist = param_info["prior_dist"]
+
+        # Ensure proposal stays within bounds of prior distribution
+        diff = np.where(self.ensemble_fields["do_log"], 10 ** new_state, new_state)
+        for i, param in enumerate(order):
+            if not self.ensemble_fields["active"][i]:
+                continue
+
+            lb = prior_dist[param][0]
+            ub = prior_dist[param][1]
+            checks[f"{param}_size"] = (lb < diff[i] < ub)
+
+        # TRPL specific checks:
+        # p0 > n0 by definition of a p-doped material
+        if 'p0' in order and 'n0' in order:
+            checks["p0_greater"] = (new_state[self.param_indexes["p0"]]
+                                    > new_state[self.param_indexes["n0"]])
+        else:
+            checks["p0_greater"] = True
+
+        # tau_n and tau_p must be *close* (within 2 OM) for a reasonable midgap SRH
+        if 'tauN' in order and 'tauP' in order:
+            # Compel logscale for this one - makes for easier check
+            logtn = new_state[self.param_indexes['tauN']]
+            if not self.ensemble_fields["do_log"][self.param_indexes["tauN"]]:
+                logtn = np.log10(logtn)
+
+            logtp = new_state[self.param_indexes['tauP']]
+            if not self.ensemble_fields["do_log"][self.param_indexes["tauP"]]:
+                logtp = np.log10(logtp)
+
+            diff = np.abs(logtn - logtp)
+            checks["tn_tp_close"] = (diff <= 2)
+
+        else:
+            checks["tn_tp_close"] = True
+
+        failed_checks = [k for k in checks if not checks[k]]
+
+        return failed_checks
 
 class Ensemble(EnsembleTemplate):
     """
