@@ -35,7 +35,7 @@ class MetroState:
     """
 
     def __init__(self, param_info, init_state, MCMC_fields, num_iters):
-        self.H = History(num_iters, param_info)
+        self.H = History(num_iters, param_info["names"])
 
         self.param_info = param_info
         self.MCMC_fields = MCMC_fields
@@ -82,7 +82,7 @@ class EnsembleTemplate:
     def checkpoint(self, fname):
         """Save the current ensemble as a pickle object."""
         for MS in self.MS:
-            MS.H.update(MS.param_info)
+            MS.H.update(MS.param_info["names"])
 
         with open(fname, "wb+") as ofstream:
             handler = self.handler  # FileHandlers aren't pickleable
@@ -537,23 +537,23 @@ class Parameters:
 class History:
     """Record of past states the walk has been to."""
 
-    def __init__(self, num_iters, param_info):
+    def __init__(self, num_iters, names):
         self.states_are_one_array = True
-        self.states = np.zeros((len(param_info["names"]), num_iters))
+        self.states = np.zeros((len(names), num_iters))
         self.accept = np.zeros((1, num_iters))
         self.loglikelihood = np.zeros((1, num_iters))
         return
 
-    def update(self, param_info):
+    def update(self, names):
         """Compatibility - repackage self.states array into attributes per parameter"""
-        for i, param in enumerate(param_info["names"]):
+        for i, param in enumerate(names):
             setattr(self, f"mean_{param}", self.states[i])
         return
 
-    def pack(self, param_info, num_iters):
+    def pack(self, names, num_iters):
         """Compatibility - turn individual attributes into self.states"""
-        self.states = np.zeros((len(param_info["names"]), num_iters))
-        for k, param in enumerate(param_info["names"]):
+        self.states = np.zeros((len(names), num_iters))
+        for k, param in enumerate(names):
             self.states[k] = getattr(self, f"mean_{param}")
 
     def truncate(self, k):

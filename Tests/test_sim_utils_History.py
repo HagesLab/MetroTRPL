@@ -15,19 +15,11 @@ class TestUtils(unittest.TestCase):
                         "b": 2,
                         "a": 3}
 
-        # Should (but not required) contain one for each name
-        dummy_unitconversions = {'a': 1, 'c': 10, 'mu_n': 0.25}
-        dummy_do_log = {'a': True, 'b': 0, 'c': 0, 'mu_n': 1, 'mu_p': True}
-
-        self.dummy_param_info = {'names': self.dummy_names,
-                                 'unit_conversions': dummy_unitconversions,
-                                 'do_log': dummy_do_log}
-
         self.num_iters = 20
 
     def test_initialization(self):
         # Test init
-        testh = History(self.num_iters, self.dummy_param_info)
+        testh = History(self.num_iters, self.dummy_names)
         self.assertEqual(np.sum(testh.accept), 0)
         self.assertEqual(np.sum(testh.loglikelihood), 0)
         self.assertEqual(len(testh.accept[0]), self.num_iters)
@@ -38,7 +30,7 @@ class TestUtils(unittest.TestCase):
     # Skipping over export...
 
     def test_truncate(self):
-        testh = History(self.num_iters, self.dummy_param_info)
+        testh = History(self.num_iters, self.dummy_names)
         # for param in self.dummy_names:
         #     setattr(self.tasth, param, getattr(self.tasth, param) + 1)
         #     setattr(self.tasth, f"mean_{param}", getattr(self.tasth, f"mean_{param}") + 10)
@@ -52,7 +44,7 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(testh.loglikelihood.shape[1], truncate_at)
 
     def test_extend(self):
-        testh = History(self.num_iters, self.dummy_param_info)
+        testh = History(self.num_iters, self.dummy_names)
         # for param in self.dummy_names:
         #     setattr(self.tasth, param, getattr(self.tasth, param) + 1)
         #     setattr(self.tasth, f"mean_{param}", getattr(self.tasth, f"mean_{param}") + 10)
@@ -81,12 +73,12 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(testh.loglikelihood.shape[1], extend_to)
 
     def test_update(self):
-        testh = History(self.num_iters, self.dummy_param_info)
+        testh = History(self.num_iters, self.dummy_names)
         k = 0
         testh.states[self.indexes["c"], k] = 50
 
         # Should split the states array into new attributes for each parameter
-        testh.update(self.dummy_param_info)
+        testh.update(self.dummy_names)
 
         self.assertEqual(testh.mean_c[k], 50)
         self.assertEqual(np.sum(testh.mean_c), 50)
