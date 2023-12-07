@@ -7,7 +7,8 @@ import os
 from functools import partial
 import numpy as np
 from scipy.interpolate import griddata
-from metropolis import do_simulation
+from forward_solver import solve
+from sim_utils import Grid
 from laplace import make_I_tables, do_irf_convolution
 
 IRF_PATH = os.path.join("..", "IRFs")
@@ -71,8 +72,10 @@ class QuicksimManager():
                             "Nt": ((1e-7) ** 3)}
             
             state = np.array([param_info["init_guess"][param]
-                                    for param in param_info["names"]], dtype=float)
+                              for param in param_info["names"]], dtype=float)
             indexes = {name: param_info["names"].index(name) for name in param_info["names"]}
+            units = np.array([param_info["unit_conversions"].get(param, 1)
+                              for param in param_info["names"]], dtype=float)
 
             thickness = sim_tasks["thickness"]
             wavelength = sim_tasks["wavelength"]
@@ -81,7 +84,7 @@ class QuicksimManager():
             iniPar = list(zip(sim_tasks["fluence"], sim_tasks["absp"], sim_tasks["direction"]))
             t_sim = [np.linspace(0, sim_tasks["final_time"][i], sim_tasks["nt"][i] + 1) for i in range(n_sims)]
             simulate += [partial(task, state, indexes, thickness[i], nx[i], iniPar[i], t_sim[i],
-                                 hmax=4, meas=meas, units=param_info["unit_conversions"], solver=("solveivp",), model=model,
+                                 hmax=4, meas=meas, units=units, solver=("solveivp",), model=model,
                                  wavelength=wavelength[i], IRF_tables=IRF_tables) for i in range(n_sims)]
 
         self.proc = multiprocessing.Process(target=qs_simulate, args=(self.queue, simulate))
@@ -98,7 +101,19 @@ class QuicksimManager():
 
 def task(state, indexes, thickness, nx, iniPar, times, hmax, meas, units, solver, model, wavelength, IRF_tables):
     """What each task needs to do - simulate then optionally convolve"""
-    t, sol = do_simulation(state, indexes, thickness, nx, iniPar, times, hmax, meas, units, solver, model)
+    g = Grid()
+    g.thickness = thickness
+    g.nx = nx
+    g.dx = g.thickness / g.nx
+    g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
+
+    g.start_time = 0
+    g.nt = len(times) - 1
+    g.hmax = hmax
+    g.tSteps = times
+    g.time = g.tSteps[-1]
+    sol = solve(iniPar, g, state, indexes, meas, units, solver, model)
+    t = g.tSteps
     if wavelength != 0 and int(wavelength) in IRF_tables:
         t, sol, success = do_irf_convolution(
             t, sol, IRF_tables[int(wavelength)], time_max_shift=True)

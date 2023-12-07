@@ -2,9 +2,9 @@ import unittest
 import numpy as np
 from scipy.integrate import solve_ivp
 
+from forward_solver import E_field
 from forward_solver import dydt_numba
-from sim_utils import Grid, Solution
-from metropolis import E_field
+from sim_utils import Grid
 
 ## Define constants
 eps0 = 8.854 * 1e-12 * 1e-9 # [C / V m] to {C / V nm}
@@ -15,7 +15,6 @@ kB = 8.61773e-5  # [eV / K]
 class TestUtils(unittest.TestCase):
     
     def setUp(self):
-        self.s = Solution()
         g = Grid()
         g.thickness = 1000
         g.nx = 100
@@ -25,7 +24,6 @@ class TestUtils(unittest.TestCase):
         g.time = 10
         g.start_time = 0
         g.nt = 100
-        g.dt = g.time / g.nt
         g.hmax = 4
         g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
         self.g = g
@@ -89,11 +87,10 @@ class TestUtils(unittest.TestCase):
                                 ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
                          t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
-        
-        s = self.s
-        s.N, s.P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
-        np.testing.assert_almost_equal(s.N, np.ones_like(s.N) * init_dN)
-        np.testing.assert_almost_equal(s.P, np.ones_like(s.P) * init_dN)
+
+        N, P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
+        np.testing.assert_almost_equal(N, np.ones_like(N) * init_dN)
+        np.testing.assert_almost_equal(P, np.ones_like(P) * init_dN)
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
 
         ##############
@@ -135,10 +132,9 @@ class TestUtils(unittest.TestCase):
                          t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
         
-        s = self.s
-        s.N, s.P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
-        np.testing.assert_almost_equal(s.N, np.ones_like(s.N) * total_N / self.g.nx)
-        np.testing.assert_almost_equal(s.P, np.ones_like(s.P) * total_N / self.g.nx)
+        N, P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
+        np.testing.assert_almost_equal(N, np.ones_like(N) * total_N / self.g.nx)
+        np.testing.assert_almost_equal(P, np.ones_like(P) * total_N / self.g.nx)
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
         ################
         
@@ -177,12 +173,11 @@ class TestUtils(unittest.TestCase):
                                 ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
                          t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
-        
-        s = self.s
-        s.N, s.P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
+
+        N, P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
         tau = initial_guess["tauN"]
-        np.testing.assert_almost_equal(s.N[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
-        np.testing.assert_almost_equal(s.P[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
+        np.testing.assert_almost_equal(N[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
+        np.testing.assert_almost_equal(P[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
         ################
         
@@ -221,12 +216,11 @@ class TestUtils(unittest.TestCase):
                                 ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
                          t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
-        
-        s = self.s
-        s.N, s.P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
+
+        N, P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
         tau = initial_guess["tauN"] + initial_guess["tauP"]
-        np.testing.assert_almost_equal(s.N[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
-        np.testing.assert_almost_equal(s.P[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
+        np.testing.assert_almost_equal(N[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
+        np.testing.assert_almost_equal(P[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
         ################
         
@@ -265,13 +259,12 @@ class TestUtils(unittest.TestCase):
                                 ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
                          t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
-        
-        s = self.s
-        s.N, s.P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
+
+        N, P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
         tau = (initial_guess["p0"] * self.unit_conversions["p0"] *
                initial_guess["ks"] * self.unit_conversions["ks"]) ** -1
-        np.testing.assert_almost_equal(s.N[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
-        np.testing.assert_almost_equal(s.P[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
+        np.testing.assert_almost_equal(N[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
+        np.testing.assert_almost_equal(P[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
         ################
         
@@ -310,12 +303,11 @@ class TestUtils(unittest.TestCase):
                                 ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
                          t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
-        
-        s = self.s
-        s.N, s.P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
+
+        N, P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
         tau = (initial_guess["p0"] ** 2 * self.unit_conversions["p0"] ** 2 *
                initial_guess["Cp"] * self.unit_conversions["Cp"]) ** -1
-        np.testing.assert_almost_equal(s.N[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
-        np.testing.assert_almost_equal(s.P[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
+        np.testing.assert_almost_equal(N[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
+        np.testing.assert_almost_equal(P[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
         ################
