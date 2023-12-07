@@ -6,12 +6,14 @@ Created on Thu Jan 13 13:04:20 2022
 """
 from sys import float_info
 import pickle
+import logging
 
 import numpy as np
 
 from forward_solver import solve
 from utils import search_c_grps, set_min_y, unpack_simpar, U
 from laplace import do_irf_convolution, post_conv_trim
+from mcmc_logging import start_logging, stop_logging
 
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
@@ -75,6 +77,8 @@ class EnsembleTemplate:
     RNG: np.random.Generator  # Random number generator
     random_state: dict  # State of the RNG
     latest_iter: int  # Latest iteration # reached by chains
+    logger: logging.Logger  # A standard logging.logger instance
+    handler: logging.FileHandler  # A standard FileHandler instance
 
     def __init__(self):
         return
@@ -85,10 +89,13 @@ class EnsembleTemplate:
             MS.H.update(MS.param_info)
 
         with open(fname, "wb+") as ofstream:
+            handler = self.handler  # FileHandlers aren't pickleable
+            self.handler = None
             pickle.dump(self, ofstream)
+            self.handler = handler
         return
 
-    def eval_trial_move(self, state, MCMC_fields, logger, verbose=False):
+    def eval_trial_move(self, state, MCMC_fields):
         """
         Calculates log likelihood of a new proposed state
         """
@@ -96,13 +103,13 @@ class EnsembleTemplate:
         logll = np.zeros(self.sim_info["num_meas"])
 
         for i in range(self.sim_info["num_meas"]):
-            logll[i] = self.one_sim_likelihood(i, state, MCMC_fields, logger, verbose)
+            logll[i] = self.one_sim_likelihood(i, state, MCMC_fields)
 
         logll = np.sum(logll)
 
         return logll
 
-    def one_sim_likelihood(self, meas_index, state, MCMC_fields, logger, verbose):
+    def one_sim_likelihood(self, meas_index, state, MCMC_fields):
         """
         Calculates log likelihood of one measurement within a proposed state
         """
@@ -140,7 +147,7 @@ class EnsembleTemplate:
             success = True
         else:
             tSteps, sol, success = self.converge_simulation(
-                meas_index, state, iniPar, logger, verbose
+                meas_index, state, iniPar
             )
         if not success:
             likelihood = -np.inf
@@ -148,10 +155,9 @@ class EnsembleTemplate:
 
         try:
             if irf_convolution is not None and irf_convolution[meas_index] != 0:
-                if verbose and logger is not None:
-                    logger.info(
-                        f"Convolving with wavelength {irf_convolution[meas_index]}"
-                    )
+                self.logger.debug(
+                    f"Convolving with wavelength {irf_convolution[meas_index]}"
+                )
                 wave = int(irf_convolution[meas_index])
                 tSteps, sol, success = do_irf_convolution(
                     tSteps, sol, self.IRF_tables[wave], time_max_shift=True
@@ -177,12 +183,11 @@ class EnsembleTemplate:
                 sol = sol[-len(times_c) :]
 
         except ValueError as e:
-            logger.warning(e)
+            self.logger.warning(e)
             likelihood = -np.inf
             return likelihood
 
-        if verbose and logger is not None:
-            logger.info(f"Comparing times {times_c[0]}-{times_c[-1]}")
+        self.logger.debug(f"Comparing times {times_c[0]}-{times_c[-1]}")
 
         try:
             # TRPL must be positive!
@@ -200,22 +205,21 @@ class EnsembleTemplate:
                 )
 
             if n_fails > 0:
-                logger.warning(
+                self.logger.warning(
                     f"{meas_index}: {n_fails} / {len(sol)} non-positive vals"
                 )
 
             sol[where_failed] *= -1
         except ValueError as e:
-            logger.warning(e)
+            self.logger.warning(e)
             likelihood = -np.inf
             return likelihood
 
         if MCMC_fields.get("force_min_y", False):
             sol, min_y, n_set = set_min_y(sol, vals_c, scale_shift)
-            if verbose and logger is not None:
-                logger.warning(f"min_y: {min_y}")
-                if n_set > 0:
-                    logger.warning(f"{n_set} values raised to min_y")
+            self.logger.debug(f"min_y: {min_y}")
+            if n_set > 0:
+                self.logger.debug(f"{n_set} values raised to min_y")
 
         if meas_type == "pa":
             likelihood = -sol[0]
@@ -242,11 +246,11 @@ class EnsembleTemplate:
                         f"{meas_index}: Simulation failed: invalid likelihood"
                     )
             except ValueError as e:
-                logger.warning(e)
+                self.logger.warning(e)
                 likelihood = -np.inf
         return likelihood
 
-    def converge_simulation(self, meas_index, state, init_conds, logger=None, verbose=False):
+    def converge_simulation(self, meas_index, state, init_conds):
         """
         Handle mishaps from do_simulation.
 
@@ -259,10 +263,6 @@ class EnsembleTemplate:
             corresponding to a state in the parameter space.
         init_conds : ndarray
             Array of initial conditions (e.g. an initial carrier profile) for simulation.
-        logger : logger
-            Logger to write status messages to. The default is None.
-        verbose : bool, optional
-            Print more detailed status messages. The default is False.
 
         Returns
         -------
@@ -283,14 +283,12 @@ class EnsembleTemplate:
             t_steps, sol = self.do_simulation(meas_index, state, init_conds)
         except ValueError as e:
             success = False
-            if logger is not None:
-                logger.warning(f"{meas_index}: Simulation error occurred: {e}")
+            self.logger.warning(f"{meas_index}: Simulation error occurred: {e}")
             return t_steps, sol, success
 
-        if verbose and logger is not None:
-            logger.info(
-                f"{meas_index}: Simulation complete t {t_steps[0]}-{t_steps[-1]}"
-            )
+        self.logger.debug(
+            f"{meas_index}: Simulation complete t {t_steps[0]}-{t_steps[-1]}"
+        )
 
         return t_steps, sol, success
 
@@ -320,8 +318,10 @@ class Ensemble(EnsembleTemplate):
 
     """
 
-    def __init__(self, param_info, sim_info, MCMC_fields, num_iters):
+    def __init__(self, param_info, sim_info, MCMC_fields, num_iters, logger_name, verbose=False):
         super().__init__()
+        self.logger, self.handler = start_logging(
+            log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
         # Transfer shared fields from chains to ensemble
         self.ensemble_fields = {}
         self.ensemble_fields["output_path"] = MCMC_fields.pop("output_path")
@@ -410,6 +410,9 @@ class Ensemble(EnsembleTemplate):
         self.RNG = np.random.default_rng(235817049752375780)
         self.random_state = np.random.get_state()
         self.latest_iter = 0
+
+    def stop_logging(self, err_code):
+        stop_logging(self.logger, self.handler, err_code)
 
 
 class Parameters:

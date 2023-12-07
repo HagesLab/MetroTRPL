@@ -17,7 +17,7 @@ class TestUtils(unittest.TestCase):
 
     def setUp(self):
         self.mock_ensemble = EnsembleTemplate()
-        self.logger = logging.getLogger()
+        self.mock_ensemble.logger = logging.getLogger()
 
 
     def test_run_iter(self):
@@ -79,7 +79,7 @@ class TestUtils(unittest.TestCase):
                      "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
         self.mock_ensemble.vals = vals
         self.mock_ensemble.uncs = uncs
-        logll = self.mock_ensemble.eval_trial_move(state, sim_flags, logger=self.logger)
+        logll = self.mock_ensemble.eval_trial_move(state, sim_flags)
 
         np.testing.assert_almost_equal(
             logll, np.sum([-59340.105083, -32560.139058]), decimal=0)  # rtol=1e-5
@@ -138,7 +138,7 @@ class TestUtils(unittest.TestCase):
                      "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
         self.mock_ensemble.vals = vals
         self.mock_ensemble.uncs = uncs
-        logll1 = self.mock_ensemble.eval_trial_move(state, sim_flags, logger=self.logger)
+        logll1 = self.mock_ensemble.eval_trial_move(state, sim_flags)
 
         # A small move toward the true lifetime of 10 makes the likelihood better
         # Without min_y truncation, the likelihoods were so small they weren't even comparable
@@ -146,7 +146,7 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"]["tauP"] = 4.01
 
         state = [param_info["init_guess"][name] for name in param_names]
-        logll2 = self.mock_ensemble.eval_trial_move(state, sim_flags, logger=self.logger)
+        logll2 = self.mock_ensemble.eval_trial_move(state, sim_flags)
         self.assertTrue(logll2 > logll1)
 
     def test_run_iter_cutoff(self):
@@ -210,7 +210,7 @@ class TestUtils(unittest.TestCase):
                      "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
         self.mock_ensemble.vals = vals
         self.mock_ensemble.uncs = uncs
-        logll = self.mock_ensemble.eval_trial_move(state, sim_flags, logger=self.logger)
+        logll = self.mock_ensemble.eval_trial_move(state, sim_flags)
 
         # First iter; auto-accept
         np.testing.assert_almost_equal(
@@ -283,7 +283,7 @@ class TestUtils(unittest.TestCase):
                      "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
         self.mock_ensemble.vals = vals
         self.mock_ensemble.uncs = uncs
-        logll = self.mock_ensemble.eval_trial_move(state, sim_flags, logger=self.logger)
+        logll = self.mock_ensemble.eval_trial_move(state, sim_flags)
 
         np.testing.assert_almost_equal(
             logll, 0, decimal=0)  # rtol=1e-5
@@ -346,7 +346,7 @@ class TestUtils(unittest.TestCase):
                      "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
         self.mock_ensemble.vals = vals
         self.mock_ensemble.uncs = uncs
-        logll = self.mock_ensemble.eval_trial_move(state, sim_flags, logger=self.logger)
+        logll = self.mock_ensemble.eval_trial_move(state, sim_flags)
 
         # First iter; auto-accept
         np.testing.assert_almost_equal(

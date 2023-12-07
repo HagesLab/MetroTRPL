@@ -114,7 +114,7 @@ class TestUtils(unittest.TestCase):
                        "load_checkpoint": None,
                        }
 
-        self.MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters)
+        self.MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, logger_name="Test0")
         self.ensemble_from_chpt = None
 
         # Dummy initial condition and measurement data
@@ -127,8 +127,8 @@ class TestUtils(unittest.TestCase):
         make_dir(self.MS_list.ensemble_fields["checkpoint_dirname"])
 
         main_metro_loop(self.MS_list, starting_iter, num_iters,
-                        need_initial_state=True, logger=self.logger,
-                        verbose=True)
+                        need_initial_state=True,
+                        verbose=False)
         return
 
     def test_checkpoint(self):
@@ -139,8 +139,8 @@ class TestUtils(unittest.TestCase):
             starting_iter = 5 + 1
 
         main_metro_loop(self.ensemble_from_chpt, starting_iter, 10,
-                        need_initial_state=False, logger=self.logger,
-                        verbose=True)
+                        need_initial_state=False,
+                        verbose=False)
 
         # Successful completion - checkpoints not needed anymore
         for chpt in os.listdir(os.path.join(".", "test-Checkpoints")):
