@@ -278,11 +278,6 @@ class EnsembleTemplate():
         g.tSteps = self.times[meas_index]
         g.time = g.tSteps[-1]
 
-        if g.tSteps[0] > 0:
-            # Always start sims from t=0 even if experimental data doesn't, to verify initial conditions
-            dt_estimate = g.tSteps[1] - g.tSteps[0]
-            g.tSteps = np.concatenate((np.arange(0, g.tSteps[0], dt_estimate), g.tSteps))
-
         sol = solve(
             iniPar, g, state, self.param_indexes, meas=meas_type, units=self.ensemble_fields["units"],
             solver=MCMC_fields["solver"], model=MCMC_fields["model"], RTOL=rtol, ATOL=atol)
