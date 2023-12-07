@@ -140,7 +140,7 @@ class EnsembleTemplate:
             success = True
         else:
             tSteps, sol, success = self.converge_simulation(
-                meas_index, state, iniPar, MCMC_fields, logger, verbose
+                meas_index, state, iniPar, logger, verbose
             )
         if not success:
             likelihood = -np.inf
@@ -246,26 +246,19 @@ class EnsembleTemplate:
                 likelihood = -np.inf
         return likelihood
 
-    def converge_simulation(
-        self, meas_index, state, iniPar, MCMC_fields, logger=None, verbose=True
-    ):
+    def converge_simulation(self, meas_index, state, init_conds, logger=None, verbose=False):
         """
-        Retest and repeat simulation until all stipulated convergence criteria
-        are met.
-        For some models, this can be as simple as running do_simulation()
-        or equivalent once.
+        Handle mishaps from do_simulation.
 
         Parameters
         ----------
-        i : int
+        meas_index : int
             Index of ith simulation in a measurement set requiring n simulations.
         state : ndarray
             An array of parameters, ordered according to param_info["names"],
             corresponding to a state in the parameter space.
-        iniPar : ndarray
-            Array of initial conditions for simulation.
-        MCMC_fields : dict
-            Dictionary of MMC control parameters.
+        init_conds : ndarray
+            Array of initial conditions (e.g. an initial carrier profile) for simulation.
         logger : logger
             Logger to write status messages to. The default is None.
         verbose : bool, optional
@@ -287,7 +280,7 @@ class EnsembleTemplate:
         sol = np.zeros_like(t_steps)
 
         try:
-            t_steps, sol = self.do_simulation(meas_index, state, iniPar)
+            t_steps, sol = self.do_simulation(meas_index, state, init_conds)
         except ValueError as e:
             success = False
             if logger is not None:
@@ -301,13 +294,13 @@ class EnsembleTemplate:
 
         return t_steps, sol, success
 
-    def do_simulation(self, meas_index, state, iniPar):
-        """Set up one simulation."""
+    def do_simulation(self, meas_index, state, init_conds):
+        """Set up and run one simulation."""
         thickness, nx, meas_type = unpack_simpar(self.sim_info, meas_index)
         g = Grid(thickness, nx, self.times[meas_index], self.ensemble_fields["hmax"])
 
         sol = solve(
-            iniPar,
+            init_conds,
             g,
             state,
             self.param_indexes,
