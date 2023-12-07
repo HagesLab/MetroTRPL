@@ -207,7 +207,7 @@ def insert_param(param_info, MCMC_fields, mode="fluences"):
         param_info["active"][f"{name_base}{i}"] = 1
     return
 
-def remap_fittable_inds(fittables : np.ndarray | list[int], select_obs_sets : list) -> np.ndarray:
+def remap_fittable_inds(fittables : np.ndarray | list[int], select_obs_sets : np.ndarray) -> np.ndarray:
     """
     Reassign new fittable indices (e.g. for fittable_fluence's 2nd argument)
     according to subset of measurements requested by select_obs_sets
@@ -230,7 +230,7 @@ def remap_fittable_inds(fittables : np.ndarray | list[int], select_obs_sets : li
 
     return np.array(new_fittables)
 
-def remap_constraint_grps(c_grps : list[tuple], select_obs_sets : list) -> list[tuple]:
+def remap_constraint_grps(c_grps : list[tuple], select_obs_sets : np.ndarray) -> list[tuple]:
     """
     Reassign new constraint groups (e.g. for fittable_fluence's 3rd argument)
     according to subset of measurements requested by select_obs_sets
@@ -524,17 +524,34 @@ def read_config_script_file(path):
     validate_MCMC_fields(MCMC_fields, grid["num_meas"])
 
     # Keep fittable_fluence (and other such fittables) indices consistent after subsetting with select_obs_sets
-    if meas_flags["select_obs_sets"] is not None:
-        fittables = ["fittable_fluences", "fittable_absps", "scale_factor"]
-        for fi in fittables:
-            if MCMC_fields.get(fi, None) is not None:
-                MCMC_fields[fi][1] = remap_fittable_inds(MCMC_fields[fi][1], meas_flags["select_obs_sets"])
-                if MCMC_fields[fi][2] is not None:
-                    MCMC_fields[fi][2] = remap_constraint_grps(MCMC_fields[fi][2], meas_flags["select_obs_sets"])
+    if meas_flags.get("select_obs_sets", None) is None:
+        meas_flags["select_obs_sets"] = np.arange(grid["num_meas"])
+    else:
+        meas_flags["select_obs_sets"] = np.array(meas_flags["select_obs_sets"], dtype=int)
 
-                MCMC_fields[fi][3] = list(np.array(MCMC_fields[fi][3])[meas_flags["select_obs_sets"]])
+    fittables = ["fittable_fluences", "fittable_absps", "scale_factor"]
+    for fi in fittables:
+        if MCMC_fields.get(fi, None) is not None:
+            MCMC_fields[fi][1] = remap_fittable_inds(MCMC_fields[fi][1], meas_flags["select_obs_sets"])
+            if MCMC_fields[fi][2] is not None:
+                MCMC_fields[fi][2] = remap_constraint_grps(MCMC_fields[fi][2], meas_flags["select_obs_sets"])
+
+            MCMC_fields[fi][3] = list(np.array(MCMC_fields[fi][3])[meas_flags["select_obs_sets"]])
 
     insert_param(param_info, MCMC_fields, mode="scale_f")
+    # TODO: Allow these only if initial condition supplies fluences-absorptions instead of profiles
+    insert_param(param_info, MCMC_fields, mode="fluences")
+    insert_param(param_info, MCMC_fields, mode="absorptions")
+
+    # Make simulation info consistent with actual number of selected measurements
+    grid["meas_types"] = [grid["meas_types"][i]
+                                for i in meas_flags["select_obs_sets"]]
+    grid["lengths"] = [grid["lengths"][i]
+                            for i in meas_flags["select_obs_sets"]]
+    grid["num_meas"] = len(meas_flags["select_obs_sets"])
+    if MCMC_fields.get("irf_convolution", None) is not None:
+        MCMC_fields["irf_convolution"] = [MCMC_fields["irf_convolution"][i]
+                                            for i in meas_flags["select_obs_sets"]]
 
     return grid, param_info, meas_flags, MCMC_fields
 

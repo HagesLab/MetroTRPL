@@ -313,6 +313,10 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
         starting_iter = 1
 
+        e_string = [f"[{e_data[1][i][0]}...{e_data[1][i][-1]}]" for i in range(len(e_data[1]))]
+        logger.info(f"E data: {e_string}")
+        i_string = [f"[{iniPar[i][0]}...{iniPar[i][-1]}]" for i in range(len(iniPar))]
+        logger.info(f"Initial condition: {i_string}")
         # Just so MS saves a record of these
         MS_list.iniPar = iniPar
         MS_list.times, MS_list.vals, MS_list.uncs = e_data
