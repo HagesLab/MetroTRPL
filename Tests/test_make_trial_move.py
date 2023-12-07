@@ -98,7 +98,6 @@ class TestUtils(unittest.TestCase):
                       "mu_p": 0.1}
 
         param_info = {"names": param_names,
-                      "do_mu_constraint": (20, 3),
                       "prior_dist": prior_dist,
                       "init_guess": initial_guesses,
                       }
@@ -109,7 +108,7 @@ class TestUtils(unittest.TestCase):
         active_params = np.array([active_params[name] for name in param_names], dtype=bool)
         trial_move = np.array([trial_move[name] for name in param_names], dtype=float)
         self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active_params,
-                                              "trial_move": trial_move}
+                                              "trial_move": trial_move, "do_mu_constraint": (20, 3)}
         for _ in range(10):
             new_state = self.mock_ensemble.select_next_params(state, param_info)
 

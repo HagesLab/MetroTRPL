@@ -367,7 +367,7 @@ class EnsembleTemplate:
 
         _current_state = np.array(current_state, dtype=float)
 
-        mu_constraint = param_info.get("do_mu_constraint", None)
+        mu_constraint = self.ensemble_fields.get("do_mu_constraint", None)
 
         _current_state = np.where(self.ensemble_fields["do_log"],
                                   np.log10(_current_state),
@@ -446,6 +446,7 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["atol"] = MCMC_fields.pop("atol", None)
         self.ensemble_fields["hmax"] = MCMC_fields.pop("hmax", DEFAULT_HMAX)
 
+        self.ensemble_fields["do_mu_constraint"] = param_info.pop("do_mu_constraint", None)
         # Transfer shared fields, as arrays ordered by param_info["names"]
         self.ensemble_fields["do_log"] = param_info.pop("do_log")
         self.ensemble_fields["do_log"] = np.array(
