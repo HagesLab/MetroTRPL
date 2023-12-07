@@ -270,7 +270,7 @@ class EnsembleTemplate():
 
         sol = solve(
             iniPar, g, state, self.param_indexes, meas=meas_type, units=self.ensemble_fields["units"],
-            solver=MCMC_fields["solver"], model=MCMC_fields["model"], RTOL=rtol, ATOL=atol)
+            solver=self.ensemble_fields["solver"], model=self.ensemble_fields["model"], RTOL=rtol, ATOL=atol)
         return g.tSteps, sol
 
 
@@ -282,6 +282,7 @@ class Ensemble(EnsembleTemplate):
     """
     def __init__(self, param_info, sim_info, MCMC_fields, num_iters):
         super().__init__()
+        # Transfer shared fields from chains to ensemble
         self.ensemble_fields = {}
         self.ensemble_fields["output_path"] = MCMC_fields.pop("output_path")
         self.ensemble_fields["checkpoint_dirname"] = MCMC_fields.pop("checkpoint_dirname")
@@ -290,7 +291,10 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["checkpoint_freq"] = MCMC_fields.pop("checkpoint_freq")
         self.ensemble_fields["parallel_tempering"] = MCMC_fields.pop("parallel_tempering", None)
         self.ensemble_fields["temper_freq"] = MCMC_fields.pop("temper_freq", DEFAULT_TEMPER_FREQ)
+        self.ensemble_fields["solver"] = MCMC_fields.pop("solver")
+        self.ensemble_fields["model"] = MCMC_fields.pop("model")
 
+        # Transfer shared fields, as arrays ordered by param_info["names"]
         self.ensemble_fields["do_log"] = param_info.pop("do_log")
         self.ensemble_fields["do_log"] = np.array([self.ensemble_fields["do_log"][param]
                                                    for param in param_info["names"]], dtype=bool)

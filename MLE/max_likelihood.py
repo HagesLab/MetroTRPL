@@ -45,8 +45,8 @@ def cost(x, e_data, MS_list, logger):
             MS_list.param_indexes,
             meas=meas_type,
             units=MS_list.ensemble_fields["units"],
-            solver=MS.MCMC_fields["solver"],
-            model=MS.MCMC_fields["model"],
+            solver=MS_list.ensemble_fields["solver"],
+            model=MS_list.ensemble_fields["model"],
         )
         tSteps = g.tSteps
         if irf_convolution is not None and irf_convolution[ic_num] != 0:
