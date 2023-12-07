@@ -7,6 +7,7 @@ Created on Mon Jan 31 22:13:26 2022
 import os
 import signal
 import pickle
+from time import perf_counter
 import numpy as np
 
 from sim_utils import Ensemble
@@ -287,6 +288,8 @@ def all_signal_handler(func):
 
 def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
           verbose=False, export_path="", logger=None):
+    
+    clock0 = perf_counter()
 
     if logger is None:  # Require a logger
         logger, handler = start_logging(log_dir=MCMC_fields["output_path"],
@@ -370,6 +373,13 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     if export_path is not None:
         logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
         MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
+
+    final_t = perf_counter() - clock0
+    logger.info(f"Metro took {final_t} s ({final_t / 3600} hr)")
+    logger.info(f"Avg: {final_t / MCMC_fields['num_iters']} s per iter")
+    for i, MS in enumerate(MS_list.MS):
+        logger.info(f"Metrostate #{i}:")
+        logger.info(f"Acceptance rate: {np.sum(MS.H.accept) / len(MS.H.accept.flatten())}")
 
     if using_default_logger:
         stop_logging(logger, handler, 0)

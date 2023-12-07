@@ -6,13 +6,11 @@ Created on Mon Jan 31 22:03:46 2022
 """
 import os
 import sys
-from time import perf_counter
 
 import numpy as np
 
 from mcmc_logging import start_logging, stop_logging
 from bayes_io import get_data, get_initpoints, read_config_script_file
-from bayes_io import insert_param
 from metropolis import metro
 
 if __name__ == "__main__":
@@ -42,24 +40,13 @@ if __name__ == "__main__":
     # Get observations and initial condition
     iniPar = get_initpoints(MCMC_fields["init_cond_path"], meas_fields)
 
-    measurement_types = sim_info["meas_types"]
-
-    e_data = get_data(MCMC_fields["measurement_path"], measurement_types,
+    e_data = get_data(MCMC_fields["measurement_path"], sim_info["meas_types"],
                       meas_fields, MCMC_fields)
 
     export_path = f"CPU{jobid}-final.pik"
 
-    clock0 = perf_counter()
     MS_list = metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False,
                export_path=export_path, logger=logger)
-
-    final_t = perf_counter() - clock0
-
-    logger.info(f"Metro took {final_t} s ({final_t / 3600} hr)")
-    logger.info(f"Avg: {final_t / MCMC_fields['num_iters']} s per iter")
-    for i, MS in enumerate(MS_list.MS):
-        logger.info(f"Metrostate #{i}:")
-        logger.info(f"Acceptance rate: {np.sum(MS.H.accept) / len(MS.H.accept.flatten())}")
 
     # Successful completion - remove all non-final checkpoints
     if "checkpoint_header" in MS_list.ensemble_fields:
