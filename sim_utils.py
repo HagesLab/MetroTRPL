@@ -319,7 +319,7 @@ class EnsembleTemplate:
         """
         order = param_info['names']
         checks = {}
-        prior_dist = param_info["prior_dist"]
+        prior_dist = self.ensemble_fields["prior_dist"]
 
         # Ensure proposal stays within bounds of prior distribution
         diff = np.where(self.ensemble_fields["do_log"], 10 ** new_state, new_state)
@@ -447,6 +447,7 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["hmax"] = MCMC_fields.pop("hmax", DEFAULT_HMAX)
 
         self.ensemble_fields["do_mu_constraint"] = param_info.pop("do_mu_constraint", None)
+        self.ensemble_fields["prior_dist"] = param_info.pop("prior_dist")
         # Transfer shared fields, as arrays ordered by param_info["names"]
         self.ensemble_fields["do_log"] = param_info.pop("do_log")
         self.ensemble_fields["do_log"] = np.array(

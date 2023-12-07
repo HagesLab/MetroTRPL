@@ -21,7 +21,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.param_indexes = {name: info["names"].index(name) for name in info["names"]}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
         active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
-        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active}
+        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active, "prior_dist": info["prior_dist"]}
         # taun, taup must be within 2 OM
         # Accepts new_p as log10
         # [n0, p0, mu_n, mu_p, ks, sf, sb, taun, taup, eps, m]
@@ -48,7 +48,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.param_indexes = {name: info["names"].index(name) for name in info["names"]}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
         active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
-        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active}
+        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active, "prior_dist": info["prior_dist"]}
         new_p = np.log10([0.11, 0.1, 1])
         self.assertTrue(len(self.mock_ensemble.check_approved_param(new_p, info)) == 0)
 
@@ -62,7 +62,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.param_indexes = {name: info["names"].index(name) for name in info["names"]}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
         active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
-        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active}
+        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active, "prior_dist": info["prior_dist"]}
         new_p = np.array([511, 511e2, 1])
         self.assertTrue(len(self.mock_ensemble.check_approved_param(new_p, info)) == 0)
         new_p = np.array([511, 511e2+1,  1])
@@ -85,7 +85,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.param_indexes = {name: info["names"].index(name) for name in info["names"]}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
         active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
-        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active}
+        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active, "prior_dist": info["prior_dist"]}
         new_p = np.log10([1e6-1, 1e6-1, 1e7-1, 1e7-1])
         self.assertTrue(len(self.mock_ensemble.check_approved_param(new_p, info)) == 0)
 
@@ -108,7 +108,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.param_indexes = {name: info["names"].index(name) for name in info["names"]}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
         active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
-        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active}
+        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active, "prior_dist": info["prior_dist"]}
         new_p = np.array([1e6-1, 1e6-1, 1e7-1, 1e7-1])
         self.assertTrue(len(self.mock_ensemble.check_approved_param(new_p, info)) == 0)
 
@@ -131,7 +131,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.param_indexes = {name: info["names"].index(name) for name in info["names"]}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
         active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
-        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active}
+        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active, "prior_dist": info["prior_dist"]}
         new_p = np.log10([1e-7*0.9, 1e-21*0.9, 1e-21*0.9])
         self.assertTrue(len(self.mock_ensemble.check_approved_param(new_p, info)) == 0)
 
@@ -152,7 +152,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.param_indexes = {name: info["names"].index(name) for name in info["names"]}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
         active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
-        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active}
+        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active, "prior_dist": info["prior_dist"]}
         new_p = np.array([1e-7*0.9, 1e-21*0.9, 1e-21*0.9])
         self.assertTrue(len(self.mock_ensemble.check_approved_param(new_p, info)) == 0)
 
@@ -172,7 +172,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.param_indexes = {name: info["names"].index(name) for name in info["names"]}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
         active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
-        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active}
+        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active, "prior_dist": info["prior_dist"]}
         new_p = np.log10([1e19 * 0.8, 1e19 * 0.9])
         self.assertTrue(len(self.mock_ensemble.check_approved_param(new_p, info)) == 0)
 
@@ -190,7 +190,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.param_indexes = {name: info["names"].index(name) for name in info["names"]}
         do_log = np.array([info["do_log"][param] for param in info["names"]], dtype=bool)
         active = np.array([info["active"][name] for name in info["names"]], dtype=bool)
-        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active}
+        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active, "prior_dist": info["prior_dist"]}
         new_p = np.array([1e19 * 0.8, 1e19 * 0.9])
         self.assertTrue(len(self.mock_ensemble.check_approved_param(new_p, info)) == 0)
 
@@ -208,7 +208,8 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.param_indexes = {name: info_without_taus["names"].index(name) for name in info_without_taus["names"]}
         do_log = np.array([info_without_taus["do_log"][param] for param in info_without_taus["names"]], dtype=bool)
         active = np.array([info_without_taus["active"][name] for name in info_without_taus["names"]], dtype=bool)
-        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active}
+        self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active,
+                                              "prior_dist": info_without_taus["prior_dist"]}
         # No failures if criteria do not cover params
         new_p = np.log10([1, 1e10])
         self.assertTrue(
