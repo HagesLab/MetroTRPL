@@ -122,7 +122,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                 else:
                     # Non-tempering move, or all other chains not selected for tempering
 
-                    new_state = MS_list.select_next_params(MS.H.states[:, k-1], MS.param_info, MS.MCMC_fields.get("hard_bounds", 0))
+                    new_state = MS_list.select_next_params(MS.H.states[:, k-1], MS.param_info)
 
                     logll = MS_list.eval_trial_move(new_state, MS.MCMC_fields)
 

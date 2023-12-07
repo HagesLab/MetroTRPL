@@ -360,7 +360,7 @@ class EnsembleTemplate:
 
         return failed_checks
 
-    def select_next_params(self, current_state, param_info, coerce_hard_bounds=False):
+    def select_next_params(self, current_state, param_info):
         """ 
         Trial move function: returns a new proposed state equal to the current_state plus a uniform random displacement
         """
@@ -377,7 +377,7 @@ class EnsembleTemplate:
 
         # Try up to MAX_PROPOSALS times to come up with a proposal that stays within
         # the hard boundaries, if we ask
-        if coerce_hard_bounds:
+        if self.ensemble_fields.get("hard_bounds", 0):
             max_tries = MAX_PROPOSALS
         else:
             max_tries = 1
@@ -441,6 +441,7 @@ class Ensemble(EnsembleTemplate):
         )
         self.ensemble_fields["solver"] = MCMC_fields.pop("solver")
         self.ensemble_fields["model"] = MCMC_fields.pop("model")
+        self.ensemble_fields["hard_bounds"] = MCMC_fields.pop("hard_bounds", 0)
         self.ensemble_fields["rtol"] = MCMC_fields.pop("rtol", None)
         self.ensemble_fields["atol"] = MCMC_fields.pop("atol", None)
         self.ensemble_fields["hmax"] = MCMC_fields.pop("hmax", DEFAULT_HMAX)
