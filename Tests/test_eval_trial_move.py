@@ -61,7 +61,6 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"] = initial_guess
 
         sim_flags = {"current_sigma": {"TRPL": 1},
-                     "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      }
 
         indexes = {name: param_names.index(name) for name in param_names}
@@ -77,7 +76,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.times = times
         self.mock_ensemble.param_indexes = indexes
         self.mock_ensemble.ensemble_fields = {"units": units, "solver": ("solveivp",),
-                     "model": "std"}
+                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
         self.mock_ensemble.vals = vals
         self.mock_ensemble.uncs = uncs
         logll = self.mock_ensemble.eval_trial_move(state, sim_flags, logger=self.logger)
@@ -121,7 +120,6 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"] = initial_guess
 
         sim_flags = {"current_sigma": {"TRPL": 1},
-                     "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "force_min_y": True}
 
         indexes = {name: param_names.index(name) for name in param_names}
@@ -137,7 +135,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.times = times
         self.mock_ensemble.param_indexes = indexes
         self.mock_ensemble.ensemble_fields = {"units": units, "solver": ("solveivp",),
-                     "model": "std"}
+                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
         self.mock_ensemble.vals = vals
         self.mock_ensemble.uncs = uncs
         logll1 = self.mock_ensemble.eval_trial_move(state, sim_flags, logger=self.logger)
@@ -193,8 +191,7 @@ class TestUtils(unittest.TestCase):
                          "m": 1}
         param_info["init_guess"] = initial_guess
 
-        sim_flags = {"current_sigma": {"TRPL": 1},
-                     "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
+        sim_flags = {"current_sigma": {"TRPL": 1},}
 
         indexes = {name: param_names.index(name) for name in param_names}
         state = [param_info["init_guess"][name] for name in param_names]
@@ -210,7 +207,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.times = times
         self.mock_ensemble.param_indexes = indexes
         self.mock_ensemble.ensemble_fields = {"units": units, "solver": ("solveivp",),
-                     "model": "std"}
+                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
         self.mock_ensemble.vals = vals
         self.mock_ensemble.uncs = uncs
         logll = self.mock_ensemble.eval_trial_move(state, sim_flags, logger=self.logger)
@@ -261,7 +258,6 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"] = initial_guess
 
         sim_flags = {"current_sigma": {"TRPL": 1},
-                     "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "scale_factor": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2, 4), (1, 3, 5)])}
 
         # These would normally be inserted when the script file is read by bayes_io
@@ -284,7 +280,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.times = times
         self.mock_ensemble.param_indexes = indexes
         self.mock_ensemble.ensemble_fields = {"units": units, "solver": ("solveivp",),
-                     "model": "std"}
+                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
         self.mock_ensemble.vals = vals
         self.mock_ensemble.uncs = uncs
         logll = self.mock_ensemble.eval_trial_move(state, sim_flags, logger=self.logger)
@@ -332,8 +328,7 @@ class TestUtils(unittest.TestCase):
                          "m": 1}
         param_info["init_guess"] = initial_guess
 
-        sim_flags = {"current_sigma": {"TRPL": 1, "TRTS": 10},
-                     "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
+        sim_flags = {"current_sigma": {"TRPL": 1, "TRTS": 10},}
 
         indexes = {name: param_names.index(name) for name in param_names}
         state = [param_info["init_guess"][name] for name in param_names]
@@ -348,7 +343,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.times = times
         self.mock_ensemble.param_indexes = indexes
         self.mock_ensemble.ensemble_fields = {"units": units, "solver": ("solveivp",),
-                     "model": "std"}
+                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
         self.mock_ensemble.vals = vals
         self.mock_ensemble.uncs = uncs
         logll = self.mock_ensemble.eval_trial_move(state, sim_flags, logger=self.logger)
