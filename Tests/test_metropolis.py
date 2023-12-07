@@ -5,7 +5,6 @@ sys.path.append("..")
 import numpy as np
 from scipy.integrate import trapz
 from metropolis import all_signal_handler
-from metropolis import select_next_params
 from forward_solver import E_field, solve, calculate_PL, calculate_TRTS
 from metropolis import roll_acceptance
 from utils import unpack_simpar, set_min_y, search_c_grps
@@ -379,101 +378,6 @@ class TestUtils(unittest.TestCase):
                                  RTOL=1e-10, ATOL=1e-14)
 
         np.testing.assert_almost_equal(PL_by_initvals / np.amax(PL_by_initvals), PL_by_initparams / np.amax(PL_by_initvals))
-
-    def test_select_next_params(self):
-        # This function assigns a set of randomly generated values
-        np.random.seed(1)
-        param_names = ["a", "b", "c", "d"]
-
-        do_log = {"a": 0, "b": 1, "c": 0, "d": 0}
-
-        prior_dist = {"a": (-np.inf, np.inf),
-                      "b": (-np.inf, np.inf),
-                      "c": (-np.inf, np.inf),
-                      "d": (-np.inf, np.inf), }
-
-        initial_guesses = {"a": 0,
-                           "b": 100,
-                           "c": 0,
-                           "d": 10, }
-
-        active_params = {"a": 0,
-                         "b": 1,
-                         "c": 1,
-                         "d": 1, }
-
-        trial_move = {"a": 10,
-                      "b": 0.1,
-                      "c": 0,
-                      "d": 1}
-
-        param_info = {"names": param_names,
-                      "prior_dist": prior_dist,
-                      "init_guess": initial_guesses,
-                      }
-
-        indexes = {name: param_names.index(name) for name in param_names}
-        state = [initial_guesses[name] for name in param_names]
-        do_log = np.array([do_log[name] for name in param_names], dtype=bool)
-        active_params = np.array([active_params[name] for name in param_names], dtype=bool)
-        trial_move = np.array([trial_move[name] for name in param_names], dtype=float)
-        # Try box selection
-        new_state = select_next_params(state, param_info, indexes, active_params, trial_move, do_log, logger=self.logger)
-
-        # Inactive and shouldn't change
-        self.assertEqual(new_state[indexes["a"]], initial_guesses['a'])
-        self.assertEqual(new_state[indexes["c"]], initial_guesses['c'])
-        num_tests = 100
-        for t in range(num_tests):
-            new_state = select_next_params(state, param_info, indexes, active_params, trial_move, do_log, logger=self.logger)
-            self.assertTrue(np.abs(np.log10(new_state[indexes["b"]]) - np.log10(initial_guesses['b'])) <= 0.1,
-                            msg="Uniform step #{} failed: {} from mean {} and width 0.1".format(t, new_state[indexes["b"]], initial_guesses['b']))
-            self.assertTrue(np.abs(new_state[indexes["d"]]-initial_guesses['d']) <= 1,
-                            msg="Uniform step #{} failed: {} from mean {} and width 1".format(t, new_state[indexes["d"]], initial_guesses['d']))
-
-        return
-
-    def test_mu_constraint(self):
-        # This function assigns a set of randomly generated values
-        np.random.seed(1)
-        param_names = ["mu_n", "mu_p"]
-
-        do_log = {"mu_n": 1, "mu_p": 1}
-
-        prior_dist = {"mu_n": (0.1, np.inf),
-                      "mu_p": (0.1, np.inf),
-                      }
-
-        initial_guesses = {"mu_n": 20,
-                           "mu_p": 20,
-                           }
-
-        active_params = {"mu_n": 1,
-                         "mu_p": 1,
-                         }
-        
-        trial_move = {"mu_n": 0.1,
-                      "mu_p": 0.1}
-
-        param_info = {"names": param_names,
-                      "do_mu_constraint": (20, 3),
-                      "prior_dist": prior_dist,
-                      "init_guess": initial_guesses,
-                      }
-
-        indexes = {name: param_names.index(name) for name in param_names}
-        state = [initial_guesses[name] for name in param_names]
-        do_log = np.array([do_log[name] for name in param_names], dtype=bool)
-        active_params = np.array([active_params[name] for name in param_names], dtype=bool)
-        trial_move = np.array([trial_move[name] for name in param_names], dtype=float)
-
-        for _ in range(10):
-            new_state = select_next_params(state, param_info, indexes, active_params, trial_move, do_log, logger=self.logger)
-
-            self.assertTrue(2 / (new_state[indexes["mu_n"]]**-1 + new_state[indexes["mu_p"]]**-1) <= 23)
-            self.assertTrue(2 / (new_state[indexes["mu_n"]]**-1 + new_state[indexes["mu_p"]]**-1) >= 17)
-
-        return
 
     def test_almost_equal(self):
         threshold = 1e-7

@@ -15,60 +15,8 @@ from bayes_io import make_dir
 from laplace import make_I_tables
 
 # Constants
-MAX_PROPOSALS = 100
 MSG_FREQ = 100
 MSG_COOLDOWN = 3 # Log first few states regardless of verbose
-
-
-def select_next_params(current_state, param_info, indexes, is_active, trial_move, do_log, RNG=None, coerce_hard_bounds=False, logger=None, verbose=False):
-    """ 
-    Trial move function: returns a new proposed state equal to the current_state plus a uniform random displacement
-    """
-    if RNG is None:
-        RNG = np.random.default_rng(235817049752375780)
-
-    _current_state = np.array(current_state, dtype=float)
-
-    mu_constraint = param_info.get("do_mu_constraint", None)
-
-    _current_state = np.where(do_log, np.log10(_current_state), _current_state)
-
-    tries = 0
-
-    # Try up to MAX_PROPOSALS times to come up with a proposal that stays within
-    # the hard boundaries, if we ask
-    if coerce_hard_bounds:
-        max_tries = MAX_PROPOSALS
-    else:
-        max_tries = 1
-
-    new_state = np.array(_current_state)
-    while tries < max_tries:
-        tries += 1
-
-        new_state = np.where(is_active, RNG.uniform(_current_state-trial_move, _current_state+trial_move), _current_state)
-
-        if mu_constraint is not None:
-            ambi = mu_constraint[0]
-            ambi_std = mu_constraint[1]
-            if verbose and logger is not None:
-                logger.debug(f"mu constraint: ambi {ambi} +/- {ambi_std}")
-            new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
-            new_state[indexes["mu_p"]] = np.log10(
-                (2 / new_muambi - 1 / 10 ** new_state[indexes["mu_n"]])**-1)
-
-        failed_checks = check_approved_param(new_state, param_info, indexes, is_active, do_log)
-        success = len(failed_checks) == 0
-        if success:
-            if verbose and logger is not None:
-                logger.info(f"Found params in {tries} tries")
-            break
-
-        if logger is not None and len(failed_checks) > 0:
-            logger.warning(f"Failed checks: {failed_checks}")
-
-    new_state = np.where(do_log, 10 ** new_state, new_state)
-    return new_state
 
 
 def roll_acceptance(logratio):
@@ -174,9 +122,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                 else:
                     # Non-tempering move, or all other chains not selected for tempering
 
-                    new_state = select_next_params(MS.H.states[:, k-1], MS.param_info, MS_list.param_indexes, MS_list.ensemble_fields["active"],
-                                                   MS_list.ensemble_fields["trial_move"], MS_list.ensemble_fields["do_log"], MS_list.RNG,
-                                                   MS.MCMC_fields.get("hard_bounds", 0), MS_list.logger)
+                    new_state = MS_list.select_next_params(MS.H.states[:, k-1], MS.param_info, MS.MCMC_fields.get("hard_bounds", 0))
 
                     logll = MS_list.eval_trial_move(new_state, MS.MCMC_fields)
 

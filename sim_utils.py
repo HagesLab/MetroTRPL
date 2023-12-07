@@ -20,7 +20,9 @@ eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
 q_C = 1.602e-19  # [C per carrier]
 # Default settings for solve_ivp
 DEFAULT_HMAX = 4
+
 DEFAULT_TEMPER_FREQ = 10
+MAX_PROPOSALS = 100
 # Allow this proportion of simulation values to become negative due to convolution,
 # else the simulation is failed.
 NEGATIVE_FRAC_TOL = 0.2
@@ -357,6 +359,58 @@ class EnsembleTemplate:
         failed_checks = [k for k in checks if not checks[k]]
 
         return failed_checks
+
+    def select_next_params(self, current_state, param_info, coerce_hard_bounds=False):
+        """ 
+        Trial move function: returns a new proposed state equal to the current_state plus a uniform random displacement
+        """
+
+        _current_state = np.array(current_state, dtype=float)
+
+        mu_constraint = param_info.get("do_mu_constraint", None)
+
+        _current_state = np.where(self.ensemble_fields["do_log"],
+                                  np.log10(_current_state),
+                                  _current_state)
+
+        tries = 0
+
+        # Try up to MAX_PROPOSALS times to come up with a proposal that stays within
+        # the hard boundaries, if we ask
+        if coerce_hard_bounds:
+            max_tries = MAX_PROPOSALS
+        else:
+            max_tries = 1
+
+        new_state = np.array(_current_state)
+        while tries < max_tries:
+            tries += 1
+
+            new_state = np.where(self.ensemble_fields["active"],
+                                 self.RNG.uniform(_current_state-self.ensemble_fields["trial_move"],
+                                                  _current_state+self.ensemble_fields["trial_move"]),
+                                 _current_state)
+
+            if mu_constraint is not None:
+                ambi = mu_constraint[0]
+                ambi_std = mu_constraint[1]
+                self.logger.debug(f"mu constraint: ambi {ambi} +/- {ambi_std}")
+                new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
+                new_state[self.param_indexes["mu_p"]] = np.log10(
+                    (2 / new_muambi - 1 / 10 ** new_state[self.param_indexes["mu_n"]])**-1)
+
+            failed_checks = self.check_approved_param(new_state, param_info)
+            success = len(failed_checks) == 0
+            if success:
+                self.logger.debug(f"Found params in {tries} tries")
+                break
+
+            if len(failed_checks) > 0:
+                self.logger.warning(f"Failed checks: {failed_checks}")
+
+        new_state = np.where(self.ensemble_fields["do_log"], 10 ** new_state, new_state)
+        return new_state
+
 
 class Ensemble(EnsembleTemplate):
     """

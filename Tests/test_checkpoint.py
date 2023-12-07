@@ -141,11 +141,14 @@ class TestUtils(unittest.TestCase):
         main_metro_loop(self.ensemble_from_chpt, starting_iter, 10,
                         need_initial_state=False,
                         verbose=False)
-
+        self.ensemble_from_chpt.stop_logging(0)
         # Successful completion - checkpoints not needed anymore
         for chpt in os.listdir(os.path.join(".", "test-Checkpoints")):
             os.remove(os.path.join(os.path.join(".", "test-Checkpoints"), chpt))
         os.rmdir(os.path.join(".", "test-Checkpoints"))
+        for log in os.listdir(os.path.join(".", "test-out")):
+            os.remove(os.path.join(os.path.join(".", "test-out"), log))
+        os.rmdir(os.path.join(".", "test-out"))
 
         # self.MS ran continuously from start to k=10 iterations;
         # self.MS_from_chpt ran from checkpoint at k=5 to k=10.
