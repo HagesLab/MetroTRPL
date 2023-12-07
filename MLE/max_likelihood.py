@@ -36,17 +36,7 @@ def cost(x, e_data, MS_list, logger):
         values = e_data[1][ic_num]
         std = e_data[2][ic_num]
 
-        g = Grid()
-        g.thickness = thickness
-        g.nx = nx
-        g.dx = g.thickness / g.nx
-        g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx / 2, g.nx)
-
-        g.start_time = 0
-        g.nt = len(times) - 1
-        g.hmax = 1
-        g.tSteps = times
-        g.time = g.tSteps[-1]
+        g = Grid(thickness, nx, times, hmax=1)
 
         sol = solve(
             MS_list.iniPar[ic_num],

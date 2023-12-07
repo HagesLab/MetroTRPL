@@ -114,17 +114,8 @@ def simulate(
                 logger.info("Curve #{}: Calculating {} of {}".format(ic_num, i, len(X)))
 
             clock0 = time.perf_counter()
-            g = Grid()
-            g.thickness = thickness
-            g.nx = nx
-            g.dx = g.thickness / g.nx
-            g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx / 2, g.nx)
+            g = Grid(thickness, nx, times, hmax=1)
 
-            g.start_time = 0
-            g.nt = len(times) - 1
-            g.hmax = 1
-            g.tSteps = times
-            g.time = g.tSteps[-1]
             sol = model(
                 init_params[ic_num],
                 g,

@@ -15,17 +15,7 @@ kB = 8.61773e-5  # [eV / K]
 class TestUtils(unittest.TestCase):
     
     def setUp(self):
-        g = Grid()
-        g.thickness = 1000
-        g.nx = 100
-        g.dx = g.thickness / g.nx
-        g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
-        
-        g.time = 10
-        g.start_time = 0
-        g.nt = 100
-        g.hmax = 4
-        g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
+        g = Grid(thickness=1000, nx=100, tSteps=np.linspace(0, 10, 101), hmax=4)
         self.g = g
         param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp",
                        "Sf", "Sb", "tauN", "tauP", "eps", "Tm", "m"]
@@ -80,7 +70,7 @@ class TestUtils(unittest.TestCase):
         E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], self.g.dx)
         
         init_condition = np.concatenate([N, P, E_f], axis=None)
-        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
+        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.final_time], init_condition,
                          args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
                                 state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
                                 state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
@@ -124,7 +114,7 @@ class TestUtils(unittest.TestCase):
         total_N = np.sum(N)
         
         init_condition = np.concatenate([N, P, E_f], axis=None)
-        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
+        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.final_time], init_condition,
                          args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
                                 state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
                                 state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
@@ -166,7 +156,7 @@ class TestUtils(unittest.TestCase):
         E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], self.g.dx)
 
         init_condition = np.concatenate([N, P, E_f], axis=None)
-        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
+        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.final_time], init_condition,
                          args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
                                 state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
                                 state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
@@ -209,7 +199,7 @@ class TestUtils(unittest.TestCase):
         E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], self.g.dx)
 
         init_condition = np.concatenate([N, P, E_f], axis=None)
-        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
+        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.final_time], init_condition,
                          args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
                                 state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
                                 state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
@@ -252,7 +242,7 @@ class TestUtils(unittest.TestCase):
         E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], self.g.dx)
 
         init_condition = np.concatenate([N, P, E_f], axis=None)
-        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
+        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.final_time], init_condition,
                          args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
                                 state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
                                 state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
@@ -296,7 +286,7 @@ class TestUtils(unittest.TestCase):
         E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], self.g.dx)
 
         init_condition = np.concatenate([N, P, E_f], axis=None)
-        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.time], init_condition,
+        sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.final_time], init_condition,
                          args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
                                 state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
                                 state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],

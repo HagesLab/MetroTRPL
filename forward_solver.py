@@ -147,7 +147,7 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
 
         i_final = len(g.tSteps)
         if solver[0] == "solveivp" or solver[0] == "diagnostic":
-            sol = solve_ivp(dy, [g.start_time, g.time], init_condition,
+            sol = solve_ivp(dy, [g.start_time, g.final_time], init_condition,
                             method='LSODA', dense_output=True, # events=stop_integrate,
                             max_step=g.hmax, rtol=RTOL, atol=ATOL)
 

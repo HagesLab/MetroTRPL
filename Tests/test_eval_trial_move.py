@@ -154,7 +154,7 @@ class TestUtils(unittest.TestCase):
 
     def test_run_iter_cutoff(self):
         # Same as test_run_iter, only "experimental" data is
-        # truncated at [50,100] instead of [0,100].
+        # truncated at [0,50] instead of [0,100].
         # Half as many points means the likelihood should be reduced to about half.
         np.random.seed(42)
         Length = [2000, 2000]                            # Length (nm)
@@ -204,7 +204,7 @@ class TestUtils(unittest.TestCase):
         units = np.array([unit_conversions.get(name, 1) for name in param_names], dtype=float)
 
         nt = 500
-        times = [np.linspace(50, 100, nt+1), np.linspace(50, 100, nt+1)]
+        times = [np.linspace(0, 50, nt+1), np.linspace(0, 50, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
 
@@ -219,7 +219,7 @@ class TestUtils(unittest.TestCase):
 
         # First iter; auto-accept
         np.testing.assert_almost_equal(
-            logll, np.sum([-29701, -16309]), decimal=0)  # rtol=1e-5
+            logll, -45982, decimal=0)  # rtol=1e-5
 
     def test_run_iter_scale(self):
         # Same as test_run_iter, except global scale factor, which will be chosen to match

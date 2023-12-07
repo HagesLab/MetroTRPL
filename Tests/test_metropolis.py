@@ -94,14 +94,7 @@ class TestUtils(unittest.TestCase):
 
     def test_solve(self):
         # A high-inj, rad-only sample problem
-        g = Grid()
-        g.nx = 100
-        g.dx = 10
-        g.start_time = 0
-        g.time = 100
-        g.nt = 1000
-        g.hmax = 4
-        g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
+        g = Grid(thickness=1000, nx=100, tSteps=np.linspace(0, 100, 1001), hmax=4)
 
         unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
                             "mu_n": ((1e7) ** 2) / (1e9),
@@ -208,14 +201,7 @@ class TestUtils(unittest.TestCase):
     def test_solve_depletion(self):
         """ A high-inj, rad-only sample problem. Parameters are chosen such that
         the simulated PL will decay by about 2.5 orders of magnitude. """
-        g = Grid()
-        g.nx = 100
-        g.dx = 10
-        g.start_time = 0
-        g.time = 100
-        g.nt = 1000
-        g.hmax = 4
-        g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
+        g = Grid(thickness=1000, nx=100, tSteps=np.linspace(0, 100, 1001), hmax=4)
 
         unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
                             "mu_n": ((1e7) ** 2) / (1e9),
@@ -286,14 +272,7 @@ class TestUtils(unittest.TestCase):
     def test_solve_traps(self):
         # A high-inj, rad-only sample problem using null parameters for the trap model
         # which should be equivalent to the std model
-        g = Grid()
-        g.nx = 100
-        g.dx = 10
-        g.start_time = 0
-        g.time = 100
-        g.nt = 1000
-        g.hmax = 4
-        g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
+        g = Grid(thickness=1000, nx=100, tSteps=np.linspace(0, 100, 1001), hmax=4)
 
         unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
                             "mu_n": ((1e7) ** 2) / (1e9),
@@ -352,15 +331,7 @@ class TestUtils(unittest.TestCase):
 
     def test_solve_iniPar(self):
         # A high-inj, rad-only sample problem
-        g = Grid()
-        g.nx = 100
-        g.dx = 10
-        g.thickness = 1000 # in nm
-        g.start_time = 0
-        g.time = 100
-        g.nt = 1000
-        g.hmax = 4
-        g.tSteps = np.linspace(g.start_time, g.time, g.nt+1)
+        g = Grid(thickness=1000, nx=100, tSteps=np.linspace(0, 100, 1001), hmax=4)
 
         unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
                             "mu_n": ((1e7) ** 2) / (1e9),

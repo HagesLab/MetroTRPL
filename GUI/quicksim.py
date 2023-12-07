@@ -101,17 +101,7 @@ class QuicksimManager():
 
 def task(state, indexes, thickness, nx, iniPar, times, hmax, meas, units, solver, model, wavelength, IRF_tables):
     """What each task needs to do - simulate then optionally convolve"""
-    g = Grid()
-    g.thickness = thickness
-    g.nx = nx
-    g.dx = g.thickness / g.nx
-    g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
-
-    g.start_time = 0
-    g.nt = len(times) - 1
-    g.hmax = hmax
-    g.tSteps = times
-    g.time = g.tSteps[-1]
+    g = Grid(thickness, nx, times, hmax)
     sol = solve(iniPar, g, state, indexes, meas, units, solver, model)
     t = g.tSteps
     if wavelength != 0 and int(wavelength) in IRF_tables:

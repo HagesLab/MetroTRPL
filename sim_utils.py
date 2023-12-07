@@ -266,17 +266,7 @@ class EnsembleTemplate():
         atol = MCMC_fields.get("atol", None)
         hmax = MCMC_fields.get("hmax", DEFAULT_HMAX)
         thickness, nx, meas_type = unpack_simpar(self.sim_info, meas_index)
-        g = Grid()
-        g.thickness = thickness
-        g.nx = nx
-        g.dx = g.thickness / g.nx
-        g.xSteps = np.linspace(g.dx / 2, g.thickness - g.dx/2, g.nx)
-
-        g.start_time = 0
-        g.nt = len(self.times[meas_index]) - 1
-        g.hmax = hmax
-        g.tSteps = self.times[meas_index]
-        g.time = g.tSteps[-1]
+        g = Grid(thickness, nx, self.times[meas_index], hmax)
 
         sol = solve(
             iniPar, g, state, self.param_indexes, meas=meas_type, units=self.ensemble_fields["units"],
@@ -432,8 +422,21 @@ class Grid():
     tSteps : np.ndarray # Delay time values
     hmax : float # Maximum time step size used by solver
     start_time : float # Starting delay time
+    final_time : float # Starting delay time
     min_y : float # Minimum value the simulated signal is allowed to reach before the sim terminates.
-    def __init__(self):
+    def __init__(self, thickness, nx, tSteps, hmax):
+        self.thickness = thickness
+        self.nx = nx
+        self.dx = self.thickness / self.nx
+        self.xSteps = np.linspace(self.dx / 2, self.thickness - self.dx/2, self.nx)
+
+        if tSteps[0] != 0:
+            raise ValueError("Grid error - times must start at t=0")
+        self.tSteps = tSteps
+        self.start_time = 0
+        self.nt = len(tSteps) - 1
+        self.hmax = hmax
+        self.final_time = self.tSteps[-1]
         self.min_y = float_info.min
         return
 
