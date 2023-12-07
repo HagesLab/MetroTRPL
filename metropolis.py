@@ -287,17 +287,13 @@ def all_signal_handler(func):
 
 
 def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
-          verbose=False, export_path="", logger=None):
+          verbose=False, export_path="", **kwargs):
+    logger_name = kwargs.get("logger_name", "Ensemble0")
     
     clock0 = perf_counter()
 
-    if logger is None:  # Require a logger
-        logger, handler = start_logging(log_dir=MCMC_fields["output_path"],
-                                        name="Log-")
-        using_default_logger = True
-    else:
-        using_default_logger = False
-        handler = None
+    logger, handler = start_logging(
+        log_dir=MCMC_fields["output_path"], name=logger_name)
 
     # Setup
     logger.info(f"PID: {os.getpid()}")
@@ -381,6 +377,5 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         logger.info(f"Metrostate #{i}:")
         logger.info(f"Acceptance rate: {np.sum(MS.H.accept) / len(MS.H.accept.flatten())}")
 
-    if using_default_logger:
-        stop_logging(logger, handler, 0)
+    stop_logging(logger, handler, 0)
     return MS_list
