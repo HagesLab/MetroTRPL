@@ -15,7 +15,6 @@ class TestUtils(unittest.TestCase):
         dummy_names = ['mu_n', 'c', 'b', 'a']
 
         # Should (but not required) contain one for each name
-        dummy_simPar = {"meas_types": ["TRPL", "TRTS"]}
         dummy_unitconversions = {'a': 1, 'c': 10, 'mu_n': 0.25}
         dummy_do_log = {'a': True, 'b': 0, 'c': 0, 'mu_n': 1, 'mu_p': True}
         dummy_active = {'a': 1, 'b': 1, 'c': 1, 'mu_n': 1}
@@ -33,7 +32,14 @@ class TestUtils(unittest.TestCase):
                            "annealing": tuple[dict, int, dict]}
         
         num_iters = 100
-        self.ms = MetroState(dummy_param_info, dummy_sim_flags, num_iters)
+        init_state = np.array(
+            [
+                dummy_param_info["init_guess"][param]
+                for param in dummy_param_info["names"]
+            ],
+            dtype=float,
+        )
+        self.ms = MetroState(dummy_param_info, init_state, dummy_sim_flags, num_iters)
         self.new_state = [dummy_initial_guesses[name] for name in dummy_names]
         self.active = np.array([dummy_active[name] for name in dummy_names], dtype=bool)
 

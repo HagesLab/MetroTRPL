@@ -34,19 +34,13 @@ class MetroState:
     next state.
     """
 
-    def __init__(self, param_info, MCMC_fields, num_iters):
+    def __init__(self, param_info, init_state, MCMC_fields, num_iters):
         self.H = History(num_iters, param_info)
 
         self.param_info = param_info
         self.MCMC_fields = MCMC_fields
 
-        self.init_state = np.array(
-            [
-                self.param_info["init_guess"][param]
-                for param in self.param_info["names"]
-            ],
-            dtype=float,
-        )
+        self.init_state = init_state
         return
 
     def print_status(self, k, is_active, new_state, logger):
@@ -492,7 +486,14 @@ class Ensemble(EnsembleTemplate):
 
         self.MS: list[MetroState] = []
         for i in range(n_states):
-            self.MS.append(MetroState(param_info, dict(MCMC_fields), num_iters))
+            init_state = np.array(
+                [
+                    param_info["init_guess"][param]
+                    for param in param_info["names"]
+                ],
+            dtype=float,
+        )
+            self.MS.append(MetroState(param_info, init_state, dict(MCMC_fields), num_iters))
             self.MS[-1].MCMC_fields["_beta"] = temperatures[i] ** -1
             if isinstance(MCMC_fields["likel2move_ratio"], dict):
                 self.MS[-1].MCMC_fields["current_sigma"] = {
