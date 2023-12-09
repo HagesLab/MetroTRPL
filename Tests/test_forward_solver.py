@@ -3,7 +3,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 
 from forward_solver import E_field
-from forward_solver import dydt_numba
+from forward_solver import dydt_numba, dydt
 from sim_utils import Grid
 
 ## Define constants
@@ -112,20 +112,29 @@ class TestUtils(unittest.TestCase):
         P = init_dN + state[indexes["p0"]]
         E_f = E_field(N, P, state[indexes["n0"]], state[indexes["p0"]], state[indexes["eps"]], self.g.dx)
         total_N = np.sum(N)
-        
+
         init_condition = np.concatenate([N, P, E_f], axis=None)
         sol = solve_ivp(dydt_numba, [self.g.start_time, self.g.final_time], init_condition,
-                         args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                        args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
                                 state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
                                 state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
                                 ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
-                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
+                        t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
         data = sol.y.T
         
         N, P, E_f = np.split(data, [self.g.nx, 2*self.g.nx], axis=1)
         np.testing.assert_almost_equal(N, np.ones_like(N) * total_N / self.g.nx)
         np.testing.assert_almost_equal(P, np.ones_like(P) * total_N / self.g.nx)
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
+
+        # Test vs numpy version of dydt
+        sol2 = solve_ivp(dydt, [self.g.start_time, self.g.final_time], init_condition,
+                        args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                                state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                                state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                                ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
+                        t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
+        np.testing.assert_almost_equal(sol2.y.T, data)
         ################
         
     def test_solver_LI_SRH(self):
@@ -212,6 +221,15 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_almost_equal(N[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
         np.testing.assert_almost_equal(P[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
+
+        # Test vs numpy version of dydt
+        sol2 = solve_ivp(dydt, [self.g.start_time, self.g.final_time], init_condition,
+                         args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                                state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                                state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                                ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
+                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
+        np.testing.assert_almost_equal(sol2.y.T, data)
         ################
         
     def test_solver_LI_rad(self):
@@ -256,6 +274,14 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_almost_equal(N[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
         np.testing.assert_almost_equal(P[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
+
+        sol2 = solve_ivp(dydt, [self.g.start_time, self.g.final_time], init_condition,
+                         args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                                state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                                state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                                ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
+                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
+        np.testing.assert_almost_equal(sol2.y.T, data)
         ################
         
     def test_solver_LI_auger(self):
@@ -300,4 +326,13 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_almost_equal(N[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
         np.testing.assert_almost_equal(P[:,0], init_dN[0] * np.exp(-self.g.tSteps / tau))
         np.testing.assert_almost_equal(E_f, np.zeros_like(E_f))
+
+        # Test vs numpy version of dydt
+        sol2 = solve_ivp(dydt, [self.g.start_time, self.g.final_time], init_condition,
+                         args=(self.g.nx, self.g.dx, state[indexes["n0"]], state[indexes["p0"]], state[indexes["mu_n"]], state[indexes["mu_p"]],
+                                state[indexes["ks"]], state[indexes["Cn"]], state[indexes["Cp"]],
+                                state[indexes["Sf"]], state[indexes["Sb"]], state[indexes["tauN"]], state[indexes["tauP"]],
+                                ((q_C) / (state[indexes["eps"]] * eps0)), state[indexes["Tm"]]),
+                         t_eval=self.g.tSteps, method='LSODA', max_step=self.g.hmax)
+        np.testing.assert_almost_equal(sol2.y.T, data)
         ################

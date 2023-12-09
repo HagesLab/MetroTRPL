@@ -262,65 +262,58 @@ def calculate_photoc(N, P, mu_n, mu_p, n0, p0):
     return q_C * (mu_n * (N - n0) + mu_p * (P - p0))
 
 
-def dydt(t, y, g, p):
+def dydt(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL,
+               tauN, tauP, Lambda, Tm):
     """Derivative function for drift-diffusion-decay carrier model."""
-    # Initialize arrays to store intermediate quantities
-    # that do not need to be iteratively solved
-    # These are calculated at node edges, of which there are m + 1
-    # dn/dx and dp/dx are also node edge values
-    Jn = np.zeros((g.nx+1))
-    Jp = np.zeros((g.nx+1))
 
-    # These are calculated at node centers, of which there are m
-    # dE/dt, dn/dt, and dp/dt are also node center values
-    dJz = np.zeros((g.nx))
-    rad_rec = np.zeros((g.nx))
-    non_rad_rec = np.zeros((g.nx))
+    Jn = np.zeros(L+1)
+    Jp = np.zeros(L+1)
+    dy = np.zeros(3*L+1)
 
-    N = y[0:g.nx]
-    P = y[g.nx:2*(g.nx)]
-    E_field = y[2*(g.nx):]
+    N = y[0:L]
+    P = y[L:2*L]
+    Efield = y[2*L:]
+    NP = (N * P - N0 * P0)
+
     N_edges = (N[:-1] + np.roll(N, -1)[:-1]) / 2
     P_edges = (P[:-1] + np.roll(P, -1)[:-1]) / 2
 
     # Do boundary conditions of Jn, Jp
-    Sft = p.Sf * (N[0] * P[0] - p.n0 * p.p0) / (N[0] + P[0])
-    Sbt = p.Sb * (N[g.nx-1] * P[g.nx-1] - p.n0 * p.p0) / (N[g.nx-1] + P[g.nx-1])
+    Sft = sr0 * NP[0] / (N[0] + P[0])
+    Sbt = srL * NP[-1] / (N[-1] + P[-1])
+
     Jn[0] = Sft
-    Jn[g.nx] = -Sbt
+    Jn[L] = -Sbt
     Jp[0] = -Sft
-    Jp[g.nx] = Sbt
+    Jp[L] = Sbt
 
     # Calculate Jn, Jp [nm^-2 ns^-1] over the space dimension,
     # np.roll(y,m) shifts the values of array y by m places,
     # allowing for quick approximation of dy/dx ~ (y[m+1] - y[m-1] / 2*dx)
     # over entire array y
-    Jn[1:-1] = (p.mu_n * N_edges * q * E_field[1:-1] +
-                (p.mu_n*kB*p.Tm) * (np.roll(N, -1)[:-1] - N[:-1]) / g.dx)
+    Jn[1:-1] = (mu_n * N_edges * Efield[1:-1] +
+                (mu_n*kB*Tm) * (np.roll(N, -1)[:-1] - N[:-1]) / dx)
 
-    Jp[1:-1] = (p.mu_p * (P_edges) * q * E_field[1:-1] -
-                (p.mu_p*kB*p.Tm) * (np.roll(P, -1)[:-1] - P[:-1]) / g.dx)
+    Jp[1:-1] = (mu_p * P_edges * Efield[1:-1] -
+                (mu_p*kB*Tm) * (np.roll(P, -1)[:-1] - P[:-1]) / dx)
 
-    # [V nm^-1 ns^-1]
-    dEdt = -(Jn + Jp) * ((q_C) / (p.eps * eps0))
+    # dEdt [V nm^-1 ns^-1]
+    # Lambda = q / (eps * eps0)
+    dy[2*L:] = -(Jn + Jp) * Lambda
 
-    # Calculate recombination (consumption) terms
-    rad_rec = p.ks * (N * P - p.n0 * p.p0)
-    non_rad_rec = (N * P - p.n0 * p.p0) / ((p.tauN * P) + (p.tauP * N))
-    auger_rec = (p.Cn * N + p.Cp * P) * (N * P - p.n0 * p.p0)
+    # Auger + Radiative + Bulk SRH
+    recomb = ((CN * N + CP * P) + r_rad + 1 / ((tauN * P) + (tauP * N))) * NP
 
-    # Calculate dJn/dx
-    dJz = (np.roll(Jn, -1)[:-1] - Jn[:-1]) / (g.dx)
+    # Calculate dndt, dpdt
+    dJz = (np.roll(Jn, -1)[:-1] - Jn[:-1]) / dx
 
-    dNdt = ((1/q) * dJz - rad_rec - non_rad_rec - auger_rec)
+    dy[:L] = dJz - recomb
 
     # Calculate dJp/dx
-    dJz = (np.roll(Jp, -1)[:-1] - Jp[:-1]) / (g.dx)
+    dJz = (np.roll(Jp, -1)[:-1] - Jp[:-1]) / dx
 
-    dPdt = ((1/q) * -dJz - rad_rec - non_rad_rec - auger_rec)
+    dy[L:2*L] = -dJz - recomb
 
-    # Package results
-    dy = np.concatenate([dNdt, dPdt, dEdt], axis=None)
     return dy
 
 
@@ -328,13 +321,13 @@ def dydt(t, y, g, p):
 def dydt_numba(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL,
                tauN, tauP, Lambda, Tm):
     """ Numba translation of dydt() """
-    Jn = np.zeros((L+1))
-    Jp = np.zeros((L+1))
+    Jn = np.zeros(L+1)
+    Jp = np.zeros(L+1)
     dy = np.zeros(3*L+1)
 
     N = y[0:L]
-    P = y[L:2*(L)]
-    E_field = y[2*(L):]
+    P = y[L:2*L]
+    Efield = y[2*L:]
 
     NP = (N * P - N0 * P0)
 
@@ -347,20 +340,20 @@ def dydt_numba(t, y, L, dx, N0, P0, mu_n, mu_p, r_rad, CN, CP, sr0, srL,
     Jp[L] = Sbt
 
     # DN = mu_n*kB*T/q
-    for i in range(1, len(Jn) - 1):
-        Jn[i] = mu_n*((N[i-1] + N[i]) / 2 * E_field[i]) + \
+    for i in range(1, L):
+        Jn[i] = mu_n*((N[i-1] + N[i]) / 2 * Efield[i]) + \
             mu_n*kB*Tm*((N[i] - N[i-1]) / dx)
-        Jp[i] = mu_p*((P[i-1] + P[i]) / 2 * E_field[i]) - \
+        Jp[i] = mu_p*((P[i-1] + P[i]) / 2 * Efield[i]) - \
             mu_p*kB*Tm*((P[i] - P[i-1]) / dx)
 
     # Lambda = q / (eps * eps0)
-    for i in range(len(Jn)):
+    for i in range(L+1):
         dy[2*L+i] = -(Jn[i] + Jp[i]) * Lambda
 
     # Auger + Radiative + Bulk SRH
     recomb = ((CN * N + CP * P) + r_rad + 1 / ((tauN * P) + (tauP * N))) * NP
 
-    for i in range(len(Jn) - 1):
+    for i in range(L):
         dy[i] = ((Jn[i+1] - Jn[i]) / dx - recomb[i])
         dy[L+i] = (-(Jp[i+1] - Jp[i]) / dx - recomb[i])
 
