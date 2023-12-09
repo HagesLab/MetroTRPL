@@ -84,64 +84,53 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
             MS_list.logger.info("#####")
             MS_list.logger.info(f"Iter {k}")
 
+            for m, MS in enumerate(MS_list.MS):
+                MS_list.logger.info(f"MetroState #{m}")
+                
+                # Non-tempering move, or all other chains not selected for tempering
+
+                new_state = MS_list.select_next_params(MS_list.H.states[m, :, k-1])
+
+                logll = MS_list.eval_trial_move(new_state, MS.MCMC_fields)
+
+                MS_list.logger.debug(f"Log likelihood of proposed move: {MS.MCMC_fields.get('_beta', 1) * logll}")
+                logratio = MS.MCMC_fields.get('_beta', 1) * (logll - MS_list.H.loglikelihood[m, k-1])
+                if np.isnan(logratio):
+                    logratio = -np.inf
+
+                accepted = roll_acceptance(logratio)
+
+                if accepted:
+                    MS_list.H.loglikelihood[m, k] = logll
+                    MS_list.H.states[m, :, k] = new_state
+                    MS_list.H.accept[m, k] = 1
+                else:
+                    MS_list.H.loglikelihood[m, k] = MS_list.H.loglikelihood[m, k-1]
+                    MS_list.H.states[m, :, k] = MS_list.H.states[m, :, k-1]
+
             if MS_list.ensemble_fields["do_parallel_tempering"] and k % MS_list.ensemble_fields["temper_freq"] == 0:
                 # Select a pair (the ith and (i+1)th) of chains
                 i = np.random.choice(np.arange(len(MS_list.MS)-1))
-            else:
-                i = -1337
+                # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
+                MS_list.logger.info(f"Tempering - swapping chains {i} and {i+1}")
+                beta_j = MS_list.MS[i+1].MCMC_fields["_beta"]
+                beta_i = MS_list.MS[i].MCMC_fields["_beta"]
+                logratio = -(beta_j - beta_i) * (MS_list.H.loglikelihood[i+1, k-1] - MS_list.H.loglikelihood[i, k-1])
 
-            for m, MS in enumerate(MS_list.MS):
-                MS_list.logger.info(f"MetroState #{m}")
-                if m == i:
-                    # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
-                    MS_list.logger.info(f"Tempering - swapping chains {i} and {i+1}")
-                    MS_I = MS_list.MS[m]
-                    MS_J = MS_list.MS[m+1]
-                    beta_j = MS_J.MCMC_fields["_beta"]
-                    beta_i = MS_I.MCMC_fields["_beta"]
-                    logratio = -(beta_j - beta_i) * (MS_list.H.loglikelihood[m+1, k-1] - MS_list.H.loglikelihood[m, k-1])
+                accepted = roll_acceptance(logratio)
 
-                    accepted = roll_acceptance(logratio)
-
-                    if accepted:
-                        MS_list.H.loglikelihood[m, k] = MS_list.H.loglikelihood[m+1, k-1]
-                        MS_list.H.loglikelihood[m+1, k] = MS_list.H.loglikelihood[m, k-1]
-                        MS_list.H.states[m, :, k] = MS_list.H.states[m+1, :, k-1]
-                        MS_list.H.states[m+1, :, k] = MS_list.H.states[m, :, k-1]
-
-                    else:
-                        MS_list.H.loglikelihood[m, k] = MS_list.H.loglikelihood[m, k-1]
-                        MS_list.H.loglikelihood[m+1, k] = MS_list.H.loglikelihood[m+1, k-1]
-                        MS_list.H.states[m, :, k] = MS_list.H.states[m, :, k-1]
-                        MS_list.H.states[m+1, :, k] = MS_list.H.states[m+1, :, k-1]
-
-                elif m == i+1:
-                    # Skip the (i+1)th chain if it was just swapped
-                    continue
+                if accepted:
+                    MS_list.H.loglikelihood[i, k] = MS_list.H.loglikelihood[i+1, k-1]
+                    MS_list.H.loglikelihood[i+1, k] = MS_list.H.loglikelihood[i, k-1]
+                    MS_list.H.states[i, :, k] = MS_list.H.states[i+1, :, k-1]
+                    MS_list.H.states[i+1, :, k] = MS_list.H.states[i, :, k-1]
 
                 else:
-                    # Non-tempering move, or all other chains not selected for tempering
+                    MS_list.H.loglikelihood[i, k] = MS_list.H.loglikelihood[i, k-1]
+                    MS_list.H.loglikelihood[i+1, k] = MS_list.H.loglikelihood[i+1, k-1]
+                    MS_list.H.states[i, :, k] = MS_list.H.states[i, :, k-1]
+                    MS_list.H.states[i+1, :, k] = MS_list.H.states[i+1, :, k-1]
 
-                    new_state = MS_list.select_next_params(MS_list.H.states[m, :, k-1])
-
-                    logll = MS_list.eval_trial_move(new_state, MS.MCMC_fields)
-
-                    MS_list.logger.debug(f"Log likelihood of proposed move: {MS.MCMC_fields.get('_beta', 1) * logll}")
-                    logratio = MS.MCMC_fields.get('_beta', 1) * (logll - MS_list.H.loglikelihood[m, k-1])
-                    if np.isnan(logratio):
-                        logratio = -np.inf
-
-                    accepted = roll_acceptance(logratio)
-
-                    if accepted:
-                        MS_list.H.loglikelihood[m, k] = logll
-                        MS_list.H.states[m, :, k] = new_state
-                        MS_list.H.accept[m, k] = 1
-                    else:
-                        MS_list.H.loglikelihood[m, k] = MS_list.H.loglikelihood[m, k-1]
-                        MS_list.H.states[m, :, k] = MS_list.H.states[m, :, k-1]
-
-            # TODO: one of these per iteration, not each state
             if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
                 MS_list.print_status()
             MS_list.latest_iter = k
