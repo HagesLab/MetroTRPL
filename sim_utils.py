@@ -130,7 +130,7 @@ class EnsembleTemplate:
             self.handler = handler
 
     def print_status(self, k, new_state):
-        self.logger.info(f"Current loglikelihoods : {self.H.loglikelihood[:, k]:.6e}")
+        self.logger.info(f"Current loglikelihoods : {self.H.loglikelihood[:, k]}")
         for m in range(len(self.MS)):
             self.logger.info(f"Chain {m}:")
             for i, param in enumerate(self.ensemble_fields["names"]):
