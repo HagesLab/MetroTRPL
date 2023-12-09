@@ -34,23 +34,62 @@ class MetroState:
     next state.
     """
 
-    def __init__(self, names, init_state, MCMC_fields, num_iters):
-        self.H = History(num_iters, names)
+    def __init__(self, names, MCMC_fields):
+        # self.H = History(num_iters, names)
 
         self.names = names
         self.MCMC_fields = MCMC_fields
 
-        self.init_state = init_state
         return
 
-    def print_status(self, k, is_active, new_state, logger):
-        logger.info(f"Current loglikelihood : {self.H.loglikelihood[0, k]:.6e}")
-        for i, param in enumerate(self.names):
-            if is_active[i]:
-                logger.info(
-                    f"Next {param}: {new_state[i]:.6e} from mean {self.H.states[i, k]:.6e}"
-                )
 
+class History:
+    """Record of past states the walk has been to."""
+
+    def __init__(self, n_chains, num_iters, names):
+        self.states_are_one_array = True
+        self.states = np.zeros((n_chains, len(names), num_iters))
+        self.accept = np.zeros((n_chains, num_iters))
+        self.loglikelihood = np.zeros((n_chains, num_iters))
+        return
+
+    def update(self, names):
+        """Compatibility - repackage self.states array into attributes per parameter"""
+        for i, param in enumerate(names):
+            setattr(self, f"mean_{param}", self.states[:, i])
+        return
+
+    def pack(self, names, num_iters):
+        """Compatibility - turn individual attributes into self.states"""
+        self.states = np.zeros((len(names), num_iters))
+        for k, param in enumerate(names):
+            self.states[k] = getattr(self, f"mean_{param}")
+
+    def truncate(self, k):
+        """Cut off any incomplete iterations should the walk be terminated early"""
+        self.states = self.states[:, :, :k]
+        self.accept = self.accept[:, :k]
+        self.loglikelihood = self.loglikelihood[:, :k]
+        return
+
+    def extend(self, new_num_iters):
+        """Enlarge an existing MC chain to length new_num_iters, if needed"""
+        current_num_iters = len(self.accept[0])
+        if new_num_iters < current_num_iters:  # No extension needed
+            self.truncate(new_num_iters)
+            return
+        if new_num_iters == current_num_iters:
+            return
+
+        addtl_iters = new_num_iters - current_num_iters
+        self.accept = np.concatenate((self.accept, np.zeros((self.accept.shape[0], addtl_iters))), axis=1)
+        self.loglikelihood = np.concatenate(
+            (self.loglikelihood, np.zeros((self.loglikelihood.shape[0], addtl_iters))), axis=1
+        )
+
+        self.states = np.concatenate(
+            (self.states, np.zeros((self.states.shape[0], self.states.shape[1], addtl_iters))), axis=2
+        )
         return
 
 
@@ -67,6 +106,7 @@ class EnsembleTemplate:
     sim_info: dict  # Simulation settings
     ensemble_fields: dict  # Monte Carlo settings shared across all chains
     MS: list[MetroState]  # List of Monte Carlo chains
+    H: History  # List of visited states
     param_indexes: dict[
         str, int
     ]  # Map of material parameter names and the order they appear in state arrays
@@ -81,15 +121,23 @@ class EnsembleTemplate:
 
     def checkpoint(self, fname):
         """Save the current ensemble as a pickle object."""
-        for MS in self.MS:
-            MS.H.update(MS.names)
+        self.H.update(self.ensemble_fields["names"])
 
         with open(fname, "wb+") as ofstream:
             handler = self.handler  # FileHandlers aren't pickleable
             self.handler = None
             pickle.dump(self, ofstream)
             self.handler = handler
-        return
+
+    def print_status(self, k, new_state):
+        self.logger.info(f"Current loglikelihoods : {self.H.loglikelihood[:, k]:.6e}")
+        for m in range(len(self.MS)):
+            self.logger.info(f"Chain {m}:")
+            for i, param in enumerate(self.ensemble_fields["names"]):
+                if self.ensemble_fields["active"][i]:
+                    self.logger.info(
+                        f"Next {param}: {new_state[i]:.6e} from mean {self.H.states[m, i, k]:.6e}"
+                    )
 
     def eval_trial_move(self, state, MCMC_fields):
         """
@@ -478,24 +526,28 @@ class Ensemble(EnsembleTemplate):
         }
 
         if self.ensemble_fields["parallel_tempering"] is None:
-            n_states = 1
+            n_chains = 1
             temperatures = [1]
         else:
-            n_states = len(self.ensemble_fields["parallel_tempering"])
+            n_chains = len(self.ensemble_fields["parallel_tempering"])
             temperatures = self.ensemble_fields["parallel_tempering"]
 
         self.ensemble_fields["names"] = param_info.pop("names")
 
-        self.MS: list[MetroState] = []
-        for i in range(n_states):
-            init_state = np.array(
+        # Record initial state
+        init_state = np.array(
                 [
                     param_info["init_guess"][param]
                     for param in self.ensemble_fields["names"]
                 ],
             dtype=float,
         )
-            self.MS.append(MetroState(self.ensemble_fields["names"], init_state, dict(MCMC_fields), num_iters))
+        self.H = History(n_chains, num_iters, self.ensemble_fields["names"])
+        self.H.states[:, :, 0] = init_state
+
+        self.MS: list[MetroState] = []
+        for i in range(n_chains):
+            self.MS.append(MetroState(self.ensemble_fields["names"], dict(MCMC_fields)))
             self.MS[-1].MCMC_fields["_beta"] = temperatures[i] ** -1
             if isinstance(MCMC_fields["likel2move_ratio"], dict):
                 self.MS[-1].MCMC_fields["current_sigma"] = {
@@ -510,7 +562,7 @@ class Ensemble(EnsembleTemplate):
                     for m in sim_info["meas_types"]
                 }
 
-        self.ensemble_fields["do_parallel_tempering"] = n_states > 1
+        self.ensemble_fields["do_parallel_tempering"] = n_chains > 1
 
         self.sim_info = sim_info
         self.RNG = np.random.default_rng(235817049752375780)
@@ -532,56 +584,6 @@ class Parameters:
     def __init__(self, param_info):
         print(
             "Warning - Parameters class is deprecated and will have no effect or functionality."
-        )
-        return
-
-
-class History:
-    """Record of past states the walk has been to."""
-
-    def __init__(self, num_iters, names):
-        self.states_are_one_array = True
-        self.states = np.zeros((len(names), num_iters))
-        self.accept = np.zeros((1, num_iters))
-        self.loglikelihood = np.zeros((1, num_iters))
-        return
-
-    def update(self, names):
-        """Compatibility - repackage self.states array into attributes per parameter"""
-        for i, param in enumerate(names):
-            setattr(self, f"mean_{param}", self.states[i])
-        return
-
-    def pack(self, names, num_iters):
-        """Compatibility - turn individual attributes into self.states"""
-        self.states = np.zeros((len(names), num_iters))
-        for k, param in enumerate(names):
-            self.states[k] = getattr(self, f"mean_{param}")
-
-    def truncate(self, k):
-        """Cut off any incomplete iterations should the walk be terminated early"""
-        self.states = self.states[:, :k]
-        self.accept = self.accept[:, :k]
-        self.loglikelihood = self.loglikelihood[:, :k]
-        return
-
-    def extend(self, new_num_iters):
-        """Enlarge an existing MC chain to length new_num_iters, if needed"""
-        current_num_iters = len(self.accept[0])
-        if new_num_iters < current_num_iters:  # No extension needed
-            self.truncate(new_num_iters)
-            return
-        if new_num_iters == current_num_iters:
-            return
-
-        addtl_iters = new_num_iters - current_num_iters
-        self.accept = np.concatenate((self.accept, np.zeros((1, addtl_iters))), axis=1)
-        self.loglikelihood = np.concatenate(
-            (self.loglikelihood, np.zeros((1, addtl_iters))), axis=1
-        )
-
-        self.states = np.concatenate(
-            (self.states, np.zeros((self.states.shape[0], addtl_iters))), axis=1
         )
         return
 

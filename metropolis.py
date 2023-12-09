@@ -74,11 +74,11 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
     if need_initial_state:
         MS_list.logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
-        for MS in MS_list.MS:
-            logll = MS_list.eval_trial_move(MS.init_state, MS.MCMC_fields)
+        for m, MS in enumerate(MS_list.MS):
+            logll = MS_list.eval_trial_move(MS_list.H.states[m, :, 0], MS.MCMC_fields)
 
-            MS.H.loglikelihood[0, 0] = logll
-            MS.H.states[:, 0] = MS.init_state
+            MS_list.H.loglikelihood[m, 0] = logll
+
     for k in range(starting_iter, num_iters):
         try:
             MS_list.logger.info("#####")
@@ -95,25 +95,25 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                 if m == i:
                     # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
                     MS_list.logger.info(f"Tempering - swapping chains {i} and {i+1}")
-                    MS_I = MS_list.MS[i]
-                    MS_J = MS_list.MS[i+1]
+                    MS_I = MS_list.MS[m]
+                    MS_J = MS_list.MS[m+1]
                     beta_j = MS_J.MCMC_fields["_beta"]
                     beta_i = MS_I.MCMC_fields["_beta"]
-                    logratio = -(beta_j - beta_i) * (MS_J.H.loglikelihood[0, k-1] - MS_I.H.loglikelihood[0, k-1])
+                    logratio = -(beta_j - beta_i) * (MS_list.H.loglikelihood[m+1, k-1] - MS_list.H.loglikelihood[m, k-1])
 
                     accepted = roll_acceptance(logratio)
 
                     if accepted:
-                        MS_I.H.loglikelihood[0, k] = MS_J.H.loglikelihood[0, k-1]
-                        MS_J.H.loglikelihood[0, k] = MS_I.H.loglikelihood[0, k-1]
-                        MS_I.H.states[:, k] = MS_J.H.states[:, k-1]
-                        MS_J.H.states[:, k] = MS_I.H.states[:, k-1]
+                        MS_list.H.loglikelihood[m, k] = MS_list.H.loglikelihood[m+1, k-1]
+                        MS_list.H.loglikelihood[m+1, k] = MS_list.H.loglikelihood[m, k-1]
+                        MS_list.H.states[m, :, k] = MS_list.H.states[m+1, :, k-1]
+                        MS_list.H.states[m+1, :, k] = MS_list.H.states[m, :, k-1]
 
                     else:
-                        MS_I.H.loglikelihood[0, k] = MS_I.H.loglikelihood[0, k-1]
-                        MS_J.H.loglikelihood[0, k] = MS_J.H.loglikelihood[0, k-1]
-                        MS_I.H.states[:, k] = MS_I.H.states[:, k-1]
-                        MS_J.H.states[:, k] = MS_J.H.states[:, k-1]
+                        MS_list.H.loglikelihood[m, k] = MS_list.H.loglikelihood[m, k-1]
+                        MS_list.H.loglikelihood[m+1, k] = MS_list.H.loglikelihood[m+1, k-1]
+                        MS_list.H.states[m, :, k] = MS_list.H.states[m, :, k-1]
+                        MS_list.H.states[m+1, :, k] = MS_list.H.states[m+1, :, k-1]
 
                 elif m == i+1:
                     # Skip the (i+1)th chain if it was just swapped
@@ -122,34 +122,34 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                 else:
                     # Non-tempering move, or all other chains not selected for tempering
 
-                    new_state = MS_list.select_next_params(MS.H.states[:, k-1])
+                    new_state = MS_list.select_next_params(MS_list.H.states[m, :, k-1])
 
                     logll = MS_list.eval_trial_move(new_state, MS.MCMC_fields)
 
                     if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                        MS.print_status(k - 1, MS_list.ensemble_fields["active"], new_state, MS_list.logger)
+                        MS_list.print_status(k - 1, new_state)
                     
                     MS_list.logger.debug(f"Log likelihood of proposed move: {MS.MCMC_fields.get('_beta', 1) * logll}")
-                    logratio = MS.MCMC_fields.get('_beta', 1) * (logll - MS.H.loglikelihood[0, k-1])
+                    logratio = MS.MCMC_fields.get('_beta', 1) * (logll - MS_list.H.loglikelihood[m, k-1])
                     if np.isnan(logratio):
                         logratio = -np.inf
 
                     accepted = roll_acceptance(logratio)
 
                     if accepted:
-                        MS.H.loglikelihood[0, k] = logll
-                        MS.H.states[:, k] = new_state
-                        MS.H.accept[0, k] = 1
+                        MS_list.H.loglikelihood[m, k] = logll
+                        MS_list.H.states[m, :, k] = new_state
+                        MS_list.H.accept[m, k] = 1
                     else:
-                        MS.H.loglikelihood[0, k] = MS.H.loglikelihood[0, k-1]
-                        MS.H.states[:, k] = MS.H.states[:, k-1]
+                        MS_list.H.loglikelihood[m, k] = MS_list.H.loglikelihood[m, k-1]
+                        MS_list.H.states[m, :, k] = MS_list.H.states[m, :, k-1]
 
             MS_list.latest_iter = k
 
         except KeyboardInterrupt:
             MS_list.logger.warning(f"Terminating with k={k-1} iters completed:")
             for MS in MS_list.MS:
-                MS.H.truncate(k)
+                MS_list.H.truncate(k)
             break
 
         if checkpoint_freq is not None and k % checkpoint_freq == 0:
@@ -226,14 +226,13 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             np.random.set_state(MS_list.random_state)
             if "starting_iter" in MCMC_fields and MCMC_fields["starting_iter"] < MS_list.latest_iter:
                 starting_iter = MCMC_fields["starting_iter"]
-                for MS in MS_list.MS:
-                    MS.H.extend(starting_iter)
+                MS_list.H.extend(starting_iter)
 
             else:
                 starting_iter = MS_list.latest_iter + 1
-
+                MS_list.H.extend(num_iters)
                 for MS in MS_list.MS:
-                    MS.H.extend(num_iters)
+                    
                     MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
 
     # From this point on, for consistency, work with ONLY the MetroState objects
@@ -257,7 +256,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     MS_list.logger.info(f"Avg: {final_t / MCMC_fields['num_iters']} s per iter")
     for i, MS in enumerate(MS_list.MS):
         MS_list.logger.info(f"Metrostate #{i}:")
-        MS_list.logger.info(f"Acceptance rate: {np.sum(MS.H.accept) / len(MS.H.accept.flatten())}")
+        MS_list.logger.info(f"Acceptance rate: {np.sum(MS_list.H.accept[i]) / len(MS_list.H.accept[i].flatten())}")
 
     MS_list.stop_logging(0)
     return MS_list

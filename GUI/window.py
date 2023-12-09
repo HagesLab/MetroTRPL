@@ -246,22 +246,25 @@ class Window(TkGUI):
                 if isinstance(MS_list, sim_utils.MetroState):
                     active = MS_list.param_info["active"]
                     names = MS_list.param_info["names"]
+                    history = MS_list.H
                     MS_list = [MS_list]
                 else:
                     active = MS_list.ensemble_fields["active"]
                     names = MS_list.ensemble_fields["names"]
+                    history = MS_list.H
                     MS_list = MS_list.MS
                     
+                    
 
-            for i, metrostate in enumerate(MS_list):
+            for i in range(len(MS_list)):
                 chain = Chain(file_name + f"-{i}")
 
                 chain.active_sampled = active
                 chain.param_names = names
 
-                logl = getattr(metrostate.H, "loglikelihood")
-                if logl.ndim == 2 and logl.shape[0] == 1:
-                    logl = logl[0]
+                logl = getattr(history, "loglikelihood")
+                if logl.ndim == 2:
+                    logl = logl[i]
                 elif logl.ndim == 1:
                     pass
                 else:
@@ -270,9 +273,9 @@ class Window(TkGUI):
 
                 chain.data["log likelihood"] = logl[1:]
 
-                accept = getattr(metrostate.H, "accept")
-                if accept.ndim == 2 and accept.shape[0] == 1:
-                    accept = accept[0]
+                accept = getattr(history, "accept")
+                if accept.ndim == 2:
+                    accept = accept[i]
                 elif accept.ndim == 1:
                     pass
                 else:
@@ -289,9 +292,9 @@ class Window(TkGUI):
 
                 try:
                     for key in chain.param_names:
-                        mean_states = getattr(metrostate.H, f"mean_{key}")
-                        if mean_states.ndim == 2 and mean_states.shape[0] == 1:
-                            mean_states = mean_states[0]
+                        mean_states = getattr(history, f"mean_{key}")
+                        if mean_states.ndim == 2:
+                            mean_states = mean_states[i]
                         elif mean_states.ndim == 1:
                             pass
                         else:

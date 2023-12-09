@@ -16,21 +16,22 @@ class TestUtils(unittest.TestCase):
                         "a": 3}
 
         self.num_iters = 20
+        self.n_chains = 2
 
     def test_initialization(self):
         # Test init
-        testh = History(self.num_iters, self.dummy_names)
+        testh = History(self.n_chains, self.num_iters, self.dummy_names)
         self.assertEqual(np.sum(testh.accept), 0)
         self.assertEqual(np.sum(testh.loglikelihood), 0)
-        self.assertEqual(len(testh.accept[0]), self.num_iters)
-        self.assertEqual(len(testh.loglikelihood[0]), self.num_iters)
-        self.assertEqual(testh.states.shape, (len(self.dummy_names), self.num_iters))
+        self.assertEqual(testh.accept.shape, (self.n_chains, self.num_iters))
+        self.assertEqual(testh.loglikelihood.shape, (self.n_chains, self.num_iters))
+        self.assertEqual(testh.states.shape, (self.n_chains, len(self.dummy_names), self.num_iters))
         self.assertEqual(np.sum(testh.states), 0)
 
     # Skipping over export...
 
     def test_truncate(self):
-        testh = History(self.num_iters, self.dummy_names)
+        testh = History(self.n_chains, self.num_iters, self.dummy_names)
         # for param in self.dummy_names:
         #     setattr(self.tasth, param, getattr(self.tasth, param) + 1)
         #     setattr(self.tasth, f"mean_{param}", getattr(self.tasth, f"mean_{param}") + 10)
@@ -39,12 +40,12 @@ class TestUtils(unittest.TestCase):
         truncate_at = 10
         testh.truncate(truncate_at)
 
-        self.assertEqual(testh.states.shape[1], truncate_at)
-        self.assertEqual(testh.accept.shape[1], truncate_at)
-        self.assertEqual(testh.loglikelihood.shape[1], truncate_at)
+        self.assertEqual(testh.states.shape, (self.n_chains, len(self.dummy_names), truncate_at))
+        self.assertEqual(testh.accept.shape, (self.n_chains, truncate_at))
+        self.assertEqual(testh.loglikelihood.shape, (self.n_chains, truncate_at))
 
     def test_extend(self):
-        testh = History(self.num_iters, self.dummy_names)
+        testh = History(self.n_chains, self.num_iters, self.dummy_names)
         # for param in self.dummy_names:
         #     setattr(self.tasth, param, getattr(self.tasth, param) + 1)
         #     setattr(self.tasth, f"mean_{param}", getattr(self.tasth, f"mean_{param}") + 10)
@@ -52,36 +53,36 @@ class TestUtils(unittest.TestCase):
         # Test extend from 20 iters to 19 iters, which should result in a contraction
         extend_to = 19
         testh.extend(extend_to)
-        self.assertEqual(testh.states.shape[1], extend_to)
-        self.assertEqual(testh.accept.shape[1], extend_to)
-        self.assertEqual(testh.loglikelihood.shape[1], extend_to)
+        self.assertEqual(testh.states.shape, (self.n_chains, len(self.dummy_names), extend_to))
+        self.assertEqual(testh.accept.shape, (self.n_chains, extend_to))
+        self.assertEqual(testh.loglikelihood.shape, (self.n_chains, extend_to))
 
         # Test extend from 20 iters to 20 iters, which should result in no changes
         self.setUp()
         extend_to = 20
         testh.extend(extend_to)
-        self.assertEqual(testh.states.shape[1], self.num_iters)
-        self.assertEqual(testh.accept.shape[1], self.num_iters)
-        self.assertEqual(testh.loglikelihood.shape[1], self.num_iters)
+        self.assertEqual(testh.states.shape, (self.n_chains, len(self.dummy_names), self.num_iters))
+        self.assertEqual(testh.accept.shape, (self.n_chains, self.num_iters))
+        self.assertEqual(testh.loglikelihood.shape, (self.n_chains, self.num_iters))
 
         # Test extend from 20 iters to 100 iters
         self.setUp()
         extend_to = 100
         testh.extend(extend_to)
-        self.assertEqual(testh.states.shape[1], extend_to)
-        self.assertEqual(testh.accept.shape[1], extend_to)
-        self.assertEqual(testh.loglikelihood.shape[1], extend_to)
+        self.assertEqual(testh.states.shape, (self.n_chains, len(self.dummy_names), extend_to))
+        self.assertEqual(testh.accept.shape, (self.n_chains, extend_to))
+        self.assertEqual(testh.loglikelihood.shape, (self.n_chains, extend_to))
 
     def test_update(self):
-        testh = History(self.num_iters, self.dummy_names)
+        testh = History(self.n_chains, self.num_iters, self.dummy_names)
         k = 0
-        testh.states[self.indexes["c"], k] = 50
+        testh.states[:, self.indexes["c"], k] = 50
 
         # Should split the states array into new attributes for each parameter
         testh.update(self.dummy_names)
 
-        self.assertEqual(testh.mean_c[k], 50)
-        self.assertEqual(np.sum(testh.mean_c), 50)
+        np.testing.assert_equal(testh.mean_c[:, k], 50)
+        self.assertEqual(np.sum(testh.mean_c), self.n_chains * 50)
         self.assertEqual(np.sum(testh.mean_a), 0)
 
 if __name__ == "__main__":
