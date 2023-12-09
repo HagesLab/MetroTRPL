@@ -129,15 +129,13 @@ class EnsembleTemplate:
             pickle.dump(self, ofstream)
             self.handler = handler
 
-    def print_status(self, k, new_state):
+    def print_status(self):
+        k = self.latest_iter
         self.logger.info(f"Current loglikelihoods : {self.H.loglikelihood[:, k]}")
         for m in range(len(self.MS)):
             self.logger.info(f"Chain {m}:")
-            for i, param in enumerate(self.ensemble_fields["names"]):
-                if self.ensemble_fields["active"][i]:
-                    self.logger.info(
-                        f"Next {param}: {new_state[i]:.6e} from mean {self.H.states[m, i, k]:.6e}"
-                    )
+            self.logger.info(f"Current state: {self.H.states[m, :, k]}"
+            )
 
     def eval_trial_move(self, state, MCMC_fields):
         """

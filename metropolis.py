@@ -126,9 +126,6 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
 
                     logll = MS_list.eval_trial_move(new_state, MS.MCMC_fields)
 
-                    if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                        MS_list.print_status(k - 1, new_state)
-                    
                     MS_list.logger.debug(f"Log likelihood of proposed move: {MS.MCMC_fields.get('_beta', 1) * logll}")
                     logratio = MS.MCMC_fields.get('_beta', 1) * (logll - MS_list.H.loglikelihood[m, k-1])
                     if np.isnan(logratio):
@@ -144,6 +141,9 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                         MS_list.H.loglikelihood[m, k] = MS_list.H.loglikelihood[m, k-1]
                         MS_list.H.states[m, :, k] = MS_list.H.states[m, :, k-1]
 
+            # TODO: one of these per iteration, not each state
+            if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
+                MS_list.print_status()
             MS_list.latest_iter = k
 
         except KeyboardInterrupt:
