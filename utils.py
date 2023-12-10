@@ -1,4 +1,5 @@
 """Standalone utility functions"""
+from numba import njit
 import numpy as np
 
 def search_c_grps(c_grps : list[tuple], i : int) -> int:
@@ -37,11 +38,20 @@ def unpack_simpar(sim_info, i):
     return thickness, nx, meas_type
 
 
+@njit(cache=True)
 def U(x):
-    """Potential for single particle toy problem"""
-    return 1000 * (x < -2) + 1 * (1 + np.sin(2*np.pi*x)) * np.logical_and(-2 <= x, x <= -1.25) \
-                             + 2 * (1 + np.sin(2*np.pi*x)) * np.logical_and(-1.25 <= x, x <= -0.25) \
-                             + 3 * (1 + np.sin(2*np.pi*x)) * np.logical_and(-0.25 <= x, x <= 0.75) \
-                             + 4 * (1 + np.sin(2*np.pi*x)) * np.logical_and(0.75 <= x, x <= 1.75) \
-                             + 5 * (1 + np.sin(2*np.pi*x)) * np.logical_and(1.75 <= x, x <= 2) \
-                             + 1000 * (x > 2)
+    if   x < -2:
+        u = np.inf
+    elif x < -1.25:
+        u =  1 * (1 + np.sin(2*np.pi*x))
+    elif x < -0.25:
+        u = 2 * (1 + np.sin(2*np.pi*x))
+    elif x <  0.75:
+        u = 3 * (1 + np.sin(2*np.pi*x))
+    elif x <  1.75:
+        u = 4 * (1 + np.sin(2*np.pi*x))
+    elif x <=  2:
+        u = 5 * (1 + np.sin(2*np.pi*x))
+    else:
+        u = np.inf
+    return u

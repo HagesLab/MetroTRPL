@@ -107,6 +107,8 @@ class EnsembleTemplate:
     ensemble_fields: dict  # Monte Carlo settings shared across all chains
     MS: list[MetroState]  # List of Monte Carlo chains
     H: History  # List of visited states
+    # Lists of functions that can be used to repeat the logLL calculations for each chain's latest state
+    ll_funcs: list
     param_indexes: dict[
         str, int
     ]  # Map of material parameter names and the order they appear in state arrays
@@ -124,10 +126,14 @@ class EnsembleTemplate:
         self.H.update(self.ensemble_fields["names"])
 
         with open(fname, "wb+") as ofstream:
+            # TODO: This might break checkpoints
             handler = self.handler  # FileHandlers aren't pickleable
             self.handler = None
+            ll_funcs = self.ll_funcs  # Lambda functions aren't pickleable either
+            self.ll_funcs = None
             pickle.dump(self, ofstream)
             self.handler = handler
+            self.ll_funcs = ll_funcs
 
     def print_status(self):
         k = self.latest_iter
@@ -140,16 +146,23 @@ class EnsembleTemplate:
     def eval_trial_move(self, state, MCMC_fields):
         """
         Calculates log likelihood of a new proposed state
+        Returns:
+        logll : float
+            Log likelihood value
+        ll_funcs : list
+            List of lambda funcs that can be used to recalculate logll
+            for each measurement with different beta temperatures
         """
 
         logll = np.zeros(self.sim_info["num_meas"])
+        ll_funcs = [None for _ in range(self.sim_info["num_meas"])]
 
         for i in range(self.sim_info["num_meas"]):
-            logll[i] = self.one_sim_likelihood(i, state, MCMC_fields)
+            logll[i], ll_funcs[i] = self.one_sim_likelihood(i, state, MCMC_fields)
 
         logll = np.sum(logll)
 
-        return logll
+        return logll, ll_funcs
 
     def one_sim_likelihood(self, meas_index, state, MCMC_fields):
         """
@@ -158,7 +171,7 @@ class EnsembleTemplate:
         iniPar = self.iniPar[meas_index]
         meas_type = self.sim_info["meas_types"][meas_index]
         irf_convolution = MCMC_fields.get("irf_convolution", None)
-
+        ll_func = lambda b: -np.inf
         ff = MCMC_fields.get("fittable_fluences", None)
         if ff is not None and meas_index in ff[1]:
             if ff[2] is not None and len(ff[2]) > 0:
@@ -193,7 +206,7 @@ class EnsembleTemplate:
             )
         if not success:
             likelihood = -np.inf
-            return likelihood
+            return likelihood, ll_func
 
         try:
             if irf_convolution is not None and irf_convolution[meas_index] != 0:
@@ -227,7 +240,7 @@ class EnsembleTemplate:
         except ValueError as e:
             self.logger.warning(e)
             likelihood = -np.inf
-            return likelihood
+            return likelihood, ll_func
 
         self.logger.debug(f"Comparing times {times_c[0]}-{times_c[-1]}")
 
@@ -255,7 +268,7 @@ class EnsembleTemplate:
         except ValueError as e:
             self.logger.warning(e)
             likelihood = -np.inf
-            return likelihood
+            return likelihood, ll_func
 
         if MCMC_fields.get("force_min_y", False):
             sol, min_y, n_set = set_min_y(sol, vals_c, scale_shift)
@@ -264,25 +277,31 @@ class EnsembleTemplate:
                 self.logger.debug(f"{n_set} values raised to min_y")
 
         if meas_type == "pa":
-            likelihood = -sol[0]
+            ll_func = lambda T: -sol[0] * T ** -1
+            likelihood = ll_func(MCMC_fields.get('_T', 1))
         else:
             try:
                 err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
 
                 # Compatibility with single sigma
                 if isinstance(MCMC_fields["current_sigma"], dict):
-                    likelihood = -np.sum(
+                    ll_func = lambda T: -np.sum(
                         err_sq
                         / (
-                            MCMC_fields["current_sigma"][meas_type] ** 2
+                            MCMC_fields["current_sigma"][meas_type] ** 2 * T
                             + 2 * uncs_c**2
                         )
                     )
+                    
                 else:
-                    likelihood = -np.sum(
-                        err_sq / (MCMC_fields["current_sigma"] ** 2 + 2 * uncs_c**2)
+                    ll_func = lambda T: -np.sum(
+                        err_sq
+                        / (
+                            MCMC_fields["current_sigma"] ** 2 * T
+                            + 2 * uncs_c**2
+                        )
                     )
-
+                likelihood = ll_func(MCMC_fields.get('_T', 1))
                 if np.isnan(likelihood):
                     raise ValueError(
                         f"{meas_index}: Simulation failed: invalid likelihood"
@@ -290,7 +309,7 @@ class EnsembleTemplate:
             except ValueError as e:
                 self.logger.warning(e)
                 likelihood = -np.inf
-        return likelihood
+        return likelihood, ll_func
 
     def converge_simulation(self, meas_index, state, init_conds):
         """
@@ -543,10 +562,11 @@ class Ensemble(EnsembleTemplate):
         self.H = History(n_chains, num_iters, self.ensemble_fields["names"])
         self.H.states[:, :, 0] = init_state
 
+        self.ll_funcs = [None for _ in range(n_chains)]
         self.MS: list[MetroState] = []
         for i in range(n_chains):
             self.MS.append(MetroState(self.ensemble_fields["names"], dict(MCMC_fields)))
-            self.MS[-1].MCMC_fields["_beta"] = temperatures[i] ** -1
+            self.MS[-1].MCMC_fields["_T"] = temperatures[i]
             if isinstance(MCMC_fields["likel2move_ratio"], dict):
                 self.MS[-1].MCMC_fields["current_sigma"] = {
                     m: max(self.ensemble_fields["trial_move"])

@@ -75,26 +75,27 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
         MS_list.logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
         for m, MS in enumerate(MS_list.MS):
-            logll = MS_list.eval_trial_move(MS_list.H.states[m, :, 0], MS.MCMC_fields)
-
+            logll, ll_funcs = MS_list.eval_trial_move(MS_list.H.states[m, :, 0], MS.MCMC_fields)
             MS_list.H.loglikelihood[m, 0] = logll
+            MS_list.ll_funcs[m] = ll_funcs
 
     for k in range(starting_iter, num_iters):
         try:
-            MS_list.logger.info("#####")
-            MS_list.logger.info(f"Iter {k}")
+            if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
+                MS_list.logger.info("#####")
+                MS_list.logger.info(f"Iter {k}")
 
             for m, MS in enumerate(MS_list.MS):
-                MS_list.logger.info(f"MetroState #{m}")
-                
-                # Non-tempering move, or all other chains not selected for tempering
+                if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
+                    MS_list.logger.info(f"MetroState #{m}")
 
+                # Trial displacement move
                 new_state = MS_list.select_next_params(MS_list.H.states[m, :, k-1])
 
-                logll = MS_list.eval_trial_move(new_state, MS.MCMC_fields)
+                logll, ll_funcs = MS_list.eval_trial_move(new_state, MS.MCMC_fields)
 
-                MS_list.logger.debug(f"Log likelihood of proposed move: {MS.MCMC_fields.get('_beta', 1) * logll}")
-                logratio = MS.MCMC_fields.get('_beta', 1) * (logll - MS_list.H.loglikelihood[m, k-1])
+                MS_list.logger.debug(f"Log likelihood of proposed move: {logll}")
+                logratio = (logll - MS_list.H.loglikelihood[m, k-1])
                 if np.isnan(logratio):
                     logratio = -np.inf
 
@@ -104,32 +105,44 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                     MS_list.H.loglikelihood[m, k] = logll
                     MS_list.H.states[m, :, k] = new_state
                     MS_list.H.accept[m, k] = 1
+                    MS_list.ll_funcs[m] = ll_funcs
                 else:
                     MS_list.H.loglikelihood[m, k] = MS_list.H.loglikelihood[m, k-1]
                     MS_list.H.states[m, :, k] = MS_list.H.states[m, :, k-1]
 
             if MS_list.ensemble_fields["do_parallel_tempering"] and k % MS_list.ensemble_fields["temper_freq"] == 0:
-                # Select a pair (the ith and (i+1)th) of chains
-                i = np.random.choice(np.arange(len(MS_list.MS)-1))
-                # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
-                MS_list.logger.info(f"Tempering - swapping chains {i} and {i+1}")
-                beta_j = MS_list.MS[i+1].MCMC_fields["_beta"]
-                beta_i = MS_list.MS[i].MCMC_fields["_beta"]
-                logratio = -(beta_j - beta_i) * (MS_list.H.loglikelihood[i+1, k-1] - MS_list.H.loglikelihood[i, k-1])
+                for _ in range(len(MS_list.MS) - 1):
+                    # Select a pair (the ith and (i+1)th) of chains
+                    i = MS_list.RNG.integers(0, len(MS_list.MS)-1)
+                    # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
+                    if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
+                        MS_list.logger.info(f"Tempering - swapping chains {i} and {i+1}")
+                    T_j = MS_list.MS[i+1].MCMC_fields["_T"]
+                    T_i = MS_list.MS[i].MCMC_fields["_T"]
 
-                accepted = roll_acceptance(logratio)
+                    bi_ui, bj_ui, bi_uj, bj_uj = 0, 0, 0, 0
+                    for ss in range(MS_list.sim_info["num_meas"]):
+                        bi_ui += MS_list.ll_funcs[i][ss](T_i)
+                        bj_ui += MS_list.ll_funcs[i][ss](T_j)
+                        bi_uj += MS_list.ll_funcs[i+1][ss](T_i)
+                        bj_uj += MS_list.ll_funcs[i+1][ss](T_j)
 
-                if accepted:
-                    MS_list.H.loglikelihood[i, k] = MS_list.H.loglikelihood[i+1, k-1]
-                    MS_list.H.loglikelihood[i+1, k] = MS_list.H.loglikelihood[i, k-1]
-                    MS_list.H.states[i, :, k] = MS_list.H.states[i+1, :, k-1]
-                    MS_list.H.states[i+1, :, k] = MS_list.H.states[i, :, k-1]
+                    logratio = bi_ui + bj_uj - bi_uj - bj_ui
 
-                else:
-                    MS_list.H.loglikelihood[i, k] = MS_list.H.loglikelihood[i, k-1]
-                    MS_list.H.loglikelihood[i+1, k] = MS_list.H.loglikelihood[i+1, k-1]
-                    MS_list.H.states[i, :, k] = MS_list.H.states[i, :, k-1]
-                    MS_list.H.states[i+1, :, k] = MS_list.H.states[i+1, :, k-1]
+                    accepted = roll_acceptance(-logratio)
+
+                    if accepted:
+                        MS_list.H.loglikelihood[i, k] = bi_uj
+                        MS_list.H.loglikelihood[i+1, k] = bj_ui
+                        MS_list.H.states[i, :, k] = MS_list.H.states[i+1, :, k]
+                        MS_list.H.states[i+1, :, k] = MS_list.H.states[i, :, k]
+                        MS_list.ll_funcs[i+1], MS_list.ll_funcs[i] = MS_list.ll_funcs[i], MS_list.ll_funcs[i+1]
+
+                    else:
+                        MS_list.H.loglikelihood[i, k] = MS_list.H.loglikelihood[i, k]
+                        MS_list.H.loglikelihood[i+1, k] = MS_list.H.loglikelihood[i+1, k]
+                        MS_list.H.states[i, :, k] = MS_list.H.states[i, :, k]
+                        MS_list.H.states[i+1, :, k] = MS_list.H.states[i+1, :, k]
 
             if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
                 MS_list.print_status()
