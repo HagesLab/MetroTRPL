@@ -10,6 +10,7 @@ import pickle
 from time import perf_counter
 import numpy as np
 
+from mcmc_logging import start_logging
 from sim_utils import Ensemble
 from bayes_io import make_dir
 from laplace import make_I_tables
@@ -226,6 +227,9 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                                load_checkpoint), 'rb') as ifstream:
             MS_list : Ensemble = pickle.load(ifstream)
             np.random.set_state(MS_list.random_state)
+            MS_list.ll_funcs = [None for _ in range(len(MS_list.MS))]
+            MS_list.logger, MS_list.handler = start_logging(
+                log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
             if "starting_iter" in MCMC_fields and MCMC_fields["starting_iter"] < MS_list.latest_iter:
                 starting_iter = MCMC_fields["starting_iter"]
                 MS_list.H.extend(starting_iter)
@@ -234,7 +238,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                 starting_iter = MS_list.latest_iter + 1
                 MS_list.H.extend(num_iters)
                 for MS in MS_list.MS:
-                    
                     MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
 
     # From this point on, for consistency, work with ONLY the MetroState objects
