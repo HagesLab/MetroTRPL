@@ -492,10 +492,11 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["rtol"] = MCMC_fields.pop("rtol", None)
         self.ensemble_fields["atol"] = MCMC_fields.pop("atol", None)
         self.ensemble_fields["hmax"] = MCMC_fields.pop("hmax", DEFAULT_HMAX)
+        self.ensemble_fields["num_iters"] = MCMC_fields.pop("num_iters")
 
         self.ensemble_fields["do_mu_constraint"] = param_info.pop("do_mu_constraint", None)
         self.ensemble_fields["prior_dist"] = param_info.pop("prior_dist")
-        # Transfer shared fields, as arrays ordered by param_info["names"]
+        # Transfer shared fields that need to become arrays
         self.ensemble_fields["do_log"] = param_info.pop("do_log")
         self.ensemble_fields["do_log"] = np.array(
             [self.ensemble_fields["do_log"][param] for param in param_info["names"]],

@@ -233,8 +233,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             else:
                 starting_iter = MS_list.latest_iter + 1
                 MS_list.H.extend(num_iters)
-                for MS in MS_list.MS:
-                    MS.MCMC_fields["num_iters"] = MCMC_fields["num_iters"]
+                MS_list.ensemble_fields["num_iters"] = MCMC_fields["num_iters"]
 
     # From this point on, for consistency, work with ONLY the MetroState objects
     MS_list.logger.info(f"Sim info: {MS_list.sim_info}")
