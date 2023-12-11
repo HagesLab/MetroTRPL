@@ -270,7 +270,7 @@ class EnsembleTemplate:
             likelihood = -np.inf
             return likelihood, ll_func
 
-        if MCMC_fields.get("force_min_y", False):
+        if self.ensemble_fields.get("force_min_y", False):
             sol, min_y, n_set = set_min_y(sol, vals_c, scale_shift)
             self.logger.debug(f"min_y: {min_y}")
             if n_set > 0:
@@ -497,6 +497,7 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["hmax"] = MCMC_fields.pop("hmax", DEFAULT_HMAX)
         self.ensemble_fields["num_iters"] = MCMC_fields.pop("num_iters")
         self.ensemble_fields["log_y"] = MCMC_fields.pop("log_y")
+        self.ensemble_fields["force_min_y"] = MCMC_fields.pop("force_min_y", 0)
         self.ensemble_fields["do_mu_constraint"] = param_info.pop("do_mu_constraint", None)
         self.ensemble_fields["prior_dist"] = param_info.pop("prior_dist")
         # Transfer shared fields that need to become arrays

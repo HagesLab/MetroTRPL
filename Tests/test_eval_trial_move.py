@@ -120,7 +120,7 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"] = initial_guess
 
         sim_flags = {"current_sigma": {"TRPL": 1},
-                     "force_min_y": True}
+                     }
 
         indexes = {name: param_names.index(name) for name in param_names}
         state = [param_info["init_guess"][name] for name in param_names]
@@ -135,7 +135,7 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.times = times
         self.mock_ensemble.param_indexes = indexes
         self.mock_ensemble.ensemble_fields = {"units": units, "solver": ("solveivp",),
-                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
+                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8, "force_min_y": True}
         self.mock_ensemble.vals = vals
         self.mock_ensemble.uncs = uncs
         logll1, _ = self.mock_ensemble.eval_trial_move(state, sim_flags)
