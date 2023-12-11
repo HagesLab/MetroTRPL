@@ -473,6 +473,8 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields = {}
         self.ensemble_fields["output_path"] = MCMC_fields.pop("output_path")
         self.ensemble_fields["load_checkpoint"] = MCMC_fields.pop("load_checkpoint")
+        self.ensemble_fields["init_cond_path"] = MCMC_fields.pop("init_cond_path")
+        self.ensemble_fields["measurement_path"] = MCMC_fields.pop("measurement_path")
         self.ensemble_fields["checkpoint_dirname"] = MCMC_fields.pop(
             "checkpoint_dirname"
         )
