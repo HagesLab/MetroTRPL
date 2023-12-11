@@ -472,6 +472,7 @@ class Ensemble(EnsembleTemplate):
         # Transfer shared fields from chains to ensemble
         self.ensemble_fields = {}
         self.ensemble_fields["output_path"] = MCMC_fields.pop("output_path")
+        self.ensemble_fields["load_checkpoint"] = MCMC_fields.pop("load_checkpoint")
         self.ensemble_fields["checkpoint_dirname"] = MCMC_fields.pop(
             "checkpoint_dirname"
         )
