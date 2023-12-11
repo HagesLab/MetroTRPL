@@ -284,23 +284,14 @@ class EnsembleTemplate:
                 err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
 
                 # Compatibility with single sigma
-                if isinstance(MCMC_fields["current_sigma"], dict):
-                    ll_func = lambda T: -np.sum(
-                        err_sq
-                        / (
-                            MCMC_fields["current_sigma"][meas_type] ** 2 * T
-                            + 2 * uncs_c**2
-                        )
+                ll_func = lambda T: -np.sum(
+                    err_sq
+                    / (
+                        MCMC_fields["current_sigma"][meas_type] ** 2 * T
+                        + 2 * uncs_c**2
                     )
-                    
-                else:
-                    ll_func = lambda T: -np.sum(
-                        err_sq
-                        / (
-                            MCMC_fields["current_sigma"] ** 2 * T
-                            + 2 * uncs_c**2
-                        )
-                    )
+                )
+
                 likelihood = ll_func(MCMC_fields.get('_T', 1))
                 if np.isnan(likelihood):
                     raise ValueError(
@@ -564,18 +555,11 @@ class Ensemble(EnsembleTemplate):
         for i in range(n_chains):
             self.MS.append(MetroState(self.ensemble_fields["names"], dict(MCMC_fields)))
             self.MS[-1].MCMC_fields["_T"] = temperatures[i]
-            if isinstance(MCMC_fields["likel2move_ratio"], dict):
-                self.MS[-1].MCMC_fields["current_sigma"] = {
-                    m: max(self.ensemble_fields["base_trial_move"])
-                    * MCMC_fields["likel2move_ratio"][m]
-                    for m in sim_info["meas_types"]
-                }
-            else:
-                self.MS[-1].MCMC_fields["current_sigma"] = {
-                    m: max(self.ensemble_fields["base_trial_move"])
-                    * MCMC_fields["likel2move_ratio"]
-                    for m in sim_info["meas_types"]
-                }
+            self.MS[-1].MCMC_fields["current_sigma"] = {
+                m: max(self.ensemble_fields["base_trial_move"])
+                * MCMC_fields["likel2move_ratio"][m]
+                for m in sim_info["meas_types"]
+            }
 
         self.ensemble_fields["do_parallel_tempering"] = n_chains > 1
 
