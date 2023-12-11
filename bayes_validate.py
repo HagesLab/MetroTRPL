@@ -272,17 +272,6 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
         else:
             raise ValueError("Invalid select value - must be ints between 0 and"
                              " num_measurements - 1")
-
-    if "resample" in meas_flags:
-        resample = meas_flags["resample"]
-        if isinstance(resample, int):
-            pass
-        else:
-            raise TypeError("Resample must be an integer")
-        if resample >= 1:
-            pass
-        else:
-            raise ValueError("Invalid resample - must be positive")
     return
 
 def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,

@@ -74,7 +74,6 @@ def get_data(exp_file, meas_types, ic_flags, MCMC_fields, verbose=False):
     NOISE_LEVEL = ic_flags.get('noise_level', 0)
 
     LOG_PL = MCMC_fields['log_pl']
-    resample = ic_flags.get("resample", 1)
 
     bval_cutoff = sys.float_info.min
 
@@ -109,11 +108,6 @@ def get_data(exp_file, meas_types, ic_flags, MCMC_fields, verbose=False):
             t_list[i] = t_list[i][keepL:keepR]
             y_list[i] = y_list[i][keepL:keepR]
             u_list[i] = u_list[i][keepL:keepR]
-
-    for i in range(len(t_list)):
-        t_list[i] = t_list[i][::resample]
-        y_list[i] = y_list[i][::resample]
-        u_list[i] = u_list[i][::resample]
 
     if LOG_PL:
         # Deal with noisy negative values before taking log
@@ -362,9 +356,6 @@ def read_config_script_file(path):
                                                                            delimiter='\t',
                                                                            dtype=int)
                             meas_flags["select_obs_sets"] = list(meas_flags["select_obs_sets"])
-
-                    elif line.startswith("Resample"):
-                        meas_flags["resample"] = int(line_split[1])
 
                 if (init_flag == 's'):
                     if line.startswith("Num iters"):
@@ -686,12 +677,7 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             ofstream.write("\n")
 
         if "resample" in measurement_flags:
-            if verbose:
-                ofstream.write("# Resample the measurement,"
-                               "taking only every n points.\n"
-                               "# This can speed up the simulations a little.\n")
-            resample_factor = measurement_flags["resample"]
-            ofstream.write(f"Resample: {resample_factor}\n")
+            print("Script generator warning: setting \"resample\" is deprecated and will have no effect.")
         #######################################################################
         ofstream.write("##\n")
         ofstream.write("p$ MCMC Control flags:\n")

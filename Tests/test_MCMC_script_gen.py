@@ -104,7 +104,6 @@ class TestUtils(unittest.TestCase):
 
         self.measurement_fields = {"time_cutoff": [0, np.inf],
                                    "select_obs_sets": [0, 1, 2],
-                                   "resample": 2,
                                    }
 
         output_path = os.path.join("MCMC", "Example_output_path")
