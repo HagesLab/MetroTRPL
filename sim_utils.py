@@ -445,10 +445,7 @@ class EnsembleTemplate:
         while tries < max_tries:
             tries += 1
 
-            new_state = np.where(self.ensemble_fields["active"],
-                                 self.RNG.uniform(_current_state-self.ensemble_fields["trial_move"],
-                                                  _current_state+self.ensemble_fields["trial_move"]),
-                                 _current_state)
+            new_state = _current_state + self.ensemble_fields["trial_move"] * (2 * self.RNG.random(_current_state.shape) - 1)
 
             if mu_constraint is not None:
                 ambi = mu_constraint[0]
@@ -517,7 +514,7 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["trial_move"] = param_info.pop("trial_move")
         self.ensemble_fields["trial_move"] = np.array(
             [
-                self.ensemble_fields["trial_move"][param]
+                self.ensemble_fields["trial_move"][param] if param_info["active"][param] else 0
                 for param in param_info["names"]
             ],
             dtype=float,

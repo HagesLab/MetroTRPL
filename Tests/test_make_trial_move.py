@@ -51,14 +51,13 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.param_indexes = {name: param_names.index(name) for name in param_names}
         state = [initial_guesses[name] for name in param_names]
         do_log = np.array([do_log[name] for name in param_names], dtype=bool)
+        trial_move = np.array([trial_move[name] if active_params[name] else 0 for name in param_names], dtype=float)
         active_params = np.array([active_params[name] for name in param_names], dtype=bool)
-        trial_move = np.array([trial_move[name] for name in param_names], dtype=float)
         self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active_params,
                                               "trial_move": trial_move, "prior_dist": prior_dist,
                                               "names": param_names}
         # Try box selection
         new_state = self.mock_ensemble.select_next_params(state)
-
         # Inactive and shouldn't change
         self.assertEqual(new_state[self.mock_ensemble.param_indexes["a"]], initial_guesses['a'])
         self.assertEqual(new_state[self.mock_ensemble.param_indexes["c"]], initial_guesses['c'])
@@ -96,8 +95,8 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.param_indexes = {name: param_names.index(name) for name in param_names}
         state = [initial_guesses[name] for name in param_names]
         do_log = np.array([do_log[name] for name in param_names], dtype=bool)
+        trial_move = np.array([trial_move[name] if active_params[name] else 0 for name in param_names], dtype=float)
         active_params = np.array([active_params[name] for name in param_names], dtype=bool)
-        trial_move = np.array([trial_move[name] for name in param_names], dtype=float)
         self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active_params,
                                               "trial_move": trial_move, "do_mu_constraint": (20, 3),
                                               "prior_dist": prior_dist, "names": param_names}
