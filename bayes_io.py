@@ -68,7 +68,7 @@ def extract_tuples(string, delimiter, dtype=float):
     return tuples
 
 
-def get_data(exp_file, meas_types, ic_flags, MCMC_fields, verbose=False):
+def get_data(exp_file, ic_flags, MCMC_fields):
     TIME_RANGE = ic_flags['time_cutoff']
     SELECT = ic_flags['select_obs_sets']
     NOISE_LEVEL = ic_flags.get('noise_level', 0)

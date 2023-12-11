@@ -157,7 +157,7 @@ class QuicksimResultPopup(Popup):
         if fname == "":
             return
 
-        exp = get_data(fname, None, ic_flags, MCMC_fields)
+        exp = get_data(fname, ic_flags, MCMC_fields)
         for ty in zip(exp[0], exp[1]):
             self.exp_data.append(ty)
 

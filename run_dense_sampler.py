@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
     measurement_types = sim_info["meas_types"]
 
-    e_data = get_data(MCMC_fields["measurement_path"], measurement_types,
+    e_data = get_data(MCMC_fields["measurement_path"],
                       meas_fields, MCMC_fields)
 
     # If fittable fluences, use the initial condition to setup fittable fluence parameters

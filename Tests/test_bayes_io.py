@@ -173,7 +173,6 @@ class TestUtils(unittest.TestCase):
 
     def test_get_data_basic(self):
         # Basic selection and cutting operations on dataset
-        meas_types = ["TRPL"] * 5
         ic_flags = {'time_cutoff': None,
                     'select_obs_sets': None,
                     'noise_level': None}
@@ -183,7 +182,7 @@ class TestUtils(unittest.TestCase):
         where_inits = os.path.join("Tests", "testfiles", "test_data.csv")
 
         times, vals, uncs = get_data(
-            where_inits, meas_types, ic_flags, sim_flags)
+            where_inits, ic_flags, sim_flags)
         expected_times = [np.array([0]), np.arange(5), np.array(
             [0, 10, 20]), np.array([0]), np.array([0, 1])]
         expected_vals = [np.array([0]), np.ones(5), np.array(
@@ -198,7 +197,7 @@ class TestUtils(unittest.TestCase):
         ic_flags['time_cutoff'] = [-np.inf, 1] # type: ignore
 
         times, vals, uncs = get_data(
-            where_inits, meas_types, ic_flags, sim_flags)
+            where_inits, ic_flags, sim_flags)
         expected_times = [np.array([0]), np.array(
             [0, 1]), np.array([0]), np.array([0]), np.array([0, 1])]
         expected_vals = [np.array([0]), np.array([1, 1]), np.array(
@@ -212,7 +211,7 @@ class TestUtils(unittest.TestCase):
 
         ic_flags['select_obs_sets'] = [0, 4] # type: ignore
         times, vals, uncs = get_data(
-            where_inits, meas_types, ic_flags, sim_flags)
+            where_inits, ic_flags, sim_flags)
         expected_times = [np.array([0]), np.array([0, 1])]
         expected_vals = [np.array([0]), np.array([4, 4])]
         expected_uncs = [np.array([0]), np.array([40, 40])]
@@ -223,7 +222,6 @@ class TestUtils(unittest.TestCase):
 
     def test_get_data_transform(self):
         # Log operators
-        meas_types = ["TRPL"] * 5
         ic_flags = {'time_cutoff': None,
                     'select_obs_sets': None,
                     'noise_level': None}
@@ -237,7 +235,7 @@ class TestUtils(unittest.TestCase):
         ic_flags['time_cutoff'] = [1, 3] # type: ignore
 
         times, vals, uncs = get_data(
-            where_inits, meas_types, ic_flags, sim_flags)
+            where_inits, ic_flags, sim_flags)
         expected_times = [np.array([1, 2, 3])]
         expected_vals = [np.array([1, 1, 1])]
         expected_uncs = [np.array([10, 10, 10])]

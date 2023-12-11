@@ -38,7 +38,7 @@ if __name__ == "__main__":
     # Get observations and initial condition
     iniPar = get_initpoints(MCMC_fields["init_cond_path"], meas_fields)
 
-    e_data = get_data(MCMC_fields["measurement_path"], sim_info["meas_types"],
+    e_data = get_data(MCMC_fields["measurement_path"],
                       meas_fields, MCMC_fields)
 
     MS_list = metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False,
