@@ -380,7 +380,7 @@ def read_config_script_file(path):
                             l2v = extract_tuples(line_split[1], delimiter="|", dtype=float)
                             MCMC_fields["likel2move_ratio"] = {m[0]:float(m[1]) for m in l2v}
                     elif line.startswith("Use log of measurements"):
-                        MCMC_fields["log_pl"] = int(line_split[1])
+                        MCMC_fields["log_y"] = int(line_split[1])
                     elif line.startswith("Scale factor"):
                         if line_split[1] == "None":
                             MCMC_fields["scale_factor"] = None
@@ -749,7 +749,7 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         if verbose:
             ofstream.write("# Compare log of measurements and simulations for "
                            "purpose of likelihood evaluation. Recommended to be 1 or True. \n")
-        logpl = MCMC_fields["log_pl"]
+        logpl = MCMC_fields["log_y"]
         ofstream.write(f"Use log of measurements: {logpl}\n")
 
         if "self_normalize" in MCMC_fields:

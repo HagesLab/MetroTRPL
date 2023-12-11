@@ -22,7 +22,7 @@ def cost(x, e_data, MS_list, logger):
     logger.info("#####")
     logger.info("Iter #")
 
-    LOG_PL = MS.MCMC_fields["log_pl"]
+    LOG_PL = MS.MCMC_fields["log_y"]
     scale_f_info = MS.MCMC_fields.get("scale_factor", None)
     irf_convolution = MS.MCMC_fields.get("irf_convolution", None)
     IRF_tables = MS.MCMC_fields.get("IRF_tables", None)

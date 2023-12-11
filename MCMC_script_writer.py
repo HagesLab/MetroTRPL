@@ -143,7 +143,7 @@ if __name__ == "__main__":
                    "solver": ("solveivp",),
                    "model": "std",
                    "likel2move_ratio": 500,
-                   "log_pl": 1,
+                   "log_y": 1,
                    "scale_factor": None,
                    "fittable_fluences": None,
                    "irf_convolution": None,

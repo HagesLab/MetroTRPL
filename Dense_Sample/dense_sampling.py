@@ -88,7 +88,7 @@ def simulate(
     param_indexes = {
         name: param_info["names"].index(name) for name in param_info["names"]
     }
-    LOG_PL = sim_flags["log_pl"]
+    LOG_PL = sim_flags["log_y"]
     scale_f_info = sim_flags.get("scale_factor", None)
     where_sfs = {
         s_name: i

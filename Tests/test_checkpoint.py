@@ -104,7 +104,7 @@ class TestUtils(unittest.TestCase):
                        "solver": ("solveivp",),
                        "model": "std",
                        "likel2move_ratio": {"TRPL": 500},
-                       "log_pl": 1,
+                       "log_y": 1,
                        "hard_bounds": 1,
                        "checkpoint_dirname": os.path.join(".",
                                                           "test-Checkpoints"),

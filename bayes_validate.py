@@ -283,7 +283,7 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
     required_keys = ("init_cond_path", "measurement_path", "output_path",
                      "num_iters", "solver", "model",
                      "likel2move_ratio",
-                     "log_pl",
+                     "log_y",
                      "checkpoint_freq",
                      "load_checkpoint",
                      )
@@ -377,7 +377,7 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
     else:
         raise ValueError("Invalid likelihood-to-trial-move")
 
-    logpl = MCMC_fields["log_pl"]
+    logpl = MCMC_fields["log_y"]
     if (isinstance(logpl, (int, np.integer)) and
             (logpl == 0 or logpl == 1)):
         pass

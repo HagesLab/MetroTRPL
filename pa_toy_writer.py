@@ -68,7 +68,7 @@ if __name__ == "__main__":
     prior_dist = {"x": (-np.inf, np.inf),
                   }
 
-    initial_guesses = {"x": [-1.5, -1, -0.5, 0, 0.5, 1.5][jobid],
+    initial_guesses = {"x": [-1.99, -1, -0.5, 0, 0.5, 1.5][jobid],
                        }
 
     active_params = {"x": 1,
@@ -96,16 +96,16 @@ if __name__ == "__main__":
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
-                   "num_iters": 100000,
+                   "num_iters": 1000000,
                    "solver": ("solveivp",),
                    "model": "pa",
                    "likel2move_ratio": 10,
-                   "log_pl": 0,
+                   "log_y": 0,
                    "scale_factor": None,
                    "fittable_fluences": None,
                    "irf_convolution": None,
                    "parallel_tempering": [0.05, 0.3, 2],
-                   "temper_freq": 5000,
+                   "temper_freq": 10,
                    "hard_bounds": 1,
                    "force_min_y": 0,
                    "checkpoint_freq": 100000000,

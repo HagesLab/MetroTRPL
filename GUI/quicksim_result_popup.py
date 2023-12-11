@@ -147,7 +147,7 @@ class QuicksimResultPopup(Popup):
         ic_flags = {"time_cutoff": None,
                     "select_obs_sets": None,
                     }
-        MCMC_fields = {"log_pl": False}
+        MCMC_fields = {"log_y": False}
         
         self.toplevel.attributes('-topmost', 'false')
         fname = filedialog.askopenfilename(filetypes=[("CSV File", "*.csv")],
