@@ -419,7 +419,7 @@ class EnsembleTemplate:
 
         return failed_checks
 
-    def select_next_params(self, current_state):
+    def select_next_params(self, current_state, trial_move):
         """ 
         Trial move function: returns a new proposed state equal to the current_state plus a uniform random displacement
         """
@@ -445,7 +445,7 @@ class EnsembleTemplate:
         while tries < max_tries:
             tries += 1
 
-            new_state = _current_state + self.ensemble_fields["trial_move"] * (2 * self.RNG.random(_current_state.shape) - 1)
+            new_state = _current_state + trial_move * (2 * self.RNG.random(_current_state.shape) - 1)
 
             if mu_constraint is not None:
                 ambi = mu_constraint[0]
@@ -511,10 +511,10 @@ class Ensemble(EnsembleTemplate):
             dtype=bool,
         )
 
-        self.ensemble_fields["trial_move"] = param_info.pop("trial_move")
-        self.ensemble_fields["trial_move"] = np.array(
+        self.ensemble_fields["base_trial_move"] = param_info.pop("trial_move")
+        self.ensemble_fields["base_trial_move"] = np.array(
             [
-                self.ensemble_fields["trial_move"][param] if param_info["active"][param] else 0
+                self.ensemble_fields["base_trial_move"][param] if param_info["active"][param] else 0
                 for param in param_info["names"]
             ],
             dtype=float,
@@ -566,13 +566,13 @@ class Ensemble(EnsembleTemplate):
             self.MS[-1].MCMC_fields["_T"] = temperatures[i]
             if isinstance(MCMC_fields["likel2move_ratio"], dict):
                 self.MS[-1].MCMC_fields["current_sigma"] = {
-                    m: max(self.ensemble_fields["trial_move"])
+                    m: max(self.ensemble_fields["base_trial_move"])
                     * MCMC_fields["likel2move_ratio"][m]
                     for m in sim_info["meas_types"]
                 }
             else:
                 self.MS[-1].MCMC_fields["current_sigma"] = {
-                    m: max(self.ensemble_fields["trial_move"])
+                    m: max(self.ensemble_fields["base_trial_move"])
                     * MCMC_fields["likel2move_ratio"]
                     for m in sim_info["meas_types"]
                 }

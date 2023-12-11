@@ -21,7 +21,10 @@ MSG_COOLDOWN = 3 # Log first few states regardless of verbose
 
 
 def roll_acceptance(rng : np.random.Generator, logratio):
-    return rng.random() < np.exp(logratio)
+    if isinstance(logratio, np.ndarray):
+        return rng.random(len(logratio)) < np.exp(logratio)
+    else:
+        return rng.random() < np.exp(logratio)
 
 
 def almost_equal(x, x0, threshold=1e-10):
@@ -83,7 +86,8 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                     MS_list.logger.info(f"MetroState #{m}")
 
                 # Trial displacement move
-                new_state = MS_list.select_next_params(MS_list.H.states[m, :, k-1])
+                new_state = MS_list.select_next_params(MS_list.H.states[m, :, k-1],
+                                                       MS_list.MS[m].MCMC_fields["_T"] ** 0.5 * MS_list.ensemble_fields["base_trial_move"])
 
                 logll, ll_funcs = MS_list.eval_trial_move(new_state, MS.MCMC_fields)
 

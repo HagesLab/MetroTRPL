@@ -54,16 +54,16 @@ class TestUtils(unittest.TestCase):
         trial_move = np.array([trial_move[name] if active_params[name] else 0 for name in param_names], dtype=float)
         active_params = np.array([active_params[name] for name in param_names], dtype=bool)
         self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active_params,
-                                              "trial_move": trial_move, "prior_dist": prior_dist,
+                                              "prior_dist": prior_dist,
                                               "names": param_names}
         # Try box selection
-        new_state = self.mock_ensemble.select_next_params(state)
+        new_state = self.mock_ensemble.select_next_params(state, trial_move)
         # Inactive and shouldn't change
         self.assertEqual(new_state[self.mock_ensemble.param_indexes["a"]], initial_guesses['a'])
         self.assertEqual(new_state[self.mock_ensemble.param_indexes["c"]], initial_guesses['c'])
         num_tests = 100
         for t in range(num_tests):
-            new_state = self.mock_ensemble.select_next_params(state)
+            new_state = self.mock_ensemble.select_next_params(state, trial_move)
             self.assertTrue(np.abs(np.log10(new_state[self.mock_ensemble.param_indexes["b"]]) - np.log10(initial_guesses['b'])) <= 0.1,
                             msg=f"Uniform step #{t} failed: {new_state[self.mock_ensemble.param_indexes['b']]} from mean {initial_guesses['b']} and width 0.1")
             self.assertTrue(np.abs(new_state[self.mock_ensemble.param_indexes["d"]]-initial_guesses['d']) <= 1,
@@ -98,10 +98,10 @@ class TestUtils(unittest.TestCase):
         trial_move = np.array([trial_move[name] if active_params[name] else 0 for name in param_names], dtype=float)
         active_params = np.array([active_params[name] for name in param_names], dtype=bool)
         self.mock_ensemble.ensemble_fields = {"do_log": do_log, "active": active_params,
-                                              "trial_move": trial_move, "do_mu_constraint": (20, 3),
+                                              "do_mu_constraint": (20, 3),
                                               "prior_dist": prior_dist, "names": param_names}
         for _ in range(10):
-            new_state = self.mock_ensemble.select_next_params(state)
+            new_state = self.mock_ensemble.select_next_params(state, trial_move)
 
             self.assertTrue(2 / (new_state[self.mock_ensemble.param_indexes["mu_n"]]**-1 + new_state[self.mock_ensemble.param_indexes["mu_p"]]**-1) <= 23)
             self.assertTrue(2 / (new_state[self.mock_ensemble.param_indexes["mu_n"]]**-1 + new_state[self.mock_ensemble.param_indexes["mu_p"]]**-1) >= 17)
