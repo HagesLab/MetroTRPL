@@ -395,22 +395,18 @@ class TestUtils(unittest.TestCase):
         self.assertFalse(almost_equal(a, wrong_shape))
 
     def test_roll_acceptance(self):
-        np.random.seed(1)
+        rng = np.random.default_rng(1)
 
-        logratio = 1
-        accept = np.zeros(100, dtype=bool)
-        for i in range(len(accept)):
-            accept[i] = roll_acceptance(logratio)
+        logratio = np.ones(100)
+        accept = roll_acceptance(rng, logratio)
 
         self.assertTrue(all(accept))
 
-        logratio = -1
-        accept = np.zeros(10000, dtype=bool)
-        for i in range(len(accept)):
-            accept[i] = roll_acceptance(logratio)
+        logratio = np.ones(10000) * -1
+        accept = roll_acceptance(rng, logratio)
 
         # Should accept around np.exp(-1) ~ 3679
-        self.assertEqual(accept.sum(), 3695)
+        self.assertEqual(accept.sum(), 3635)
         return
 
     def test_unpack_simpar(self):

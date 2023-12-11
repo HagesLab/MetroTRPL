@@ -20,16 +20,8 @@ MSG_FREQ = 100
 MSG_COOLDOWN = 3 # Log first few states regardless of verbose
 
 
-def roll_acceptance(logratio):
-    accepted = False
-    if logratio >= 0: # Automatic accept
-        accepted = True
-
-    else:
-        accept = np.random.random()
-        if accept < np.exp(logratio):
-            accepted = True
-    return accepted
+def roll_acceptance(rng : np.random.Generator, logratio):
+    return rng.random() < np.exp(logratio)
 
 
 def almost_equal(x, x0, threshold=1e-10):
@@ -100,7 +92,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
                 if np.isnan(logratio):
                     logratio = -np.inf
 
-                accepted = roll_acceptance(logratio)
+                accepted = roll_acceptance(MS_list.RNG, logratio)
 
                 if accepted:
                     MS_list.H.loglikelihood[m, k] = logll
@@ -130,7 +122,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
 
                     logratio = bi_ui + bj_uj - bi_uj - bj_ui
 
-                    accepted = roll_acceptance(-logratio)
+                    accepted = roll_acceptance(MS_list.RNG, -logratio)
 
                     if accepted:
                         MS_list.H.loglikelihood[i, k] = bi_uj
