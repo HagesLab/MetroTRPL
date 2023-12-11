@@ -135,6 +135,7 @@ class TestUtils(unittest.TestCase):
         with open(os.path.join(os.path.join(".", "test-Checkpoints"),
                                "checkpoint.pik"), 'rb') as ifstream:
             self.ensemble_from_chpt = pickle.load(ifstream)
+            self.ensemble_from_chpt.ll_funcs = [None for _ in range(len(self.ensemble_from_chpt.MS))]
             np.random.set_state(self.ensemble_from_chpt.random_state)
             starting_iter = 5 + 1
 
@@ -154,16 +155,17 @@ class TestUtils(unittest.TestCase):
         # self.MS_from_chpt ran from checkpoint at k=5 to k=10.
         # Both should yield identical MC walks
 
-        np.testing.assert_equal(self.MS_list.MS[0].H.accept, self.ensemble_from_chpt.MS[0].H.accept)
-        np.testing.assert_equal(self.MS_list.MS[0].H.loglikelihood,
-                                self.ensemble_from_chpt.MS[0].H.loglikelihood)
+        np.testing.assert_equal(self.MS_list.H.accept, self.ensemble_from_chpt.H.accept)
+        np.testing.assert_equal(self.MS_list.H.loglikelihood,
+                                self.ensemble_from_chpt.H.loglikelihood)
 
-        np.testing.assert_equal(self.MS_list.MS[0].H.states, self.ensemble_from_chpt.MS[0].H.states)
+        np.testing.assert_equal(self.MS_list.H.states, self.ensemble_from_chpt.H.states)
 
         # Saving a checkpoint should also unravel H.states into attributes
         for param in self.MS_list.ensemble_fields['names']:
-            h1_mean = getattr(self.ensemble_from_chpt.MS[0].H, f"mean_{param}")
-            np.testing.assert_equal(len(h1_mean), self.MS_list.MS[0].H.states.shape[1])
+            h1_mean = getattr(self.ensemble_from_chpt.H, f"mean_{param}")
+            np.testing.assert_equal(h1_mean.shape[0], self.MS_list.H.states.shape[0])
+            np.testing.assert_equal(h1_mean.shape[1], self.MS_list.H.states.shape[2])
         return
 
 
