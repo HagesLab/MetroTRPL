@@ -105,7 +105,7 @@ class TestUtils(unittest.TestCase):
         self.measurement_fields = {"time_cutoff": [0, np.inf],
                                    "select_obs_sets": [0, 1, 2],
                                    "resample": 2,
-                                   "noise_level": None}
+                                   }
 
         output_path = os.path.join("MCMC", "Example_output_path")
         self.MCMC_fields = {"init_cond_path": os.path.join("MCMC", "Example_IC_path"),

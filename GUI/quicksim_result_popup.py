@@ -146,7 +146,7 @@ class QuicksimResultPopup(Popup):
         self.exp_data.clear()
         ic_flags = {"time_cutoff": None,
                     "select_obs_sets": None,
-                    "noise_level": None}
+                    }
         MCMC_fields = {"log_pl": False}
         
         self.toplevel.attributes('-topmost', 'false')

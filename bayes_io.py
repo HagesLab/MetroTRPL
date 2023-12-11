@@ -363,12 +363,6 @@ def read_config_script_file(path):
                                                                            dtype=int)
                             meas_flags["select_obs_sets"] = list(meas_flags["select_obs_sets"])
 
-                    elif line.startswith("Added noise level"):
-                        if line_split[1] == "None":
-                            meas_flags["noise_level"] = None
-                        else:
-                            meas_flags["noise_level"] = float(line_split[1])
-
                     elif line.startswith("Resample"):
                         meas_flags["resample"] = int(line_split[1])
 
@@ -690,14 +684,6 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             for s in select[1:]:
                 ofstream.write(f"\t{s}")
             ofstream.write("\n")
-
-        if "noise_level" in measurement_flags:
-            if verbose:
-                ofstream.write("# Whether to add Gaussian noise of the indicated magnitude to "
-                               "the measurement.\n# This should be None (zero noise) unless testing "
-                               "with simulated data.\n")
-            noise_level = measurement_flags["noise_level"]
-            ofstream.write(f"Added noise level: {noise_level}\n")
 
         if "resample" in measurement_flags:
             if verbose:

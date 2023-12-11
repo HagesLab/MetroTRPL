@@ -272,12 +272,6 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
         else:
             raise ValueError("Invalid select value - must be ints between 0 and"
                              " num_measurements - 1")
-    if "noise_level" in meas_flags:
-        noise = meas_flags["noise_level"]
-        if noise is None or (isinstance(noise, (int, np.integer, float)) and noise >= 0):
-            pass
-        else:
-            raise TypeError("Noise must be numeric and postiive")
 
     if "resample" in meas_flags:
         resample = meas_flags["resample"]
