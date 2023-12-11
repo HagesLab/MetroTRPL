@@ -757,19 +757,9 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
 
         if "fittable_fluences" in MCMC_fields:
             if verbose:
-                ofstream.write("# Whether to try inferring the fluences. None means it will keep"
-                               " the fluence values as entered;\n# otherwise, a list of three (optionally, 4) elements:\n"
-                               "# 1. A trial move size, as for other parameters.\n"
-                               "# All fluences are fitted by log scale and will use the same move size.\n"
-                               "# 2. A list of indices for measurements for which fluences will be fitted.\n"
-                               "# e.g. [0, 1, 2] means vary the fluences for the first, second, and third measurements.\n"
-                               "# Additional parameters named _f0, _f1, _f2... will be created for such measurements.\n"
-                               "# 3. Either None, in which all fluences will be independently fitted, or\n"
-                               "# A list of constraint groups, in which each measurement in a group will share a fluence\n"
-                               "# with all other members. E.g. [(0, 2, 4), (1, 3, 5)] means that the third and fifth\n"
-                               "# measurments will share a fluence value with the first, \n"
-                               "# while the fourth and sixth measurements will share a fluence value with the second.\n"
-                               "# 4. (Optional) A list of initial guesses for each fluence factor. Defaults to 1 if not specified.\n")
+                ofstream.write("# Whether to try inferring the absorption coefficients."
+                               " See scale_factor for further details\n"
+                               )
                 ff = MCMC_fields["fittable_fluences"]
                 if ff is None:
                     ofstream.write(f"Fittable fluences: {ff}\n")
@@ -808,10 +798,20 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
 
         if "scale_factor" in MCMC_fields:
             if verbose:
-                ofstream.write("# Add additional scale factors that MMC will attempt to apply on the simulations "
-                               "\n# to better fit measurement data curves. "
-                               "\n# Must be None, in which no scaling will be done to the simulations, or a list of three elements. (see fittable_fluences)\n"
-                               )
+                ofstream.write("# Add additional scale factors that MMC will attempt to apply on the simulations.\n"
+                               "# to better fit measurement data curves.\n"
+                               "# Must be None, in which no scaling will be done to the simulations, or a list of four elements:\n"
+                               "# 1. A trial move size, as for other parameters.\n"
+                               "# All factors are fitted by log scale and will use the same move size.\n"
+                               "# 2. A list of indices for measurements for which factors will be fitted.\n"
+                               "# e.g. [0, 1, 2] means vary the factors for the first, second, and third measurements.\n"
+                               "# Additional parameters named _s0, _s1, _s2... will be created for such measurements.\n"
+                               "# 3. Either None, in which all factors will be independently fitted, or\n"
+                               "# A list of constraint groups, in which each measurement in a group will share a factor\n"
+                               "# with all other members. E.g. [(0, 2, 4), (1, 3, 5)] means that the third and fifth\n"
+                               "# measurments will share a factor value with the first, \n"
+                               "# while the fourth and sixth measurements will share a factor value with the second.\n"
+                               "# 4. (Optional) A list of initial guesses for each factor. Defaults to 1 if not specified.\n")
                 scale_f = MCMC_fields["scale_factor"]
                 if scale_f is None:
                     ofstream.write(f"Scale factor: {scale_f}\n")
