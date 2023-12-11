@@ -117,8 +117,6 @@ class TestUtils(unittest.TestCase):
                             "atol": 1e-10,
                             "hmax": 4,
                             "likel2move_ratio": {"TRPL": 500},
-                            "override_equal_mu": 0,
-                            "override_equal_s": 0,
                             "log_pl": 1,
                             "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
                             "checkpoint_header": "CPU0",

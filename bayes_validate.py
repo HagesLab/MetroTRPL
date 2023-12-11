@@ -376,23 +376,6 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
                                  " per measurement type")
     else:
         raise ValueError("Invalid likelihood-to-trial-move")
-        
-
-    if "override_equal_mu" in MCMC_fields:
-        mu = MCMC_fields["override_equal_mu"]
-        if (isinstance(mu, (int, np.integer)) and
-                (mu == 0 or mu == 1)):
-            pass
-        else:
-            raise ValueError("override equal_mu invalid - must be 0 or 1")
-
-    if "override_equal_s" in MCMC_fields:
-        s = MCMC_fields["override_equal_s"]
-        if (isinstance(s, (int, np.integer)) and
-                (s == 0 or s == 1)):
-            pass
-        else:
-            raise ValueError("override equal_s invalid - must be 0 or 1")
 
     logpl = MCMC_fields["log_pl"]
     if (isinstance(logpl, (int, np.integer)) and

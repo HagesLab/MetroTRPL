@@ -379,10 +379,6 @@ def read_config_script_file(path):
                         except ValueError: # Not a float; must be dict
                             l2v = extract_tuples(line_split[1], delimiter="|", dtype=float)
                             MCMC_fields["likel2move_ratio"] = {m[0]:float(m[1]) for m in l2v}
-                    elif line.startswith("Force equal mu"):
-                        MCMC_fields["override_equal_mu"] = int(line_split[1])
-                    elif line.startswith("Force equal S"):
-                        MCMC_fields["override_equal_s"] = int(line_split[1])
                     elif line.startswith("Use log of measurements"):
                         MCMC_fields["log_pl"] = int(line_split[1])
                     elif line.startswith("Scale factor"):
@@ -749,18 +745,6 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                 except StopIteration:
                     break
             ofstream.write("\n")
-
-        if "override_equal_mu" in MCMC_fields:
-            if verbose:
-                ofstream.write(
-                    "# Force parameters mu_n and mu_p to be equal.\n")
-            emu = MCMC_fields["override_equal_mu"]
-            ofstream.write(f"Force equal mu: {emu}\n")
-        if "override_equal_s" in MCMC_fields:
-            if verbose:
-                ofstream.write("# Force parameters Sf and Sb to be equal.\n")
-            es = MCMC_fields["override_equal_s"]
-            ofstream.write(f"Force equal S: {es}\n")
 
         if verbose:
             ofstream.write("# Compare log of measurements and simulations for "
