@@ -258,7 +258,7 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"] = initial_guess
 
         sim_flags = {"current_sigma": {"TRPL": 1},
-                     "scale_factor": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2, 4), (1, 3, 5)])}
+                     }
 
         # These would normally be inserted when the script file is read by bayes_io
         param_info["names"].append("_s0")
@@ -280,7 +280,8 @@ class TestUtils(unittest.TestCase):
         self.mock_ensemble.times = times
         self.mock_ensemble.param_indexes = indexes
         self.mock_ensemble.ensemble_fields = {"units": units, "solver": ("solveivp",),
-                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
+                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
+                     "scale_factor": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2, 4), (1, 3, 5)])}
         self.mock_ensemble.vals = vals
         self.mock_ensemble.uncs = uncs
         logll, _ = self.mock_ensemble.eval_trial_move(state, sim_flags)

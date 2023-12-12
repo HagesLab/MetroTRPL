@@ -172,21 +172,21 @@ class EnsembleTemplate:
         meas_type = self.sim_info["meas_types"][meas_index]
         irf_convolution = MCMC_fields.get("irf_convolution", None)
         ll_func = lambda b: -np.inf
-        ff = MCMC_fields.get("fittable_fluences", None)
+        ff = self.ensemble_fields.get("fittable_fluences", None)
         if ff is not None and meas_index in ff[1]:
             if ff[2] is not None and len(ff[2]) > 0:
                 name = f"_f{search_c_grps(ff[2], meas_index)}"
             else:
                 name = f"_f{meas_index}"
             iniPar[0] *= state[self.param_indexes[name]]
-        fa = MCMC_fields.get("fittable_absps", None)
+        fa = self.ensemble_fields.get("fittable_absps", None)
         if fa is not None and meas_index in fa[1]:
             if fa[2] is not None and len(fa[2]) > 0:
                 name = f"_a{search_c_grps(fa[2], meas_index)}"
             else:
                 name = f"_a{meas_index}"
             iniPar[1] *= state[self.param_indexes[name]]
-        fs = MCMC_fields.get("scale_factor", None)
+        fs = self.ensemble_fields.get("scale_factor", None)
         if fs is not None and meas_index in fs[1]:
             if fs[2] is not None and len(fs[2]) > 0:
                 name = f"_s{search_c_grps(fs[2], meas_index)}"
@@ -499,6 +499,9 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["log_y"] = MCMC_fields.pop("log_y")
         self.ensemble_fields["force_min_y"] = MCMC_fields.pop("force_min_y", 0)
         self.ensemble_fields["likel2move_ratio"] = MCMC_fields.pop("likel2move_ratio")
+        self.ensemble_fields["scale_factor"] = MCMC_fields.pop("scale_factor", None)
+        self.ensemble_fields["fittable_fluences"] = MCMC_fields.pop("fittable_fluences", None)
+        self.ensemble_fields["fittable_absps"] = MCMC_fields.pop("fittable_absps", None)
         self.ensemble_fields["do_mu_constraint"] = param_info.pop("do_mu_constraint", None)
         self.ensemble_fields["prior_dist"] = param_info.pop("prior_dist")
         # Transfer shared fields that need to become arrays
