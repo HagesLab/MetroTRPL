@@ -135,7 +135,7 @@ class TestUtils(unittest.TestCase):
         with open(os.path.join(os.path.join(".", "test-Checkpoints"),
                                "checkpoint.pik"), 'rb') as ifstream:
             self.ensemble_from_chpt = pickle.load(ifstream)
-            self.ensemble_from_chpt.ll_funcs = [None for _ in range(len(self.ensemble_from_chpt.MS))]
+            self.ensemble_from_chpt.ll_funcs = [None for _ in range(len(self.ensemble_from_chpt.unique_fields))]
             np.random.set_state(self.ensemble_from_chpt.random_state)
             starting_iter = 5 + 1
 
