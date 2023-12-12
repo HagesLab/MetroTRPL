@@ -44,9 +44,9 @@ class History:
 
     def __init__(self, n_chains, num_iters, names):
         self.states_are_one_array = True
-        self.states = np.zeros((n_chains, len(names), num_iters))
-        self.accept = np.zeros((n_chains, num_iters))
-        self.loglikelihood = np.zeros((n_chains, num_iters))
+        self.states = np.zeros((n_chains, len(names), num_iters), dtype=float)
+        self.accept = np.zeros((n_chains, num_iters), dtype=bool)
+        self.loglikelihood = np.zeros((n_chains, num_iters), dtype=float)
         return
 
     def update(self, names):

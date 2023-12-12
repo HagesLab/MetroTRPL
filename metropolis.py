@@ -5,6 +5,7 @@ Created on Mon Jan 31 22:13:26 2022
 @author: cfai2
 """
 import os
+import sys
 import signal
 import pickle
 from time import perf_counter
@@ -35,8 +36,8 @@ def almost_equal(x, x0, threshold=1e-10):
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
 
-def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
-                    need_initial_state=True, verbose=False):
+def main_metro_loop(states, logll, accept, starting_iter, num_iters, shared_fields,
+                    logger, need_initial_state=True, verbose=False):
     """
     Run the Metropolis loop for each chain in an Ensemble()
     over a specified number of iterations,
@@ -45,19 +46,25 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
 
     Parameters
     ----------
-    MS_list : Ensemble() object
-
+    states : ndarray
+        Array of states visited by the mth chain
+    logll : ndarray
+        Array of log likelihoods for each state visited by the mth chain
+    accept : ndarray
+        Array of whether each trial move by the mth chain was accepted
     starting_iter : int
         Index of first iter. 1 if starting from scratch, checkpoint-dependent
         otherwise.
     num_iters : int
         Index of final iter.
+    shared_fields : dict
+        Shared ensemble fields.
+    logger : logging object, optional
+        Stream to write status messages. The default is None.
     need_initial_state : bool, optional
         Whether we're starting from scratch, and thus need to calculate the
         likelihood of the initial state before moving around.
         The default is True.
-    logger : logging object, optional
-        Stream to write status messages. The default is None.
     verbose : bool, optional
         Print more detailed status messages. The default is False.
 
@@ -66,57 +73,55 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
     None. Ensemble() and MetroStates is updated throughout.
 
     """
-    checkpoint_freq = MS_list.ensemble_fields["checkpoint_freq"]
-    comm = MPI.COMM_WORLD   # Global communicator
-    rank = comm.Get_rank()  # Process index
+    checkpoint_freq = shared_fields["checkpoint_freq"]
 
     if need_initial_state:
-        MS_list.logger.info("Simulating initial state:")
+        logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
         for m, MS in enumerate(MS_list.MS):
-            logll, ll_funcs = MS_list.eval_trial_move(MS_list.H.states[m, :, 0], MS.MCMC_fields)
-            MS_list.H.loglikelihood[m, 0] = logll
+            _logll, ll_funcs = MS_list.eval_trial_move(states[:, 0], MS.MCMC_fields)
+            logll[0] = _logll
             MS_list.ll_funcs[m] = ll_funcs
 
     for k in range(starting_iter, num_iters):
         try:
             if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                MS_list.logger.info("#####")
-                MS_list.logger.info(f"Iter {k}")
+                logger.info("#####")
+                logger.info(f"Iter {k}")
 
             for m, MS in enumerate(MS_list.MS):
                 if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                    MS_list.logger.info(f"MetroState #{m}")
+                    logger.info(f"MetroState #{m}")
 
                 # Trial displacement move
-                new_state = MS_list.select_next_params(MS_list.H.states[m, :, k-1],
-                                                       MS_list.MS[m].MCMC_fields["_T"] ** 0.5 * MS_list.ensemble_fields["base_trial_move"])
+                new_state = MS_list.select_next_params(states[:, k-1],
+                                                       MS_list.MS[m].MCMC_fields["_T"] ** 0.5 * shared_fields["base_trial_move"])
 
-                logll, ll_funcs = MS_list.eval_trial_move(new_state, MS.MCMC_fields)
+                _logll, ll_funcs = MS_list.eval_trial_move(new_state, MS.MCMC_fields)
 
-                MS_list.logger.debug(f"Log likelihood of proposed move: {logll}")
-                logratio = (logll - MS_list.H.loglikelihood[m, k-1])
+                logger.debug(f"Log likelihood of proposed move: {_logll}")
+                logratio = (_logll - logll[k-1])
                 if np.isnan(logratio):
                     logratio = -np.inf
 
                 accepted = roll_acceptance(MS_list.RNG, logratio)
 
                 if accepted:
-                    MS_list.H.loglikelihood[m, k] = logll
-                    MS_list.H.states[m, :, k] = new_state
-                    MS_list.H.accept[m, k] = 1
+                    logll[k] = _logll
+                    states[:, k] = new_state
+                    accept[k] = 1
                     MS_list.ll_funcs[m] = ll_funcs
                 else:
-                    MS_list.H.loglikelihood[m, k] = MS_list.H.loglikelihood[m, k-1]
-                    MS_list.H.states[m, :, k] = MS_list.H.states[m, :, k-1]
+                    logll[k] = logll[k-1]
+                    states[:, k] = states[:, k-1]
 
-            if MS_list.ensemble_fields["do_parallel_tempering"] and k % MS_list.ensemble_fields["temper_freq"] == 0:
+            if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
                 for _ in range(len(MS_list.MS) - 1):
                     # Select a pair (the ith and (i+1)th) of chains
                     i = MS_list.RNG.integers(0, len(MS_list.MS)-1)
                     # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
                     if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                        MS_list.logger.info(f"Tempering - swapping chains {i} and {i+1}")
+                        logger.info(f"Tempering - swapping chains {i} and {i+1}")
                     T_j = MS_list.MS[i+1].MCMC_fields["_T"]
                     T_i = MS_list.MS[i].MCMC_fields["_T"]
 
@@ -131,34 +136,29 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
 
                     accepted = roll_acceptance(MS_list.RNG, -logratio)
 
-                    if accepted:
+                    if accepted: # TODO: Need a gather call here to exchange state info
                         MS_list.H.loglikelihood[i, k] = bi_uj
                         MS_list.H.loglikelihood[i+1, k] = bj_ui
-                        MS_list.H.states[i, :, k] = MS_list.H.states[i+1, :, k]
-                        MS_list.H.states[i+1, :, k] = MS_list.H.states[i, :, k]
+                        states[i, :, k] = states[i+1, :, k]
+                        states[i+1, :, k] = states[i, :, k]
                         MS_list.ll_funcs[i+1], MS_list.ll_funcs[i] = MS_list.ll_funcs[i], MS_list.ll_funcs[i+1]
-
-                    else:
-                        MS_list.H.loglikelihood[i, k] = MS_list.H.loglikelihood[i, k]
-                        MS_list.H.loglikelihood[i+1, k] = MS_list.H.loglikelihood[i+1, k]
-                        MS_list.H.states[i, :, k] = MS_list.H.states[i, :, k]
-                        MS_list.H.states[i+1, :, k] = MS_list.H.states[i+1, :, k]
 
             if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
                 MS_list.print_status()
             MS_list.latest_iter = k
 
         except KeyboardInterrupt:
-            MS_list.logger.warning(f"Terminating with k={k-1} iters completed:")
+            logger.warning(f"Terminating with k={k-1} iters completed:")
             for MS in MS_list.MS:
                 MS_list.H.truncate(k)
             break
 
+        # TODO: Decouple this from main_metro_loop
         if checkpoint_freq is not None and k % checkpoint_freq == 0:
             chpt_header = MS_list.ensemble_fields["checkpoint_header"]
             chpt_fname = os.path.join(MS_list.ensemble_fields["checkpoint_dirname"],
                                       f"{chpt_header}.pik")
-            MS_list.logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
+            logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
             MS_list.random_state = np.random.get_state()
             MS_list.checkpoint(chpt_fname)
     return
@@ -191,75 +191,105 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
     load_checkpoint = MCMC_fields["load_checkpoint"]
     num_iters = MCMC_fields["num_iters"]
-    if load_checkpoint is None:
-        MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, logger_name, verbose)
-        MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
-        if MS_list.ensemble_fields.get("checkpoint_header", None) is None:
-            MS_list.ensemble_fields["checkpoint_header"] = export_path[:export_path.find(".pik")]
+    comm = MPI.COMM_WORLD   # Global communicator
+    rank = comm.Get_rank()  # Process index
 
-        starting_iter = 1
+    starting_iter = 1
+    global_states = None
+    global_logll = None
+    global_accept = None
+    if rank == 0:
+        if load_checkpoint is None:
+            MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, logger_name, verbose)
+            MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
+            if MS_list.ensemble_fields.get("checkpoint_header", None) is None:
+                MS_list.ensemble_fields["checkpoint_header"] = export_path[:export_path.find(".pik")]
 
-        e_string = [f"[{e_data[1][i][0]}...{e_data[1][i][-1]}]" for i in range(len(e_data[1]))]
-        MS_list.logger.info(f"E data: {e_string}")
-        i_string = [f"[{iniPar[i][0]}...{iniPar[i][-1]}]" for i in range(len(iniPar))]
-        MS_list.logger.info(f"Initial condition: {i_string}")
-        # Just so MS saves a record of these
-        MS_list.iniPar = iniPar
-        MS_list.times, MS_list.vals, MS_list.uncs = e_data
+            e_string = [f"[{e_data[1][i][0]}...{e_data[1][i][-1]}]" for i in range(len(e_data[1]))]
+            MS_list.logger.info(f"E data: {e_string}")
+            i_string = [f"[{iniPar[i][0]}...{iniPar[i][-1]}]" for i in range(len(iniPar))]
+            MS_list.logger.info(f"Initial condition: {i_string}")
+            # Just so MS saves a record of these
+            MS_list.iniPar = iniPar
+            MS_list.times, MS_list.vals, MS_list.uncs = e_data
 
-        for i, unc in enumerate(MS_list.uncs):
-            MS_list.logger.info(f"{i} exp unc max: {np.amax(unc)} avg: {np.mean(unc)}")
+            for i, unc in enumerate(MS_list.uncs):
+                MS_list.logger.info(f"{i} exp unc max: {np.amax(unc)} avg: {np.mean(unc)}")
 
-        if MCMC_fields.get("irf_convolution", None) is not None:
-            irfs = {}
-            for i in MCMC_fields["irf_convolution"]:
-                if i > 0 and i not in irfs:
-                    irfs[int(i)] = np.loadtxt(os.path.join("IRFs", f"irf_{int(i)}nm.csv"),
-                                              delimiter=",")
+            if MCMC_fields.get("irf_convolution", None) is not None:
+                irfs = {}
+                for i in MCMC_fields["irf_convolution"]:
+                    if i > 0 and i not in irfs:
+                        irfs[int(i)] = np.loadtxt(os.path.join("IRFs", f"irf_{int(i)}nm.csv"),
+                                                delimiter=",")
 
-            MS_list.IRF_tables = make_I_tables(irfs)
-        else:
-            MS_list.IRF_tables = {}
-
-    else:
-        with open(os.path.join(MCMC_fields["checkpoint_dirname"],
-                               load_checkpoint), 'rb') as ifstream:
-            MS_list : Ensemble = pickle.load(ifstream)
-            np.random.set_state(MS_list.random_state)
-            MS_list.ll_funcs = [None for _ in range(len(MS_list.MS))]
-            MS_list.logger, MS_list.handler = start_logging(
-                log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
-            if "starting_iter" in MCMC_fields and MCMC_fields["starting_iter"] < MS_list.latest_iter:
-                starting_iter = MCMC_fields["starting_iter"]
-                MS_list.H.extend(starting_iter)
-
+                MS_list.IRF_tables = make_I_tables(irfs)
             else:
-                starting_iter = MS_list.latest_iter + 1
-                MS_list.H.extend(num_iters)
-                MS_list.ensemble_fields["num_iters"] = MCMC_fields["num_iters"]
+                MS_list.IRF_tables = {}
 
-    # From this point on, for consistency, work with ONLY the MetroState objects
-    MS_list.logger.info(f"Sim info: {MS_list.sim_info}")
-    MS_list.logger.info(f"Ensemble fields: {MS_list.ensemble_fields}")
-    for i, MS in enumerate(MS_list.MS):
-        MS_list.logger.info(f"Metrostate #{i}:")
-        MS_list.logger.info(f"MCMC fields: {MS.MCMC_fields}")
+        else:
+            with open(os.path.join(MCMC_fields["checkpoint_dirname"],
+                                load_checkpoint), 'rb') as ifstream:
+                MS_list : Ensemble = pickle.load(ifstream)
+                np.random.set_state(MS_list.random_state)
+                MS_list.ll_funcs = [None for _ in range(len(MS_list.MS))]
+                MS_list.logger, MS_list.handler = start_logging(
+                    log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
+                if "starting_iter" in MCMC_fields and MCMC_fields["starting_iter"] < MS_list.latest_iter:
+                    starting_iter = MCMC_fields["starting_iter"]
+                    MS_list.H.extend(starting_iter)
 
+                else:
+                    starting_iter = MS_list.latest_iter + 1
+                    MS_list.H.extend(num_iters)
+                    MS_list.ensemble_fields["num_iters"] = MCMC_fields["num_iters"]
+
+        global_states = MS_list.H.states
+        global_logll = MS_list.H.loglikelihood
+        global_accept = MS_list.H.accept
+        global_logll = np.random.random(global_logll.shape)
+
+        # From this point on, for consistency, work with ONLY the MetroState objects
+        MS_list.logger.info(f"Sim info: {MS_list.sim_info}")
+        MS_list.logger.info(f"Ensemble fields: {MS_list.ensemble_fields}")
+        for i, MS in enumerate(MS_list.MS):
+            MS_list.logger.info(f"Metrostate #{i}:")
+            MS_list.logger.info(f"MCMC fields: {MS.MCMC_fields}")
+    else:
+        MS_list = None
+
+    state_dims = comm.bcast(global_states.shape, root=0)  # (n_chains, n_params, n_iters)
+    local_states = np.empty((state_dims[1], state_dims[2]), dtype=float)
+    comm.Scatter(global_states, local_states, root=0)
+    local_logll = np.empty(state_dims[2], dtype=float)
+    comm.Scatter(global_logll, local_logll, root=0)
+    local_accept = np.empty(state_dims[2], dtype=bool)
+    comm.Scatter(global_accept, local_accept, root=0)
+
+    starting_iter = comm.bcast(starting_iter, root=0)
+    shared_fields = comm.bcast(MS_list.ensemble_fields, root=0)
+    # logger = comm.bcast(MS_list.logger, root=0)
     need_initial_state = (load_checkpoint is None)
-    main_metro_loop(MS_list, starting_iter, num_iters,
-                    need_initial_state=need_initial_state, verbose=verbose)
 
-    MS_list.random_state = np.random.get_state()
-    if export_path is not None:
-        MS_list.logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
-        MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
+    print(f"Rank {rank} logll: {local_logll}")
 
-    final_t = perf_counter() - clock0
-    MS_list.logger.info(f"Metro took {final_t} s ({final_t / 3600} hr)")
-    MS_list.logger.info(f"Avg: {final_t / MS_list.ensemble_fields['num_iters']} s per iter")
-    for i, MS in enumerate(MS_list.MS):
-        MS_list.logger.info(f"Metrostate #{i}:")
-        MS_list.logger.info(f"Acceptance rate: {np.sum(MS_list.H.accept[i]) / len(MS_list.H.accept[i].flatten())}")
+    if rank == 0:
+        print(f"Global logll: {global_logll}")
+    sys.exit()
+    # main_metro_loop(local_states, local_logll, local_accept, starting_iter, num_iters, shared_fields, logger,
+    #                 need_initial_state=need_initial_state, verbose=verbose)
 
-    MS_list.stop_logging(0)
-    return MS_list
+    # MS_list.random_state = np.random.get_state()
+    # if export_path is not None:
+    #     MS_list.logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
+    #     MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
+
+    # final_t = perf_counter() - clock0
+    # MS_list.logger.info(f"Metro took {final_t} s ({final_t / 3600} hr)")
+    # MS_list.logger.info(f"Avg: {final_t / MS_list.ensemble_fields['num_iters']} s per iter")
+    # for i, MS in enumerate(MS_list.MS):
+    #     MS_list.logger.info(f"Metrostate #{i}:")
+    #     MS_list.logger.info(f"Acceptance rate: {np.sum(MS_list.H.accept[i]) / len(MS_list.H.accept[i].flatten())}")
+
+    # MS_list.stop_logging(0)
+    # return MS_list
