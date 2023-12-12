@@ -87,7 +87,7 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
 
                 # Trial displacement move
                 new_state = MS_list.select_next_params(MS_list.H.states[m, :, k-1],
-                                                       MS[m]["_T"] ** 0.5 * MS_list.ensemble_fields["base_trial_move"])
+                                                       MS["_T"] ** 0.5 * MS_list.ensemble_fields["base_trial_move"])
 
                 logll, ll_funcs = MS_list.eval_trial_move(new_state, MS)
 
