@@ -191,7 +191,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     if load_checkpoint is None:
         MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, logger_name, verbose)
         MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
-        if "checkpoint_header" not in MS_list.ensemble_fields:
+        if MS_list.ensemble_fields.get("checkpoint_header", None) is None:
             MS_list.ensemble_fields["checkpoint_header"] = export_path[:export_path.find(".pik")]
 
         starting_iter = 1

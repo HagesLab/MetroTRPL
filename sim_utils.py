@@ -471,39 +471,25 @@ class Ensemble(EnsembleTemplate):
             log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
         # Transfer shared fields from chains to ensemble
         self.ensemble_fields = {}
-        self.ensemble_fields["output_path"] = MCMC_fields.pop("output_path")
-        self.ensemble_fields["load_checkpoint"] = MCMC_fields.pop("load_checkpoint")
-        self.ensemble_fields["init_cond_path"] = MCMC_fields.pop("init_cond_path")
-        self.ensemble_fields["measurement_path"] = MCMC_fields.pop("measurement_path")
-        self.ensemble_fields["checkpoint_dirname"] = MCMC_fields.pop(
-            "checkpoint_dirname"
-        )
-        if "checkpoint_header" in MCMC_fields:
-            self.ensemble_fields["checkpoint_header"] = MCMC_fields.pop(
-                "checkpoint_header"
-            )
-        self.ensemble_fields["checkpoint_freq"] = MCMC_fields.pop("checkpoint_freq")
-        self.ensemble_fields["parallel_tempering"] = MCMC_fields.pop(
-            "parallel_tempering", None
-        )
+        # Essential fields with no defaults
+        for field in ["output_path", "load_checkpoint", "init_cond_path",
+                      "measurement_path", "checkpoint_dirname", "checkpoint_freq",
+                      "solver", "model", "num_iters", "log_y", "likel2move_ratio"]:
+            self.ensemble_fields[field] = MCMC_fields.pop(field)
+
+        # Optional fields that can default to None
+        for field in ["parallel_tempering", "rtol", "atol", "scale_factor",
+                      "fittable_fluences", "fittable_absps", "irf_convolution",
+                      "do_mu_constraint", "checkpoint_header"]:
+            self.ensemble_fields[field] = MCMC_fields.pop(field, None)
+
         self.ensemble_fields["temper_freq"] = MCMC_fields.pop(
             "temper_freq", DEFAULT_TEMPER_FREQ
         )
-        self.ensemble_fields["solver"] = MCMC_fields.pop("solver")
-        self.ensemble_fields["model"] = MCMC_fields.pop("model")
         self.ensemble_fields["hard_bounds"] = MCMC_fields.pop("hard_bounds", 0)
-        self.ensemble_fields["rtol"] = MCMC_fields.pop("rtol", None)
-        self.ensemble_fields["atol"] = MCMC_fields.pop("atol", None)
         self.ensemble_fields["hmax"] = MCMC_fields.pop("hmax", DEFAULT_HMAX)
-        self.ensemble_fields["num_iters"] = MCMC_fields.pop("num_iters")
-        self.ensemble_fields["log_y"] = MCMC_fields.pop("log_y")
         self.ensemble_fields["force_min_y"] = MCMC_fields.pop("force_min_y", 0)
-        self.ensemble_fields["likel2move_ratio"] = MCMC_fields.pop("likel2move_ratio")
-        self.ensemble_fields["scale_factor"] = MCMC_fields.pop("scale_factor", None)
-        self.ensemble_fields["fittable_fluences"] = MCMC_fields.pop("fittable_fluences", None)
-        self.ensemble_fields["fittable_absps"] = MCMC_fields.pop("fittable_absps", None)
-        self.ensemble_fields["irf_convolution"] = MCMC_fields.pop("irf_convolution", None)
-        self.ensemble_fields["do_mu_constraint"] = param_info.pop("do_mu_constraint", None)
+        
         self.ensemble_fields["prior_dist"] = param_info.pop("prior_dist")
         # Transfer shared fields that need to become arrays
         self.ensemble_fields["do_log"] = param_info.pop("do_log")
