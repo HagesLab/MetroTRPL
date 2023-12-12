@@ -136,9 +136,8 @@ def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, log
         MS.MCMC_fields["IRF_tables"] = None
 
     # Optimize over only active params, while holding all others constant
-    x0 = np.log10(MS.init_state[MS_list.ensemble_fields["active"]])
+    x0 = np.log10(MS_list.H.states[0, MS_list.ensemble_fields["active"], 0])
 
-    MS.H.states[:, 0] = MS.init_state
     MS_list.latest_iter = 1
 
     cost_ = lambda x: cost(x, e_data, MS_list, logger)
@@ -149,9 +148,9 @@ def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, log
     logger.info(final_logll)
     logger.info(opt.message)
 
-    current_num_iters = len(MS.H.accept[0])
+    current_num_iters = MS_list.H.accept.shape[1]
     if MS_list.latest_iter < current_num_iters:
-        MS.H.truncate(MS_list.latest_iter)
+        MS_list.H.truncate(MS_list.latest_iter)
     if export_path is not None:
         logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
         MS_list.checkpoint(

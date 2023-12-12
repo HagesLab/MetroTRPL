@@ -175,9 +175,9 @@ class TestUtils(unittest.TestCase):
         # Basic selection and cutting operations on dataset
         ic_flags = {'time_cutoff': None,
                     'select_obs_sets': None,
-                    'noise_level': None}
+                    }
 
-        sim_flags = {'log_pl': False}
+        sim_flags = {"log_y": False}
 
         where_inits = os.path.join("Tests", "testfiles", "test_data.csv")
 
@@ -224,9 +224,9 @@ class TestUtils(unittest.TestCase):
         # Log operators
         ic_flags = {'time_cutoff': None,
                     'select_obs_sets': None,
-                    'noise_level': None}
+                    }
 
-        sim_flags = {'log_pl': False}
+        sim_flags = {"log_y": False}
 
         where_inits = os.path.join("Tests", "testfiles", "test_data.csv")
 

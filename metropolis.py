@@ -253,7 +253,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
     final_t = perf_counter() - clock0
     MS_list.logger.info(f"Metro took {final_t} s ({final_t / 3600} hr)")
-    MS_list.logger.info(f"Avg: {final_t / MCMC_fields['num_iters']} s per iter")
+    MS_list.logger.info(f"Avg: {final_t / MS_list.ensemble_fields['num_iters']} s per iter")
     for i, MS in enumerate(MS_list.MS):
         MS_list.logger.info(f"Metrostate #{i}:")
         MS_list.logger.info(f"Acceptance rate: {np.sum(MS_list.H.accept[i]) / len(MS_list.H.accept[i].flatten())}")

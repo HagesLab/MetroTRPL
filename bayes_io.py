@@ -73,7 +73,7 @@ def get_data(exp_file, ic_flags, MCMC_fields):
     SELECT = ic_flags['select_obs_sets']
     NOISE_LEVEL = ic_flags.get('noise_level', 0)
 
-    LOG_PL = MCMC_fields['log_pl']
+    LOG_PL = MCMC_fields["log_y"]
 
     bval_cutoff = sys.float_info.min
 

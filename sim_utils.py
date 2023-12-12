@@ -29,15 +29,11 @@ NEGATIVE_FRAC_TOL = 0.2
 
 
 class MetroState:
-    """Overall management of the metropolis random walker: its current state,
-    the states it's been to, and the trial move function used to get the
-    next state.
+    """
+    Fields specific to each chain
     """
 
-    def __init__(self, names, MCMC_fields):
-        # self.H = History(num_iters, names)
-
-        self.names = names
+    def __init__(self, MCMC_fields):
         self.MCMC_fields = MCMC_fields
 
         return
@@ -549,7 +545,7 @@ class Ensemble(EnsembleTemplate):
         self.ll_funcs = [None for _ in range(n_chains)]
         self.MS: list[MetroState] = []
         for i in range(n_chains):
-            self.MS.append(MetroState(self.ensemble_fields["names"], dict(MCMC_fields)))
+            self.MS.append(MetroState(dict(MCMC_fields)))
             self.MS[-1].MCMC_fields["_T"] = temperatures[i]
             self.MS[-1].MCMC_fields["current_sigma"] = {
                 m: max(self.ensemble_fields["base_trial_move"])
