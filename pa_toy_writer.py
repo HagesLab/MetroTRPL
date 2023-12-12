@@ -16,7 +16,7 @@ from bayes_io import generate_config_script_file
 if __name__ == "__main__":
     # Just some HiperGator-specific stuff
     # Set up jobid, script_head, init_dir, out_dir, etc... depending on your computer
-    on_hpg = 0
+    on_hpg = 1
     try:
         jobid = int(sys.argv[1])
         script_head = sys.argv[2]
@@ -27,6 +27,8 @@ if __name__ == "__main__":
     if on_hpg:
         init_dir = r"/blue/c.hages/cfai2304/Metro_in"
         out_dir = r"/blue/c.hages/cfai2304/Metro_out"
+        init_dir = r"Inputs"
+        out_dir = r"bay_outputs"
 
     else:
         init_dir = r"Inputs"
@@ -35,7 +37,7 @@ if __name__ == "__main__":
     # Filenames
     init_fname = "staub_MAPI_threepower_twothick_fluences.csv"
     exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
-    out_fname = "sample_output"
+    out_fname = "pa1"
 
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
@@ -43,83 +45,38 @@ if __name__ == "__main__":
     np.random.seed(100000000*(jobid+1))
 
     # Info for each measurement's corresponding simulation
-    num_measurements = 6
-    Length = [311, 2000, 311, 2000, 311, 2000] # in nm
-    L = [128] * 6                         # Spatial points
-    measurement_types = ["TRPL"] * 6
+    num_measurements = 1
+    Length = [1] # in nm
+    L = [1] * 1                         # Spatial points
+    measurement_types = ["pa"] * 1
     simPar = {"lengths": Length,
               "nx": L,
               "meas_types": measurement_types,
               "num_meas": num_measurements}
 
     # Info regarding the parameters
-    param_names = ["n0", "p0", "mu_n", "mu_p", "ks", "Cn", "Cp",
-                   "Sf", "Sb", "tauN", "tauP", "eps", "Tm"]
+    # Here the global scale factor 'm' is also defined,
+    # which will shift the simulation output by x10**m before calculating
+    # likelihood vs measurement
+    param_names = ["x"]
 
-    unit_conversions = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
-                        "mu_n": ((1e7) ** 2) / (1e9),
-                        "mu_p": ((1e7) ** 2) / (1e9),
-                        "ks": ((1e7) ** 3) / (1e9),
-                        "Cn": ((1e7) ** 6) / (1e9),
-                        "Cp": ((1e7) ** 6) / (1e9),
-                        "Sf": 1e-2, "Sb": 1e-2, "Tm": 1,
-                        }
+    unit_conversions = {}
 
-    do_log = {"n0": 1, "p0": 1, "mu_n": 1, "mu_p": 1, "ks": 1, "Cn": 1, "Cp": 1,
-              "Sf": 1, "Sb": 1, "tauN": 1, "tauP": 1, "eps": 1, "Tm": 1
+    do_log = {"x": 0,
               }
 
-    prior_dist = {"n0": (0, np.inf),
-                  "p0": (1e14, 1e16),
-                  "mu_n": (1e0, 1e2),
-                  "mu_p": (1e0, 1e2),
-                  "ks": (1e-11, 1e-9),
-                  "Cn": (1e-29, 1e-27),
-                  "Cp": (1e-29, 1e-27),
-                  "Sf": (1e-4, 1e4),
-                  "Sb": (1e-4, 1e4),
-                  "tauN": (1, 1500),
-                  "tauP": (1, 3000),
-                  "eps": (0, np.inf),
-                  "Tm": (0, np.inf),
+    prior_dist = {"x": (-np.inf, np.inf),
                   }
 
-    initial_guesses = {"n0": 1e8,
-                       "p0": 3e15,
-                       "mu_n": 20,
-                       "mu_p": 20,
-                       "ks": 4.8e-11,
-                       "Cn": 4.4e-29,
-                       "Cp": 4.4e-29,
-                       "Sf": 10,
-                       "Sb": 10,
-                       "tauN": 511,
-                       "tauP": 871,
-                       "eps": 10,
-                       "Tm": 300,
+    initial_guesses = {"x": [-1.99, -1, -0.5, 0, 0.5, 1.5][jobid],
                        }
 
-    active_params = {"n0": 0,
-                     "p0": 1,
-                     "mu_n": 1,
-                     "mu_p": 1,
-                     "ks": 1,
-                     "Cn": 1,
-                     "Cp": 1,
-                     "Sf": 1,
-                     "Sb": 1,
-                     "tauN": 1,
-                     "tauP": 1,
-                     "eps": 0,
-                     "Tm": 0,
+    active_params = {"x": 1,
                      }
     # Proposal function search widths
-    trial_move = {param: 0.02 for param in param_names}
+    trial_move = {param: 0.1 for param in param_names}
 
-    # Randomize the initial guess a little
-    for name in param_names:
-        if active_params[name]:
-            initial_guesses[name] *= 10 ** np.random.uniform(-0.5, 0.5)
+
 
     param_info = {"names": param_names,
                   "active": active_params,
@@ -139,17 +96,19 @@ if __name__ == "__main__":
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
-                   "num_iters": 50,
+                   "num_iters": 1000000,
                    "solver": ("solveivp",),
-                   "model": "std",
-                   "likel2move_ratio": 500,
-                   "log_y": 1,
+                   "model": "pa",
+                   "likel2move_ratio": 10,
+                   "log_y": 0,
                    "scale_factor": None,
                    "fittable_fluences": None,
                    "irf_convolution": None,
+                   "parallel_tempering": [0.05, 0.3, 2],
+                   "temper_freq": 10,
                    "hard_bounds": 1,
                    "force_min_y": 0,
-                   "checkpoint_freq": 12000,
+                   "checkpoint_freq": 100000000,
                    "load_checkpoint": None,
                    }
 

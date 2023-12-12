@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 
 
-def start_logging(log_dir="Logs", name=""):
+def start_logging(log_dir="Logs", name="", verbose=False):
 
     if not os.path.isdir(log_dir):
         try:
@@ -19,10 +19,16 @@ def start_logging(log_dir="Logs", name=""):
 
     tstamp = str(datetime.now()).replace(":", "-")
     logger = logging.getLogger("Metro Logger Main")
-    logger.setLevel(logging.DEBUG)
+    if verbose:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
 
     handler = logging.FileHandler(os.path.join(log_dir, f"{name}-{tstamp}.log"))
-    handler.setLevel(logging.DEBUG)
+    if verbose:
+        handler.setLevel(logging.DEBUG)
+    else:
+        handler.setLevel(logging.INFO)
 
     formatter = logging.Formatter(
         fmt='%(asctime)s %(levelname)s: %(message)s',

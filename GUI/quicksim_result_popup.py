@@ -146,9 +146,8 @@ class QuicksimResultPopup(Popup):
         self.exp_data.clear()
         ic_flags = {"time_cutoff": None,
                     "select_obs_sets": None,
-                    "noise_level": None}
-        MCMC_fields = {"log_pl": False,
-                       "self_normalize": None}
+                    }
+        MCMC_fields = {"log_y": False}
         
         self.toplevel.attributes('-topmost', 'false')
         fname = filedialog.askopenfilename(filetypes=[("CSV File", "*.csv")],
@@ -158,7 +157,7 @@ class QuicksimResultPopup(Popup):
         if fname == "":
             return
 
-        exp = get_data(fname, None, ic_flags, MCMC_fields)
+        exp = get_data(fname, ic_flags, MCMC_fields)
         for ty in zip(exp[0], exp[1]):
             self.exp_data.append(ty)
 

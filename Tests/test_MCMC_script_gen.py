@@ -79,7 +79,7 @@ class TestUtils(unittest.TestCase):
                          "m": 0}
 
         # Other options
-        initial_variance = {"n0": 1e-2,
+        trial_move = {"n0": 1e-2,
                             "p0": 1e-2,
                             "mu_n": 1e-2,
                             "mu_p": 1e-2,
@@ -100,12 +100,11 @@ class TestUtils(unittest.TestCase):
                            "do_log": do_log,
                            "prior_dist": prior_dist,
                            "init_guess": initial_guesses,
-                           "init_variance": initial_variance}
+                           "trial_move": trial_move}
 
         self.measurement_fields = {"time_cutoff": [0, np.inf],
                                    "select_obs_sets": [0, 1, 2],
-                                   "resample": 2,
-                                   "noise_level": None}
+                                   }
 
         output_path = os.path.join("MCMC", "Example_output_path")
         self.MCMC_fields = {"init_cond_path": os.path.join("MCMC", "Example_IC_path"),
@@ -117,26 +116,13 @@ class TestUtils(unittest.TestCase):
                             "rtol": 1e-7,
                             "atol": 1e-10,
                             "hmax": 4,
-                            "likel2variance_ratio": {"TRPL": 500},
-                            "override_equal_mu": 0,
-                            "override_equal_s": 0,
-                            "log_pl": 1,
-                            "self_normalize": None,
-                            "proposal_function": "box",
-                            "one_param_at_a_time": 0,
+                            "likel2move_ratio": {"TRPL": 500},
+                            "log_y": 1,
                             "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
                             "checkpoint_header": "CPU0",
                             "checkpoint_freq": 12000,
                             "load_checkpoint": None,
                             }
-
-        # Compute properly scaled initial model uncertainty from initial variance
-        annealing_step = 2000
-        min_sigma = 0.01
-        self.MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * self.MCMC_fields["likel2variance_ratio"][m]
-                                    for m in self.simPar["meas_types"]},
-                                    annealing_step,
-                                    {m:min_sigma for m in self.simPar["meas_types"]})
         return
 
     def test_create_script(self):

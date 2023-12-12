@@ -1,6 +1,8 @@
 import numpy as np
 from forward_solver import MODELS # To verify that the chosen model exists
 
+MODELS["pa"] = lambda x: x
+
 def check_valid_filename(file_name):
     """Screens file_name for prohibited characters
         This one allows slashes
@@ -55,7 +57,7 @@ def check_fittable_fluence(ff : None | tuple | list) -> bool:
 
     return True
 
-def validate_grid(grid: dict, supported_meas_types=("TRPL", "TRTS")):
+def validate_grid(grid: dict, supported_meas_types=("TRPL", "TRTS", "pa")):
     if not isinstance(grid, dict):
         raise TypeError("MCMC simPar must be type 'dict'")
 
@@ -102,7 +104,7 @@ def validate_param_info(param_info: dict):
         raise TypeError("MCMC param_info must be type 'dict'")
 
     required_keys = ("names", "active", "unit_conversions", "do_log",
-                     "init_guess", "init_variance", "prior_dist")
+                     "init_guess", "trial_move", "prior_dist")
     for k in required_keys:
         if k not in param_info:
             raise ValueError(f"MCMC param_info missing entry '{k}'")
@@ -213,17 +215,17 @@ def validate_param_info(param_info: dict):
             raise ValueError(f"prior_dist param {k} lower bound must be smaller"
                              " than upper bound")
 
-        if k in param_info["init_variance"]:
+        if k in param_info["trial_move"]:
             pass
         else:
-            raise KeyError(f"init_variance missing param {k}")
+            raise KeyError(f"trial_move missing param {k}")
 
-        if (isinstance(param_info["init_variance"][k], (int, np.integer, float))
-                and param_info["init_variance"][k] >= 0):
+        if (isinstance(param_info["trial_move"][k], (int, np.integer, float))
+                and param_info["trial_move"][k] >= 0):
             pass
         else:
             raise ValueError(
-                f"init_variance param {k} invalid - must be non-negative")
+                f"trial_move param {k} invalid - must be non-negative")
 
     return
 
@@ -270,36 +272,18 @@ def validate_meas_flags(meas_flags: dict, num_measurements):
         else:
             raise ValueError("Invalid select value - must be ints between 0 and"
                              " num_measurements - 1")
-    if "noise_level" in meas_flags:
-        noise = meas_flags["noise_level"]
-        if noise is None or (isinstance(noise, (int, np.integer, float)) and noise >= 0):
-            pass
-        else:
-            raise TypeError("Noise must be numeric and postiive")
-
-    if "resample" in meas_flags:
-        resample = meas_flags["resample"]
-        if isinstance(resample, int):
-            pass
-        else:
-            raise TypeError("Resample must be an integer")
-        if resample >= 1:
-            pass
-        else:
-            raise ValueError("Invalid resample - must be positive")
     return
 
 def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
                          supported_solvers=("odeint", "solveivp", "NN", "diagnostic"),
-                         supported_prop_funcs=("box", "gauss", "None")):
+                         ):
     if not isinstance(MCMC_fields, dict):
         raise TypeError("MCMC control flags must be type 'dict'")
 
     required_keys = ("init_cond_path", "measurement_path", "output_path",
                      "num_iters", "solver", "model",
-                     "likel2variance_ratio",
-                     "log_pl", "self_normalize",
-                     "proposal_function", "one_param_at_a_time",
+                     "likel2move_ratio",
+                     "log_y",
                      "checkpoint_freq",
                      "load_checkpoint",
                      )
@@ -378,59 +362,22 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("hmax must be a non-negative value")
 
-    if "annealing" in MCMC_fields:
-        annealing = MCMC_fields["annealing"]
-
-        if isinstance(annealing, tuple):
-            pass
-        else:
-            raise TypeError("Annealing must be tuple")
-
-        if len(annealing) == 3:
-            pass
-        else:
-            raise ValueError("Annealing must contain 3 values - "
-                            "start, steprate, and stop")
-
-        for meas_type, start in annealing[0].items():
-            if start >= annealing[2][meas_type]:
-                pass
-            else:
-                raise ValueError(f"{meas_type}: Annealing start must be at least as large as stop")
-
-    l2v = MCMC_fields["likel2variance_ratio"]
+    l2v = MCMC_fields["likel2move_ratio"]
 
     if isinstance(l2v, (int, np.integer, float)):
         if l2v < 0:
-            raise ValueError("Likelihood-to-variance must be non-negative value")
+            raise ValueError("Likelihood-to-trial-move must be non-negative value")
     elif isinstance(l2v, dict):
         for meas_type, val in l2v.items():
             if isinstance(meas_type, str) and isinstance(val, (int, np.integer, float)) and val >= 0:
                 pass
             else:
-                raise ValueError(f"{meas_type}: Likelihood-to-variance must have one non-negative value"
+                raise ValueError(f"{meas_type}: Likelihood-to-trial-move must have one non-negative value"
                                  " per measurement type")
     else:
-        raise ValueError("Invalid likelihood-to-variance")
-        
+        raise ValueError("Invalid likelihood-to-trial-move")
 
-    if "override_equal_mu" in MCMC_fields:
-        mu = MCMC_fields["override_equal_mu"]
-        if (isinstance(mu, (int, np.integer)) and
-                (mu == 0 or mu == 1)):
-            pass
-        else:
-            raise ValueError("override equal_mu invalid - must be 0 or 1")
-
-    if "override_equal_s" in MCMC_fields:
-        s = MCMC_fields["override_equal_s"]
-        if (isinstance(s, (int, np.integer)) and
-                (s == 0 or s == 1)):
-            pass
-        else:
-            raise ValueError("override equal_s invalid - must be 0 or 1")
-
-    logpl = MCMC_fields["log_pl"]
+    logpl = MCMC_fields["log_y"]
     if (isinstance(logpl, (int, np.integer)) and
             (logpl == 0 or logpl == 1)):
         pass
@@ -457,21 +404,6 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         if not success:
             raise ValueError("Invalid fittable_absps - must be None, or tuple"
                              "(see printed description when verbose=True)")
-
-    norm = MCMC_fields["self_normalize"]
-    if norm is None:
-        pass
-    elif (isinstance(norm, list)) and all(map(lambda x: isinstance(x, str), norm)):
-        pass
-    else:
-        raise ValueError("self_normalize invalid - must be None, or a list of measurement types "
-                         "that should be normalized.")
-
-    if MCMC_fields["proposal_function"] in supported_prop_funcs:
-        pass
-    else:
-        raise ValueError("MCMC control 'proposal_function' must be a supported proposal function.\n"
-                         f"Supported funcs are {supported_prop_funcs}")
 
     if "hard_bounds" in MCMC_fields:
         bound = MCMC_fields["hard_bounds"]
@@ -500,13 +432,25 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("MCMC control 'irf_convolution' must be None, or a list with "
                              "one positive wavelength value per measurement")
-
-    oneaat = MCMC_fields["one_param_at_a_time"]
-    if (isinstance(oneaat, (int, np.integer)) and
-            (oneaat == 0 or oneaat == 1)):
-        pass
-    else:
-        raise ValueError("one_param_at_a_time invalid - must be 0 or 1")
+        
+    if "parallel_tempering" in MCMC_fields:
+        pa = MCMC_fields["parallel_tempering"]
+        if pa is None:
+            pass
+        elif (isinstance(pa, (list, np.ndarray)) and
+              len(pa) > 0 and
+                all(map(lambda x: x > 0, pa))):
+            pass
+        else:
+            raise ValueError("MCMC control 'parallel_tempering' must be None, or a list with "
+                             "at least one positive temperature value")
+        
+    if "temper_freq" in MCMC_fields:
+        tf = MCMC_fields["temper_freq"]
+        if isinstance(tf, (int, np.integer)) and tf > 0:
+            pass
+        else:
+            raise ValueError("temper_freq must be positive integer")
 
     if "checkpoint_dirname" in MCMC_fields:
         chpt_d = MCMC_fields["checkpoint_dirname"]

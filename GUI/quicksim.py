@@ -7,9 +7,9 @@ import os
 from functools import partial
 import numpy as np
 from scipy.interpolate import griddata
-from metropolis import do_simulation
+from forward_solver import solve
+from sim_utils import Grid
 from laplace import make_I_tables, do_irf_convolution
-import sim_utils
 
 IRF_PATH = os.path.join("..", "IRFs")
 
@@ -61,7 +61,6 @@ class QuicksimManager():
             param_info = {}
             param_info["names"] = [x for x in chain.data if x not in self.window.sp.func]
             param_info["init_guess"] = {x: chain.data[x][-1] for x in param_info["names"]}
-            param_info["active"] = {x: True for x in param_info["names"]}
             param_info["unit_conversions"] = {"n0": ((1e-7) ** 3), "p0": ((1e-7) ** 3),
                             "mu_n": ((1e7) ** 2) / (1e9),
                             "mu_p": ((1e7) ** 2) / (1e9),
@@ -71,7 +70,12 @@ class QuicksimManager():
                             "Sf": 1e-2, "Sb": 1e-2, 
                             "kC": ((1e7) ** 3) / (1e9),
                             "Nt": ((1e-7) ** 3)}
-            p = sim_utils.Parameters(param_info)
+            
+            state = np.array([param_info["init_guess"][param]
+                              for param in param_info["names"]], dtype=float)
+            indexes = {name: param_info["names"].index(name) for name in param_info["names"]}
+            units = np.array([param_info["unit_conversions"].get(param, 1)
+                              for param in param_info["names"]], dtype=float)
 
             thickness = sim_tasks["thickness"]
             wavelength = sim_tasks["wavelength"]
@@ -79,8 +83,8 @@ class QuicksimManager():
             nx = sim_tasks["nx"]
             iniPar = list(zip(sim_tasks["fluence"], sim_tasks["absp"], sim_tasks["direction"]))
             t_sim = [np.linspace(0, sim_tasks["final_time"][i], sim_tasks["nt"][i] + 1) for i in range(n_sims)]
-            simulate += [partial(task, p, thickness[i], nx[i], iniPar[i], t_sim[i],
-                                 hmax=4, meas=meas, solver=("solveivp",), model=model,
+            simulate += [partial(task, state, indexes, thickness[i], nx[i], iniPar[i], t_sim[i],
+                                 hmax=4, meas=meas, units=units, solver=("solveivp",), model=model,
                                  wavelength=wavelength[i], IRF_tables=IRF_tables) for i in range(n_sims)]
 
         self.proc = multiprocessing.Process(target=qs_simulate, args=(self.queue, simulate))
@@ -95,9 +99,11 @@ class QuicksimManager():
         """Abort quicksim process"""
         self.proc.terminate()
 
-def task(p, thickness, nx, iniPar, times, hmax, meas, solver, model, wavelength, IRF_tables):
+def task(state, indexes, thickness, nx, iniPar, times, hmax, meas, units, solver, model, wavelength, IRF_tables):
     """What each task needs to do - simulate then optionally convolve"""
-    t, sol = do_simulation(p, thickness, nx, iniPar, times, hmax, meas, solver, model)
+    g = Grid(thickness, nx, times, hmax)
+    sol = solve(iniPar, g, state, indexes, meas, units, solver, model)
+    t = g.tSteps
     if wavelength != 0 and int(wavelength) in IRF_tables:
         t, sol, success = do_irf_convolution(
             t, sol, IRF_tables[int(wavelength)], time_max_shift=True)

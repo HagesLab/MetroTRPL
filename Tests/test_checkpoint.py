@@ -5,9 +5,8 @@ import os
 import pickle
 
 from metropolis import main_metro_loop
-from sim_utils import MetroState
-from bayes_io import make_dir, clear_checkpoint_dir
-
+from sim_utils import Ensemble
+from bayes_io import make_dir
 
 class TestUtils(unittest.TestCase):
 
@@ -85,7 +84,7 @@ class TestUtils(unittest.TestCase):
                          "Tm": 0,
                          "m": 0}
         # Proposal function search widths
-        initial_variance = {param: 0.1 for param in param_names}
+        trial_move = {param: 0.1 for param in param_names}
 
         param_info = {"names": param_names,
                       "active": active_params,
@@ -93,7 +92,7 @@ class TestUtils(unittest.TestCase):
                       "do_log": do_log,
                       "prior_dist": prior_dist,
                       "init_guess": initial_guesses,
-                      "init_variance": initial_variance}
+                      "trial_move": trial_move}
 
         starting_iter = 1
         num_iters = 10
@@ -104,11 +103,8 @@ class TestUtils(unittest.TestCase):
                        "num_iters": num_iters,
                        "solver": ("solveivp",),
                        "model": "std",
-                       "likel2variance_ratio": {"TRPL": 500},
-                       "log_pl": 1,
-                       "self_normalize": None,
-                       "proposal_function": "box",
-                       "one_param_at_a_time": 0,
+                       "likel2move_ratio": {"TRPL": 500},
+                       "log_y": 1,
                        "hard_bounds": 1,
                        "checkpoint_dirname": os.path.join(".",
                                                           "test-Checkpoints"),
@@ -118,59 +114,58 @@ class TestUtils(unittest.TestCase):
                        "load_checkpoint": None,
                        }
 
-        annealing_step = 2000
-        min_sigma = 0.01
-        MCMC_fields["annealing"] = ({m:max(initial_variance.values()) * MCMC_fields["likel2variance_ratio"][m]
-                                    for m in sim_info["meas_types"]},
-                                    annealing_step,
-                                    {m:min_sigma for m in sim_info["meas_types"]})
+        self.MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, logger_name="Test0")
+        self.ensemble_from_chpt = None
 
-        self.MS = MetroState(param_info, MCMC_fields, num_iters)
-
-        self.MS.sim_info = sim_info
         # Dummy initial condition and measurement data
-        self.MS.iniPar = [np.ones(self.MS.sim_info["nx"][0]) * 1e16]
-        self.MS.times = [np.linspace(0, 100, 100)]
-        self.MS.vals = [np.ones(len(self.MS.times[0])) * -20]
-        self.MS.uncs = [np.ones(len(self.MS.times[0])) * 0.04]
-        self.MS.IRF_tables = None
+        self.MS_list.iniPar = np.array([np.ones(self.MS_list.sim_info["nx"][0]) * 1e16])
+        self.MS_list.times = [np.linspace(0, 100, 100)]
+        self.MS_list.vals = [np.ones(len(self.MS_list.times[0])) * -20]
+        self.MS_list.uncs = [np.ones(len(self.MS_list.times[0])) * 0.04]
+        self.MS_list.IRF_tables = {}
 
-        make_dir(self.MS.MCMC_fields["checkpoint_dirname"])
-        clear_checkpoint_dir(MCMC_fields)
+        make_dir(self.MS_list.ensemble_fields["checkpoint_dirname"])
 
-        main_metro_loop(self.MS, starting_iter, num_iters,
-                        need_initial_state=True, logger=self.logger,
-                        verbose=True)
+        main_metro_loop(self.MS_list, starting_iter, num_iters,
+                        need_initial_state=True,
+                        verbose=False)
         return
 
     def test_checkpoint(self):
         with open(os.path.join(os.path.join(".", "test-Checkpoints"),
                                "checkpoint.pik"), 'rb') as ifstream:
-            self.MS_from_chpt = pickle.load(ifstream)
-            np.random.set_state(self.MS_from_chpt.random_state)
+            self.ensemble_from_chpt = pickle.load(ifstream)
+            self.ensemble_from_chpt.ll_funcs = [None for _ in range(len(self.ensemble_from_chpt.MS))]
+            np.random.set_state(self.ensemble_from_chpt.random_state)
             starting_iter = 5 + 1
 
-        main_metro_loop(self.MS_from_chpt, starting_iter, 10,
-                        need_initial_state=False, logger=self.logger,
-                        verbose=True)
-
+        main_metro_loop(self.ensemble_from_chpt, starting_iter, 10,
+                        need_initial_state=False,
+                        verbose=False)
+        self.ensemble_from_chpt.stop_logging(0)
         # Successful completion - checkpoints not needed anymore
         for chpt in os.listdir(os.path.join(".", "test-Checkpoints")):
             os.remove(os.path.join(os.path.join(".", "test-Checkpoints"), chpt))
         os.rmdir(os.path.join(".", "test-Checkpoints"))
+        for log in os.listdir(os.path.join(".", "test-out")):
+            os.remove(os.path.join(os.path.join(".", "test-out"), log))
+        os.rmdir(os.path.join(".", "test-out"))
 
         # self.MS ran continuously from start to k=10 iterations;
         # self.MS_from_chpt ran from checkpoint at k=5 to k=10.
         # Both should yield identical MC walks
 
-        np.testing.assert_equal(self.MS.H.accept, self.MS_from_chpt.H.accept)
-        np.testing.assert_equal(self.MS.H.loglikelihood,
-                                self.MS_from_chpt.H.loglikelihood)
+        np.testing.assert_equal(self.MS_list.H.accept, self.ensemble_from_chpt.H.accept)
+        np.testing.assert_equal(self.MS_list.H.loglikelihood,
+                                self.ensemble_from_chpt.H.loglikelihood)
 
-        for param in self.MS.param_info['names']:
-            h1_mean = getattr(self.MS.H, f"mean_{param}")
-            h2_mean = getattr(self.MS_from_chpt.H, f"mean_{param}")
-            np.testing.assert_equal(h1_mean, h2_mean)
+        np.testing.assert_equal(self.MS_list.H.states, self.ensemble_from_chpt.H.states)
+
+        # Saving a checkpoint should also unravel H.states into attributes
+        for param in self.MS_list.ensemble_fields['names']:
+            h1_mean = getattr(self.ensemble_from_chpt.H, f"mean_{param}")
+            np.testing.assert_equal(h1_mean.shape[0], self.MS_list.H.states.shape[0])
+            np.testing.assert_equal(h1_mean.shape[1], self.MS_list.H.states.shape[2])
         return
 
 
