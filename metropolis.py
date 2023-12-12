@@ -180,7 +180,7 @@ def all_signal_handler(func):
 def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
           verbose=False, export_path="", **kwargs):
     logger_name = kwargs.get("logger_name", "Ensemble0")
-    
+
     clock0 = perf_counter()
 
     # Setup
@@ -198,6 +198,9 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     global_states = None
     global_logll = None
     global_accept = None
+    state_dims = None
+    shared_fields = None
+    logger = None
     if rank == 0:
         if load_checkpoint is None:
             MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, logger_name, verbose)
@@ -247,8 +250,10 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         global_states = MS_list.H.states
         global_logll = MS_list.H.loglikelihood
         global_accept = MS_list.H.accept
-        global_logll = np.random.random(global_logll.shape)
+        state_dims = global_states.shape
 
+        shared_fields = MS_list.ensemble_fields
+        logger = MS_list.logger
         # From this point on, for consistency, work with ONLY the MetroState objects
         MS_list.logger.info(f"Sim info: {MS_list.sim_info}")
         MS_list.logger.info(f"Ensemble fields: {MS_list.ensemble_fields}")
@@ -258,7 +263,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     else:
         MS_list = None
 
-    state_dims = comm.bcast(global_states.shape, root=0)  # (n_chains, n_params, n_iters)
+    state_dims = comm.bcast(state_dims, root=0)  # (n_chains, n_params, n_iters)
     local_states = np.empty((state_dims[1], state_dims[2]), dtype=float)
     comm.Scatter(global_states, local_states, root=0)
     local_logll = np.empty(state_dims[2], dtype=float)
@@ -267,14 +272,10 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     comm.Scatter(global_accept, local_accept, root=0)
 
     starting_iter = comm.bcast(starting_iter, root=0)
-    shared_fields = comm.bcast(MS_list.ensemble_fields, root=0)
-    # logger = comm.bcast(MS_list.logger, root=0)
+    shared_fields = comm.bcast(shared_fields, root=0)
+    logger = comm.bcast(logger, root=0)  # Only rank 0 gets log messages
     need_initial_state = (load_checkpoint is None)
 
-    print(f"Rank {rank} logll: {local_logll}")
-
-    if rank == 0:
-        print(f"Global logll: {global_logll}")
     sys.exit()
     # main_metro_loop(local_states, local_logll, local_accept, starting_iter, num_iters, shared_fields, logger,
     #                 need_initial_state=need_initial_state, verbose=verbose)
