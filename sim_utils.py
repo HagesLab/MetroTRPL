@@ -498,6 +498,7 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["num_iters"] = MCMC_fields.pop("num_iters")
         self.ensemble_fields["log_y"] = MCMC_fields.pop("log_y")
         self.ensemble_fields["force_min_y"] = MCMC_fields.pop("force_min_y", 0)
+        self.ensemble_fields["likel2move_ratio"] = MCMC_fields.pop("likel2move_ratio")
         self.ensemble_fields["do_mu_constraint"] = param_info.pop("do_mu_constraint", None)
         self.ensemble_fields["prior_dist"] = param_info.pop("prior_dist")
         # Transfer shared fields that need to become arrays
@@ -562,7 +563,7 @@ class Ensemble(EnsembleTemplate):
             self.MS[-1].MCMC_fields["_T"] = temperatures[i]
             self.MS[-1].MCMC_fields["current_sigma"] = {
                 m: max(self.ensemble_fields["base_trial_move"])
-                * MCMC_fields["likel2move_ratio"][m]
+                * self.ensemble_fields["likel2move_ratio"][m]
                 for m in sim_info["meas_types"]
             }
 
