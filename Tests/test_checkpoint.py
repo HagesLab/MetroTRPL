@@ -118,11 +118,11 @@ class TestUtils(unittest.TestCase):
         self.ensemble_from_chpt = None
 
         # Dummy initial condition and measurement data
-        self.MS_list.iniPar = np.array([np.ones(self.MS_list.sim_info["nx"][0]) * 1e16])
-        self.MS_list.times = [np.linspace(0, 100, 100)]
-        self.MS_list.vals = [np.ones(len(self.MS_list.times[0])) * -20]
-        self.MS_list.uncs = [np.ones(len(self.MS_list.times[0])) * 0.04]
-        self.MS_list.IRF_tables = {}
+        self.MS_list.ensemble_fields["_init_params"] = np.array([np.ones(self.MS_list.ensemble_fields["_sim_info"]["nx"][0]) * 1e16])
+        self.MS_list.ensemble_fields["_times"] = [np.linspace(0, 100, 100)]
+        self.MS_list.ensemble_fields["_vals"] = [np.ones(len(self.MS_list.ensemble_fields["_times"][0])) * -20]
+        self.MS_list.ensemble_fields["_uncs"] = [np.ones(len(self.MS_list.ensemble_fields["_times"][0])) * 0.04]
+        self.MS_list.ensemble_fields["_IRF_tables"] = {}
 
         make_dir(self.MS_list.ensemble_fields["checkpoint_dirname"])
 

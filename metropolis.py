@@ -14,6 +14,7 @@ from mpi4py import MPI
 
 from mcmc_logging import start_logging
 from sim_utils import Ensemble
+from trial_move_evaluation import eval_trial_move
 from bayes_io import make_dir
 from laplace import make_I_tables
 
@@ -37,6 +38,7 @@ def almost_equal(x, x0, threshold=1e-10):
 
 
 def main_metro_loop(states, logll, accept, starting_iter, num_iters, shared_fields,
+                    unique_fields,
                     logger, need_initial_state=True, verbose=False):
     """
     Run the Metropolis loop for each chain in an Ensemble()
@@ -59,6 +61,8 @@ def main_metro_loop(states, logll, accept, starting_iter, num_iters, shared_fiel
         Index of final iter.
     shared_fields : dict
         Shared ensemble fields.
+    unique_fields : dict
+        Settings unique to the mth chain.
     logger : logging object, optional
         Stream to write status messages. The default is None.
     need_initial_state : bool, optional
@@ -78,18 +82,21 @@ def main_metro_loop(states, logll, accept, starting_iter, num_iters, shared_fiel
     if need_initial_state:
         logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
-        for m, MS in enumerate(MS_list.unique_fields):
-            _logll, ll_funcs = MS_list.eval_trial_move(states[:, 0], MS)
-            logll[0] = _logll
-            MS_list.ll_funcs[m] = ll_funcs
+        _logll, ll_funcs = eval_trial_move(states[:, 0], unique_fields, shared_fields, logger)
+        logll[0] = _logll
+        # MS_list.ll_funcs[m] = ll_funcs
+
+    print(logll)
+    sys.exit()
 
     for k in range(starting_iter, num_iters):
         try:
+            # TODO: May need extra synchronization per iter
             if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
                 logger.info("#####")
                 logger.info(f"Iter {k}")
 
-            for m, MS in enumerate(MS_list.unique_fields):
+            for m, MS in enumerate(unique_fields):
                 if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
                     logger.info(f"MetroState #{m}")
 
@@ -97,7 +104,7 @@ def main_metro_loop(states, logll, accept, starting_iter, num_iters, shared_fiel
                 new_state = MS_list.select_next_params(states[:, k-1],
                                                        MS["_T"] ** 0.5 * shared_fields["base_trial_move"])
 
-                _logll, ll_funcs = MS_list.eval_trial_move(new_state, MS)
+                _logll, ll_funcs = eval_trial_move(new_state, unique_fields, shared_fields, logger)
 
                 logger.debug(f"Log likelihood of proposed move: {_logll}")
                 logratio = (_logll - logll[k-1])
@@ -116,17 +123,17 @@ def main_metro_loop(states, logll, accept, starting_iter, num_iters, shared_fiel
                     states[:, k] = states[:, k-1]
 
             if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
-                for _ in range(len(MS_list.unique_fields) - 1):
+                for _ in range(len(unique_fields) - 1):
                     # Select a pair (the ith and (i+1)th) of chains
-                    i = MS_list.RNG.integers(0, len(MS_list.unique_fields)-1)
+                    i = MS_list.RNG.integers(0, len(unique_fields)-1)
                     # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
                     if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
                         logger.info(f"Tempering - swapping chains {i} and {i+1}")
-                    T_j = MS_list.unique_fields[i+1]["_T"]
-                    T_i = MS_list.unique_fields[i]["_T"]
+                    T_j = unique_fields[i+1]["_T"]
+                    T_i = unique_fields[i]["_T"]
 
                     bi_ui, bj_ui, bi_uj, bj_uj = 0, 0, 0, 0
-                    for ss in range(MS_list.sim_info["num_meas"]):
+                    for ss in range(shared_fields["_sim_info"]["num_meas"]):
                         bi_ui += MS_list.ll_funcs[i][ss](T_i)
                         bj_ui += MS_list.ll_funcs[i][ss](T_j)
                         bi_uj += MS_list.ll_funcs[i+1][ss](T_i)
@@ -213,10 +220,10 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             i_string = [f"[{iniPar[i][0]}...{iniPar[i][-1]}]" for i in range(len(iniPar))]
             MS_list.logger.info(f"Initial condition: {i_string}")
             # Just so MS saves a record of these
-            MS_list.iniPar = iniPar
-            MS_list.times, MS_list.vals, MS_list.uncs = e_data
+            MS_list.ensemble_fields["_init_params"] = iniPar
+            MS_list.ensemble_fields["_times"], MS_list.ensemble_fields["_vals"], MS_list.ensemble_fields["_uncs"] = e_data
 
-            for i, unc in enumerate(MS_list.uncs):
+            for i, unc in enumerate(MS_list.ensemble_fields["_uncs"]):
                 MS_list.logger.info(f"{i} exp unc max: {np.amax(unc)} avg: {np.mean(unc)}")
 
             if MCMC_fields.get("irf_convolution", None) is not None:
@@ -226,9 +233,9 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                         irfs[int(i)] = np.loadtxt(os.path.join("IRFs", f"irf_{int(i)}nm.csv"),
                                                 delimiter=",")
 
-                MS_list.IRF_tables = make_I_tables(irfs)
+                MS_list.ensemble_fields["_IRF_tables"] = make_I_tables(irfs)
             else:
-                MS_list.IRF_tables = {}
+                MS_list.ensemble_fields["_IRF_tables"] = {}
 
         else:
             with open(os.path.join(MCMC_fields["checkpoint_dirname"],
@@ -256,7 +263,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         unique_fields = MS_list.unique_fields
         logger = MS_list.logger
         # From this point on, for consistency, work with ONLY the MetroState objects
-        MS_list.logger.info(f"Sim info: {MS_list.sim_info}")
+        MS_list.logger.info(f"Sim info: {MS_list.ensemble_fields['_sim_info']}")
         MS_list.logger.info(f"Ensemble fields: {MS_list.ensemble_fields}")
         for i, MS in enumerate(MS_list.unique_fields):
             MS_list.logger.info(f"Metrostate #{i}:")
@@ -279,9 +286,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     logger = comm.bcast(logger, root=0)  # Only rank 0 gets log messages
     need_initial_state = (load_checkpoint is None)
 
-    sys.exit()
-    # main_metro_loop(local_states, local_logll, local_accept, starting_iter, num_iters, shared_fields, logger,
-    #                 need_initial_state=need_initial_state, verbose=verbose)
+    main_metro_loop(local_states, local_logll, local_accept, starting_iter, num_iters, shared_fields, unique_fields,
+                    logger, need_initial_state=need_initial_state, verbose=verbose)
 
     # MS_list.random_state = np.random.get_state()
     # if export_path is not None:

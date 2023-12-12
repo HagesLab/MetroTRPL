@@ -5,7 +5,7 @@ sys.path.append("..")
 
 import numpy as np
 
-from sim_utils import EnsembleTemplate
+from trial_move_evaluation import eval_trial_move
 q = 1.0  # [e]
 q_C = 1.602e-19  # [C]
 kB = 8.61773e-5  # [eV / K]
@@ -16,9 +16,7 @@ MIN_HMAX = 0.01
 class TestUtils(unittest.TestCase):
 
     def setUp(self):
-        self.mock_ensemble = EnsembleTemplate()
-        self.mock_ensemble.logger = logging.getLogger()
-
+        self.logger = logging.getLogger()
 
     def test_run_iter(self):
         # The bare minimum needed to run a Monte Carlo iteration
@@ -71,15 +69,11 @@ class TestUtils(unittest.TestCase):
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        self.mock_ensemble.sim_info = simPar
-        self.mock_ensemble.iniPar = iniPar
-        self.mock_ensemble.times = times
-        self.mock_ensemble.param_indexes = indexes
-        self.mock_ensemble.ensemble_fields = {"units": units, "solver": ("solveivp",),
-                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
-        self.mock_ensemble.vals = vals
-        self.mock_ensemble.uncs = uncs
-        logll, _ = self.mock_ensemble.eval_trial_move(state, sim_flags)
+        ensemble_fields = {"units": units, "solver": ("solveivp",),
+                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
+                     "_sim_info": simPar, "_param_indexes": indexes, "_init_params": iniPar,
+                     "_times": times, "_vals": vals, "_uncs": uncs}
+        logll, _ = eval_trial_move(state, sim_flags, ensemble_fields, self.logger)
 
         np.testing.assert_almost_equal(
             logll, np.sum([-59340.105083, -32560.139058]), decimal=0)  # rtol=1e-5
@@ -130,15 +124,12 @@ class TestUtils(unittest.TestCase):
         times = [np.linspace(0, 100, nt+1)]
         vals = [np.log10(2e14 * np.exp(-times[0] / 8))]
         uncs = [np.ones(nt+1) * 1e-99]
-        self.mock_ensemble.sim_info = simPar
-        self.mock_ensemble.iniPar = iniPar
-        self.mock_ensemble.times = times
-        self.mock_ensemble.param_indexes = indexes
-        self.mock_ensemble.ensemble_fields = {"units": units, "solver": ("solveivp",),
-                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8, "force_min_y": True}
-        self.mock_ensemble.vals = vals
-        self.mock_ensemble.uncs = uncs
-        logll1, _ = self.mock_ensemble.eval_trial_move(state, sim_flags)
+
+        ensemble_fields = {"units": units, "solver": ("solveivp",),
+                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8, "force_min_y": True,
+                     "_sim_info": simPar, "_param_indexes": indexes, "_init_params": iniPar,
+                     "_times": times, "_vals": vals, "_uncs": uncs}
+        logll1, _ = eval_trial_move(state, sim_flags, ensemble_fields, self.logger)
 
         # A small move toward the true lifetime of 10 makes the likelihood better
         # Without min_y truncation, the likelihoods were so small they weren't even comparable
@@ -146,7 +137,7 @@ class TestUtils(unittest.TestCase):
         param_info["init_guess"]["tauP"] = 4.01
 
         state = [param_info["init_guess"][name] for name in param_names]
-        logll2, _ = self.mock_ensemble.eval_trial_move(state, sim_flags)
+        logll2, _ = eval_trial_move(state, sim_flags, ensemble_fields, self.logger)
         self.assertTrue(logll2 > logll1)
 
     def test_run_iter_cutoff(self):
@@ -202,15 +193,12 @@ class TestUtils(unittest.TestCase):
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
 
-        self.mock_ensemble.sim_info = simPar
-        self.mock_ensemble.iniPar = iniPar
-        self.mock_ensemble.times = times
-        self.mock_ensemble.param_indexes = indexes
-        self.mock_ensemble.ensemble_fields = {"units": units, "solver": ("solveivp",),
-                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
-        self.mock_ensemble.vals = vals
-        self.mock_ensemble.uncs = uncs
-        logll, _ = self.mock_ensemble.eval_trial_move(state, sim_flags)
+        ensemble_fields = {"units": units, "solver": ("solveivp",),
+                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
+                     "_sim_info": simPar, "_param_indexes": indexes, "_init_params": iniPar,
+                     "_times": times, "_vals": vals, "_uncs": uncs}
+
+        logll, _ = eval_trial_move(state, sim_flags, ensemble_fields, self.logger)
 
         # First iter; auto-accept
         np.testing.assert_almost_equal(
@@ -275,16 +263,13 @@ class TestUtils(unittest.TestCase):
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * 23]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
 
-        self.mock_ensemble.sim_info = simPar
-        self.mock_ensemble.iniPar = iniPar
-        self.mock_ensemble.times = times
-        self.mock_ensemble.param_indexes = indexes
-        self.mock_ensemble.ensemble_fields = {"units": units, "solver": ("solveivp",),
+        ensemble_fields = {"units": units, "solver": ("solveivp",),
                      "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
-                     "scale_factor": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2, 4), (1, 3, 5)])}
-        self.mock_ensemble.vals = vals
-        self.mock_ensemble.uncs = uncs
-        logll, _ = self.mock_ensemble.eval_trial_move(state, sim_flags)
+                     "scale_factor": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2, 4), (1, 3, 5)]),
+                     "_sim_info": simPar, "_param_indexes": indexes, "_init_params": iniPar,
+                     "_times": times, "_vals": vals, "_uncs": uncs}
+
+        logll, _ = eval_trial_move(state, sim_flags, ensemble_fields, self.logger)
 
         np.testing.assert_almost_equal(
             logll, 0, decimal=0)  # rtol=1e-5
@@ -339,15 +324,12 @@ class TestUtils(unittest.TestCase):
         times = [np.linspace(0, 100, nt+1), np.linspace(0, 100, nt+1)]
         vals = [np.ones(nt+1) * 23, np.ones(nt+1) * -2]
         uncs = [np.ones(nt+1) * 1e-99, np.ones(nt+1) * 1e-99]
-        self.mock_ensemble.sim_info = simPar
-        self.mock_ensemble.iniPar = iniPar
-        self.mock_ensemble.times = times
-        self.mock_ensemble.param_indexes = indexes
-        self.mock_ensemble.ensemble_fields = {"units": units, "solver": ("solveivp",),
-                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8}
-        self.mock_ensemble.vals = vals
-        self.mock_ensemble.uncs = uncs
-        logll, _ = self.mock_ensemble.eval_trial_move(state, sim_flags)
+
+        ensemble_fields = {"units": units, "solver": ("solveivp",),
+                     "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
+                     "_sim_info": simPar, "_param_indexes": indexes, "_init_params": iniPar,
+                     "_times": times, "_vals": vals, "_uncs": uncs}
+        logll, _ = eval_trial_move(state, sim_flags, ensemble_fields, self.logger)
 
         # First iter; auto-accept
         np.testing.assert_almost_equal(
