@@ -15,7 +15,7 @@ def cost(x, e_data, MS_list, logger):
     this function should return the negative log likelihood.
     """
     _cost = 0
-    MS = MS_list.MS[0]
+    MS = MS_list.unique_fields[0]
     MS.H.states[:, MS_list.latest_iter] = MS.H.states[:, MS_list.latest_iter - 1]
     MS.H.states[np.where(MS_list.ensemble_fields["active"] == 1), MS_list.latest_iter] = 10**x
 
@@ -112,12 +112,12 @@ def cost(x, e_data, MS_list, logger):
 
 def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, logger):
     MS_list = Ensemble(param_info["names"], sim_params, sim_flags, DEFAULT_NUM_ITERS, logger_name="MLE0")
-    MS = MS_list.MS[0]
+    MS = MS_list.unique_fields[0]
 
     # Prefer having these attached to MS ensemble, to match the original MCMC method
     MS_list.iniPar = init_params
     logger.info(f"Sim info: {MS_list.sim_info}")
-    logger.info(f"MCMC fields: {MS.MCMC_fields}")
+    logger.info(f"MCMC fields: {MS}")
 
     if MS_list.ensemble_fields.get("irf_convolution", None) is not None:
         irfs = {}
@@ -127,13 +127,13 @@ def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, log
                     os.path.join("IRFs", f"irf_{int(i)}nm.csv"), delimiter=","
                 )
 
-        MS.MCMC_fields["IRF_tables"] = make_I_tables(irfs)
+        MS["IRF_tables"] = make_I_tables(irfs)
         if logger is not None:
             logger.info(
-                f"Found IRFs for WLs {list(MS.MCMC_fields['IRF_tables'].keys())}"
+                f"Found IRFs for WLs {list(MS['IRF_tables'].keys())}"
             )
     else:
-        MS.MCMC_fields["IRF_tables"] = None
+        MS["IRF_tables"] = None
 
     # Optimize over only active params, while holding all others constant
     x0 = np.log10(MS_list.H.states[0, MS_list.ensemble_fields["active"], 0])

@@ -27,18 +27,6 @@ MAX_PROPOSALS = 100
 # else the simulation is failed.
 NEGATIVE_FRAC_TOL = 0.2
 
-
-class MetroState:
-    """
-    Fields specific to each chain
-    """
-
-    def __init__(self, MCMC_fields):
-        self.MCMC_fields = MCMC_fields
-
-        return
-
-
 class History:
     """Record of past states the walk has been to."""
 
@@ -101,7 +89,7 @@ class EnsembleTemplate:
     IRF_tables: dict  # Instrument response functions
     sim_info: dict  # Simulation settings
     ensemble_fields: dict  # Monte Carlo settings shared across all chains
-    MS: list[MetroState]  # List of Monte Carlo chains
+    unique_fields: list[dict]  # List of settings unique to each chain
     H: History  # List of visited states
     # Lists of functions that can be used to repeat the logLL calculations for each chain's latest state
     ll_funcs: list
@@ -134,7 +122,7 @@ class EnsembleTemplate:
     def print_status(self):
         k = self.latest_iter
         self.logger.info(f"Current loglikelihoods : {self.H.loglikelihood[:, k]}")
-        for m in range(len(self.MS)):
+        for m in range(len(self.unique_fields)):
             self.logger.info(f"Chain {m}:")
             self.logger.info(f"Current state: {self.H.states[m, :, k]}"
             )
@@ -543,11 +531,11 @@ class Ensemble(EnsembleTemplate):
         self.H.states[:, :, 0] = init_state
 
         self.ll_funcs = [None for _ in range(n_chains)]
-        self.MS: list[MetroState] = []
+        self.unique_fields: list[dict] = []
         for i in range(n_chains):
-            self.MS.append(MetroState(dict(MCMC_fields)))
-            self.MS[-1].MCMC_fields["_T"] = temperatures[i]
-            self.MS[-1].MCMC_fields["current_sigma"] = {
+            self.unique_fields.append(dict(MCMC_fields))
+            self.unique_fields[-1]["_T"] = temperatures[i]
+            self.unique_fields[-1]["current_sigma"] = {
                 m: max(self.ensemble_fields["base_trial_move"])
                 * self.ensemble_fields["likel2move_ratio"][m]
                 for m in sim_info["meas_types"]
@@ -562,6 +550,19 @@ class Ensemble(EnsembleTemplate):
 
     def stop_logging(self, err_code):
         stop_logging(self.logger, self.handler, err_code)
+
+
+class MetroState:
+    """
+    Fields specific to each chain
+    This class is deprecated and available only for compatiblity with older pickle files
+    """
+
+    def __init__(self, MCMC_fields):
+        print(
+            "Warning - Metrostate class is deprecated and will have no effect or functionality."
+        )
+        return
 
 
 class Parameters:
