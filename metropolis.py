@@ -199,6 +199,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     global_accept = None
     state_dims = None
     shared_fields = None
+    unique_fields = None
     logger = None
     if rank == 0:
         if load_checkpoint is None:
@@ -252,6 +253,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         state_dims = global_states.shape
 
         shared_fields = MS_list.ensemble_fields
+        unique_fields = MS_list.unique_fields
         logger = MS_list.logger
         # From this point on, for consistency, work with ONLY the MetroState objects
         MS_list.logger.info(f"Sim info: {MS_list.sim_info}")
@@ -269,6 +271,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     comm.Scatter(global_logll, local_logll, root=0)
     local_accept = np.empty(state_dims[2], dtype=bool)
     comm.Scatter(global_accept, local_accept, root=0)
+
+    unique_fields = comm.scatter(unique_fields, root=0)
 
     starting_iter = comm.bcast(starting_iter, root=0)
     shared_fields = comm.bcast(shared_fields, root=0)
