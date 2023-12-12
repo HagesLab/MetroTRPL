@@ -37,7 +37,7 @@ def almost_equal(x, x0, threshold=1e-10):
     return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
 
-def main_metro_loop(states, logll, accept, starting_iter, num_iters, shared_fields,
+def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_fields,
                     unique_fields,
                     logger, need_initial_state=True, verbose=False):
     """
@@ -48,6 +48,8 @@ def main_metro_loop(states, logll, accept, starting_iter, num_iters, shared_fiel
 
     Parameters
     ----------
+    m : int
+        Numerical index of chain in ensemble
     states : ndarray
         Array of states visited by the mth chain
     logll : ndarray
@@ -86,8 +88,8 @@ def main_metro_loop(states, logll, accept, starting_iter, num_iters, shared_fiel
         logll[0] = _logll
         # MS_list.ll_funcs[m] = ll_funcs
 
-    print(logll)
-    sys.exit()
+    print(f"Rank {m}", logll)
+    return
 
     for k in range(starting_iter, num_iters):
         try:
@@ -286,9 +288,11 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     logger = comm.bcast(logger, root=0)  # Only rank 0 gets log messages
     need_initial_state = (load_checkpoint is None)
 
-    main_metro_loop(local_states, local_logll, local_accept, starting_iter, num_iters, shared_fields, unique_fields,
+    main_metro_loop(rank, local_states, local_logll, local_accept, starting_iter, num_iters, shared_fields, unique_fields,
                     logger, need_initial_state=need_initial_state, verbose=verbose)
 
+    print(f"Rank {rank} took {perf_counter() - clock0} s")
+    sys.exit()
     # MS_list.random_state = np.random.get_state()
     # if export_path is not None:
     #     MS_list.logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
