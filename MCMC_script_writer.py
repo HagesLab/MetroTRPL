@@ -35,7 +35,7 @@ if __name__ == "__main__":
     # Filenames
     init_fname = "staub_MAPI_threepower_twothick_fluences.csv"
     exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
-    out_fname = "sample_output"
+    out_fname = f"PT_staubnn_8T_10swap_scaled_mpi"
 
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
@@ -76,10 +76,10 @@ if __name__ == "__main__":
                   "ks": (1e-11, 1e-9),
                   "Cn": (1e-29, 1e-27),
                   "Cp": (1e-29, 1e-27),
-                  "Sf": (1e-4, 1e4),
-                  "Sb": (1e-4, 1e4),
-                  "tauN": (1, 1500),
-                  "tauP": (1, 3000),
+                  "Sf": (1e-1, 1e4),
+                  "Sb": (1e-1, 1e4),
+                  "tauN": (1, 2e3),
+                  "tauP": (1, 1e4),
                   "eps": (0, np.inf),
                   "Tm": (0, np.inf),
                   }
@@ -114,7 +114,7 @@ if __name__ == "__main__":
                      "Tm": 0,
                      }
     # Proposal function search widths
-    trial_move = {param: 0.02 for param in param_names}
+    trial_move = {param: 0.003 for param in param_names}
 
     # Randomize the initial guess a little
     for name in param_names:
@@ -139,17 +139,18 @@ if __name__ == "__main__":
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
-                   "num_iters": 50,
+                   "num_iters": 25,
                    "solver": ("solveivp",),
                    "model": "std",
-                   "likel2move_ratio": 500,
+                   "likel2move_ratio": 333.33,
                    "log_y": 1,
                    "scale_factor": None,
-                   "fittable_fluences": None,
                    "irf_convolution": None,
+                   "parallel_tempering": [1, 2, 4, 10, 16, 32],
+                   "temper_freq": 10,
                    "hard_bounds": 1,
                    "force_min_y": 0,
-                   "checkpoint_freq": 12000,
+                   "checkpoint_freq": 2000,
                    "load_checkpoint": None,
                    }
 

@@ -9,6 +9,7 @@ import signal
 import pickle
 from time import perf_counter
 import numpy as np
+from mpi4py import MPI
 
 from mcmc_logging import start_logging
 from sim_utils import Ensemble
@@ -66,6 +67,8 @@ def main_metro_loop(MS_list : Ensemble, starting_iter, num_iters,
 
     """
     checkpoint_freq = MS_list.ensemble_fields["checkpoint_freq"]
+    comm = MPI.COMM_WORLD   # Global communicator
+    rank = comm.Get_rank()  # Process index
 
     if need_initial_state:
         MS_list.logger.info("Simulating initial state:")
