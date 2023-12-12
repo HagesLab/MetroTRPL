@@ -24,7 +24,7 @@ def cost(x, e_data, MS_list, logger):
 
     LOG_PL = MS_list.ensemble_fields["log_y"]
     scale_f_info = MS_list.ensemble_fields.get("scale_factor", None)
-    irf_convolution = MS.MCMC_fields.get("irf_convolution", None)
+    irf_convolution = MS_list.ensemble_fields.get("irf_convolution", None)
     IRF_tables = MS.MCMC_fields.get("IRF_tables", None)
     thicknesses = MS_list.sim_info["lengths"]
     nxes = MS_list.sim_info["nx"]
@@ -119,9 +119,9 @@ def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, log
     logger.info(f"Sim info: {MS_list.sim_info}")
     logger.info(f"MCMC fields: {MS.MCMC_fields}")
 
-    if MS.MCMC_fields.get("irf_convolution", None) is not None:
+    if MS_list.ensemble_fields.get("irf_convolution", None) is not None:
         irfs = {}
-        for i in MS.MCMC_fields["irf_convolution"]:
+        for i in MS_list.ensemble_fields["irf_convolution"]:
             if i > 0 and i not in irfs:
                 irfs[int(i)] = np.loadtxt(
                     os.path.join("IRFs", f"irf_{int(i)}nm.csv"), delimiter=","

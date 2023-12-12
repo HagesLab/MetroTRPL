@@ -170,7 +170,7 @@ class EnsembleTemplate:
         """
         iniPar = self.iniPar[meas_index]
         meas_type = self.sim_info["meas_types"][meas_index]
-        irf_convolution = MCMC_fields.get("irf_convolution", None)
+        irf_convolution = self.ensemble_fields.get("irf_convolution", None)
         ll_func = lambda b: -np.inf
         ff = self.ensemble_fields.get("fittable_fluences", None)
         if ff is not None and meas_index in ff[1]:
@@ -502,6 +502,7 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["scale_factor"] = MCMC_fields.pop("scale_factor", None)
         self.ensemble_fields["fittable_fluences"] = MCMC_fields.pop("fittable_fluences", None)
         self.ensemble_fields["fittable_absps"] = MCMC_fields.pop("fittable_absps", None)
+        self.ensemble_fields["irf_convolution"] = MCMC_fields.pop("irf_convolution", None)
         self.ensemble_fields["do_mu_constraint"] = param_info.pop("do_mu_constraint", None)
         self.ensemble_fields["prior_dist"] = param_info.pop("prior_dist")
         # Transfer shared fields that need to become arrays
