@@ -91,71 +91,65 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
         # MS_list.ll_funcs[m] = ll_funcs
 
     for k in range(starting_iter, num_iters):
-        try:
-            # TODO: May need extra synchronization per iter
-            if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                logger.info(f"Iter {k} MetroState #{m}")
+        # TODO: May need extra synchronization per iter
+        if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
+            logger.info(f"Iter {k} MetroState #{m}")
 
-            # Trial displacement move
-            new_state = make_trial_move(states[:, k-1],
-                                        unique_fields["_T"] ** 0.5 * shared_fields["base_trial_move"],
-                                        shared_fields,
-                                        RNG, logger)
+        # Trial displacement move
+        new_state = make_trial_move(states[:, k-1],
+                                    unique_fields["_T"] ** 0.5 * shared_fields["base_trial_move"],
+                                    shared_fields,
+                                    RNG, logger)
 
-            _logll, ll_funcs = eval_trial_move(new_state, unique_fields, shared_fields, logger)
+        _logll, ll_funcs = eval_trial_move(new_state, unique_fields, shared_fields, logger)
 
-            logger.debug(f"Log likelihood of proposed move: {_logll}")
-            logratio = (_logll - logll[k-1])
-            if np.isnan(logratio):
-                logratio = -np.inf
+        logger.debug(f"Log likelihood of proposed move: {_logll}")
+        logratio = (_logll - logll[k-1])
+        if np.isnan(logratio):
+            logratio = -np.inf
 
-            accepted = roll_acceptance(RNG, logratio)
+        accepted = roll_acceptance(RNG, logratio)
 
-            if accepted:
-                logll[k] = _logll
-                states[:, k] = new_state
-                accept[k] = 1
-                # MS_list.ll_funcs[m] = ll_funcs
-            else:
-                logll[k] = logll[k-1]
-                states[:, k] = states[:, k-1]
+        if accepted:
+            logll[k] = _logll
+            states[:, k] = new_state
+            accept[k] = 1
+            # MS_list.ll_funcs[m] = ll_funcs
+        else:
+            logll[k] = logll[k-1]
+            states[:, k] = states[:, k-1]
 
-            if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
-                for _ in range(len(unique_fields) - 1):
-                    # Select a pair (the ith and (i+1)th) of chains
-                    i = RNG.integers(0, len(unique_fields)-1)
-                    # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
-                    if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                        logger.info(f"Tempering - swapping chains {i} and {i+1}")
-                    T_j = unique_fields[i+1]["_T"]
-                    T_i = unique_fields[i]["_T"]
+        if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
+            for _ in range(len(unique_fields) - 1):
+                # Select a pair (the ith and (i+1)th) of chains
+                i = RNG.integers(0, len(unique_fields)-1)
+                # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
+                if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
+                    logger.info(f"Tempering - swapping chains {i} and {i+1}")
+                T_j = unique_fields[i+1]["_T"]
+                T_i = unique_fields[i]["_T"]
 
-                    bi_ui, bj_ui, bi_uj, bj_uj = 0, 0, 0, 0
-                    for ss in range(shared_fields["_sim_info"]["num_meas"]):
-                        bi_ui += MS_list.ll_funcs[i][ss](T_i)
-                        bj_ui += MS_list.ll_funcs[i][ss](T_j)
-                        bi_uj += MS_list.ll_funcs[i+1][ss](T_i)
-                        bj_uj += MS_list.ll_funcs[i+1][ss](T_j)
+                bi_ui, bj_ui, bi_uj, bj_uj = 0, 0, 0, 0
+                for ss in range(shared_fields["_sim_info"]["num_meas"]):
+                    bi_ui += MS_list.ll_funcs[i][ss](T_i)
+                    bj_ui += MS_list.ll_funcs[i][ss](T_j)
+                    bi_uj += MS_list.ll_funcs[i+1][ss](T_i)
+                    bj_uj += MS_list.ll_funcs[i+1][ss](T_j)
 
-                    logratio = bi_ui + bj_uj - bi_uj - bj_ui
+                logratio = bi_ui + bj_uj - bi_uj - bj_ui
 
-                    accepted = roll_acceptance(RNG, -logratio)
+                accepted = roll_acceptance(RNG, -logratio)
 
-                    if accepted: # TODO: Need a gather call here to exchange state info
-                        MS_list.H.loglikelihood[i, k] = bi_uj
-                        MS_list.H.loglikelihood[i+1, k] = bj_ui
-                        states[i, :, k] = states[i+1, :, k]
-                        states[i+1, :, k] = states[i, :, k]
-                        MS_list.ll_funcs[i+1], MS_list.ll_funcs[i] = MS_list.ll_funcs[i], MS_list.ll_funcs[i+1]
+                if accepted: # TODO: Need a gather call here to exchange state info
+                    MS_list.H.loglikelihood[i, k] = bi_uj
+                    MS_list.H.loglikelihood[i+1, k] = bj_ui
+                    states[i, :, k] = states[i+1, :, k]
+                    states[i+1, :, k] = states[i, :, k]
+                    MS_list.ll_funcs[i+1], MS_list.ll_funcs[i] = MS_list.ll_funcs[i], MS_list.ll_funcs[i+1]
 
-            #if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-            #    MS_list.print_status()
-            #MS_list.latest_iter = k
-
-        except KeyboardInterrupt:
-            logger.warning(f"Terminating with k={k-1} iters completed:")
-            MS_list.H.truncate(k)
-            break
+        #if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
+        #    MS_list.print_status()
+        #MS_list.latest_iter = k
 
     return states, logll, accept
 
