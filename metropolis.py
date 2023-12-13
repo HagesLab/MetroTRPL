@@ -88,9 +88,6 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
         logll[0] = _logll
         # MS_list.ll_funcs[m] = ll_funcs
 
-    print(f"Rank {m}", logll)
-    return
-
     for k in range(starting_iter, num_iters):
         try:
             # TODO: May need extra synchronization per iter
@@ -169,7 +166,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
             logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
             MS_list.random_state = np.random.get_state()
             MS_list.checkpoint(chpt_fname)
-    return
+    return local_logll
 
 
 def kill_from_cl(signal_n, frame):
@@ -288,11 +285,17 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     logger = comm.bcast(logger, root=0)  # Only rank 0 gets log messages
     need_initial_state = (load_checkpoint is None)
 
-    main_metro_loop(rank, local_states, local_logll, local_accept, starting_iter, num_iters, shared_fields, unique_fields,
-                    logger, need_initial_state=need_initial_state, verbose=verbose)
+    local_logll = main_metro_loop(rank, local_states, local_logll, local_accept, starting_iter, num_iters, shared_fields, unique_fields,
+                                  logger, need_initial_state=need_initial_state, verbose=verbose)
 
+    comm.Gather(local_logll, global_logll, root=0)
+    print(f"Rank {rank} global logll: {global_logll}")
     print(f"Rank {rank} took {perf_counter() - clock0} s")
     sys.exit()
+
+    if rank == 0:
+        MS_list.H.loglikelihood = global_logll
+
     # MS_list.random_state = np.random.get_state()
     # if export_path is not None:
     #     MS_list.logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
