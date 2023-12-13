@@ -95,36 +95,31 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
         try:
             # TODO: May need extra synchronization per iter
             if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                logger.info("#####")
-                logger.info(f"Iter {k}")
+                logger.info(f"Iter {k} MetroState #{m}")
 
-            for m, MS in enumerate(unique_fields):
-                if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                    logger.info(f"MetroState #{m}")
+            # Trial displacement move
+            new_state = make_trial_move(states[:, k-1],
+                                        unique_fields["_T"] ** 0.5 * shared_fields["base_trial_move"],
+                                        shared_fields,
+                                        RNG, logger)
 
-                # Trial displacement move
-                new_state = make_trial_move(states[:, k-1],
-                                            MS["_T"] ** 0.5 * shared_fields["base_trial_move"],
-                                            shared_fields,
-                                            RNG, logger)
+            _logll, ll_funcs = eval_trial_move(new_state, unique_fields, shared_fields, logger)
 
-                _logll, ll_funcs = eval_trial_move(new_state, unique_fields, shared_fields, logger)
+            logger.debug(f"Log likelihood of proposed move: {_logll}")
+            logratio = (_logll - logll[k-1])
+            if np.isnan(logratio):
+                logratio = -np.inf
 
-                logger.debug(f"Log likelihood of proposed move: {_logll}")
-                logratio = (_logll - logll[k-1])
-                if np.isnan(logratio):
-                    logratio = -np.inf
+            accepted = roll_acceptance(RNG, logratio)
 
-                accepted = roll_acceptance(RNG, logratio)
-
-                if accepted:
-                    logll[k] = _logll
-                    states[:, k] = new_state
-                    accept[k] = 1
-                    MS_list.ll_funcs[m] = ll_funcs
-                else:
-                    logll[k] = logll[k-1]
-                    states[:, k] = states[:, k-1]
+            if accepted:
+                logll[k] = _logll
+                states[:, k] = new_state
+                accept[k] = 1
+                # MS_list.ll_funcs[m] = ll_funcs
+            else:
+                logll[k] = logll[k-1]
+                states[:, k] = states[:, k-1]
 
             if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
                 for _ in range(len(unique_fields) - 1):
@@ -171,7 +166,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
             logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
             MS_list.random_state = np.random.get_state()
             MS_list.checkpoint(chpt_fname)
-    return local_logll
+    return logll
 
 
 def kill_from_cl(signal_n, frame):
