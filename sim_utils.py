@@ -84,8 +84,7 @@ class EnsembleTemplate:
     H: History  # List of visited states
     # Lists of functions that can be used to repeat the logLL calculations for each chain's latest state
     ll_funcs: list
-    RNG: np.random.Generator  # Random number generator
-    random_state: dict  # State of the RNG
+    random_state: dict  # State of the random number generator
     latest_iter: int  # Latest iteration # reached by chains
     logger: logging.Logger  # A standard logging.logger instance
     handler: logging.FileHandler  # A standard FileHandler instance
@@ -216,7 +215,6 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["do_parallel_tempering"] = n_chains > 1
 
         self.ensemble_fields["_sim_info"] = sim_info
-        self.RNG = np.random.default_rng(235817049752375780)
         self.random_state = np.random.get_state()
         self.latest_iter = 0
 

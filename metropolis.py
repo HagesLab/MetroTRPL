@@ -39,7 +39,7 @@ def almost_equal(x, x0, threshold=1e-10):
 
 
 def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_fields,
-                    unique_fields,
+                    unique_fields, RNG,
                     logger, need_initial_state=True, verbose=False):
     """
     Run the Metropolis loop for each chain in an Ensemble()
@@ -66,6 +66,8 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
         Shared ensemble fields.
     unique_fields : dict
         Settings unique to the mth chain.
+    RNG : np.random.Generator
+        A random number Generator instance used to make the trial moves.
     logger : logging object, optional
         Stream to write status messages. The default is None.
     need_initial_state : bool, optional
@@ -102,7 +104,9 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
 
                 # Trial displacement move
                 new_state = make_trial_move(states[:, k-1],
-                                            MS["_T"] ** 0.5 * shared_fields["base_trial_move"])
+                                            MS["_T"] ** 0.5 * shared_fields["base_trial_move"],
+                                            shared_fields,
+                                            RNG, logger)
 
                 _logll, ll_funcs = eval_trial_move(new_state, unique_fields, shared_fields, logger)
 
@@ -111,7 +115,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
                 if np.isnan(logratio):
                     logratio = -np.inf
 
-                accepted = roll_acceptance(MS_list.RNG, logratio)
+                accepted = roll_acceptance(RNG, logratio)
 
                 if accepted:
                     logll[k] = _logll
@@ -125,7 +129,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
             if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
                 for _ in range(len(unique_fields) - 1):
                     # Select a pair (the ith and (i+1)th) of chains
-                    i = MS_list.RNG.integers(0, len(unique_fields)-1)
+                    i = RNG.integers(0, len(unique_fields)-1)
                     # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
                     if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
                         logger.info(f"Tempering - swapping chains {i} and {i+1}")
@@ -141,7 +145,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
 
                     logratio = bi_ui + bj_uj - bi_uj - bj_ui
 
-                    accepted = roll_acceptance(MS_list.RNG, -logratio)
+                    accepted = roll_acceptance(RNG, -logratio)
 
                     if accepted: # TODO: Need a gather call here to exchange state info
                         MS_list.H.loglikelihood[i, k] = bi_uj
@@ -197,6 +201,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
     load_checkpoint = MCMC_fields["load_checkpoint"]
     num_iters = MCMC_fields["num_iters"]
+    RNG = np.random.default_rng(235817049752375780)
     comm = MPI.COMM_WORLD   # Global communicator
     rank = comm.Get_rank()  # Process index
 
@@ -287,7 +292,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     need_initial_state = (load_checkpoint is None)
 
     local_logll = main_metro_loop(rank, local_states, local_logll, local_accept, starting_iter, num_iters, shared_fields, unique_fields,
-                                  logger, need_initial_state=need_initial_state, verbose=verbose)
+                                  RNG, logger, need_initial_state=need_initial_state, verbose=verbose)
 
     comm.Gather(local_logll, global_logll, root=0)
     print(f"Rank {rank} global logll: {global_logll}")
