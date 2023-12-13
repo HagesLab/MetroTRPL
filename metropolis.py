@@ -181,7 +181,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
     load_checkpoint = MCMC_fields["load_checkpoint"]
     num_iters = MCMC_fields["num_iters"]
-    checkpoint_freq = MCMC_fields["checkpoint_freq"]
+    checkpoint_freq = MCMC_fields.get("checkpoint_freq", num_iters)
     RNG = np.random.default_rng(235817049752375780)
     comm = MPI.COMM_WORLD   # Global communicator
     rank = comm.Get_rank()  # Process index
@@ -272,16 +272,39 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     logger = comm.bcast(logger, root=0)  # Only rank 0 gets log messages
     need_initial_state = (load_checkpoint is None)
 
-    local_states, local_logll, local_accept = main_metro_loop(
-        rank, local_states, local_logll, local_accept,
-        starting_iter, num_iters, shared_fields, unique_fields,
-        RNG, logger, need_initial_state=need_initial_state, verbose=verbose
-    )
+    ending_iter = min(checkpoint_freq, num_iters)
+    while ending_iter <= num_iters:
+        print(f"Simulating from {starting_iter} to {ending_iter}")
+        local_states, local_logll, local_accept = main_metro_loop(
+            rank, local_states, local_logll, local_accept,
+            starting_iter, ending_iter, shared_fields, unique_fields,
+            RNG, logger, need_initial_state=need_initial_state, verbose=verbose
+        )
+        if ending_iter == num_iters:
+            break
+
+        need_initial_state = False
+        starting_iter = ending_iter
+        ending_iter = min(ending_iter + checkpoint_freq, num_iters)
+
+        comm.Gather(local_states, global_states, root=0)
+        comm.Gather(local_logll, global_logll, root=0)
+        comm.Gather(local_accept, global_accept, root=0)
+
+        if rank == 0:
+            chpt_header = MS_list.ensemble_fields["checkpoint_header"]
+            chpt_fname = os.path.join(MS_list.ensemble_fields["checkpoint_dirname"],
+                                        f"{chpt_header}.pik")
+            MS_list.H.states = global_states
+            MS_list.H.loglikelihood = global_logll
+            MS_list.H.accept = global_accept
+            logger.info(f"Saving checkpoint at k={ending_iter}; fname {chpt_fname}")
+            MS_list.random_state = np.random.get_state()
+            MS_list.checkpoint(chpt_fname)
 
     comm.Gather(local_states, global_states, root=0)
     comm.Gather(local_logll, global_logll, root=0)
     comm.Gather(local_accept, global_accept, root=0)
-    print(f"Rank {rank} global states {global_states}")
     print(f"Rank {rank} took {perf_counter() - clock0} s")
 
     if rank == 0:
