@@ -148,9 +148,9 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
                         states[i+1, :, k] = states[i, :, k]
                         MS_list.ll_funcs[i+1], MS_list.ll_funcs[i] = MS_list.ll_funcs[i], MS_list.ll_funcs[i+1]
 
-            if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                MS_list.print_status()
-            MS_list.latest_iter = k
+            #if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
+            #    MS_list.print_status()
+            #MS_list.latest_iter = k
 
         except KeyboardInterrupt:
             logger.warning(f"Terminating with k={k-1} iters completed:")
@@ -287,8 +287,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     comm.Gather(local_states, global_states, root=0)
     comm.Gather(local_logll, global_logll, root=0)
     comm.Gather(local_accept, global_accept, root=0)
+    print(f"Rank {rank} global states {global_states}")
     print(f"Rank {rank} took {perf_counter() - clock0} s")
-    sys.exit()
 
     if rank == 0:
         MS_list.H.states = global_states
@@ -307,6 +307,15 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     #     MS_list.random_state = np.random.get_state()
     #     MS_list.checkpoint(chpt_fname)
 
+    # Successful completion - remove all non-final checkpoints
+    # chpt_header = MS_list.ensemble_fields["checkpoint_header"]
+    # for chpt in os.listdir(MS_list.ensemble_fields["checkpoint_dirname"]):
+    #     if (chpt.startswith(chpt_header)
+    #         and not chpt.endswith("final.pik")
+    #         and not chpt.endswith(".log")):
+    #         os.remove(os.path.join(MS_list.ensemble_fields["checkpoint_dirname"], chpt))
+    # if len(os.listdir(MS_list.ensemble_fields["checkpoint_dirname"])) == 0:
+    #     os.rmdir(MS_list.ensemble_fields["checkpoint_dirname"])
 
     # final_t = perf_counter() - clock0
     # MS_list.logger.info(f"Metro took {final_t} s ({final_t / 3600} hr)")
