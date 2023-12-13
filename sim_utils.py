@@ -30,7 +30,7 @@ class History:
     def __init__(self, n_chains, num_iters, names):
         self.states_are_one_array = True
         self.states = np.zeros((n_chains, len(names), num_iters), dtype=float)
-        self.accept = np.zeros((n_chains, num_iters), dtype=bool)
+        self.accept = np.zeros((n_chains, num_iters), dtype=int)
         self.loglikelihood = np.zeros((n_chains, num_iters), dtype=float)
         return
 
@@ -215,7 +215,6 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["do_parallel_tempering"] = n_chains > 1
 
         self.ensemble_fields["_sim_info"] = sim_info
-        self.random_state = np.random.get_state()
         self.latest_iter = 0
 
     def stop_logging(self, err_code):
