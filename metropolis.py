@@ -15,6 +15,7 @@ from mpi4py import MPI
 from mcmc_logging import start_logging
 from sim_utils import Ensemble
 from trial_move_evaluation import eval_trial_move
+from trial_move_generation import make_trial_move
 from bayes_io import make_dir
 from laplace import make_I_tables
 
@@ -100,8 +101,8 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
                     logger.info(f"MetroState #{m}")
 
                 # Trial displacement move
-                new_state = MS_list.select_next_params(states[:, k-1],
-                                                       MS["_T"] ** 0.5 * shared_fields["base_trial_move"])
+                new_state = make_trial_move(states[:, k-1],
+                                            MS["_T"] ** 0.5 * shared_fields["base_trial_move"])
 
                 _logll, ll_funcs = eval_trial_move(new_state, unique_fields, shared_fields, logger)
 
