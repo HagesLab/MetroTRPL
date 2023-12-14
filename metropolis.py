@@ -120,72 +120,65 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
             logll[k] = logll[k-1]
             states[:, k] = states[:, k-1]
 
-        # TODO: May need a barrier here
-
         if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
             # TODO: Precalculate these, to avoid the bcast
-            i = None
-            if m == 0:
-                # Select a pair (the ith and (i+1)th) of chains
-                i = RNG.integers(0, shared_fields["_n_chains"]-1)
-            i = COMM.bcast(i, root=0)
+            for _ in range(shared_fields["_n_chains"] - 1):
+                i = None
+                if m == 0:
+                    # Select a pair (the ith and (i+1)th) of chains
+                    i = RNG.integers(0, shared_fields["_n_chains"]-1)
+                i = COMM.bcast(i, root=0)
 
-            # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
-            if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                logger.info(f"Tempering - swapping chains {i} and {i+1}")
+                # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
+                if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
+                    logger.debug(f"Tempering - swapping chains {i} and {i+1}")
 
-            T_j = shared_fields["_T"][i+1]
-            T_i = shared_fields["_T"][i]
+                T_j = shared_fields["_T"][i+1]
+                T_i = shared_fields["_T"][i]
 
-            bi_ui, bj_ui = 0, 0
-            for ss in range(shared_fields["_sim_info"]["num_meas"]):
-                bi_ui += ll_func[ss](T_i)
-                bj_ui += ll_func[ss](T_j)
+                bi_ui, bj_ui = 0, 0
+                for ss in range(shared_fields["_sim_info"]["num_meas"]):
+                    bi_ui += ll_func[ss](T_i)
+                    bj_ui += ll_func[ss](T_j)
 
-            print(f"Iter {k}: Rank {m} says original logll is {bi_ui}")
-            print(f"Iter {k}: Rank {m} says tempered logll is {bj_ui}")
+                log_ri = bi_ui - bj_ui
 
-            """
-            log_ri = bi_ui - bj_ui
+                # Must get log_rj (log_ri from i+1) from other process
+                log_rj = 0
+                if m == i:
+                    log_rj = COMM.recv(source=i+1)
+                elif m == i + 1:
+                    COMM.send(-log_ri, dest=i)
 
-            # Must get log_rj (log_ri from i+1) from other process
-            log_rj = 0
-            if m == i:
-                log_rj = COMM.recv(source=i+1)
-            elif m == i + 1:
-                COMM.send(log_ri, dest=i)
+                logratio = log_ri + log_rj
 
-            logratio = log_ri + log_rj
+                accepted = None
+                if m == i:
+                    accepted = roll_acceptance(RNG, -logratio)
+                    COMM.send(accepted, dest=i+1)
+                elif m == i + 1:
+                    accepted = COMM.recv(source=i)
 
-            accepted = None
-            if m == i:
-                accepted = roll_acceptance(RNG, -logratio)
-                COMM.send(accepted, dest=i+1)
-            elif m == i + 1:
-                accepted = COMM.recv(source=i)
+                if m == i and accepted:
+                    logll[k] = COMM.recv(source=i+1)
+                    COMM.send(bj_ui, dest=i+1)
 
-            if m == i and accepted:
-                temp_logll = COMM.recv(source=i+1)
-                COMM.send(logll[k], dest=i+1)
-                logll[k] = temp_logll
+                    temp_states = COMM.recv(source=i+1)
+                    COMM.send(states[:, k], dest=i+1)
+                    states[:, k] = temp_states
 
-                temp_states = COMM.recv(source=i+1)
-                COMM.send(states[:, k], dest=i+1)
-                states[:, k] = temp_states
+                    _, ll_func = eval_trial_move(states[:, k], unique_fields, shared_fields, logger)
 
-                temp_ll_func = COMM.recv(source=i+1)
-                COMM.send(ll_func, dest=i+1)
-                ll_func = temp_ll_func
+                elif m == i + 1 and accepted:
+                    COMM.send(bi_ui, dest=i)
+                    logll[k] = COMM.recv(source=i)
 
-            elif m == i + 1 and accepted:
-                COMM.send(logll[k], dest=i)
-                logll[k] = COMM.recv(source=i)
+                    COMM.send(states[:, k], dest=i)
+                    states[:, k] = COMM.recv(source=i)
 
-                COMM.send(states[:, k], dest=i)
-                states[:, k] = COMM.recv(source=i)
+                    _, ll_func = eval_trial_move(states[:, k], unique_fields, shared_fields, logger)
 
-                COMM.send(ll_func, dest=i)
-                ll_func = COMM.recv(source=i)"""
+            COMM.Barrier()
 
         #if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
         #    MS_list.print_status()
