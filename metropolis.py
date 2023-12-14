@@ -11,6 +11,7 @@ import pickle
 from time import perf_counter
 import numpy as np
 from mpi4py import MPI
+COMM = MPI.COMM_WORLD   # Global communicator
 
 from mcmc_logging import start_logging
 from sim_utils import Ensemble
@@ -121,32 +122,63 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
             states[:, k] = states[:, k-1]
 
         if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
-            for _ in range(len(unique_fields) - 1):
+            i = None
+            if m == 0:  
                 # Select a pair (the ith and (i+1)th) of chains
                 i = RNG.integers(0, len(unique_fields)-1)
-                # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
-                if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                    logger.info(f"Tempering - swapping chains {i} and {i+1}")
-                T_j = unique_fields[i+1]["_T"]
-                T_i = unique_fields[i]["_T"]
+            i = COMM.bcast(i, root=0)
 
-                bi_ui, bj_ui, bi_uj, bj_uj = 0, 0, 0, 0
-                for ss in range(shared_fields["_sim_info"]["num_meas"]):
-                    bi_ui += MS_list.ll_funcs[i][ss](T_i)
-                    bj_ui += MS_list.ll_funcs[i][ss](T_j)
-                    bi_uj += MS_list.ll_funcs[i+1][ss](T_i)
-                    bj_uj += MS_list.ll_funcs[i+1][ss](T_j)
+            # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
+            if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
+                logger.info(f"Tempering - swapping chains {i} and {i+1}")
+            T_j = unique_fields[i+1]["_T"]
+            T_i = unique_fields[i]["_T"]
 
-                logratio = bi_ui + bj_uj - bi_uj - bj_ui
+            bi_ui, bj_ui = 0, 0
+            for ss in range(shared_fields["_sim_info"]["num_meas"]):
+                bi_ui += ll_func[ss](T_i)
+                bj_ui += ll_func[ss](T_j)
 
+            log_ri = bi_ui - bj_ui
+
+            # Must get log_rj (log_ri from i+1) from other process
+            log_rj = 0
+            if m == i:
+                log_rj = COMM.recv(source=i+1)
+            elif m == i + 1:
+                COMM.send(log_ri, dest=i)
+            
+            logratio = log_ri + log_rj
+
+            accepted = None
+            if m == i:
                 accepted = roll_acceptance(RNG, -logratio)
+                COMM.send(accepted, dest=i+1)
+            elif m == i + 1:
+                accepted = COMM.recv(source=i)
 
-                if accepted: # TODO: Need a gather call here to exchange state info
-                    MS_list.H.loglikelihood[i, k] = bi_uj
-                    MS_list.H.loglikelihood[i+1, k] = bj_ui
-                    states[i, :, k] = states[i+1, :, k]
-                    states[i+1, :, k] = states[i, :, k]
-                    MS_list.ll_funcs[i+1], MS_list.ll_funcs[i] = MS_list.ll_funcs[i], MS_list.ll_funcs[i+1]
+            if m == i and accepted:
+                temp_logll = COMM.recv(source=i+1)
+                COMM.send(logll[k], dest=i+1)
+                logll[k] = temp_logll
+
+                temp_states = COMM.recv(source=i+1)
+                COMM.send(states[:, k], dest=i+1)
+                states[:, k] = temp_states
+
+                temp_ll_func = COMM.recv(source=i+1)
+                COMM.send(ll_func, dest=i+1)
+                ll_func = temp_ll_func
+
+            elif m == i + 1 and accepted:
+                COMM.send(logll[k], dest=i)
+                logll[k] = COMM.recv(source=i)
+
+                COMM.send(states[:, k], dest=i)
+                states[:, k] = COMM.recv(source=i)
+
+                COMM.send(ll_func, dest=i)
+                ll_func = COMM.recv(source=i)
 
         #if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
         #    MS_list.print_status()
@@ -184,8 +216,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     num_iters = MCMC_fields["num_iters"]
     checkpoint_freq = MCMC_fields.get("checkpoint_freq", num_iters)
     RNG = np.random.default_rng(235817049752375780)
-    comm = MPI.COMM_WORLD   # Global communicator
-    rank = comm.Get_rank()  # Process index
+    rank = COMM.Get_rank()  # Process index
 
     starting_iter = 0
     global_states = None
@@ -259,21 +290,21 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     else:
         MS_list = None
 
-    state_dims = comm.bcast(state_dims, root=0)  # (n_chains, n_params, n_iters)
+    state_dims = COMM.bcast(state_dims, root=0)  # (n_chains, n_params, n_iters)
     local_states = np.empty((state_dims[1], state_dims[2]), dtype=float)
-    comm.Scatter(global_states, local_states, root=0)
+    COMM.Scatter(global_states, local_states, root=0)
     local_logll = np.empty(state_dims[2], dtype=float)
-    comm.Scatter(global_logll, local_logll, root=0)
+    COMM.Scatter(global_logll, local_logll, root=0)
     local_accept = np.empty(state_dims[2], dtype=int)
-    comm.Scatter(global_accept, local_accept, root=0)
+    COMM.Scatter(global_accept, local_accept, root=0)
 
-    unique_fields = comm.scatter(unique_fields, root=0)
+    unique_fields = COMM.scatter(unique_fields, root=0)
 
-    RNG_state = comm.bcast(RNG_state, root=0)
+    RNG_state = COMM.bcast(RNG_state, root=0)
     RNG.bit_generator.state = RNG_state
-    starting_iter = comm.bcast(starting_iter, root=0)
-    shared_fields = comm.bcast(shared_fields, root=0)
-    logger = comm.bcast(logger, root=0)  # Only rank 0 gets log messages
+    starting_iter = COMM.bcast(starting_iter, root=0)
+    shared_fields = COMM.bcast(shared_fields, root=0)
+    logger = COMM.bcast(logger, root=0)  # Only rank 0 gets log messages
     need_initial_state = (load_checkpoint is None)
 
     ending_iter = min(starting_iter + checkpoint_freq, num_iters)
@@ -287,9 +318,9 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         if ending_iter == num_iters:
             break
 
-        comm.Gather(local_states, global_states, root=0)
-        comm.Gather(local_logll, global_logll, root=0)
-        comm.Gather(local_accept, global_accept, root=0)
+        COMM.Gather(local_states, global_states, root=0)
+        COMM.Gather(local_logll, global_logll, root=0)
+        COMM.Gather(local_accept, global_accept, root=0)
 
         if rank == 0:
             chpt_header = MS_list.ensemble_fields["checkpoint_header"]
@@ -308,9 +339,9 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         ending_iter = min(ending_iter + checkpoint_freq, num_iters)
 
 
-    comm.Gather(local_states, global_states, root=0)
-    comm.Gather(local_logll, global_logll, root=0)
-    comm.Gather(local_accept, global_accept, root=0)
+    COMM.Gather(local_states, global_states, root=0)
+    COMM.Gather(local_logll, global_logll, root=0)
+    COMM.Gather(local_accept, global_accept, root=0)
     logger.info(f"Rank {rank} took {perf_counter() - clock0} s")
 
     if rank == 0:
