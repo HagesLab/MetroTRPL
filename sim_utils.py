@@ -82,8 +82,6 @@ class EnsembleTemplate:
     ensemble_fields: dict  # Monte Carlo settings and data shared across all chains
     unique_fields: list[dict]  # List of settings unique to each chain
     H: History  # List of visited states
-    # Lists of functions that can be used to repeat the logLL calculations for each chain's latest state
-    ll_funcs: list
     random_state: dict  # State of the random number generator
     latest_iter: int  # Latest iteration # reached by chains
     logger: logging.Logger  # A standard logging.logger instance
@@ -100,11 +98,8 @@ class EnsembleTemplate:
             # TODO: This might break checkpoints
             handler = self.handler  # FileHandlers aren't pickleable
             self.handler = None
-            ll_funcs = self.ll_funcs  # Lambda functions aren't pickleable either
-            self.ll_funcs = None
             pickle.dump(self, ofstream)
             self.handler = handler
-            self.ll_funcs = ll_funcs
 
     def print_status(self):
         k = self.latest_iter
@@ -133,7 +128,7 @@ class Ensemble(EnsembleTemplate):
             self.ensemble_fields[field] = MCMC_fields.pop(field)
 
         # Optional fields that can default to None
-        for field in ["parallel_tempering", "rtol", "atol", "scale_factor",
+        for field in ["rtol", "atol", "scale_factor",
                       "fittable_fluences", "fittable_absps", "irf_convolution",
                       "do_mu_constraint", "checkpoint_header"]:
             self.ensemble_fields[field] = MCMC_fields.pop(field, None)
@@ -144,7 +139,7 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["hard_bounds"] = MCMC_fields.pop("hard_bounds", 0)
         self.ensemble_fields["hmax"] = MCMC_fields.pop("hmax", DEFAULT_HMAX)
         self.ensemble_fields["force_min_y"] = MCMC_fields.pop("force_min_y", 0)
-        
+
         self.ensemble_fields["prior_dist"] = param_info.pop("prior_dist")
         # Transfer shared fields that need to become arrays
         self.ensemble_fields["do_log"] = param_info.pop("do_log")
@@ -181,12 +176,8 @@ class Ensemble(EnsembleTemplate):
             name: param_info["names"].index(name) for name in param_info["names"]
         }
 
-        if self.ensemble_fields["parallel_tempering"] is None:
-            n_chains = 1
-            temperatures = [1]
-        else:
-            n_chains = len(self.ensemble_fields["parallel_tempering"])
-            temperatures = self.ensemble_fields["parallel_tempering"]
+        self.ensemble_fields["_T"] = MCMC_fields.pop("parallel_tempering", [1])
+        self.ensemble_fields["_n_chains"] = len(self.ensemble_fields["_T"])
 
         self.ensemble_fields["names"] = param_info.pop("names")
 
@@ -198,21 +189,19 @@ class Ensemble(EnsembleTemplate):
                 ],
             dtype=float,
         )
-        self.H = History(n_chains, num_iters, self.ensemble_fields["names"])
+        self.H = History(self.ensemble_fields["_n_chains"], num_iters, self.ensemble_fields["names"])
         self.H.states[:, :, 0] = init_state
 
-        self.ll_funcs = [None for _ in range(n_chains)]
         self.unique_fields: list[dict] = []
-        for i in range(n_chains):
+        for i in range(self.ensemble_fields["_n_chains"]):
             self.unique_fields.append(dict(MCMC_fields))
-            self.unique_fields[-1]["_T"] = temperatures[i]
             self.unique_fields[-1]["current_sigma"] = {
                 m: max(self.ensemble_fields["base_trial_move"])
                 * self.ensemble_fields["likel2move_ratio"][m]
                 for m in sim_info["meas_types"]
             }
 
-        self.ensemble_fields["do_parallel_tempering"] = n_chains > 1
+        self.ensemble_fields["do_parallel_tempering"] = self.ensemble_fields["_n_chains"] > 1
 
         self.ensemble_fields["_sim_info"] = sim_info
         self.latest_iter = 0

@@ -93,13 +93,12 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
         _, ll_func = eval_trial_move(states[:, starting_iter - 1], unique_fields, shared_fields, logger)
 
     for k in range(starting_iter, num_iters):
-        # TODO: May need extra synchronization per iter
         if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
             logger.info(f"Iter {k} MetroState #{m}")
 
         # Trial displacement move
         new_state = make_trial_move(states[:, k-1],
-                                    unique_fields["_T"] ** 0.5 * shared_fields["base_trial_move"],
+                                    shared_fields["_T"][m] ** 0.5 * shared_fields["base_trial_move"],
                                     shared_fields,
                                     RNG, logger)
 
@@ -121,24 +120,32 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
             logll[k] = logll[k-1]
             states[:, k] = states[:, k-1]
 
+        # TODO: May need a barrier here
+
         if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
+            # TODO: Precalculate these, to avoid the bcast
             i = None
-            if m == 0:  
+            if m == 0:
                 # Select a pair (the ith and (i+1)th) of chains
-                i = RNG.integers(0, len(unique_fields)-1)
+                i = RNG.integers(0, shared_fields["_n_chains"]-1)
             i = COMM.bcast(i, root=0)
 
             # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
             if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
                 logger.info(f"Tempering - swapping chains {i} and {i+1}")
-            T_j = unique_fields[i+1]["_T"]
-            T_i = unique_fields[i]["_T"]
+
+            T_j = shared_fields["_T"][i+1]
+            T_i = shared_fields["_T"][i]
 
             bi_ui, bj_ui = 0, 0
             for ss in range(shared_fields["_sim_info"]["num_meas"]):
                 bi_ui += ll_func[ss](T_i)
                 bj_ui += ll_func[ss](T_j)
 
+            print(f"Iter {k}: Rank {m} says original logll is {bi_ui}")
+            print(f"Iter {k}: Rank {m} says tempered logll is {bj_ui}")
+
+            """
             log_ri = bi_ui - bj_ui
 
             # Must get log_rj (log_ri from i+1) from other process
@@ -147,7 +154,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
                 log_rj = COMM.recv(source=i+1)
             elif m == i + 1:
                 COMM.send(log_ri, dest=i)
-            
+
             logratio = log_ri + log_rj
 
             accepted = None
@@ -178,7 +185,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
                 states[:, k] = COMM.recv(source=i)
 
                 COMM.send(ll_func, dest=i)
-                ll_func = COMM.recv(source=i)
+                ll_func = COMM.recv(source=i)"""
 
         #if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
         #    MS_list.print_status()
@@ -260,7 +267,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             with open(os.path.join(MCMC_fields["checkpoint_dirname"],
                                 load_checkpoint), 'rb') as ifstream:
                 MS_list : Ensemble = pickle.load(ifstream)
-                MS_list.ll_funcs = [None for _ in range(len(MS_list.unique_fields))]
                 MS_list.logger, MS_list.handler = start_logging(
                     log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
                 if "starting_iter" in MCMC_fields and MCMC_fields["starting_iter"] < MS_list.latest_iter:
