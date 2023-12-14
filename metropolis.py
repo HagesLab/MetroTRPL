@@ -86,7 +86,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
         # Calculate likelihood of initial guess
         _logll, ll_func = eval_trial_move(states[:, 0], unique_fields, shared_fields, logger)
         logll[0] = _logll
-
+        starting_iter += 1
     else:
         # Repeat most recent eval, to re-acquire non-pickleable ll_func
         _, ll_func = eval_trial_move(states[:, starting_iter - 1], unique_fields, shared_fields, logger)
@@ -187,13 +187,14 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     comm = MPI.COMM_WORLD   # Global communicator
     rank = comm.Get_rank()  # Process index
 
-    starting_iter = 1
+    starting_iter = 0
     global_states = None
     global_logll = None
     global_accept = None
     state_dims = None
     shared_fields = None
     unique_fields = None
+    RNG_state = None
     logger = None
     if rank == 0:
         if load_checkpoint is None:
@@ -209,7 +210,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             # Just so MS saves a record of these
             MS_list.ensemble_fields["_init_params"] = iniPar
             MS_list.ensemble_fields["_times"], MS_list.ensemble_fields["_vals"], MS_list.ensemble_fields["_uncs"] = e_data
-
+            MS_list.random_state = RNG.bit_generator.state
             for i, unc in enumerate(MS_list.ensemble_fields["_uncs"]):
                 MS_list.logger.info(f"{i} exp unc max: {np.amax(unc)} avg: {np.mean(unc)}")
 
@@ -228,7 +229,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             with open(os.path.join(MCMC_fields["checkpoint_dirname"],
                                 load_checkpoint), 'rb') as ifstream:
                 MS_list : Ensemble = pickle.load(ifstream)
-                np.random.set_state(MS_list.random_state)
                 MS_list.ll_funcs = [None for _ in range(len(MS_list.unique_fields))]
                 MS_list.logger, MS_list.handler = start_logging(
                     log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
@@ -237,7 +237,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                     MS_list.H.extend(starting_iter)
 
                 else:
-                    starting_iter = MS_list.latest_iter + 1
+                    starting_iter = MS_list.latest_iter
                     MS_list.H.extend(num_iters)
                     MS_list.ensemble_fields["num_iters"] = MCMC_fields["num_iters"]
 
@@ -248,6 +248,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
         shared_fields = MS_list.ensemble_fields
         unique_fields = MS_list.unique_fields
+        RNG_state = MS_list.random_state
         logger = MS_list.logger
         # From this point on, for consistency, work with ONLY the MetroState objects
         MS_list.logger.info(f"Sim info: {MS_list.ensemble_fields['_sim_info']}")
@@ -263,19 +264,21 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     comm.Scatter(global_states, local_states, root=0)
     local_logll = np.empty(state_dims[2], dtype=float)
     comm.Scatter(global_logll, local_logll, root=0)
-    local_accept = np.empty(state_dims[2], dtype=bool)
+    local_accept = np.empty(state_dims[2], dtype=int)
     comm.Scatter(global_accept, local_accept, root=0)
 
     unique_fields = comm.scatter(unique_fields, root=0)
 
+    RNG_state = comm.bcast(RNG_state, root=0)
+    RNG.bit_generator.state = RNG_state
     starting_iter = comm.bcast(starting_iter, root=0)
     shared_fields = comm.bcast(shared_fields, root=0)
     logger = comm.bcast(logger, root=0)  # Only rank 0 gets log messages
     need_initial_state = (load_checkpoint is None)
 
-    ending_iter = min(checkpoint_freq, num_iters)
+    ending_iter = min(starting_iter + checkpoint_freq, num_iters)
     while ending_iter <= num_iters:
-        print(f"Simulating from {starting_iter} to {ending_iter}")
+        logger.info(f"Simulating from {starting_iter} to {ending_iter}")
         local_states, local_logll, local_accept = main_metro_loop(
             rank, local_states, local_logll, local_accept,
             starting_iter, ending_iter, shared_fields, unique_fields,
@@ -283,10 +286,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         )
         if ending_iter == num_iters:
             break
-
-        need_initial_state = False
-        starting_iter = ending_iter
-        ending_iter = min(ending_iter + checkpoint_freq, num_iters)
 
         comm.Gather(local_states, global_states, root=0)
         comm.Gather(local_logll, global_logll, root=0)
@@ -296,26 +295,32 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             chpt_header = MS_list.ensemble_fields["checkpoint_header"]
             chpt_fname = os.path.join(MS_list.ensemble_fields["checkpoint_dirname"],
                                         f"{chpt_header}.pik")
+            MS_list.latest_iter = ending_iter
             MS_list.H.states = global_states
             MS_list.H.loglikelihood = global_logll
             MS_list.H.accept = global_accept
+            MS_list.random_state = RNG.bit_generator.state
             logger.info(f"Saving checkpoint at k={ending_iter}; fname {chpt_fname}")
-            MS_list.random_state = np.random.get_state()
             MS_list.checkpoint(chpt_fname)
+
+        need_initial_state = False
+        starting_iter = ending_iter
+        ending_iter = min(ending_iter + checkpoint_freq, num_iters)
+
 
     comm.Gather(local_states, global_states, root=0)
     comm.Gather(local_logll, global_logll, root=0)
     comm.Gather(local_accept, global_accept, root=0)
-    print(f"Rank {rank} took {perf_counter() - clock0} s")
+    logger.info(f"Rank {rank} took {perf_counter() - clock0} s")
 
     if rank == 0:
+        MS_list.latest_iter = ending_iter
         MS_list.H.states = global_states
         MS_list.H.loglikelihood = global_logll
         MS_list.H.accept = global_accept
-        MS_list.random_state = np.random.get_state()
-        if export_path is not None:
-            MS_list.logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
-            MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
+        MS_list.random_state = RNG.bit_generator.state
+        MS_list.logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
+        MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
 
     # if checkpoint_freq is not None and k % checkpoint_freq == 0:
     #     chpt_header = MS_list.ensemble_fields["checkpoint_header"]

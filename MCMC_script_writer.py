@@ -30,12 +30,13 @@ if __name__ == "__main__":
 
     else:
         init_dir = r"Inputs"
-        out_dir = r"bay_outputs"
+        out_dir = r"/share/Data/favorite MMC runs/Parallel_Tempering"
 
     # Filenames
     init_fname = "staub_MAPI_threepower_twothick_fluences.csv"
     exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
-    out_fname = f"PT_staubnn_8T_10swap_scaled_mpi"
+    out_fname = "PT_staubnn_8T_noswap_scaled_mpi"
+    #out_fname = "DEBUG"
 
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
@@ -139,19 +140,19 @@ if __name__ == "__main__":
     MCMC_fields = {"init_cond_path": os.path.join(init_dir, init_fname),
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
-                   "num_iters": 25,
+                   "num_iters": 10,
                    "solver": ("solveivp",),
                    "model": "std",
                    "likel2move_ratio": 333.33,
                    "log_y": 1,
                    "scale_factor": None,
                    "irf_convolution": None,
-                   "parallel_tempering": [1, 2, 4, 10, 16, 32],
-                   "temper_freq": 10,
+                   "parallel_tempering": [1, 2, 4, 10],#, 16, 32],
+                   "temper_freq": 99999999,
                    "hard_bounds": 1,
                    "force_min_y": 0,
-                   "checkpoint_freq": 2000,
-                   "load_checkpoint": None,
+                   "checkpoint_freq": 5,
+                   "load_checkpoint": "CPU0-final.pik",
                    }
 
     generate_config_script_file(script_path, simPar, param_info,
