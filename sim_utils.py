@@ -195,6 +195,7 @@ class Ensemble(EnsembleTemplate):
         self.unique_fields: list[dict] = []
         for i in range(self.ensemble_fields["_n_chains"]):
             self.unique_fields.append(dict(MCMC_fields))
+            self.unique_fields[-1]["_T"] = self.ensemble_fields["_T"][i]
             self.unique_fields[-1]["current_sigma"] = {
                 m: max(self.ensemble_fields["base_trial_move"])
                 * self.ensemble_fields["likel2move_ratio"][m]
