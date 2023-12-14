@@ -40,7 +40,7 @@ def almost_equal(x, x0, threshold=1e-10):
 
 def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_fields,
                     unique_fields, RNG,
-                    logger, need_initial_state=True, verbose=False):
+                    logger, need_initial_state=True):
     """
     Run the Metropolis loop for each chain in an Ensemble()
     over a specified number of iterations,
@@ -74,8 +74,6 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
         Whether we're starting from scratch, and thus need to calculate the
         likelihood of the initial state before moving around.
         The default is True.
-    verbose : bool, optional
-        Print more detailed status messages. The default is False.
 
     Returns
     -------
@@ -86,9 +84,12 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
     if need_initial_state:
         logger.info("Simulating initial state:")
         # Calculate likelihood of initial guess
-        _logll, ll_funcs = eval_trial_move(states[:, 0], unique_fields, shared_fields, logger)
+        _logll, ll_func = eval_trial_move(states[:, 0], unique_fields, shared_fields, logger)
         logll[0] = _logll
-        # MS_list.ll_funcs[m] = ll_funcs
+
+    else:
+        # Repeat most recent eval, to re-acquire non-pickleable ll_func
+        _, ll_func = eval_trial_move(states[:, starting_iter - 1], unique_fields, shared_fields, logger)
 
     for k in range(starting_iter, num_iters):
         # TODO: May need extra synchronization per iter
@@ -101,7 +102,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
                                     shared_fields,
                                     RNG, logger)
 
-        _logll, ll_funcs = eval_trial_move(new_state, unique_fields, shared_fields, logger)
+        _logll, new_ll_func = eval_trial_move(new_state, unique_fields, shared_fields, logger)
 
         logger.debug(f"Log likelihood of proposed move: {_logll}")
         logratio = (_logll - logll[k-1])
@@ -114,7 +115,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
             logll[k] = _logll
             states[:, k] = new_state
             accept[k] = 1
-            # MS_list.ll_funcs[m] = ll_funcs
+            ll_func = new_ll_func
         else:
             logll[k] = logll[k-1]
             states[:, k] = states[:, k-1]
@@ -278,7 +279,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         local_states, local_logll, local_accept = main_metro_loop(
             rank, local_states, local_logll, local_accept,
             starting_iter, ending_iter, shared_fields, unique_fields,
-            RNG, logger, need_initial_state=need_initial_state, verbose=verbose
+            RNG, logger, need_initial_state=need_initial_state
         )
         if ending_iter == num_iters:
             break
