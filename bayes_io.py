@@ -470,12 +470,9 @@ def read_config_script_file(path):
                                                                             delimiter='\t',
                                                                             dtype=float)
                     elif line.startswith("Parallel tempering"):
-                        if line_split[1] == "None":
-                            MCMC_fields["parallel_tempering"] = None
-                        else:
-                            MCMC_fields["parallel_tempering"] = extract_values(line_split[1],
-                                                                               delimiter='\t',
-                                                                               dtype=float)
+                        MCMC_fields["parallel_tempering"] = extract_values(line_split[1],
+                                                                           delimiter='\t',
+                                                                           dtype=float)
                     elif line.startswith("Tempering frequency"):
                         MCMC_fields["temper_freq"] = int(line_split[1])
                     elif line.startswith("Checkpoint dir"):
@@ -863,14 +860,11 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         if "parallel_tempering" in MCMC_fields:
             if verbose:
                 ofstream.write(
-                    "# None for no parallel tempering, or a list of values each corresponding\n"
+                    "# Remove from list for no parallel tempering, or a list of values each corresponding\n"
                     "# to the temperature of a chain that will be run as part of a parallel\n"
                     "# tempering ensemble.\n")
             pa = MCMC_fields["parallel_tempering"]
-            if pa is None:
-                ofstream.write(f"Parallel tempering: {pa}")
-            else:
-                ofstream.write("Parallel tempering: " + '\t'.join(map(str, pa)))
+            ofstream.write("Parallel tempering: " + '\t'.join(map(str, pa)))
             ofstream.write('\n')
 
         if "temper_freq" in MCMC_fields:

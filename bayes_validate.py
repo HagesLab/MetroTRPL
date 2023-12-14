@@ -412,7 +412,7 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
             pass
         else:
             raise ValueError("hard_bounds invalid - must be 0 or 1")
-        
+
     if "force_min_y" in MCMC_fields:
         fy = MCMC_fields["force_min_y"]
         if (isinstance(fy, (int, np.integer)) and
@@ -432,19 +432,17 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("MCMC control 'irf_convolution' must be None, or a list with "
                              "one positive wavelength value per measurement")
-        
+
     if "parallel_tempering" in MCMC_fields:
         pa = MCMC_fields["parallel_tempering"]
-        if pa is None:
-            pass
-        elif (isinstance(pa, (list, np.ndarray)) and
+        if (isinstance(pa, (list, np.ndarray)) and
               len(pa) > 0 and
                 all(map(lambda x: x > 0, pa))):
             pass
         else:
-            raise ValueError("MCMC control 'parallel_tempering' must be None, or a list with "
+            raise ValueError("MCMC control 'parallel_tempering' must be a list with "
                              "at least one positive temperature value")
-        
+
     if "temper_freq" in MCMC_fields:
         tf = MCMC_fields["temper_freq"]
         if isinstance(tf, (int, np.integer)) and tf > 0:
