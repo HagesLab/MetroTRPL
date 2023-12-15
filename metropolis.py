@@ -94,7 +94,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
 
     for k in range(starting_iter, num_iters):
         if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-            logger.info(f"Iter {k} MetroState #{m} Current state: {states[:, k-1]} logll {logll[k]}")
+            logger.info(f"Iter {k} MetroState #{m} Current state: {states[:, k-1]} logll {logll[k-1]}")
 
         # Trial displacement move
         new_state = make_trial_move(states[:, k-1],
@@ -202,8 +202,6 @@ def all_signal_handler(func):
 
 def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
           verbose=False, export_path="", **kwargs):
-    logger_name = kwargs.get("logger_name", "Ensemble0")
-
     clock0 = perf_counter()
 
     # Setup
@@ -217,6 +215,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     checkpoint_freq = MCMC_fields.get("checkpoint_freq", num_iters)
     RNG = np.random.default_rng(235817049752375780)
     rank = COMM.Get_rank()  # Process index
+    logger_name = kwargs.get("logger_name", "Ensemble0")
+    logger_name += f"-rank{rank}-"
 
     starting_iter = 0
     global_states = None
@@ -226,11 +226,10 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     shared_fields = None
     unique_fields = None
     RNG_state = None
-    logger = None
-    handler = None
+    logger, handler = start_logging(
+        log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
+
     if rank == 0:
-        logger, handler = start_logging(
-            log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
         if load_checkpoint is None:
             MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, verbose)
             MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
@@ -304,8 +303,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     RNG.bit_generator.state = RNG_state
     starting_iter = COMM.bcast(starting_iter, root=0)
     shared_fields = COMM.bcast(shared_fields, root=0)
-    logger = COMM.bcast(logger, root=0)  # Only rank 0 gets log messages
-    handler = COMM.bcast(handler, root=0)
     need_initial_state = (load_checkpoint is None)
 
     ending_iter = min(starting_iter + checkpoint_freq, num_iters)
