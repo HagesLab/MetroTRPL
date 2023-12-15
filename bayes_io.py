@@ -245,7 +245,7 @@ def remap_constraint_grps(c_grps : list[tuple], select_obs_sets : np.ndarray) ->
         new_c_grp = []
         for val in grp:
             if val in select_obs_sets:
-                new_c_grp.append(select_obs_sets.index(val))
+                new_c_grp.append(np.where(select_obs_sets == val)[0][0])
 
         if len(new_c_grp) > 1:
             new_c_grps.append(tuple(new_c_grp))
