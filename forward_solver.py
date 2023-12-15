@@ -12,7 +12,7 @@ try:
     from nn_features import NeuralNetwork
     HAS_NN_LIB = True
     nn = NeuralNetwork()
-except ImportError:
+except (ImportError, AttributeError):
     HAS_NN_LIB = False
 
 DEFAULT_RTOL = 1e-7
