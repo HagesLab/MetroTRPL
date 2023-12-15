@@ -5,12 +5,10 @@ Created on Thu Jan 13 13:04:20 2022
 @author: cfai2
 """
 from sys import float_info
+from typing import Mapping, Any
 import pickle
-import logging
 
 import numpy as np
-
-from mcmc_logging import start_logging, stop_logging
 
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
@@ -82,10 +80,8 @@ class EnsembleTemplate:
     ensemble_fields: dict  # Monte Carlo settings and data shared across all chains
     unique_fields: list[dict]  # List of settings unique to each chain
     H: History  # List of visited states
-    random_state: dict  # State of the random number generator
+    random_state: Mapping[str, Any]  # State of the random number generator
     latest_iter: int  # Latest iteration # reached by chains
-    logger: logging.Logger  # A standard logging.logger instance
-    handler: logging.FileHandler  # A standard FileHandler instance
 
     def __init__(self):
         return
@@ -95,19 +91,7 @@ class EnsembleTemplate:
         self.H.update(self.ensemble_fields["names"])
 
         with open(fname, "wb+") as ofstream:
-            # TODO: This might break checkpoints
-            handler = self.handler  # FileHandlers aren't pickleable
-            self.handler = None
             pickle.dump(self, ofstream)
-            self.handler = handler
-
-    def print_status(self):
-        k = self.latest_iter
-        self.logger.info(f"Current loglikelihoods : {self.H.loglikelihood[:, k]}")
-        for m in range(len(self.unique_fields)):
-            self.logger.info(f"Chain {m}:")
-            self.logger.info(f"Current state: {self.H.states[m, :, k]}"
-            )
 
 class Ensemble(EnsembleTemplate):
     """
@@ -115,10 +99,8 @@ class Ensemble(EnsembleTemplate):
 
     """
 
-    def __init__(self, param_info, sim_info, MCMC_fields, num_iters, logger_name, verbose=False):
+    def __init__(self, param_info, sim_info, MCMC_fields, num_iters, verbose=False):
         super().__init__()
-        self.logger, self.handler = start_logging(
-            log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
         # Transfer shared fields from chains to ensemble
         self.ensemble_fields = {}
         # Essential fields with no defaults
@@ -206,10 +188,6 @@ class Ensemble(EnsembleTemplate):
 
         self.ensemble_fields["_sim_info"] = sim_info
         self.latest_iter = 0
-
-    def stop_logging(self, err_code):
-        stop_logging(self.logger, self.handler, err_code)
-
 
 class MetroState:
     """

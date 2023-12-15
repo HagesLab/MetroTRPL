@@ -13,7 +13,7 @@ import numpy as np
 from mpi4py import MPI
 COMM = MPI.COMM_WORLD   # Global communicator
 
-from mcmc_logging import start_logging
+from mcmc_logging import start_logging, stop_logging
 from sim_utils import Ensemble
 from trial_move_evaluation import eval_trial_move
 from trial_move_generation import make_trial_move
@@ -94,7 +94,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
 
     for k in range(starting_iter, num_iters):
         if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-            logger.info(f"Iter {k} MetroState #{m}")
+            logger.info(f"Iter {k} MetroState #{m} Current state: {states[:, k-1]} logll {logll[k]}")
 
         # Trial displacement move
         new_state = make_trial_move(states[:, k-1],
@@ -227,23 +227,26 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     unique_fields = None
     RNG_state = None
     logger = None
+    handler = None
     if rank == 0:
+        logger, handler = start_logging(
+            log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
         if load_checkpoint is None:
-            MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, logger_name, verbose)
+            MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, verbose)
             MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
             if MS_list.ensemble_fields.get("checkpoint_header", None) is None:
                 MS_list.ensemble_fields["checkpoint_header"] = export_path[:export_path.find(".pik")]
 
             e_string = [f"[{e_data[1][i][0]}...{e_data[1][i][-1]}]" for i in range(len(e_data[1]))]
-            MS_list.logger.info(f"E data: {e_string}")
+            logger.info(f"E data: {e_string}")
             i_string = [f"[{iniPar[i][0]}...{iniPar[i][-1]}]" for i in range(len(iniPar))]
-            MS_list.logger.info(f"Initial condition: {i_string}")
+            logger.info(f"Initial condition: {i_string}")
             # Just so MS saves a record of these
             MS_list.ensemble_fields["_init_params"] = iniPar
             MS_list.ensemble_fields["_times"], MS_list.ensemble_fields["_vals"], MS_list.ensemble_fields["_uncs"] = e_data
             MS_list.random_state = RNG.bit_generator.state
             for i, unc in enumerate(MS_list.ensemble_fields["_uncs"]):
-                MS_list.logger.info(f"{i} exp unc max: {np.amax(unc)} avg: {np.mean(unc)}")
+                logger.info(f"{i} exp unc max: {np.amax(unc)} avg: {np.mean(unc)}")
 
             if MS_list.ensemble_fields.get("irf_convolution", None) is not None:
                 irfs = {}
@@ -260,8 +263,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             with open(os.path.join(MCMC_fields["checkpoint_dirname"],
                                 load_checkpoint), 'rb') as ifstream:
                 MS_list : Ensemble = pickle.load(ifstream)
-                MS_list.logger, MS_list.handler = start_logging(
-                    log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
                 if "starting_iter" in MCMC_fields and MCMC_fields["starting_iter"] < MS_list.latest_iter:
                     starting_iter = MCMC_fields["starting_iter"]
                     MS_list.H.extend(starting_iter)
@@ -279,13 +280,13 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         shared_fields = MS_list.ensemble_fields
         unique_fields = MS_list.unique_fields
         RNG_state = MS_list.random_state
-        logger = MS_list.logger
+
         # From this point on, for consistency, work with ONLY the MetroState objects
-        MS_list.logger.info(f"Sim info: {MS_list.ensemble_fields['_sim_info']}")
-        MS_list.logger.info(f"Ensemble fields: {MS_list.ensemble_fields}")
+        logger.info(f"Sim info: {MS_list.ensemble_fields['_sim_info']}")
+        logger.info(f"Ensemble fields: {MS_list.ensemble_fields}")
         for i, MS in enumerate(MS_list.unique_fields):
-            MS_list.logger.info(f"Metrostate #{i}:")
-            MS_list.logger.info(f"MCMC fields: {MS}")
+            logger.info(f"Metrostate #{i}:")
+            logger.info(f"MCMC fields: {MS}")
     else:
         MS_list = None
 
@@ -304,6 +305,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     starting_iter = COMM.bcast(starting_iter, root=0)
     shared_fields = COMM.bcast(shared_fields, root=0)
     logger = COMM.bcast(logger, root=0)  # Only rank 0 gets log messages
+    handler = COMM.bcast(handler, root=0)
     need_initial_state = (load_checkpoint is None)
 
     ending_iter = min(starting_iter + checkpoint_freq, num_iters)
@@ -349,16 +351,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         MS_list.H.loglikelihood = global_logll
         MS_list.H.accept = global_accept
         MS_list.random_state = RNG.bit_generator.state
-        MS_list.logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
+        logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
         MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
-
-    # if checkpoint_freq is not None and k % checkpoint_freq == 0:
-    #     chpt_header = MS_list.ensemble_fields["checkpoint_header"]
-    #     chpt_fname = os.path.join(MS_list.ensemble_fields["checkpoint_dirname"],
-    #                                 f"{chpt_header}.pik")
-    #     logger.info(f"Saving checkpoint at k={k}; fname {chpt_fname}")
-    #     MS_list.random_state = np.random.get_state()
-    #     MS_list.checkpoint(chpt_fname)
 
     # Successful completion - remove all non-final checkpoints
     # chpt_header = MS_list.ensemble_fields["checkpoint_header"]
@@ -371,11 +365,11 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     #     os.rmdir(MS_list.ensemble_fields["checkpoint_dirname"])
 
     # final_t = perf_counter() - clock0
-    # MS_list.logger.info(f"Metro took {final_t} s ({final_t / 3600} hr)")
-    # MS_list.logger.info(f"Avg: {final_t / MS_list.ensemble_fields['num_iters']} s per iter")
+    # logger.info(f"Metro took {final_t} s ({final_t / 3600} hr)")
+    # logger.info(f"Avg: {final_t / MS_list.ensemble_fields['num_iters']} s per iter")
     # for i, MS in enumerate(MS_list.MS):
-    #     MS_list.logger.info(f"Metrostate #{i}:")
-    #     MS_list.logger.info(f"Acceptance rate: {np.sum(MS_list.H.accept[i]) / len(MS_list.H.accept[i].flatten())}")
+    #     logger.info(f"Metrostate #{i}:")
+    #     logger.info(f"Acceptance rate: {np.sum(MS_list.H.accept[i]) / len(MS_list.H.accept[i].flatten())}")
 
-    # MS_list.stop_logging(0)
+    stop_logging(logger, handler, 0)
     # return MS_list
