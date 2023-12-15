@@ -245,9 +245,9 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             for i, unc in enumerate(MS_list.ensemble_fields["_uncs"]):
                 MS_list.logger.info(f"{i} exp unc max: {np.amax(unc)} avg: {np.mean(unc)}")
 
-            if MCMC_fields.get("irf_convolution", None) is not None:
+            if MS_list.ensemble_fields.get("irf_convolution", None) is not None:
                 irfs = {}
-                for i in MCMC_fields["irf_convolution"]:
+                for i in MS_list.ensemble_fields["irf_convolution"]:
                     if i > 0 and i not in irfs:
                         irfs[int(i)] = np.loadtxt(os.path.join("IRFs", f"irf_{int(i)}nm.csv"),
                                                 delimiter=",")
