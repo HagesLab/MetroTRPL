@@ -38,11 +38,11 @@ class History:
             setattr(self, f"mean_{param}", self.states[:, i])
         return
 
-    def pack(self, names, num_iters):
-        """Compatibility - turn individual attributes into self.states"""
-        self.states = np.zeros((len(names), num_iters))
-        for k, param in enumerate(names):
-            self.states[k] = getattr(self, f"mean_{param}")
+    def pack(self, states, logll, accept):
+        """Update self with global data from main metro loops"""
+        self.states = states
+        self.loglikelihood = logll
+        self.accept = accept
 
     def truncate(self, k):
         """Cut off any incomplete iterations should the walk be terminated early"""

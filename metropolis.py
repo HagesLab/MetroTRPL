@@ -404,9 +404,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                 chpt_fname = os.path.join(MS_list.ensemble_fields["checkpoint_dirname"],
                                             f"{chpt_header}.pik")
                 MS_list.latest_iter = ending_iter
-                MS_list.H.states = global_states
-                MS_list.H.loglikelihood = global_logll
-                MS_list.H.accept = global_accept
+                MS_list.H.pack(global_states, global_logll, global_accept)
                 MS_list.random_state = RNG.bit_generator.state
                 logger.info(f"Saving checkpoint at k={ending_iter}; fname {chpt_fname}")
                 MS_list.checkpoint(chpt_fname)
@@ -452,9 +450,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                 chpt_fname = os.path.join(MS_list.ensemble_fields["checkpoint_dirname"],
                                             f"{chpt_header}.pik")
                 MS_list.latest_iter = ending_iter
-                MS_list.H.states = global_states
-                MS_list.H.loglikelihood = global_logll
-                MS_list.H.accept = global_accept
+                MS_list.H.pack(global_states, global_logll, global_accept)
                 MS_list.random_state = RNG.bit_generator.state
                 logger.info(f"Saving checkpoint at k={ending_iter}; fname {chpt_fname}")
                 MS_list.checkpoint(chpt_fname)
@@ -471,9 +467,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
     if rank == 0:
         MS_list.latest_iter = ending_iter
-        MS_list.H.states = global_states
-        MS_list.H.loglikelihood = global_logll
-        MS_list.H.accept = global_accept
+        MS_list.H.pack(global_states, global_logll, global_accept)
         MS_list.random_state = RNG.bit_generator.state
         logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
         MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
