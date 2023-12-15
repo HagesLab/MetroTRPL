@@ -746,6 +746,9 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                     break
             ofstream.write("\n")
 
+        if "likel2variance_ratio" in MCMC_fields:
+            raise KeyError("Outdated key likel2variance_ratio - please replace with likel2move_ratio")
+
         if verbose:
             ofstream.write("# Compare log of measurements and simulations for "
                            "purpose of likelihood evaluation. Recommended to be 1 or True. \n")
