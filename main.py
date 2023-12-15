@@ -42,6 +42,8 @@ if __name__ == "__main__":
                       meas_fields, MCMC_fields)
 
     metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False,
-          export_path=export_path, logger_name=logger_name)
+          export_path=export_path, logger_name=logger_name,
+          # serial_fallback=True,
+          )
 
     print(f"{jobid} Finished - {export_path}")

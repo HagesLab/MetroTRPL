@@ -4,7 +4,7 @@ import logging
 import os
 import pickle
 
-from metropolis import main_metro_loop
+from metropolis import main_metro_loop_serial
 from sim_utils import Ensemble
 from bayes_io import make_dir
 
@@ -94,13 +94,12 @@ class TestUtils(unittest.TestCase):
                       "init_guess": initial_guesses,
                       "trial_move": trial_move}
 
-        starting_iter = 1
-        num_iters = 10
+        self.num_iters = 10
 
         MCMC_fields = {"init_cond_path": None,
                        "measurement_path": None,
                        "output_path": "test-out",
-                       "num_iters": num_iters,
+                       "num_iters": self.num_iters,
                        "solver": ("solveivp",),
                        "model": "std",
                        "likel2move_ratio": {"TRPL": 500},
@@ -114,7 +113,7 @@ class TestUtils(unittest.TestCase):
                        "load_checkpoint": None,
                        }
 
-        self.MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, logger_name="Test0")
+        self.MS_list = Ensemble(param_info, sim_info, MCMC_fields, self.num_iters)
         self.ensemble_from_chpt = None
 
         # Dummy initial condition and measurement data
@@ -126,30 +125,83 @@ class TestUtils(unittest.TestCase):
 
         make_dir(self.MS_list.ensemble_fields["checkpoint_dirname"])
 
-        main_metro_loop(self.MS_list, starting_iter, num_iters,
-                        need_initial_state=True,
-                        verbose=False)
+        global_states = self.MS_list.H.states
+        global_logll = self.MS_list.H.loglikelihood
+        global_accept = self.MS_list.H.accept
+        shared_fields = self.MS_list.ensemble_fields
+        unique_fields = self.MS_list.unique_fields
+        self.RNG = np.random.default_rng(763940682935)
+        RNG_state = self.RNG.bit_generator.state
+        starting_iter = 0
+
+        self.RNG.bit_generator.state = RNG_state
+        ending_iter = min(starting_iter + self.MS_list.ensemble_fields["checkpoint_freq"], self.num_iters)
+        need_initial_state = True
+        while ending_iter <= self.num_iters:
+            global_states, global_logll, global_accept = main_metro_loop_serial(
+                global_states, global_logll, global_accept,
+                starting_iter, ending_iter, shared_fields, unique_fields,
+                self.RNG, self.logger, need_initial_state=need_initial_state
+            )
+            if ending_iter == self.num_iters:
+                break
+
+            chpt_header = self.MS_list.ensemble_fields["checkpoint_header"]
+            chpt_fname = os.path.join(self.MS_list.ensemble_fields["checkpoint_dirname"],
+                                        f"{chpt_header}.pik")
+            self.MS_list.latest_iter = ending_iter
+            self.MS_list.H.states = global_states
+            self.MS_list.H.loglikelihood = global_logll
+            self.MS_list.H.accept = global_accept
+            self.MS_list.random_state = self.RNG.bit_generator.state
+            self.MS_list.checkpoint(chpt_fname)
+
+            need_initial_state = False
+            starting_iter = ending_iter
+            ending_iter = min(ending_iter + self.MS_list.ensemble_fields["checkpoint_freq"], self.num_iters)
         return
 
     def test_checkpoint(self):
         with open(os.path.join(os.path.join(".", "test-Checkpoints"),
                                "checkpoint.pik"), 'rb') as ifstream:
             self.ensemble_from_chpt = pickle.load(ifstream)
-            self.ensemble_from_chpt.ll_funcs = [None for _ in range(len(self.ensemble_from_chpt.unique_fields))]
-            np.random.set_state(self.ensemble_from_chpt.random_state)
-            starting_iter = 5 + 1
+            self.RNG.bit_generator.state = self.ensemble_from_chpt.random_state
+            starting_iter = self.ensemble_from_chpt.latest_iter
 
-        main_metro_loop(self.ensemble_from_chpt, starting_iter, 10,
-                        need_initial_state=False,
-                        verbose=False)
-        self.ensemble_from_chpt.stop_logging(0)
+        global_states = self.ensemble_from_chpt.H.states
+        global_logll = self.ensemble_from_chpt.H.loglikelihood
+        global_accept = self.ensemble_from_chpt.H.accept
+        shared_fields = self.ensemble_from_chpt.ensemble_fields
+        unique_fields = self.ensemble_from_chpt.unique_fields
+        need_initial_state = False
+        ending_iter = min(starting_iter + self.ensemble_from_chpt.ensemble_fields["checkpoint_freq"], self.num_iters)
+
+        while ending_iter <= self.num_iters:
+            global_states, global_logll, global_accept = main_metro_loop_serial(
+                global_states, global_logll, global_accept,
+                starting_iter, ending_iter, shared_fields, unique_fields,
+                self.RNG, self.logger, need_initial_state=need_initial_state
+            )
+            if ending_iter == self.num_iters:
+                break
+
+            chpt_header = self.ensemble_from_chpt.ensemble_fields["checkpoint_header"]
+            chpt_fname = os.path.join(self.ensemble_from_chpt.ensemble_fields["checkpoint_dirname"],
+                                        f"{chpt_header}.pik")
+            self.ensemble_from_chpt.latest_iter = ending_iter
+            self.ensemble_from_chpt.H.states = global_states
+            self.ensemble_from_chpt.H.loglikelihood = global_logll
+            self.ensemble_from_chpt.H.accept = global_accept
+            self.ensemble_from_chpt.random_state = self.RNG.bit_generator.state
+            self.ensemble_from_chpt.checkpoint(chpt_fname)
+
+            need_initial_state = False
+            starting_iter = ending_iter
+            ending_iter = min(ending_iter + self.ensemble_from_chpt.ensemble_fields["checkpoint_freq"], self.num_iters)
         # Successful completion - checkpoints not needed anymore
         for chpt in os.listdir(os.path.join(".", "test-Checkpoints")):
             os.remove(os.path.join(os.path.join(".", "test-Checkpoints"), chpt))
         os.rmdir(os.path.join(".", "test-Checkpoints"))
-        for log in os.listdir(os.path.join(".", "test-out")):
-            os.remove(os.path.join(os.path.join(".", "test-out"), log))
-        os.rmdir(os.path.join(".", "test-out"))
 
         # self.MS ran continuously from start to k=10 iterations;
         # self.MS_from_chpt ran from checkpoint at k=5 to k=10.
