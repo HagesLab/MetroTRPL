@@ -639,6 +639,9 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             ofstream.write(f"\t{trial_move.get(name, 0)}")
         ofstream.write('\n')
 
+        if "init_variance" in param_info:
+            raise KeyError("Outdated key init_variance - please replace with trial_move")
+
         if "do_mu_constraint" in param_info:
             if verbose:
                 ofstream.write("# Restrict mu_n and mu_p within a small range of ambipolar mobility. "
@@ -748,6 +751,9 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                            "purpose of likelihood evaluation. Recommended to be 1 or True. \n")
         logpl = MCMC_fields["log_y"]
         ofstream.write(f"Use log of measurements: {logpl}\n")
+
+        if "log_pl" in MCMC_fields:
+            raise KeyError("Outdated key log_pl - please replace with log_y")
 
         if "self_normalize" in MCMC_fields:
             print("Script writer warning: self_normalize is deprecated and will have no effect.")
