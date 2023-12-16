@@ -37,7 +37,7 @@ def roll_acceptance(rng : np.random.Generator, logratio):
         return rng.random(len(logratio)) < np.exp(logratio)
     else:
         return rng.random() < np.exp(logratio)
-    
+
 
 def trial_displacement_move(k, states, logll, accept, unique_fields, shared_fields, RNG, logger):
     new_state = make_trial_move(states[:, k-1],
@@ -46,7 +46,7 @@ def trial_displacement_move(k, states, logll, accept, unique_fields, shared_fiel
                             RNG, logger)
     _logll, new_ll_func = eval_trial_move(new_state, unique_fields, shared_fields, logger)
 
-    logratio = (_logll - logll[k-1])
+    logratio = _logll - logll[k-1]
     if np.isnan(logratio):
         logratio = -np.inf
 
@@ -61,6 +61,32 @@ def trial_displacement_move(k, states, logll, accept, unique_fields, shared_fiel
         logll[k] = logll[k-1]
         states[:, k] = states[:, k-1]
         return None
+
+
+def swap_move_serial(k, i, states, logll, ll_funcs, unique_fields, shared_fields, RNG, logger):
+    # Select a pair (the ith and (i+1)th) of chains
+    # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
+    T_j = shared_fields["_T"][i+1]
+    T_i = shared_fields["_T"][i]
+
+    bi_ui, bj_ui, bi_uj, bj_uj = 0, 0, 0, 0
+    for ss in range(shared_fields["_sim_info"]["num_meas"]):
+        bi_ui += ll_funcs[i][ss](T_i)
+        bj_ui += ll_funcs[i][ss](T_j)
+        bi_uj += ll_funcs[i+1][ss](T_i)
+        bj_uj += ll_funcs[i+1][ss](T_j)
+
+    logratio = bi_ui + bj_uj - bi_uj - bj_ui
+
+    accepted = roll_acceptance(RNG, -logratio)
+
+    if accepted:
+        logll[i, k] = bi_uj
+        logll[i+1, k] = bj_ui
+        states[i, :, k], states[i+1, :, k] = states[i+1, :, k], states[i, :, k]
+        _, ll_funcs[i+1] = eval_trial_move(states[i+1, :, k], unique_fields[i+1], shared_fields, logger)
+        _, ll_funcs[i] = eval_trial_move(states[i, :, k], unique_fields[i], shared_fields, logger)
+
 
 def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shared_fields,
                            unique_fields, RNG,
@@ -97,31 +123,8 @@ def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shar
 
         if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
             for _ in range(n_chains - 1):
-                # Select a pair (the ith and (i+1)th) of chains
                 i = RNG.integers(0, n_chains-1)
-                # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
-                if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                    logger.debug(f"Tempering - swapping chains {i} and {i+1}")
-                T_j = shared_fields["_T"][i+1]
-                T_i = shared_fields["_T"][i]
-
-                bi_ui, bj_ui, bi_uj, bj_uj = 0, 0, 0, 0
-                for ss in range(shared_fields["_sim_info"]["num_meas"]):
-                    bi_ui += ll_funcs[i][ss](T_i)
-                    bj_ui += ll_funcs[i][ss](T_j)
-                    bi_uj += ll_funcs[i+1][ss](T_i)
-                    bj_uj += ll_funcs[i+1][ss](T_j)
-
-                logratio = bi_ui + bj_uj - bi_uj - bj_ui
-
-                accepted = roll_acceptance(RNG, -logratio)
-
-                if accepted:
-                    logll[i, k] = bi_uj
-                    logll[i+1, k] = bj_ui
-                    states[i, :, k], states[i+1, :, k] = states[i+1, :, k], states[i, :, k]
-                    _, ll_funcs[i+1] = eval_trial_move(states[i+1, :, k], unique_fields[i+1], shared_fields, logger)
-                    _, ll_funcs[i] = eval_trial_move(states[i, :, k], unique_fields[i], shared_fields, logger)
+                swap_move_serial(k, i, states, logll, ll_funcs, unique_fields, shared_fields, RNG, logger)
 
     return states, logll, accept
 
@@ -198,9 +201,6 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
                 i = COMM.bcast(i, root=0)
 
                 # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
-                if k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-                    logger.debug(f"Tempering - swapping chains {i} and {i+1}")
-
                 T_j = shared_fields["_T"][i+1]
                 T_i = shared_fields["_T"][i]
 
