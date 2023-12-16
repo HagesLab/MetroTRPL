@@ -299,7 +299,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     serial_fallback = kwargs.get("serial_fallback", False)
     all_signal_handler(kill_from_cl)
 
-    make_dir(MCMC_fields["checkpoint_dirname"])
     make_dir(MCMC_fields["output_path"])
 
     load_checkpoint = MCMC_fields["load_checkpoint"]
@@ -328,8 +327,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         if load_checkpoint is None:
             MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, verbose)
             MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
-            if MS_list.ensemble_fields.get("checkpoint_header", None) is None:
-                MS_list.ensemble_fields["checkpoint_header"] = export_path[:export_path.find(".pik")]
 
             e_string = [f"[{e_data[1][i][0]}...{e_data[1][i][-1]}]" for i in range(len(e_data[1]))]
             logger.info(f"E data: {e_string}")
@@ -354,7 +351,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                 MS_list.ensemble_fields["_IRF_tables"] = {}
 
         else:
-            with open(os.path.join(MCMC_fields["checkpoint_dirname"],
+            with open(os.path.join(MCMC_fields["output_path"],
                                 load_checkpoint), 'rb') as ifstream:
                 MS_list : Ensemble = pickle.load(ifstream)
                 if "starting_iter" in MCMC_fields and MCMC_fields["starting_iter"] < MS_list.latest_iter:
@@ -400,14 +397,11 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                 if ending_iter == num_iters:
                     break
 
-                chpt_header = MS_list.ensemble_fields["checkpoint_header"]
-                chpt_fname = os.path.join(MS_list.ensemble_fields["checkpoint_dirname"],
-                                            f"{chpt_header}.pik")
                 MS_list.latest_iter = ending_iter
                 MS_list.H.pack(global_states, global_logll, global_accept)
                 MS_list.random_state = RNG.bit_generator.state
-                logger.info(f"Saving checkpoint at k={ending_iter}; fname {chpt_fname}")
-                MS_list.checkpoint(chpt_fname)
+                logger.info(f"Saving checkpoint at k={ending_iter}")
+                MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
 
                 need_initial_state = False
                 starting_iter = ending_iter
@@ -446,14 +440,11 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             COMM.Gather(local_accept, global_accept, root=0)
 
             if rank == 0:
-                chpt_header = MS_list.ensemble_fields["checkpoint_header"]
-                chpt_fname = os.path.join(MS_list.ensemble_fields["checkpoint_dirname"],
-                                            f"{chpt_header}.pik")
                 MS_list.latest_iter = ending_iter
                 MS_list.H.pack(global_states, global_logll, global_accept)
                 MS_list.random_state = RNG.bit_generator.state
-                logger.info(f"Saving checkpoint at k={ending_iter}; fname {chpt_fname}")
-                MS_list.checkpoint(chpt_fname)
+                logger.info(f"Saving checkpoint at k={ending_iter}")
+                MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
 
             need_initial_state = False
             starting_iter = ending_iter
@@ -471,16 +462,6 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         MS_list.random_state = RNG.bit_generator.state
         logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
         MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
-
-    # Successful completion - remove all non-final checkpoints
-    # chpt_header = MS_list.ensemble_fields["checkpoint_header"]
-    # for chpt in os.listdir(MS_list.ensemble_fields["checkpoint_dirname"]):
-    #     if (chpt.startswith(chpt_header)
-    #         and not chpt.endswith("final.pik")
-    #         and not chpt.endswith(".log")):
-    #         os.remove(os.path.join(MS_list.ensemble_fields["checkpoint_dirname"], chpt))
-    # if len(os.listdir(MS_list.ensemble_fields["checkpoint_dirname"])) == 0:
-    #     os.rmdir(MS_list.ensemble_fields["checkpoint_dirname"])
 
     # final_t = perf_counter() - clock0
     # logger.info(f"Metro took {final_t} s ({final_t / 3600} hr)")

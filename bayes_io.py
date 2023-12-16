@@ -475,11 +475,6 @@ def read_config_script_file(path):
                                                                            dtype=float)
                     elif line.startswith("Tempering frequency"):
                         MCMC_fields["temper_freq"] = int(line_split[1])
-                    elif line.startswith("Checkpoint dir"):
-                        MCMC_fields["checkpoint_dirname"] = os.path.join(
-                            line_split[1])
-                    elif line.startswith("Checkpoint fileheader"):
-                        MCMC_fields["checkpoint_header"] = line_split[1]
                     elif line.startswith("Checkpoint freq"):
                         MCMC_fields["checkpoint_freq"] = int(line_split[1])
                     elif line.startswith("Load checkpoint"):
@@ -885,16 +880,11 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             tf = MCMC_fields["temper_freq"]
             ofstream.write(f"Tempering frequency: {tf}\n")
 
-        if verbose:
-            ofstream.write("# Directory checkpoint files stored in.\n")
-        chpt_d = MCMC_fields.get("checkpoint_dirname", MCMC_fields["output_path"])
-        ofstream.write(f"Checkpoint dir: {chpt_d}\n")
+        if "checkpoint_dirname" in MCMC_fields:
+            print("Script generator warning: setting \"checkpoint_dirname\" is deprecated and will have no effect.")
 
         if "checkpoint_header" in MCMC_fields:
-            if verbose:
-                ofstream.write("# A name for each checkpoint file.\n")
-            chpt_h = MCMC_fields["checkpoint_header"]
-            ofstream.write(f"Checkpoint fileheader: {chpt_h}\n")
+            print("Script generator warning: setting \"checkpoint_header\" is deprecated and will have no effect.")
 
         if verbose:
             ofstream.write("# Checkpoint saved every 'this many' samples.\n")

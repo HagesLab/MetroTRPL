@@ -105,14 +105,12 @@ class TestUtils(unittest.TestCase):
                        "likel2move_ratio": {"TRPL": 500},
                        "log_y": 1,
                        "hard_bounds": 1,
-                       "checkpoint_dirname": os.path.join(".",
-                                                          "test-Checkpoints"),
-                       "checkpoint_header": "checkpoint",
                        "checkpoint_freq": 5,
                        # f"checkpointCPU{jobid}_30000.pik",
                        "load_checkpoint": None,
                        }
 
+        self.export_path = "CPU0-test.pik"
         self.MS_list = Ensemble(param_info, sim_info, MCMC_fields, self.num_iters)
         self.ensemble_from_chpt = None
 
@@ -123,7 +121,7 @@ class TestUtils(unittest.TestCase):
         self.MS_list.ensemble_fields["_uncs"] = [np.ones(len(self.MS_list.ensemble_fields["_times"][0])) * 0.04]
         self.MS_list.ensemble_fields["_IRF_tables"] = {}
 
-        make_dir(self.MS_list.ensemble_fields["checkpoint_dirname"])
+        make_dir(self.MS_list.ensemble_fields["output_path"])
 
         global_states = self.MS_list.H.states
         global_logll = self.MS_list.H.loglikelihood
@@ -146,15 +144,12 @@ class TestUtils(unittest.TestCase):
             if ending_iter == self.num_iters:
                 break
 
-            chpt_header = self.MS_list.ensemble_fields["checkpoint_header"]
-            chpt_fname = os.path.join(self.MS_list.ensemble_fields["checkpoint_dirname"],
-                                        f"{chpt_header}.pik")
             self.MS_list.latest_iter = ending_iter
             self.MS_list.H.states = global_states
             self.MS_list.H.loglikelihood = global_logll
             self.MS_list.H.accept = global_accept
             self.MS_list.random_state = self.RNG.bit_generator.state
-            self.MS_list.checkpoint(chpt_fname)
+            self.MS_list.checkpoint(os.path.join(self.MS_list.ensemble_fields["output_path"], self.export_path))
 
             need_initial_state = False
             starting_iter = ending_iter
@@ -162,8 +157,8 @@ class TestUtils(unittest.TestCase):
         return
 
     def test_checkpoint(self):
-        with open(os.path.join(os.path.join(".", "test-Checkpoints"),
-                               "checkpoint.pik"), 'rb') as ifstream:
+        with open(os.path.join(self.MS_list.ensemble_fields["output_path"],
+                               self.export_path), 'rb') as ifstream:
             self.ensemble_from_chpt = pickle.load(ifstream)
             self.RNG.bit_generator.state = self.ensemble_from_chpt.random_state
             starting_iter = self.ensemble_from_chpt.latest_iter
@@ -185,23 +180,20 @@ class TestUtils(unittest.TestCase):
             if ending_iter == self.num_iters:
                 break
 
-            chpt_header = self.ensemble_from_chpt.ensemble_fields["checkpoint_header"]
-            chpt_fname = os.path.join(self.ensemble_from_chpt.ensemble_fields["checkpoint_dirname"],
-                                        f"{chpt_header}.pik")
             self.ensemble_from_chpt.latest_iter = ending_iter
             self.ensemble_from_chpt.H.states = global_states
             self.ensemble_from_chpt.H.loglikelihood = global_logll
             self.ensemble_from_chpt.H.accept = global_accept
             self.ensemble_from_chpt.random_state = self.RNG.bit_generator.state
-            self.ensemble_from_chpt.checkpoint(chpt_fname)
+            self.ensemble_from_chpt.checkpoint(os.path.join(self.MS_list.ensemble_fields["output_path"], self.export_path))
 
             need_initial_state = False
             starting_iter = ending_iter
             ending_iter = min(ending_iter + self.ensemble_from_chpt.ensemble_fields["checkpoint_freq"], self.num_iters)
         # Successful completion - checkpoints not needed anymore
-        for chpt in os.listdir(os.path.join(".", "test-Checkpoints")):
-            os.remove(os.path.join(os.path.join(".", "test-Checkpoints"), chpt))
-        os.rmdir(os.path.join(".", "test-Checkpoints"))
+        for chpt in os.listdir(self.MS_list.ensemble_fields["output_path"]):
+            os.remove(os.path.join(self.MS_list.ensemble_fields["output_path"], chpt))
+        os.rmdir(os.path.join(self.MS_list.ensemble_fields["output_path"]))
 
         # self.MS ran continuously from start to k=10 iterations;
         # self.MS_from_chpt ran from checkpoint at k=5 to k=10.

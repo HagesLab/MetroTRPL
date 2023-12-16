@@ -105,14 +105,14 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields = {}
         # Essential fields with no defaults
         for field in ["output_path", "load_checkpoint", "init_cond_path",
-                      "measurement_path", "checkpoint_dirname", "checkpoint_freq",
+                      "measurement_path", "checkpoint_freq",
                       "solver", "model", "num_iters", "log_y", "likel2move_ratio"]:
             self.ensemble_fields[field] = MCMC_fields.pop(field)
 
         # Optional fields that can default to None
         for field in ["rtol", "atol", "scale_factor",
                       "fittable_fluences", "fittable_absps", "irf_convolution",
-                      "do_mu_constraint", "checkpoint_header"]:
+                      "do_mu_constraint"]:
             self.ensemble_fields[field] = MCMC_fields.pop(field, None)
 
         self.ensemble_fields["temper_freq"] = MCMC_fields.pop(

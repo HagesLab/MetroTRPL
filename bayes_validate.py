@@ -450,20 +450,6 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("temper_freq must be positive integer")
 
-    if "checkpoint_dirname" in MCMC_fields:
-        chpt_d = MCMC_fields["checkpoint_dirname"]
-        if check_valid_filename(chpt_d):
-            pass
-        else:
-            raise ValueError("Invalid char in checkpoint dirname")
-
-    if "checkpoint_header" in MCMC_fields:
-        chpt_h = MCMC_fields["checkpoint_header"]
-        if check_valid_filename(chpt_h):
-            pass
-        else:
-            raise ValueError("Invalid char in checkpoint header")
-
     chpt_f = MCMC_fields["checkpoint_freq"]
     if isinstance(chpt_f, (int, np.integer)) and chpt_f > 0:
         pass
