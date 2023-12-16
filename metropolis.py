@@ -37,7 +37,30 @@ def roll_acceptance(rng : np.random.Generator, logratio):
         return rng.random(len(logratio)) < np.exp(logratio)
     else:
         return rng.random() < np.exp(logratio)
+    
 
+def trial_displacement_move(k, states, logll, accept, unique_fields, shared_fields, RNG, logger):
+    new_state = make_trial_move(states[:, k-1],
+                            unique_fields["_T"] ** 0.5 * shared_fields["base_trial_move"],
+                            shared_fields,
+                            RNG, logger)
+    _logll, new_ll_func = eval_trial_move(new_state, unique_fields, shared_fields, logger)
+
+    logratio = (_logll - logll[k-1])
+    if np.isnan(logratio):
+        logratio = -np.inf
+
+    accepted = roll_acceptance(RNG, logratio)
+
+    if accepted:
+        logll[k] = _logll
+        states[:, k] = new_state
+        accept[k] = 1
+        return new_ll_func
+    else:
+        logll[k] = logll[k-1]
+        states[:, k] = states[:, k-1]
+        return None
 
 def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shared_fields,
                            unique_fields, RNG,
@@ -68,26 +91,9 @@ def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shar
 
         for m in range(n_chains):
             # Trial displacement move
-            new_state = make_trial_move(states[m, :, k-1],
-                                    shared_fields["_T"][m] ** 0.5 * shared_fields["base_trial_move"],
-                                    shared_fields,
-                                    RNG, logger)
-            _logll, new_ll_func = eval_trial_move(new_state, unique_fields[m], shared_fields, logger)
-
-            logratio = (_logll - logll[m, k-1])
-            if np.isnan(logratio):
-                logratio = -np.inf
-
-            accepted = roll_acceptance(RNG, logratio)
-
-            if accepted:
-                logll[m, k] = _logll
-                states[m, :, k] = new_state
-                accept[m, k] = 1
+            new_ll_func = trial_displacement_move(k, states[m], logll[m], accept[m], unique_fields[m], shared_fields, RNG, logger)
+            if new_ll_func is not None:
                 ll_funcs[m] = new_ll_func
-            else:
-                logll[m, k] = logll[m, k-1]
-                states[m, :, k] = states[m, :, k-1]
 
         if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
             for _ in range(n_chains - 1):
@@ -178,27 +184,9 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
             logger.info(f"Iter {k} MetroState #{m} Current state: {states[:, k-1]} logll {logll[k-1]}")
 
         # Trial displacement move
-        new_state = make_trial_move(states[:, k-1],
-                                    shared_fields["_T"][m] ** 0.5 * shared_fields["base_trial_move"],
-                                    shared_fields,
-                                    RNG, logger)
-
-        _logll, new_ll_func = eval_trial_move(new_state, unique_fields, shared_fields, logger)
-
-        logratio = (_logll - logll[k-1])
-        if np.isnan(logratio):
-            logratio = -np.inf
-
-        accepted = roll_acceptance(RNG, logratio)
-
-        if accepted:
-            logll[k] = _logll
-            states[:, k] = new_state
-            accept[k] = 1
+        new_ll_func = trial_displacement_move(k, states, logll, accept, unique_fields, shared_fields, RNG, logger)
+        if new_ll_func is not None:
             ll_func = new_ll_func
-        else:
-            logll[k] = logll[k-1]
-            states[:, k] = states[:, k-1]
 
         if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
             # TODO: Precalculate these, to avoid the bcast
