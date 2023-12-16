@@ -5,7 +5,6 @@ Created on Mon Jan 31 22:13:26 2022
 @author: cfai2
 """
 import os
-import sys
 import signal
 import pickle
 from time import perf_counter
@@ -39,12 +38,6 @@ def roll_acceptance(rng : np.random.Generator, logratio):
     else:
         return rng.random() < np.exp(logratio)
 
-
-def almost_equal(x, x0, threshold=1e-10):
-    if x.shape != x0.shape:
-        return False
-
-    return np.abs(np.nanmax((x - x0) / x0)) < threshold
 
 def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shared_fields,
                            unique_fields, RNG,
@@ -81,7 +74,6 @@ def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shar
                                     RNG, logger)
             _logll, new_ll_func = eval_trial_move(new_state, unique_fields[m], shared_fields, logger)
 
-            logger.debug(f"Log likelihood of proposed move: {_logll}")
             logratio = (_logll - logll[m, k-1])
             if np.isnan(logratio):
                 logratio = -np.inf
@@ -125,10 +117,8 @@ def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shar
                     _, ll_funcs[i+1] = eval_trial_move(states[i+1, :, k], unique_fields[i+1], shared_fields, logger)
                     _, ll_funcs[i] = eval_trial_move(states[i, :, k], unique_fields[i], shared_fields, logger)
 
-        # if verbose or k % MSG_FREQ == 0 or k < starting_iter + MSG_COOLDOWN:
-        #     MS_list.print_status()
-
     return states, logll, accept
+
 
 def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_fields,
                     unique_fields, RNG,
@@ -195,7 +185,6 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
 
         _logll, new_ll_func = eval_trial_move(new_state, unique_fields, shared_fields, logger)
 
-        logger.debug(f"Log likelihood of proposed move: {_logll}")
         logratio = (_logll - logll[k-1])
         if np.isnan(logratio):
             logratio = -np.inf
