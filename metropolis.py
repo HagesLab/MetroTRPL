@@ -171,6 +171,8 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
     None. Ensemble() and MetroStates is updated throughout.
 
     """
+    swap_accept = 0
+    swap_attempts = 0
 
     if need_initial_state:
         logger.info("Simulating initial state:")
@@ -222,12 +224,14 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
 
                 accepted = None
                 if m == i:
+                    swap_attempts += 1
                     accepted = roll_acceptance(RNG, -logratio)
                     COMM.send(accepted, dest=i+1)
                 elif m == i + 1:
                     accepted = COMM.recv(source=i)
 
                 if m == i and accepted:
+                    swap_accept += 1
                     logll[k] = COMM.recv(source=i+1)
                     COMM.send(bj_ui, dest=i+1)
 
@@ -252,7 +256,7 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
         #    MS_list.print_status()
         #MS_list.latest_iter = k
 
-    return states, logll, accept
+    return states, logll, accept, swap_attempts, swap_accept
 
 
 def kill_from_cl(signal_n, frame):
@@ -404,7 +408,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         ending_iter = min(starting_iter + checkpoint_freq, num_iters)
         while ending_iter <= num_iters:
             logger.info(f"Simulating from {starting_iter} to {ending_iter}")
-            local_states, local_logll, local_accept = main_metro_loop(
+            local_states, local_logll, local_accept, local_swap_attempts, local_swap_accept = main_metro_loop(
                 rank, local_states, local_logll, local_accept,
                 starting_iter, ending_iter, shared_fields, unique_fields,
                 RNG, logger, need_initial_state=need_initial_state
@@ -412,11 +416,16 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             if ending_iter == num_iters:
                 break
 
+            all_swap_attempts = COMM.gather(local_swap_attempts, root=0)
+            all_swap_accept = COMM.gather(local_swap_accept, root=0)
             COMM.Gather(local_states, global_states, root=0)
             COMM.Gather(local_logll, global_logll, root=0)
             COMM.Gather(local_accept, global_accept, root=0)
 
             if rank == 0:
+                MS_list.H.swap_attempts += np.array(all_swap_attempts)
+                MS_list.H.swap_accept += np.array(all_swap_accept)
+
                 MS_list.latest_iter = ending_iter
                 MS_list.H.pack(global_states, global_logll, global_accept)
                 MS_list.random_state = RNG.bit_generator.state
@@ -428,15 +437,20 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
             ending_iter = min(ending_iter + checkpoint_freq, num_iters)
 
 
+        all_swap_attempts = COMM.gather(local_swap_attempts, root=0)
+        all_swap_accept = COMM.gather(local_swap_accept, root=0)
         COMM.Gather(local_states, global_states, root=0)
         COMM.Gather(local_logll, global_logll, root=0)
         COMM.Gather(local_accept, global_accept, root=0)
         logger.info(f"Rank {rank} took {perf_counter() - clock0} s")
 
     if rank == 0:
+        MS_list.H.swap_attempts += np.array(all_swap_attempts)
+        MS_list.H.swap_accept += np.array(all_swap_accept)
         MS_list.latest_iter = ending_iter
         MS_list.H.pack(global_states, global_logll, global_accept)
         MS_list.random_state = RNG.bit_generator.state
+        logger.info(f"Swap accept rate: {MS_list.H.swap_accept} of {MS_list.H.swap_attempts} ({MS_list.H.swap_accept / MS_list.H.swap_attempts})")
         logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
         MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
 

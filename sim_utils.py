@@ -30,6 +30,8 @@ class History:
         self.states = np.zeros((n_chains, len(names), num_iters), dtype=float)
         self.accept = np.zeros((n_chains, num_iters), dtype=int)
         self.loglikelihood = np.zeros((n_chains, num_iters), dtype=float)
+        self.swap_attempts = np.zeros(n_chains, dtype=int)
+        self.swap_accept = np.zeros(n_chains, dtype=int)
         return
 
     def update(self, names):
