@@ -281,7 +281,7 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         raise TypeError("MCMC control flags must be type 'dict'")
 
     required_keys = ("init_cond_path", "measurement_path", "output_path",
-                     "num_iters", "solver", "model",
+                     "num_iters", "solver", "model", "ini_mode",
                      "likel2move_ratio",
                      "log_y",
                      "checkpoint_freq",
@@ -340,6 +340,12 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
     else:
         raise ValueError("MCMC control 'solver' must be a supported solver.\n"
                          f"Supported solvers are {supported_solvers}")
+    
+    if MCMC_fields["ini_mode"] in ["density", "fluence"]:
+        pass
+    else:
+        raise ValueError("MCMC control 'ini_mode' must be a supported initial condition mode:\n"
+                         "density or fluence")
 
     if "rtol" in MCMC_fields:
         rtol = MCMC_fields["rtol"]
@@ -412,7 +418,7 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
             pass
         else:
             raise ValueError("hard_bounds invalid - must be 0 or 1")
-        
+
     if "force_min_y" in MCMC_fields:
         fy = MCMC_fields["force_min_y"]
         if (isinstance(fy, (int, np.integer)) and
@@ -432,39 +438,23 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("MCMC control 'irf_convolution' must be None, or a list with "
                              "one positive wavelength value per measurement")
-        
+
     if "parallel_tempering" in MCMC_fields:
         pa = MCMC_fields["parallel_tempering"]
-        if pa is None:
-            pass
-        elif (isinstance(pa, (list, np.ndarray)) and
+        if (isinstance(pa, (list, np.ndarray)) and
               len(pa) > 0 and
                 all(map(lambda x: x > 0, pa))):
             pass
         else:
-            raise ValueError("MCMC control 'parallel_tempering' must be None, or a list with "
+            raise ValueError("MCMC control 'parallel_tempering' must be a list with "
                              "at least one positive temperature value")
-        
+
     if "temper_freq" in MCMC_fields:
         tf = MCMC_fields["temper_freq"]
         if isinstance(tf, (int, np.integer)) and tf > 0:
             pass
         else:
             raise ValueError("temper_freq must be positive integer")
-
-    if "checkpoint_dirname" in MCMC_fields:
-        chpt_d = MCMC_fields["checkpoint_dirname"]
-        if check_valid_filename(chpt_d):
-            pass
-        else:
-            raise ValueError("Invalid char in checkpoint dirname")
-
-    if "checkpoint_header" in MCMC_fields:
-        chpt_h = MCMC_fields["checkpoint_header"]
-        if check_valid_filename(chpt_h):
-            pass
-        else:
-            raise ValueError("Invalid char in checkpoint header")
 
     chpt_f = MCMC_fields["checkpoint_freq"]
     if isinstance(chpt_f, (int, np.integer)) and chpt_f > 0:

@@ -5,15 +5,10 @@ Created on Thu Jan 13 13:04:20 2022
 @author: cfai2
 """
 from sys import float_info
+from typing import Mapping, Any
 import pickle
-import logging
 
 import numpy as np
-
-from forward_solver import solve
-from utils import search_c_grps, set_min_y, unpack_simpar, U
-from laplace import do_irf_convolution, post_conv_trim
-from mcmc_logging import start_logging, stop_logging
 
 # Constants
 eps0 = 8.854 * 1e-12 * 1e-9  # [C / V m] to {C / V nm}
@@ -32,9 +27,11 @@ class History:
 
     def __init__(self, n_chains, num_iters, names):
         self.states_are_one_array = True
-        self.states = np.zeros((n_chains, len(names), num_iters))
-        self.accept = np.zeros((n_chains, num_iters))
-        self.loglikelihood = np.zeros((n_chains, num_iters))
+        self.states = np.zeros((n_chains, len(names), num_iters), dtype=float)
+        self.accept = np.zeros((n_chains, num_iters), dtype=int)
+        self.loglikelihood = np.zeros((n_chains, num_iters), dtype=float)
+        self.swap_attempts = np.zeros(n_chains, dtype=int)
+        self.swap_accept = np.zeros(n_chains, dtype=int)
         return
 
     def update(self, names):
@@ -43,11 +40,11 @@ class History:
             setattr(self, f"mean_{param}", self.states[:, i])
         return
 
-    def pack(self, names, num_iters):
-        """Compatibility - turn individual attributes into self.states"""
-        self.states = np.zeros((len(names), num_iters))
-        for k, param in enumerate(names):
-            self.states[k] = getattr(self, f"mean_{param}")
+    def pack(self, states, logll, accept):
+        """Update self with global data from main metro loops"""
+        self.states = states
+        self.loglikelihood = logll
+        self.accept = accept
 
     def truncate(self, k):
         """Cut off any incomplete iterations should the walk be terminated early"""
@@ -82,25 +79,11 @@ class EnsembleTemplate:
     Base class for Ensembles
     """
 
-    iniPar: np.ndarray  # Initial conditions for simulations
-    times: list[np.ndarray]  # Measurement delay times
-    vals: list[np.ndarray]  # Measurement values
-    uncs: list[np.ndarray]  # Measurement uncertainties
-    IRF_tables: dict  # Instrument response functions
-    sim_info: dict  # Simulation settings
-    ensemble_fields: dict  # Monte Carlo settings shared across all chains
+    ensemble_fields: dict  # Monte Carlo settings and data shared across all chains
     unique_fields: list[dict]  # List of settings unique to each chain
     H: History  # List of visited states
-    # Lists of functions that can be used to repeat the logLL calculations for each chain's latest state
-    ll_funcs: list
-    param_indexes: dict[
-        str, int
-    ]  # Map of material parameter names and the order they appear in state arrays
-    RNG: np.random.Generator  # Random number generator
-    random_state: dict  # State of the RNG
+    random_state: Mapping[str, Any]  # State of the random number generator
     latest_iter: int  # Latest iteration # reached by chains
-    logger: logging.Logger  # A standard logging.logger instance
-    handler: logging.FileHandler  # A standard FileHandler instance
 
     def __init__(self):
         return
@@ -110,338 +93,7 @@ class EnsembleTemplate:
         self.H.update(self.ensemble_fields["names"])
 
         with open(fname, "wb+") as ofstream:
-            # TODO: This might break checkpoints
-            handler = self.handler  # FileHandlers aren't pickleable
-            self.handler = None
-            ll_funcs = self.ll_funcs  # Lambda functions aren't pickleable either
-            self.ll_funcs = None
             pickle.dump(self, ofstream)
-            self.handler = handler
-            self.ll_funcs = ll_funcs
-
-    def print_status(self):
-        k = self.latest_iter
-        self.logger.info(f"Current loglikelihoods : {self.H.loglikelihood[:, k]}")
-        for m in range(len(self.unique_fields)):
-            self.logger.info(f"Chain {m}:")
-            self.logger.info(f"Current state: {self.H.states[m, :, k]}"
-            )
-
-    def eval_trial_move(self, state, MCMC_fields):
-        """
-        Calculates log likelihood of a new proposed state
-        Returns:
-        logll : float
-            Log likelihood value
-        ll_funcs : list
-            List of lambda funcs that can be used to recalculate logll
-            for each measurement with different beta temperatures
-        """
-
-        logll = np.zeros(self.sim_info["num_meas"])
-        ll_funcs = [None for _ in range(self.sim_info["num_meas"])]
-
-        for i in range(self.sim_info["num_meas"]):
-            logll[i], ll_funcs[i] = self.one_sim_likelihood(i, state, MCMC_fields)
-
-        logll = np.sum(logll)
-
-        return logll, ll_funcs
-
-    def one_sim_likelihood(self, meas_index, state, MCMC_fields):
-        """
-        Calculates log likelihood of one measurement within a proposed state
-        """
-        iniPar = self.iniPar[meas_index]
-        meas_type = self.sim_info["meas_types"][meas_index]
-        irf_convolution = self.ensemble_fields.get("irf_convolution", None)
-        ll_func = lambda b: -np.inf
-        ff = self.ensemble_fields.get("fittable_fluences", None)
-        if ff is not None and meas_index in ff[1]:
-            if ff[2] is not None and len(ff[2]) > 0:
-                name = f"_f{search_c_grps(ff[2], meas_index)}"
-            else:
-                name = f"_f{meas_index}"
-            iniPar[0] *= state[self.param_indexes[name]]
-        fa = self.ensemble_fields.get("fittable_absps", None)
-        if fa is not None and meas_index in fa[1]:
-            if fa[2] is not None and len(fa[2]) > 0:
-                name = f"_a{search_c_grps(fa[2], meas_index)}"
-            else:
-                name = f"_a{meas_index}"
-            iniPar[1] *= state[self.param_indexes[name]]
-        fs = self.ensemble_fields.get("scale_factor", None)
-        if fs is not None and meas_index in fs[1]:
-            if fs[2] is not None and len(fs[2]) > 0:
-                name = f"_s{search_c_grps(fs[2], meas_index)}"
-            else:
-                name = f"_s{meas_index}"
-            scale_shift = np.log10(state[self.param_indexes[name]])
-        else:
-            scale_shift = 0
-
-        if meas_type == "pa":
-            tSteps = np.array([0])
-            sol = np.array([U(state[0])])
-            success = True
-        else:
-            tSteps, sol, success = self.converge_simulation(
-                meas_index, state, iniPar
-            )
-        if not success:
-            likelihood = -np.inf
-            return likelihood, ll_func
-
-        try:
-            if irf_convolution is not None and irf_convolution[meas_index] != 0:
-                self.logger.debug(
-                    f"Convolving with wavelength {irf_convolution[meas_index]}"
-                )
-                wave = int(irf_convolution[meas_index])
-                tSteps, sol, success = do_irf_convolution(
-                    tSteps, sol, self.IRF_tables[wave], time_max_shift=True
-                )
-                if not success:
-                    raise ValueError(
-                        "Conv failed. Check measurement data times for floating-point inaccuracies.\n"
-                        "This may also happen if simulated signal decays extremely slowly."
-                    )
-                sol, times_c, vals_c, uncs_c = post_conv_trim(
-                    tSteps,
-                    sol,
-                    self.times[meas_index],
-                    self.vals[meas_index],
-                    self.uncs[meas_index],
-                )
-
-            else:
-                # Still need to trim, in case experimental data doesn't start at t=0
-                times_c = self.times[meas_index]
-                vals_c = self.vals[meas_index]
-                uncs_c = self.uncs[meas_index]
-                sol = sol[-len(times_c) :]
-
-        except ValueError as e:
-            self.logger.warning(e)
-            likelihood = -np.inf
-            return likelihood, ll_func
-
-        self.logger.debug(f"Comparing times {times_c[0]}-{times_c[-1]}")
-
-        try:
-            # TRPL must be positive!
-            # Any simulation which results in depleted carrier is clearly incorrect
-            # A few negative values may also be introduced during convolution -
-            # so we want to tolerate these, while too many suggests that depletion
-            # is happening instead
-
-            where_failed = sol < 0
-            n_fails = np.sum(where_failed)
-            success = n_fails < NEGATIVE_FRAC_TOL * len(sol)
-            if not success:
-                raise ValueError(
-                    f"{meas_index}: Simulation failed: too many negative vals"
-                )
-
-            if n_fails > 0:
-                self.logger.warning(
-                    f"{meas_index}: {n_fails} / {len(sol)} non-positive vals"
-                )
-
-            sol[where_failed] *= -1
-        except ValueError as e:
-            self.logger.warning(e)
-            likelihood = -np.inf
-            return likelihood, ll_func
-
-        if self.ensemble_fields.get("force_min_y", False):
-            sol, min_y, n_set = set_min_y(sol, vals_c, scale_shift)
-            self.logger.debug(f"min_y: {min_y}")
-            if n_set > 0:
-                self.logger.debug(f"{n_set} values raised to min_y")
-
-        if meas_type == "pa":
-            ll_func = lambda T: -sol[0] * T ** -1
-            likelihood = ll_func(MCMC_fields.get('_T', 1))
-        else:
-            try:
-                err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
-
-                # Compatibility with single sigma
-                ll_func = lambda T: -np.sum(
-                    err_sq
-                    / (
-                        MCMC_fields["current_sigma"][meas_type] ** 2 * T
-                        + 2 * uncs_c**2
-                    )
-                )
-
-                likelihood = ll_func(MCMC_fields.get('_T', 1))
-                if np.isnan(likelihood):
-                    raise ValueError(
-                        f"{meas_index}: Simulation failed: invalid likelihood"
-                    )
-            except ValueError as e:
-                self.logger.warning(e)
-                likelihood = -np.inf
-        return likelihood, ll_func
-
-    def converge_simulation(self, meas_index, state, init_conds):
-        """
-        Handle mishaps from do_simulation.
-
-        Parameters
-        ----------
-        meas_index : int
-            Index of ith simulation in a measurement set requiring n simulations.
-        state : ndarray
-            An array of parameters, ordered according to param_info["names"],
-            corresponding to a state in the parameter space.
-        init_conds : ndarray
-            Array of initial conditions (e.g. an initial carrier profile) for simulation.
-
-        Returns
-        -------
-        sol : ndarray
-            Array of values (e.g. TRPL) from final simulation.
-        tSteps : ndarray
-            Array of times the final simulation was evaluated at.
-        success : bool
-            Whether the final simulation passed all convergence criteria.
-
-        """
-        success = True
-
-        t_steps = np.array(self.times[meas_index])
-        sol = np.zeros_like(t_steps)
-
-        try:
-            t_steps, sol = self.do_simulation(meas_index, state, init_conds)
-        except ValueError as e:
-            success = False
-            self.logger.warning(f"{meas_index}: Simulation error occurred: {e}")
-            return t_steps, sol, success
-
-        self.logger.debug(
-            f"{meas_index}: Simulation complete t {t_steps[0]}-{t_steps[-1]}"
-        )
-
-        return t_steps, sol, success
-
-    def do_simulation(self, meas_index, state, init_conds):
-        """Set up and run one simulation."""
-        thickness, nx, meas_type = unpack_simpar(self.sim_info, meas_index)
-        g = Grid(thickness, nx, self.times[meas_index], self.ensemble_fields["hmax"])
-
-        sol = solve(
-            init_conds,
-            g,
-            state,
-            self.param_indexes,
-            meas=meas_type,
-            units=self.ensemble_fields["units"],
-            solver=self.ensemble_fields["solver"],
-            model=self.ensemble_fields["model"],
-            RTOL=self.ensemble_fields["rtol"],
-            ATOL=self.ensemble_fields["atol"],
-        )
-        return g.tSteps, sol
-
-    def check_approved_param(self, new_state):
-        """ Raise a warning for non-physical or unrealistic proposed trial moves,
-            or proposed moves that exceed the prior distribution.
-        """
-        order = self.ensemble_fields['names']
-        checks = {}
-        prior_dist = self.ensemble_fields["prior_dist"]
-
-        # Ensure proposal stays within bounds of prior distribution
-        diff = np.where(self.ensemble_fields["do_log"], 10 ** new_state, new_state)
-        for i, param in enumerate(order):
-            if not self.ensemble_fields["active"][i]:
-                continue
-
-            lb = prior_dist[param][0]
-            ub = prior_dist[param][1]
-            checks[f"{param}_size"] = (lb < diff[i] < ub)
-
-        # TRPL specific checks:
-        # p0 > n0 by definition of a p-doped material
-        if 'p0' in order and 'n0' in order:
-            checks["p0_greater"] = (new_state[self.param_indexes["p0"]]
-                                    > new_state[self.param_indexes["n0"]])
-        else:
-            checks["p0_greater"] = True
-
-        # tau_n and tau_p must be *close* (within 2 OM) for a reasonable midgap SRH
-        if 'tauN' in order and 'tauP' in order:
-            # Compel logscale for this one - makes for easier check
-            logtn = new_state[self.param_indexes['tauN']]
-            if not self.ensemble_fields["do_log"][self.param_indexes["tauN"]]:
-                logtn = np.log10(logtn)
-
-            logtp = new_state[self.param_indexes['tauP']]
-            if not self.ensemble_fields["do_log"][self.param_indexes["tauP"]]:
-                logtp = np.log10(logtp)
-
-            diff = np.abs(logtn - logtp)
-            checks["tn_tp_close"] = (diff <= 2)
-
-        else:
-            checks["tn_tp_close"] = True
-
-        failed_checks = [k for k in checks if not checks[k]]
-
-        return failed_checks
-
-    def select_next_params(self, current_state, trial_move):
-        """ 
-        Trial move function: returns a new proposed state equal to the current_state plus a uniform random displacement
-        """
-
-        _current_state = np.array(current_state, dtype=float)
-
-        mu_constraint = self.ensemble_fields.get("do_mu_constraint", None)
-
-        _current_state = np.where(self.ensemble_fields["do_log"],
-                                  np.log10(_current_state),
-                                  _current_state)
-
-        tries = 0
-
-        # Try up to MAX_PROPOSALS times to come up with a proposal that stays within
-        # the hard boundaries, if we ask
-        if self.ensemble_fields.get("hard_bounds", 0):
-            max_tries = MAX_PROPOSALS
-        else:
-            max_tries = 1
-
-        new_state = np.array(_current_state)
-        while tries < max_tries:
-            tries += 1
-
-            new_state = _current_state + trial_move * (2 * self.RNG.random(_current_state.shape) - 1)
-
-            if mu_constraint is not None:
-                ambi = mu_constraint[0]
-                ambi_std = mu_constraint[1]
-                self.logger.debug(f"mu constraint: ambi {ambi} +/- {ambi_std}")
-                new_muambi = np.random.uniform(ambi - ambi_std, ambi + ambi_std)
-                new_state[self.param_indexes["mu_p"]] = np.log10(
-                    (2 / new_muambi - 1 / 10 ** new_state[self.param_indexes["mu_n"]])**-1)
-
-            failed_checks = self.check_approved_param(new_state)
-            success = len(failed_checks) == 0
-            if success:
-                self.logger.debug(f"Found params in {tries} tries")
-                break
-
-            if len(failed_checks) > 0:
-                self.logger.warning(f"Failed checks: {failed_checks}")
-
-        new_state = np.where(self.ensemble_fields["do_log"], 10 ** new_state, new_state)
-        return new_state
-
 
 class Ensemble(EnsembleTemplate):
     """
@@ -449,22 +101,20 @@ class Ensemble(EnsembleTemplate):
 
     """
 
-    def __init__(self, param_info, sim_info, MCMC_fields, num_iters, logger_name, verbose=False):
+    def __init__(self, param_info, sim_info, MCMC_fields, num_iters, verbose=False):
         super().__init__()
-        self.logger, self.handler = start_logging(
-            log_dir=MCMC_fields["output_path"], name=logger_name, verbose=verbose)
         # Transfer shared fields from chains to ensemble
         self.ensemble_fields = {}
         # Essential fields with no defaults
         for field in ["output_path", "load_checkpoint", "init_cond_path",
-                      "measurement_path", "checkpoint_dirname", "checkpoint_freq",
+                      "measurement_path", "checkpoint_freq", "ini_mode",
                       "solver", "model", "num_iters", "log_y", "likel2move_ratio"]:
             self.ensemble_fields[field] = MCMC_fields.pop(field)
 
         # Optional fields that can default to None
-        for field in ["parallel_tempering", "rtol", "atol", "scale_factor",
+        for field in ["rtol", "atol", "scale_factor",
                       "fittable_fluences", "fittable_absps", "irf_convolution",
-                      "do_mu_constraint", "checkpoint_header"]:
+                      "do_mu_constraint"]:
             self.ensemble_fields[field] = MCMC_fields.pop(field, None)
 
         self.ensemble_fields["temper_freq"] = MCMC_fields.pop(
@@ -473,7 +123,7 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["hard_bounds"] = MCMC_fields.pop("hard_bounds", 0)
         self.ensemble_fields["hmax"] = MCMC_fields.pop("hmax", DEFAULT_HMAX)
         self.ensemble_fields["force_min_y"] = MCMC_fields.pop("force_min_y", 0)
-        
+
         self.ensemble_fields["prior_dist"] = param_info.pop("prior_dist")
         # Transfer shared fields that need to become arrays
         self.ensemble_fields["do_log"] = param_info.pop("do_log")
@@ -506,16 +156,12 @@ class Ensemble(EnsembleTemplate):
             dtype=float,
         )
 
-        self.param_indexes = {
+        self.ensemble_fields["_param_indexes"] = {
             name: param_info["names"].index(name) for name in param_info["names"]
         }
 
-        if self.ensemble_fields["parallel_tempering"] is None:
-            n_chains = 1
-            temperatures = [1]
-        else:
-            n_chains = len(self.ensemble_fields["parallel_tempering"])
-            temperatures = self.ensemble_fields["parallel_tempering"]
+        self.ensemble_fields["_T"] = MCMC_fields.pop("parallel_tempering", [1])
+        self.ensemble_fields["_n_chains"] = len(self.ensemble_fields["_T"])
 
         self.ensemble_fields["names"] = param_info.pop("names")
 
@@ -527,30 +173,23 @@ class Ensemble(EnsembleTemplate):
                 ],
             dtype=float,
         )
-        self.H = History(n_chains, num_iters, self.ensemble_fields["names"])
+        self.H = History(self.ensemble_fields["_n_chains"], num_iters, self.ensemble_fields["names"])
         self.H.states[:, :, 0] = init_state
 
-        self.ll_funcs = [None for _ in range(n_chains)]
         self.unique_fields: list[dict] = []
-        for i in range(n_chains):
+        for i in range(self.ensemble_fields["_n_chains"]):
             self.unique_fields.append(dict(MCMC_fields))
-            self.unique_fields[-1]["_T"] = temperatures[i]
+            self.unique_fields[-1]["_T"] = self.ensemble_fields["_T"][i]
             self.unique_fields[-1]["current_sigma"] = {
                 m: max(self.ensemble_fields["base_trial_move"])
                 * self.ensemble_fields["likel2move_ratio"][m]
                 for m in sim_info["meas_types"]
             }
 
-        self.ensemble_fields["do_parallel_tempering"] = n_chains > 1
+        self.ensemble_fields["do_parallel_tempering"] = self.ensemble_fields["_n_chains"] > 1
 
-        self.sim_info = sim_info
-        self.RNG = np.random.default_rng(235817049752375780)
-        self.random_state = np.random.get_state()
+        self.ensemble_fields["_sim_info"] = sim_info
         self.latest_iter = 0
-
-    def stop_logging(self, err_code):
-        stop_logging(self.logger, self.handler, err_code)
-
 
 class MetroState:
     """

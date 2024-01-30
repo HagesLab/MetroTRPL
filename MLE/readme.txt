@@ -4,14 +4,11 @@ The usage is the same as the Metropolis sampler - first run MCMC_script_writer.p
 
 However, the following options are treated differently by the MLE sampler:
 
-param_info - "prior_dist" and "init_variance" have no effect on the sampler.
+param_info - "prior_dist" and "trial_move" have no effect on the sampler.
 MCMC_fields - 
     "num_iters" has no effect.
-    "likel2variance_ratio" has no effect.
+    "likel2move_ratio" has no effect.
     "fittable_fluences" and "fittable_absp" have no effect.
-    "self_normalize" has no effect.
-    "proposal_function" - no effect.
-    "one_param_at_a_time" - no effect.
     "hard_bounds" - no effect.
     "force_min_y" - no effect.
     Anything involving checkpoints has no effect.

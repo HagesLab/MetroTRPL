@@ -10,10 +10,9 @@ from numba import njit
 
 try:
     from nn_features import NeuralNetwork
-    HAS_NN_LIB = True
     nn = NeuralNetwork()
-except ImportError:
-    HAS_NN_LIB = False
+except (ImportError, AttributeError) as e:
+    raise ImportError(f"Failed to load neural network library (Reason): {e}") from e
 
 DEFAULT_RTOL = 1e-7
 DEFAULT_ATOL = 1e-10
@@ -38,7 +37,7 @@ def E_field(N, P, n0, p0, eps, dx, corner_E=0):
     return E
 
 
-def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp",), model="std",
+def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp",), model="std", ini_mode="density",
           RTOL=None, ATOL=None):
     """
     Calculate one simulation. Outputs in same units as measurement data,
@@ -74,6 +73,11 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
     model : str, optional
         Physics model to be solved by the solver, chosen from MODELS.
         The default is "std".
+    ini_mode : str, optional
+        One of the following, depending on what the iniPar are:
+        "density" - iniPar are carrier density arrays with lengths equal to g.nx
+        "fluence" - iniPar are arrays of length 3 - [fluence, alpha, direction]
+        The default is "density".
     RTOL, ATOL : float, optional
         Tolerance parameters for scipy solvers. See the solve_ivp() docs for details.
 
@@ -92,16 +96,24 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
     if ATOL is None:
         ATOL = DEFAULT_ATOL
     if solver[0] == "solveivp" or solver[0] == "odeint" or solver[0] == "diagnostic":
-        if len(iniPar) == g.nx:         # If list of initial values
-            init_dN = iniPar * 1e-21    # [cm^-3] to [nm^-3]
-        else:                           # List of parameters
-            fluence = iniPar[0] * 1e-14 # [cm^-2] to [nm^-2]
-            alpha = iniPar[1] * 1e-7    # [cm^-1] to [nm^-1]
-            init_dN = fluence * alpha * np.exp(-alpha * g.xSteps)
-            try:
-                init_dN = init_dN[::np.sign(int(iniPar[2]))]
-            except (IndexError, ValueError):
-                pass
+        if ini_mode == "density":
+            if len(iniPar) == g.nx:         # If list of initial values
+                init_dN = iniPar * 1e-21    # [cm^-3] to [nm^-3]
+            else:
+                raise ValueError(f"Expected {g.nx} initial densities but initial condition file has {len(iniPar)}")
+        elif ini_mode == "fluence":         # List of parameters
+            if len(iniPar) <= 3:
+                fluence = iniPar[0] * 1e-14 # [cm^-2] to [nm^-2]
+                alpha = iniPar[1] * 1e-7    # [cm^-1] to [nm^-1]
+                init_dN = fluence * alpha * np.exp(-alpha * g.xSteps)
+                try:
+                    init_dN = init_dN[::np.sign(int(iniPar[2]))]
+                except (IndexError, ValueError):
+                    pass
+            else:
+                raise ValueError(f"Expected only fluence, absorption coef, and direction but initial condition file has {len(iniPar)} values")
+        else:
+            raise ValueError("Invalid ini_mode - must be 'density' or 'fluence'")
 
         state *= units
         N = init_dN + state[indexes["n0"]]
@@ -190,9 +202,6 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
             raise NotImplementedError("TRTS or TRPL only")
 
     elif solver[0] == "NN":
-        if not HAS_NN_LIB:
-            raise ImportError("Failed to load neural network library")
-
         if meas != "TRPL":
             raise NotImplementedError("TRPL only")
 

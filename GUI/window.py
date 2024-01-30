@@ -252,7 +252,10 @@ class Window(TkGUI):
                     active = MS_list.ensemble_fields["active"]
                     names = MS_list.ensemble_fields["names"]
                     history = MS_list.H
-                    MS_list = MS_list.unique_fields
+                    try:
+                        MS_list = MS_list.unique_fields  # Might have to accomodate outdated MS_list.MS
+                    except AttributeError:
+                        MS_list = MS_list.MS
                     
                     
 

@@ -14,6 +14,6 @@ However, the following options are treated differently by the dense sampler:
 5. The first argument in MCMC_fields["scale_factor"] and similar options that add curve-specific inferrable parameters
   will determine the sampling spread for these parameters. For example, if the initial guess for scale_factor is 1
   and the first argument is 100, scale_factor will be sampled from 0.01 to 100.
-6. param_info["init_variance"], and the settings "likel2variance_ratio", "self_normalize", "fittable_fluences",
-  "fittable_absps", "proposal_function", "one_param_at_a_time", "hard_bounds", and all checkpoint settings
+6. param_info["trial_move"], and the settings "likel2move_ratio", "fittable_fluences",
+  "fittable_absps", "hard_bounds", and all checkpoint settings
   in MCMC_fields are ignored.

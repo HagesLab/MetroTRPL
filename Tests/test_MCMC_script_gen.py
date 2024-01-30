@@ -118,8 +118,6 @@ class TestUtils(unittest.TestCase):
                             "hmax": 4,
                             "likel2move_ratio": {"TRPL": 500},
                             "log_y": 1,
-                            "checkpoint_dirname": os.path.join(output_path, "Checkpoints"),
-                            "checkpoint_header": "CPU0",
                             "checkpoint_freq": 12000,
                             "load_checkpoint": None,
                             }

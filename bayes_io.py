@@ -163,6 +163,7 @@ def put_into_param_info(param_info, vals, new_key):
                            for i in range(len(param_info["names"]))}
     return
 
+
 def insert_param(param_info, MCMC_fields, mode="fluences"):
     if mode == "fluences":
         ff = MCMC_fields.get("fittable_fluences", None)
@@ -201,6 +202,7 @@ def insert_param(param_info, MCMC_fields, mode="fluences"):
         param_info["active"][f"{name_base}{i}"] = 1
     return
 
+
 def remap_fittable_inds(fittables : np.ndarray | list[int], select_obs_sets : np.ndarray) -> np.ndarray:
     """
     Reassign new fittable indices (e.g. for fittable_fluence's 2nd argument)
@@ -224,6 +226,7 @@ def remap_fittable_inds(fittables : np.ndarray | list[int], select_obs_sets : np
 
     return np.array(new_fittables)
 
+
 def remap_constraint_grps(c_grps : list[tuple], select_obs_sets : np.ndarray) -> list[tuple]:
     """
     Reassign new constraint groups (e.g. for fittable_fluence's 3rd argument)
@@ -245,7 +248,7 @@ def remap_constraint_grps(c_grps : list[tuple], select_obs_sets : np.ndarray) ->
         new_c_grp = []
         for val in grp:
             if val in select_obs_sets:
-                new_c_grp.append(select_obs_sets.index(val))
+                new_c_grp.append(np.where(select_obs_sets == val)[0][0])
 
         if len(new_c_grp) > 1:
             new_c_grps.append(tuple(new_c_grp))
@@ -372,6 +375,8 @@ def read_config_script_file(path):
                         MCMC_fields["atol"] = float(line_split[1])
                     elif line.startswith("Solver hmax"):
                         MCMC_fields["hmax"] = float(line_split[1])
+                    elif line.startswith("Init mode"):
+                        MCMC_fields["ini_mode"] = line_split[1]
                     elif line.startswith("Likelihood-to-trial-move"):
                         try:
                             l2v = float(line_split[1])
@@ -470,19 +475,11 @@ def read_config_script_file(path):
                                                                             delimiter='\t',
                                                                             dtype=float)
                     elif line.startswith("Parallel tempering"):
-                        if line_split[1] == "None":
-                            MCMC_fields["parallel_tempering"] = None
-                        else:
-                            MCMC_fields["parallel_tempering"] = extract_values(line_split[1],
-                                                                               delimiter='\t',
-                                                                               dtype=float)
+                        MCMC_fields["parallel_tempering"] = extract_values(line_split[1],
+                                                                           delimiter='\t',
+                                                                           dtype=float)
                     elif line.startswith("Tempering frequency"):
                         MCMC_fields["temper_freq"] = int(line_split[1])
-                    elif line.startswith("Checkpoint dir"):
-                        MCMC_fields["checkpoint_dirname"] = os.path.join(
-                            line_split[1])
-                    elif line.startswith("Checkpoint fileheader"):
-                        MCMC_fields["checkpoint_header"] = line_split[1]
                     elif line.startswith("Checkpoint freq"):
                         MCMC_fields["checkpoint_freq"] = int(line_split[1])
                     elif line.startswith("Load checkpoint"):
@@ -642,6 +639,9 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             ofstream.write(f"\t{trial_move.get(name, 0)}")
         ofstream.write('\n')
 
+        if "init_variance" in param_info:
+            raise KeyError("Outdated key init_variance - please replace with trial_move")
+
         if "do_mu_constraint" in param_info:
             if verbose:
                 ofstream.write("# Restrict mu_n and mu_p within a small range of ambipolar mobility. "
@@ -721,6 +721,13 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             hmax = MCMC_fields["hmax"]
             ofstream.write(f"Solver hmax: {hmax}\n")
 
+        if verbose:
+            ofstream.write("# One of the following, depending on whether the initial conditions are: \n"
+                           "# 'density' - carrier density arrays with lengths equal to nx,\n"
+                           "# 'fluence' - arrays of length 3, containing [fluence, alpha, direction]\n")
+        ini_mode = MCMC_fields["ini_mode"]
+        ofstream.write(f"Init mode: {ini_mode}\n")
+
         if "one_param_at_a_time" in MCMC_fields:
             print("Script generator warning: setting \"one_param_at_a_time\" is deprecated and will have no effect.")
 
@@ -746,11 +753,17 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                     break
             ofstream.write("\n")
 
+        if "likel2variance_ratio" in MCMC_fields:
+            raise KeyError("Outdated key likel2variance_ratio - please replace with likel2move_ratio")
+
         if verbose:
             ofstream.write("# Compare log of measurements and simulations for "
                            "purpose of likelihood evaluation. Recommended to be 1 or True. \n")
         logpl = MCMC_fields["log_y"]
         ofstream.write(f"Use log of measurements: {logpl}\n")
+
+        if "log_pl" in MCMC_fields:
+            raise KeyError("Outdated key log_pl - please replace with log_y")
 
         if "self_normalize" in MCMC_fields:
             print("Script writer warning: self_normalize is deprecated and will have no effect.")
@@ -863,14 +876,11 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         if "parallel_tempering" in MCMC_fields:
             if verbose:
                 ofstream.write(
-                    "# None for no parallel tempering, or a list of values each corresponding\n"
+                    "# Remove from list for no parallel tempering, or a list of values each corresponding\n"
                     "# to the temperature of a chain that will be run as part of a parallel\n"
                     "# tempering ensemble.\n")
             pa = MCMC_fields["parallel_tempering"]
-            if pa is None:
-                ofstream.write(f"Parallel tempering: {pa}")
-            else:
-                ofstream.write("Parallel tempering: " + '\t'.join(map(str, pa)))
+            ofstream.write("Parallel tempering: " + '\t'.join(map(str, pa)))
             ofstream.write('\n')
 
         if "temper_freq" in MCMC_fields:
@@ -882,16 +892,11 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
             tf = MCMC_fields["temper_freq"]
             ofstream.write(f"Tempering frequency: {tf}\n")
 
-        if verbose:
-            ofstream.write("# Directory checkpoint files stored in.\n")
-        chpt_d = MCMC_fields.get("checkpoint_dirname", MCMC_fields["output_path"])
-        ofstream.write(f"Checkpoint dir: {chpt_d}\n")
+        if "checkpoint_dirname" in MCMC_fields:
+            print("Script generator warning: setting \"checkpoint_dirname\" is deprecated and will have no effect.")
 
         if "checkpoint_header" in MCMC_fields:
-            if verbose:
-                ofstream.write("# A name for each checkpoint file.\n")
-            chpt_h = MCMC_fields["checkpoint_header"]
-            ofstream.write(f"Checkpoint fileheader: {chpt_h}\n")
+            print("Script generator warning: setting \"checkpoint_header\" is deprecated and will have no effect.")
 
         if verbose:
             ofstream.write("# Checkpoint saved every 'this many' samples.\n")

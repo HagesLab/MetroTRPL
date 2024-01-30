@@ -25,13 +25,13 @@ def cost(x, e_data, MS_list, logger):
     LOG_PL = MS_list.ensemble_fields["log_y"]
     scale_f_info = MS_list.ensemble_fields.get("scale_factor", None)
     irf_convolution = MS_list.ensemble_fields.get("irf_convolution", None)
-    IRF_tables = MS.MCMC_fields.get("IRF_tables", None)
-    thicknesses = MS_list.sim_info["lengths"]
-    nxes = MS_list.sim_info["nx"]
-    for ic_num in range(MS_list.sim_info["num_meas"]):
+    IRF_tables = MS_list.ensemble_fields.get("_IRF_tables", None)
+    thicknesses = MS_list.ensemble_fields["_sim_info"]["lengths"]
+    nxes = MS_list.ensemble_fields["_sim_info"]["nx"]
+    for ic_num in range(MS_list.ensemble_fields["_sim_info"]["num_meas"]):
         thickness = thicknesses[ic_num]
         nx = nxes[ic_num]
-        meas_type = MS_list.sim_info["meas_types"][ic_num]
+        meas_type = MS_list.ensemble_fields["_sim_info"]["meas_types"][ic_num]
         times = e_data[0][ic_num]
         values = e_data[1][ic_num]
         std = e_data[2][ic_num]
@@ -39,10 +39,10 @@ def cost(x, e_data, MS_list, logger):
         g = Grid(thickness, nx, times, hmax=1)
 
         sol = solve(
-            MS_list.iniPar[ic_num],
+            MS_list.ensemble_fields["_init_params"][ic_num],
             g,
             MS.H.states[:, MS_list.latest_iter],
-            MS_list.param_indexes,
+            MS_list.ensemble_fields["_param_indexes"],
             meas=meas_type,
             units=MS_list.ensemble_fields["units"],
             solver=MS_list.ensemble_fields["solver"],
@@ -86,7 +86,7 @@ def cost(x, e_data, MS_list, logger):
                 s_name = f"_s{search_c_grps(scale_f_info[2], ic_num)}"
             else:
                 s_name = f"_s{ic_num}"
-            scale_shift = np.log10(MS.H.states[MS_list.param_indexes[s_name]])
+            scale_shift = np.log10(MS.H.states[MS_list.ensemble_fields["_param_indexes"][s_name]])
         else:
             scale_shift = 0
 
@@ -115,8 +115,8 @@ def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, log
     MS = MS_list.unique_fields[0]
 
     # Prefer having these attached to MS ensemble, to match the original MCMC method
-    MS_list.iniPar = init_params
-    logger.info(f"Sim info: {MS_list.sim_info}")
+    MS_list.ensemble_fields["_init_params"] = init_params
+    logger.info(f"Sim info: {MS_list.ensemble_fields['_sim_info']}")
     logger.info(f"MCMC fields: {MS}")
 
     if MS_list.ensemble_fields.get("irf_convolution", None) is not None:
@@ -127,13 +127,13 @@ def mle(e_data, sim_params, param_info, init_params, sim_flags, export_path, log
                     os.path.join("IRFs", f"irf_{int(i)}nm.csv"), delimiter=","
                 )
 
-        MS["IRF_tables"] = make_I_tables(irfs)
+        MS_list.ensemble_fields["_IRF_tables"] = make_I_tables(irfs)
         if logger is not None:
             logger.info(
-                f"Found IRFs for WLs {list(MS['IRF_tables'].keys())}"
+                f"Found IRFs for WLs {list(MS_list.ensemble_fields['_IRF_tables'].keys())}"
             )
     else:
-        MS["IRF_tables"] = None
+        MS_list.ensemble_fields["_IRF_tables"] = None
 
     # Optimize over only active params, while holding all others constant
     x0 = np.log10(MS_list.H.states[0, MS_list.ensemble_fields["active"], 0])

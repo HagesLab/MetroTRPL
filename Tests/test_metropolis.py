@@ -8,7 +8,6 @@ from metropolis import all_signal_handler
 from forward_solver import E_field, solve, calculate_PL, calculate_TRTS
 from metropolis import roll_acceptance
 from utils import unpack_simpar, set_min_y, search_c_grps
-from metropolis import almost_equal
 
 from sim_utils import Grid
 q = 1.0  # [e]
@@ -378,21 +377,6 @@ class TestUtils(unittest.TestCase):
                                  RTOL=1e-10, ATOL=1e-14)
 
         np.testing.assert_almost_equal(PL_by_initvals / np.amax(PL_by_initvals), PL_by_initparams / np.amax(PL_by_initvals))
-
-    def test_almost_equal(self):
-        threshold = 1e-7
-
-        # One element just too large
-        a = np.array([1.0, 1.0])
-        b = np.array([1.0, 1.0+threshold])
-        self.assertFalse(almost_equal(b, a, threshold=threshold))
-
-        # All elements just close enough
-        b = np.array([1.0, 1.0+0.999*threshold])
-        self.assertTrue(almost_equal(b, a, threshold=threshold))
-
-        wrong_shape = np.array([1.0, 1.0, 1.0])
-        self.assertFalse(almost_equal(a, wrong_shape))
 
     def test_roll_acceptance(self):
         rng = np.random.default_rng(1)

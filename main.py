@@ -41,18 +41,9 @@ if __name__ == "__main__":
     e_data = get_data(MCMC_fields["measurement_path"],
                       meas_fields, MCMC_fields)
 
-    MS_list = metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False,
-               export_path=export_path, logger_name=logger_name)
+    metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False,
+          export_path=export_path, logger_name=logger_name,
+          # serial_fallback=True,
+          )
 
-    # Successful completion - remove all non-final checkpoints
-    chpt_header = MS_list.ensemble_fields["checkpoint_header"]
-    for chpt in os.listdir(MS_list.ensemble_fields["checkpoint_dirname"]):
-        if (chpt.startswith(chpt_header)
-            and not chpt.endswith("final.pik")
-            and not chpt.endswith(".log")):
-            os.remove(os.path.join(MS_list.ensemble_fields["checkpoint_dirname"], chpt))
-    if len(os.listdir(MS_list.ensemble_fields["checkpoint_dirname"])) == 0:
-        os.rmdir(MS_list.ensemble_fields["checkpoint_dirname"])
-
-    output_path = MS_list.ensemble_fields["output_path"]
-    print(f"{jobid} Finished - {output_path}")
+    print(f"{jobid} Finished - {export_path}")
