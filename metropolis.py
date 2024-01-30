@@ -87,6 +87,8 @@ def swap_move_serial(k, i, states, logll, ll_funcs, unique_fields, shared_fields
         _, ll_funcs[i+1] = eval_trial_move(states[i+1, :, k], unique_fields[i+1], shared_fields, logger)
         _, ll_funcs[i] = eval_trial_move(states[i, :, k], unique_fields[i], shared_fields, logger)
 
+    return accepted
+
 
 def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shared_fields,
                            unique_fields, RNG,
@@ -95,7 +97,10 @@ def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shar
     Serial version of main_metro_loop().
 
     """
+
     n_chains = shared_fields["_n_chains"]
+    swap_accept = np.zeros(n_chains, dtype=int)
+    swap_attempts = np.zeros(n_chains, dtype=int)
     ll_funcs = [None for _ in range(n_chains)]
     if need_initial_state:
         logger.info("Simulating initial state:")
@@ -124,9 +129,12 @@ def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shar
         if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
             for _ in range(n_chains - 1):
                 i = RNG.integers(0, n_chains-1)
-                swap_move_serial(k, i, states, logll, ll_funcs, unique_fields, shared_fields, RNG, logger)
+                swap_attempts[i] += 1
+                swap_success = swap_move_serial(k, i, states, logll, ll_funcs, unique_fields, shared_fields, RNG, logger)
+                if swap_success:
+                    swap_accept[i] += 1
 
-    return states, logll, accept
+    return states, logll, accept, swap_attempts, swap_accept
 
 
 def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_fields,
@@ -364,16 +372,13 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
     if serial_fallback:
         if rank == 0:
-            # TODO: Swap attempt tracking
-            all_swap_attempts = np.zeros_like(MS_list.H.swap_attempts)
-            all_swap_accept = np.zeros_like(MS_list.H.swap_accept)
             RNG.bit_generator.state = RNG_state
             need_initial_state = (load_checkpoint is None)
 
             ending_iter = min(starting_iter + checkpoint_freq, num_iters)
             while ending_iter <= num_iters:
                 logger.info(f"Simulating from {starting_iter} to {ending_iter}")
-                global_states, global_logll, global_accept = main_metro_loop_serial(
+                global_states, global_logll, global_accept, all_swap_attempts, all_swap_accept = main_metro_loop_serial(
                     global_states, global_logll, global_accept,
                     starting_iter, ending_iter, shared_fields, unique_fields,
                     RNG, logger, need_initial_state=need_initial_state
@@ -453,7 +458,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         MS_list.latest_iter = ending_iter
         MS_list.H.pack(global_states, global_logll, global_accept)
         MS_list.random_state = RNG.bit_generator.state
-        logger.info(f"Swap accept rate: {MS_list.H.swap_accept} of {MS_list.H.swap_attempts} ({MS_list.H.swap_accept / MS_list.H.swap_attempts})")
+        logger.info(f"Swap accept rate: {MS_list.H.swap_accept} accepted of {MS_list.H.swap_attempts} attempts ({100*MS_list.H.swap_accept[:-1] / MS_list.H.swap_attempts[:-1]} %)")
         logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
         MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
 
