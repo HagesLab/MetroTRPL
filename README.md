@@ -57,14 +57,14 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
    * force_min_y - Whether to raise abnormally small simulation values to the minimum measured data value. May make the MCMC algorithm more sensitive in regions of low probability.
    * checkpoint_freq - Interval in which the MCMC algorithm will save snapshots of partially completed inferences. Checkpoints files are formatted identically to output files.
    * load_checkpoint - If None, starts a new inference. If the file name of a checkpoint is supplied, the MCMC algorithm will continue an inference from where that checkpoint left off.
-   * scale_factor - Add additional scale factors that the MCMC algorithm will attempt to apply on the simulations to account for calibration/detector efficiency factors between simulations and measurement data. Must be None, in which no scaling will be done to the simulations, or a list of four elements:
+   * scale_factor (Optional) - Add additional scale factors that the MCMC algorithm will attempt to apply on the simulations to account for calibration/detector efficiency factors between simulations and measurement data. Must be None, in which no scaling will be done to the simulations, or a list of four elements:
      1. A trial move size, as described in **param_info**. All factors are fitted by log scale and will use the same move size.
      2. A list of indices for measurements for which factors will be fitted. e.g. [0, 1, 2] means to create scale factors for the first, second, and third measurements. Additional parameters named _s0, _s1, _s2... will be created for such measurements.
      3. Either None, in which all factors will be independently fitted, or a list of constraint groups, in which each measurement in a group will share a factor with all other members. E.g. [(0, 2, 4), (1, 3, 5)] means that the third and fifth measurments will share a factor value with the first, while the fourth and sixth measurements will share a factor value with the second. Note that in Python, the first item is indexed as zero.
      4. (Optional) A list of initial guesses for each factor. Defaults to 1 if not specified.
-    * irf_convolution - A list of wavelengths for each measurement, for each of which there should be a corresponding IRF added to the IRFs folder. The MCMC algorithm will convolve the simulation for each measurement with the corresponding IRF by wavelength. Entering a wavelength of zero omits the convolution for the corresponding measurements.
-    * parallel_tempering - A list of temperature factors used to create an ensemble of chains. One chain per temperature. **We suggest starting with a base temperature of 1 and adding a geometric sequence of additional temperatures.**
-    * temper_freq - Interval in which the MCMC algorithm will attempt swap moves between chains of adjacent temperature. **We suggest between 10 and 100.**
+    * irf_convolution (Optional) - A list of wavelengths for each measurement, for each of which there should be a corresponding IRF added to the IRFs folder. The MCMC algorithm will convolve the simulation for each measurement with the corresponding IRF by wavelength. Entering a wavelength of zero omits the convolution for the corresponding measurements.
+    * parallel_tempering (Optional) - A list of temperature factors used to create an ensemble of chains. One chain per temperature. **We suggest starting with a base temperature of 1 and adding a geometric sequence of additional temperatures.**
+    * temper_freq (Optional) - Interval in which the MCMC algorithm will attempt swap moves between chains of adjacent temperature. **We suggest between 10 and 100.**
 
 ## FAQ
 **ValueErrors from get_data() or get_initpoints() with unusual symbols**
