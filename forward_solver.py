@@ -10,10 +10,9 @@ from numba import njit
 
 try:
     from nn_features import NeuralNetwork
-    HAS_NN_LIB = True
     nn = NeuralNetwork()
-except (ImportError, AttributeError):
-    HAS_NN_LIB = False
+except (ImportError, AttributeError) as e:
+    raise ImportError(f"Failed to load neural network library (Reason): {e}") from e
 
 DEFAULT_RTOL = 1e-7
 DEFAULT_ATOL = 1e-10
@@ -190,9 +189,6 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
             raise NotImplementedError("TRTS or TRPL only")
 
     elif solver[0] == "NN":
-        if not HAS_NN_LIB:
-            raise ImportError("Failed to load neural network library")
-
         if meas != "TRPL":
             raise NotImplementedError("TRPL only")
 
