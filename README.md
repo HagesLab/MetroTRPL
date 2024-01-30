@@ -49,6 +49,7 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
    * num_iters - Number of iterations / trial moves the MCMC algorithm will try before stopping. **With a trial move of 0.01, most inferences equilibrate within a few thousand iterations.**
    * solver - A tuple of size one indicating which numerical solver to use - solve_ivp (more robust), or odeint (sometimes faster). Can also be set to NN to access a saved neural network, for which the location of the neural network and its scaling factor files must also be provided as second and third arguments.
    * model - Choice of carrier transport model. std for the standard carrier model, or traps for the shallow trapping carrier model.
+   * ini_mode - Set to "fluence" if the initial condition input is a fluence/absorption/direction trio, or to "density" if it is a carrier density list.
    * rtol, atol, hmax - Solver tolerances and adaptive stepsize. See the [solve_ivp docs](https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html) for more details.
    * likel2move_ratio - Ratio to maintain betwen Model uncertainty and trial move size. Model uncertainty will be taken as this times trial move size. Larger values increase the acceptance rate. but lower the precision of inferences. **For greatest sampling efficiency, adjust this value to maintain an acceptance rate between 10% and 50%.**
    * log_y - Whether to compare measurements and simulations on log scale. **Set to 1 for measurements which span many orders of magnitude.**
