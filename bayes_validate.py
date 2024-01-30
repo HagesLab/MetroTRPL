@@ -281,7 +281,7 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         raise TypeError("MCMC control flags must be type 'dict'")
 
     required_keys = ("init_cond_path", "measurement_path", "output_path",
-                     "num_iters", "solver", "model",
+                     "num_iters", "solver", "model", "ini_mode",
                      "likel2move_ratio",
                      "log_y",
                      "checkpoint_freq",
@@ -340,6 +340,12 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
     else:
         raise ValueError("MCMC control 'solver' must be a supported solver.\n"
                          f"Supported solvers are {supported_solvers}")
+    
+    if MCMC_fields["ini_mode"] in ["density", "fluence"]:
+        pass
+    else:
+        raise ValueError("MCMC control 'ini_mode' must be a supported initial condition mode:\n"
+                         "density or fluence")
 
     if "rtol" in MCMC_fields:
         rtol = MCMC_fields["rtol"]

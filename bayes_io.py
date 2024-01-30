@@ -163,6 +163,7 @@ def put_into_param_info(param_info, vals, new_key):
                            for i in range(len(param_info["names"]))}
     return
 
+
 def insert_param(param_info, MCMC_fields, mode="fluences"):
     if mode == "fluences":
         ff = MCMC_fields.get("fittable_fluences", None)
@@ -201,6 +202,7 @@ def insert_param(param_info, MCMC_fields, mode="fluences"):
         param_info["active"][f"{name_base}{i}"] = 1
     return
 
+
 def remap_fittable_inds(fittables : np.ndarray | list[int], select_obs_sets : np.ndarray) -> np.ndarray:
     """
     Reassign new fittable indices (e.g. for fittable_fluence's 2nd argument)
@@ -223,6 +225,7 @@ def remap_fittable_inds(fittables : np.ndarray | list[int], select_obs_sets : np
             new_fittables.append(i)
 
     return np.array(new_fittables)
+
 
 def remap_constraint_grps(c_grps : list[tuple], select_obs_sets : np.ndarray) -> list[tuple]:
     """
@@ -372,6 +375,8 @@ def read_config_script_file(path):
                         MCMC_fields["atol"] = float(line_split[1])
                     elif line.startswith("Solver hmax"):
                         MCMC_fields["hmax"] = float(line_split[1])
+                    elif line.startswith("Init mode"):
+                        MCMC_fields["ini_mode"] = line_split[1]
                     elif line.startswith("Likelihood-to-trial-move"):
                         try:
                             l2v = float(line_split[1])
@@ -715,6 +720,13 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                     "# Solver engine maximum adaptive time stepsize.\n")
             hmax = MCMC_fields["hmax"]
             ofstream.write(f"Solver hmax: {hmax}\n")
+
+        if verbose:
+            ofstream.write("# One of the following, depending on whether the initial conditions are: \n"
+                           "# 'density' - carrier density arrays with lengths equal to nx,\n"
+                           "# 'fluence' - arrays of length 3, containing [fluence, alpha, direction]\n")
+        ini_mode = MCMC_fields["ini_mode"]
+        ofstream.write(f"Init mode: {ini_mode}\n")
 
         if "one_param_at_a_time" in MCMC_fields:
             print("Script generator warning: setting \"one_param_at_a_time\" is deprecated and will have no effect.")

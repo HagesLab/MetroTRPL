@@ -107,7 +107,7 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields = {}
         # Essential fields with no defaults
         for field in ["output_path", "load_checkpoint", "init_cond_path",
-                      "measurement_path", "checkpoint_freq",
+                      "measurement_path", "checkpoint_freq", "ini_mode",
                       "solver", "model", "num_iters", "log_y", "likel2move_ratio"]:
             self.ensemble_fields[field] = MCMC_fields.pop(field)
 

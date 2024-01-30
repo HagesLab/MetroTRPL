@@ -223,6 +223,7 @@ def do_simulation(meas_index, state, init_conds, shared_fields):
         units=shared_fields["units"],
         solver=shared_fields["solver"],
         model=shared_fields["model"],
+        ini_mode=shared_fields["ini_mode"],
         RTOL=shared_fields["rtol"],
         ATOL=shared_fields["atol"],
     )
