@@ -3,6 +3,7 @@
 
 # Script writer files
 !*readme.txt
+!*requirements*.txt
 *.txt
 
 # IRF files, except for the examples and readme
