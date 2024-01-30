@@ -364,6 +364,9 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
     if serial_fallback:
         if rank == 0:
+            # TODO: Swap attempt tracking
+            all_swap_attempts = np.zeros_like(MS_list.H.swap_attempts)
+            all_swap_accept = np.zeros_like(MS_list.H.swap_accept)
             RNG.bit_generator.state = RNG_state
             need_initial_state = (load_checkpoint is None)
 
