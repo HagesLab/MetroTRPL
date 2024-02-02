@@ -23,7 +23,7 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
 /staub_MAPI_threepower_twothick_fluences.csv for an example. Alternatively, each row may be a list of the initial carrier densities at the spatial positions to be integrated by the numerical solver. If the material thickness is 1000 nm and the carrier profile is to be solved at nx=100 nodes, for example, the carrier densities at z=5, 15, 25, ...985, 995 nm must be provided. See the Inputs folder for examples.
 3. Generate a configuration file using MCMC_script_writer.py. Usage: `python MCMC_script_writer.py` while within the MetroTRPL folder. Set the flag verbose=True in the function generate_config_script_file() to view a detailed explanation of each setting. An example configuration file is provided in the Inputs folder.
 4. Run the Metropolis sampler using main.py. Usage: `python main.py` while within the MetroTRPL folder. **Be sure to set serial_fallback=False in the metro() call if you aren't running an MPI job.** This outputs a log file detailing the random walks' progress and outputs an Ensemble object containing the log-likelihoods and locations of all visited states.
-5. Run the GUI folder's main.py to visualize and export results. Usage: `python main.py` while within the MetroTRPL/GUI folder.
+5. Run the GUI folder's main.py to visualize and export results. Usage: `python main.py` while within the MetroTRPL/GUI folder. The GUI folder also contains a tutorial on using the GUI.
 
 ## Explaining each setting in MCMC_script_writer.py
 1. **simPar** - simulation settings
