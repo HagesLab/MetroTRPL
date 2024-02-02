@@ -102,7 +102,7 @@ class QuicksimManager():
 def task(state, indexes, thickness, nx, iniPar, times, hmax, meas, units, solver, model, wavelength, IRF_tables):
     """What each task needs to do - simulate then optionally convolve"""
     g = Grid(thickness, nx, times, hmax)
-    sol = solve(iniPar, g, state, indexes, meas, units, solver, model)
+    sol = solve(iniPar, g, state, indexes, meas, units, solver, model, ini_mode="fluence")
     t = g.tSteps
     if wavelength != 0 and int(wavelength) in IRF_tables:
         t, sol, success = do_irf_convolution(
