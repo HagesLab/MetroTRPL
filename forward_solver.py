@@ -12,7 +12,8 @@ try:
     from nn_features import NeuralNetwork
     nn = NeuralNetwork()
 except (ImportError, AttributeError) as e:
-    raise ImportError(f"Failed to load neural network library (Reason): {e}") from e
+    NN_ERR = f"Neural network library not loaded (Reason): {e}"
+    nn = None
 
 DEFAULT_RTOL = 1e-7
 DEFAULT_ATOL = 1e-10
@@ -202,6 +203,8 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
             raise NotImplementedError("TRTS or TRPL only")
 
     elif solver[0] == "NN":
+        if nn is None:
+            raise ImportError(NN_ERR)
         if meas != "TRPL":
             raise NotImplementedError("TRPL only")
 
