@@ -33,7 +33,7 @@ PICKLE_FILE_LOCATION = "../output/TEST_REAL_STAUB"
 DEFAULT_HIST_BINS = 96
 ACC_BIN_SIZE = 100
 DEFAULT_THICKNESS = 2000
-MAX_STATUS_MSGS = 11
+MAX_STATUS_MSGS = 20
 
 class TracedIntVar(tk.IntVar):
     """ Extension of tkinter IntVar - records ID of its trace function"""
@@ -147,7 +147,9 @@ class Window(TkGUI):
             self.status_msg.pop(0)
 
         self.status_msg.append(msg)
-        self.base_panel.variables["status_msg"].set("\n".join(self.status_msg))
+
+        self.base_panel.widgets["status_box"].delete(1.0, tk.END)
+        self.base_panel.widgets["status_box"].insert(1.0, "\n".join(self.status_msg[::-1]))
 
     def do_quicksim_entry_popup(self) -> None:
         """Collect quicksim settings"""

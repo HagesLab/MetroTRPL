@@ -5,6 +5,7 @@ where window.py then adds functionality
 import platform
 from io import BytesIO
 import tkinter as tk
+import tkinter.scrolledtext as tkscrolled
 from PIL import Image
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.backends._backend_tk import NavigationToolbar2Tk
@@ -118,13 +119,11 @@ class TkGUI():
         # Status box - use self.status() to add messages
         self.status_msg = list[str]()
         self.base_panel.variables["status_msg"] = tk.StringVar(value="")
-        data_label = tk.Label(master=self.base_panel.widget,
-                              textvariable=self.base_panel.variables["status_msg"],
-                              width=138, height=11,
-                              background=LIGHT_GREY, relief="sunken", border=2,
-                              anchor="nw", justify="left")
+        data_label = tkscrolled.ScrolledText(master=self.base_panel.widget,
+                              width=120, height=10,
+                              background=LIGHT_GREY, relief="sunken", bd=2,)
         data_label.place(x=10, y=10)
-        self.base_panel.widgets["data label"] = data_label
+        self.base_panel.widgets["status_box"] = data_label
         self.populate_mini_panel()
         self.populate_side_panel()
         self.mount_side_panel_states()
