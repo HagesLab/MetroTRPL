@@ -447,6 +447,12 @@ class Window(TkGUI):
                             self.status(str(err))
                     mc_plot.traceplot1d(axes, chain.data[x_val],
                                         title, scale, xlim, hline, (equi,), color)
+                    
+                    if 0 <= equi < len(chain.data[x_val]):
+                        if 1e-3 < chain.data[x_val][equi] < 1e6:
+                            self.status(f"Chain {i} {x_val}({equi}): {chain.data[x_val][equi]:.3f}")
+                        else:
+                            self.status(f"Chain {i} {x_val}({equi}): {chain.data[x_val][equi]:.3e}")
 
             case "2D Trace Plot":
                 xy_val = {"x": x_val, "y": y_val}
