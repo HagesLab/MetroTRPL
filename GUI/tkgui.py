@@ -94,7 +94,7 @@ class TkGUI():
     def __init__(self, width: int, height: int, title: str) -> None:
         self.widget = tk.Tk()
         x_offset = (self.widget.winfo_screenwidth() - width) // 2
-        y_offset = (self.widget.winfo_screenheight() - height) // 2
+        y_offset = 0 #(self.widget.winfo_screenheight() - height) // 2
         self.widget.geometry(f"{width}x{height}+{x_offset}+{y_offset}")
         self.widget.resizable(False, False)
         self.widget.title(title)
