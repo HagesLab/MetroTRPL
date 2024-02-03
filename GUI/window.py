@@ -108,6 +108,7 @@ class Window(TkGUI):
 
         variables["combined_hist"].trace("w", self.redraw)
         variables["scale"].trace("w", self.redraw)
+        variables["bin_shape"].trace("w", self.redraw)
         widgets["hori_marker_entry"].bind("<FocusOut>", self.redraw)
         widgets["equi_entry"].bind("<FocusOut>", self.redraw)
         widgets["num_bins_entry"].bind("<FocusOut>", self.redraw)
@@ -406,12 +407,20 @@ class Window(TkGUI):
 
         # Histogram specific entries
         bins = DEFAULT_HIST_BINS
+        bin_shape = "linear"
         if "Histogram" in self.side_panel.state:
             bins = self.side_panel.variables["bins"].get()
             try:
                 bins = int(bins)
             except ValueError:
                 pass
+            bin_shape = self.side_panel.variables["bin_shape"].get()
+
+            if bin_shape == "Linear":
+                bin_shape = "linear"
+            elif bin_shape == "Log":
+                bin_shape = "log"
+
 
         # 2D specific entries
         y_val = "select"
@@ -505,7 +514,7 @@ class Window(TkGUI):
                     self.status(f"Mean: {mean}, stdev: {stdev}")
 
                     color = PLOT_COLOR_CYCLE[0]
-                    mc_plot.histogram1d(axes, vals, f"{x_val}", x_val, scale, bins, color)
+                    mc_plot.histogram1d(axes, vals, f"{x_val}", x_val, scale, bins, bin_shape, color)
                 else:
                     for i, chain in enumerate(self.chains):
                         if not chain.is_visible():
@@ -521,7 +530,7 @@ class Window(TkGUI):
                                 continue
 
                         mc_plot.histogram1d(axes, chain.data[x_val][equi:],
-                                            f"{x_val}", x_val, scale, bins, color)
+                                            f"{x_val}", x_val, scale, bins, bin_shape, color)
 
             case "2D Histogram":
                 xy_val = {"x": x_val, "y": y_val}
