@@ -460,7 +460,7 @@ class Window(TkGUI):
                                         title, scale, xlim, hline, (equi,), color)
                     
                     if 0 <= equi < len(chain.data[x_val]):
-                        if 1e-3 < chain.data[x_val][equi] < 1e6:
+                        if 1e-3 < np.abs(chain.data[x_val][equi]) < 1e6:
                             self.status(f"Chain {i} {x_val}({equi}): {chain.data[x_val][equi]:.3f}")
                         else:
                             self.status(f"Chain {i} {x_val}({equi}): {chain.data[x_val][equi]:.3e}")
@@ -509,9 +509,18 @@ class Window(TkGUI):
                         vals = np.hstack((vals, chain.data[x_val][equi:]))
 
                     # Print some statistics
-                    mean = np.nanmean(vals)
-                    stdev = np.nanstd(vals, ddof=1)
-                    self.status(f"Mean: {mean}, stdev: {stdev}")
+                    
+                    if bin_shape == "linear":
+                        mean = np.nanmean(vals)
+                        stdev = np.nanstd(vals, ddof=1)
+                        self.status(f"Mean: {mean:.3e}, stdev: {stdev:.3e}")
+                    elif bin_shape == "log":
+                        nonzero = vals > 0
+                        mean = np.nanmean(np.log10(vals[nonzero]))
+                        stdev = np.nanstd(np.log10(vals[nonzero]), ddof=1)
+                        self.status(f"Ignored {len(vals) - np.sum(nonzero)} zero values")
+                        self.status(f"Log mean: {mean:.3e}, stdev: {stdev:.3e}")
+                        self.status(f"Mean: {10 ** mean:.3e}, 1-sigma: ({10 ** (mean - stdev):.3e}, {10 ** (mean + stdev):.3e})")
 
                     color = PLOT_COLOR_CYCLE[0]
                     mc_plot.histogram1d(axes, vals, f"{x_val}", x_val, scale, bins, bin_shape, color)
