@@ -188,14 +188,17 @@ class TkGUI():
         widgets["num_bins_label"] = tk.Label(master=panel, text="Bins", **LABEL_KWARGS)
         widgets["thickness_label"] = tk.Label(master=panel, text="Thickness [nm]", **LABEL_KWARGS)
         widgets["xlim_label"] = tk.Label(master=panel, text="X-limits (A, B)", **LABEL_KWARGS)
+        widgets["bin_shape_label"] = tk.Label(master=panel, text="Bin Scale", **LABEL_KWARGS)
 
         # User select menus
         variables["variable_1"] = tk.StringVar(value="select")
         variables["variable_2"] = tk.StringVar(value="select")
-        variables["scale"] = tk.StringVar(value="Linear")
         widgets["variable 1"] = tk.OptionMenu(panel, variables["variable_1"], "")
         widgets["variable 2"] = tk.OptionMenu(panel, variables["variable_2"], "")
+        variables["scale"] = tk.StringVar(value="Linear")
         widgets["scale"] = tk.OptionMenu(panel, variables["scale"], "")
+        variables["bin_shape"] = tk.StringVar(value="Linear")
+        widgets["bin_shape"] = tk.OptionMenu(panel, variables["bin_shape"], "")
         widgets["chain_vis"] = tk.Button(panel, text="Select Chains",
                                          width=13, border=4, background=BLACK, foreground=WHITE)
         variables["combined_hist"] = tk.IntVar(value=0)
@@ -208,6 +211,7 @@ class TkGUI():
         widgets["variable 1"].configure(**MENU_KWARGS)
         widgets["variable 2"].configure(**MENU_KWARGS)
         widgets["scale"].configure(**MENU_KWARGS)
+        widgets["bin_shape"].configure(**MENU_KWARGS)
 
         # Add fixed items to specific OptionMenus
 
@@ -219,7 +223,14 @@ class TkGUI():
                              offvalue="Log", variable=variables["scale"])
         menu.add_checkbutton(label="Symlog", onvalue="Symlog",
                              offvalue="Symlog", variable=variables["scale"])
-
+        
+        # Menu for whether bins are logarithmically spaced
+        menu: tk.Menu = widgets["bin_shape"]["menu"]
+        menu.delete(0)
+        menu.add_checkbutton(label="Linear", onvalue="Linear", offvalue="Linear",
+                             variable=variables["bin_shape"])
+        menu.add_checkbutton(label="Log", onvalue="Log",
+                             offvalue="Log", variable=variables["bin_shape"])
 
         # Entry for horizontal marker
         variables["hori_marker"] = tk.StringVar()
@@ -267,7 +278,7 @@ class TkGUI():
                      {"x": 20, "y": 88, "anchor": "nw"},
                      {"x": 200, "y": 88, "anchor": "n"},
 
-                     {"x": 380, "y": 88, "anchor": "ne"},
+                     {"x": 380, "y": 88, "anchor": "ne"}, # 8
                      {"x": 20, "y": 116, "anchor": "nw"},
                      {"x": 200, "y": 116, "anchor": "n"},
                      {"x": 380, "y": 116, "anchor": "ne"},
@@ -276,10 +287,12 @@ class TkGUI():
                      {"x": 20, "y": 188, "anchor": "nw"},
                      {"x": 200, "y": 156, "anchor": "n"},
                      {"x": 198, "y": 188, "anchor": "ne"},
+                     {"x": 253, "y": 188, "anchor": "ne"}, # 16
 
-                     {"x": 253, "y": 188, "anchor": "ne"},
+                     {"x": 380, "y": 156, "anchor": "ne"},
+                     {"x": 380, "y": 188, "anchor": "ne"},
 
-                     {"x": 380, "y": 156, "anchor": "e"},
+                     {"x": 380, "y": 240, "anchor": "e"},
 
                      {"x": 20, "y": 322, "anchor": "nw"},
                      {"x": 20, "y": 394, "anchor": "sw"},
@@ -300,9 +313,9 @@ class TkGUI():
                                                    (widgets["xlim_label"], locations[14]),
                                                    (widgets["xlim_l"], locations[15]),
                                                    (widgets["xlim_u"], locations[16]),
-                                                   (widgets["chain_vis"], locations[18]),
-                                                   (widgets["export this"], locations[19]),
-                                                   (widgets["calc_diffusion"], locations[20])]
+                                                   (widgets["chain_vis"], locations[20]),
+                                                   (widgets["export this"], locations[21]),
+                                                   (widgets["calc_diffusion"], locations[22])]
                                  )
 
         self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], locations[0]),
@@ -318,8 +331,8 @@ class TkGUI():
                                                    (widgets["xlim_label"], locations[14]),
                                                    (widgets["xlim_l"], locations[15]),
                                                    (widgets["xlim_u"], locations[16]),
-                                                   (widgets["chain_vis"], locations[18]),
-                                                   (widgets["export this"], locations[19])]
+                                                   (widgets["chain_vis"], locations[20]),
+                                                   (widgets["export this"], locations[21])]
                                  )
 
         self.side_panel.addstate("1D Histogram", [(widgets["x_axis_label"], locations[0]),
@@ -335,9 +348,11 @@ class TkGUI():
                                                   (widgets["xlim_label"], locations[14]),
                                                   (widgets["xlim_l"], locations[15]),
                                                   (widgets["xlim_u"], locations[16]),
-                                                  (widgets["combined_hist"], locations[17]),
-                                                  (widgets["chain_vis"], locations[18]),
-                                                  (widgets["export this"], locations[19])]
+                                                  (widgets["bin_shape_label"], locations[17]),
+                                                  (widgets["bin_shape"], locations[18]),
+                                                  (widgets["combined_hist"], locations[19]),
+                                                  (widgets["chain_vis"], locations[20]),
+                                                  (widgets["export this"], locations[21])]
                                  )
 
         self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], locations[0]),
@@ -355,6 +370,6 @@ class TkGUI():
                                                   (widgets["xlim_label"], locations[14]),
                                                   (widgets["xlim_l"], locations[15]),
                                                   (widgets["xlim_u"], locations[16]),
-                                                  (widgets["chain_vis"], locations[18]),
-                                                  (widgets["export this"], locations[19])]
+                                                  (widgets["chain_vis"], locations[20]),
+                                                  (widgets["export this"], locations[21])]
                                  )
