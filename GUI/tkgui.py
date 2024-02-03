@@ -267,109 +267,111 @@ class TkGUI():
         """Add a map of widget locations for each of the four plotting states"""
         widgets = self.side_panel.widgets
 
-        # TODO: More descriptive way to index these
-        locations = [{"x": 20, "y": 20, "anchor": "nw"},
-                     {"x": 200, "y": 20, "anchor": "n"},
-                     {"x": 380, "y": 20, "anchor": "ne"},
-                     {"x": 20, "y": 48, "anchor": "nw"},
+        cols = {"left": 20, "mid": 200, "right": 380,
+                "mid_l": 198, "mid_r": 253}
+        
+        rows = {"1u": 20, "1d": 48, "2u": 88, "2d": 116, "3u": 156, "3d": 188,}
 
-                     {"x": 200, "y": 48, "anchor": "n"},
-                     {"x": 380, "y": 48, "anchor": "ne"},
-                     {"x": 20, "y": 88, "anchor": "nw"},
-                     {"x": 200, "y": 88, "anchor": "n"},
+        l1u = {"x": cols["left"], "y": rows["1u"], "anchor": "nw"}
+        m1u = {"x": cols["mid"], "y": rows["1u"], "anchor": "n"}
+        r1u = {"x": cols["right"], "y": rows["1u"], "anchor": "ne"}
 
-                     {"x": 380, "y": 88, "anchor": "ne"}, # 8
-                     {"x": 20, "y": 116, "anchor": "nw"},
-                     {"x": 200, "y": 116, "anchor": "n"},
-                     {"x": 380, "y": 116, "anchor": "ne"},
+        l1d = {"x": cols["left"], "y": rows["1d"], "anchor": "nw"}
+        m1d = {"x": cols["mid"], "y": rows["1d"], "anchor": "n"}
+        r1d = {"x": cols["right"], "y": rows["1d"], "anchor": "ne"}
 
-                     {"x": 20, "y": 156, "anchor": "nw"},
-                     {"x": 20, "y": 188, "anchor": "nw"},
-                     {"x": 200, "y": 156, "anchor": "n"},
-                     {"x": 198, "y": 188, "anchor": "ne"},
-                     {"x": 253, "y": 188, "anchor": "ne"}, # 16
+        l2u = {"x": cols["left"], "y": rows["2u"], "anchor": "nw"}
+        m2u = {"x": cols["mid"], "y": rows["2u"], "anchor": "n"}
+        r2u = {"x": cols["right"], "y": rows["2u"], "anchor": "ne"}
 
-                     {"x": 380, "y": 156, "anchor": "ne"},
-                     {"x": 380, "y": 188, "anchor": "ne"},
+        l2d = {"x": cols["left"], "y": rows["2d"], "anchor": "nw"}
+        m2d = {"x": cols["mid"], "y": rows["2d"], "anchor": "n"}
+        r2d = {"x": cols["right"], "y": rows["2d"], "anchor": "ne"}
 
-                     {"x": 380, "y": 240, "anchor": "e"},
+        l3u = {"x": cols["left"], "y": rows["3u"], "anchor": "nw"}
+        m3u = {"x": cols["mid"], "y": rows["3u"], "anchor": "n"}
+        r3u = {"x": cols["right"], "y": rows["3u"], "anchor": "ne"}
 
-                     {"x": 20, "y": 322, "anchor": "nw"},
-                     {"x": 20, "y": 394, "anchor": "sw"},
-                     {"x": 380, "y": 394, "anchor": "se"}
+        l3d = {"x": cols["left"], "y": rows["3d"], "anchor": "nw"}
+        ml3d = {"x": cols["mid_l"], "y": rows["3d"], "anchor": "ne"}
+        mr3d = {"x": cols["mid_r"], "y": rows["3d"], "anchor": "ne"}
+        r3d = {"x": cols["right"], "y": rows["3d"], "anchor": "ne"}
 
-                     ]
+        singlehist = {"x": cols["right"], "y": 240, "anchor": "e"}
+        chainvis = {"x": cols["left"], "y": 322, "anchor": "nw"}
+        export = {"x": cols["left"], "y": 394, "anchor": "sw"}
+        diffusion = {"x": cols["right"], "y": 394, "anchor": "se"}
 
-        self.side_panel.addstate("1D Trace Plot", [(widgets["x_axis_label"], locations[0]),
-                                                   (widgets["scale_label"], locations[2]),
-                                                   (widgets["variable 1"], locations[3]),
-                                                   (widgets["scale"], locations[5]),
-                                                   (widgets["hori_marker_label"], locations[6]),
-                                                   (widgets["hori_marker_entry"], locations[9]),
-                                                   (widgets["equi_label"], locations[7]),
-                                                   (widgets["equi_entry"], locations[10]),
-                                                   (widgets["thickness_label"], locations[12]),
-                                                   (widgets["thickness"], locations[13]),
-                                                   (widgets["xlim_label"], locations[14]),
-                                                   (widgets["xlim_l"], locations[15]),
-                                                   (widgets["xlim_u"], locations[16]),
-                                                   (widgets["chain_vis"], locations[20]),
-                                                   (widgets["export this"], locations[21]),
-                                                   (widgets["calc_diffusion"], locations[22])]
+        self.side_panel.addstate("1D Trace Plot", [(widgets["x_axis_label"], l1u),
+                                                   (widgets["scale_label"], r1u),
+                                                   (widgets["variable 1"], l1d),
+                                                   (widgets["scale"], r1d),
+                                                   (widgets["hori_marker_label"], l2u),
+                                                   (widgets["hori_marker_entry"], l2d),
+                                                   (widgets["equi_label"], m2u),
+                                                   (widgets["equi_entry"], m2d),
+                                                   (widgets["thickness_label"], l3u),
+                                                   (widgets["thickness"], l3d),
+                                                   (widgets["xlim_label"], m3u),
+                                                   (widgets["xlim_l"], ml3d),
+                                                   (widgets["xlim_u"], mr3d),
+                                                   (widgets["chain_vis"], chainvis),
+                                                   (widgets["export this"], export),
+                                                   (widgets["calc_diffusion"], diffusion)]
                                  )
 
-        self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], locations[0]),
-                                                   (widgets["y_axis_label"], locations[1]),
-                                                   (widgets["scale_label"], locations[2]),
-                                                   (widgets["variable 1"], locations[3]),
-                                                   (widgets["variable 2"], locations[4]),
-                                                   (widgets["scale"], locations[5]),
-                                                   (widgets["equi_label"], locations[7]),
-                                                   (widgets["equi_entry"], locations[10]),
-                                                   (widgets["thickness_label"], locations[12]),
-                                                   (widgets["thickness"], locations[13]),
-                                                   (widgets["xlim_label"], locations[14]),
-                                                   (widgets["xlim_l"], locations[15]),
-                                                   (widgets["xlim_u"], locations[16]),
-                                                   (widgets["chain_vis"], locations[20]),
-                                                   (widgets["export this"], locations[21])]
+        self.side_panel.addstate("2D Trace Plot", [(widgets["x_axis_label"], l1u),
+                                                   (widgets["y_axis_label"], m1u),
+                                                   (widgets["scale_label"], r1u),
+                                                   (widgets["variable 1"], l1d),
+                                                   (widgets["variable 2"], m1d),
+                                                   (widgets["scale"], r1d),
+                                                   (widgets["equi_label"], m2u),
+                                                   (widgets["equi_entry"], m2d),
+                                                   (widgets["thickness_label"], l3u),
+                                                   (widgets["thickness"], l3d),
+                                                   (widgets["xlim_label"], m3u),
+                                                   (widgets["xlim_l"], ml3d),
+                                                   (widgets["xlim_u"], mr3d),
+                                                   (widgets["chain_vis"], chainvis),
+                                                   (widgets["export this"], export)]
                                  )
 
-        self.side_panel.addstate("1D Histogram", [(widgets["x_axis_label"], locations[0]),
-                                                  (widgets["scale_label"], locations[2]),
-                                                  (widgets["variable 1"], locations[3]),
-                                                  (widgets["scale"], locations[5]),
-                                                  (widgets["equi_label"], locations[7]),
-                                                  (widgets["equi_entry"], locations[10]),
-                                                  (widgets["num_bins_label"], locations[8]),
-                                                  (widgets["num_bins_entry"], locations[11]),
-                                                  (widgets["thickness_label"], locations[12]),
-                                                  (widgets["thickness"], locations[13]),
-                                                  (widgets["xlim_label"], locations[14]),
-                                                  (widgets["xlim_l"], locations[15]),
-                                                  (widgets["xlim_u"], locations[16]),
-                                                  (widgets["bin_shape_label"], locations[17]),
-                                                  (widgets["bin_shape"], locations[18]),
-                                                  (widgets["combined_hist"], locations[19]),
-                                                  (widgets["chain_vis"], locations[20]),
-                                                  (widgets["export this"], locations[21])]
+        self.side_panel.addstate("1D Histogram", [(widgets["x_axis_label"], l1u),
+                                                  (widgets["scale_label"], r1u),
+                                                  (widgets["variable 1"], l1d),
+                                                  (widgets["scale"], r1d),
+                                                  (widgets["equi_label"], m2u),
+                                                  (widgets["equi_entry"], m2d),
+                                                  (widgets["num_bins_label"], r2u),
+                                                  (widgets["num_bins_entry"], r2d),
+                                                  (widgets["thickness_label"], l3u),
+                                                  (widgets["thickness"], l3d),
+                                                  (widgets["xlim_label"], m3u),
+                                                  (widgets["xlim_l"], ml3d),
+                                                  (widgets["xlim_u"], mr3d),
+                                                  (widgets["bin_shape_label"], r3u),
+                                                  (widgets["bin_shape"], r3d),
+                                                  (widgets["combined_hist"], singlehist),
+                                                  (widgets["chain_vis"], chainvis),
+                                                  (widgets["export this"], export)]
                                  )
 
-        self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], locations[0]),
-                                                  (widgets["y_axis_label"], locations[1]),
-                                                  (widgets["scale_label"], locations[2]),
-                                                  (widgets["variable 1"], locations[3]),
-                                                  (widgets["variable 2"], locations[4]),
-                                                  (widgets["scale"], locations[5]),
-                                                  (widgets["equi_label"], locations[7]),
-                                                  (widgets["equi_entry"], locations[10]),
-                                                  (widgets["num_bins_label"], locations[8]),
-                                                  (widgets["num_bins_entry"], locations[11]),
-                                                  (widgets["thickness_label"], locations[12]),
-                                                  (widgets["thickness"], locations[13]),
-                                                  (widgets["xlim_label"], locations[14]),
-                                                  (widgets["xlim_l"], locations[15]),
-                                                  (widgets["xlim_u"], locations[16]),
-                                                  (widgets["chain_vis"], locations[20]),
-                                                  (widgets["export this"], locations[21])]
+        self.side_panel.addstate("2D Histogram", [(widgets["x_axis_label"], l1u),
+                                                  (widgets["y_axis_label"], m1u),
+                                                  (widgets["scale_label"], r1u),
+                                                  (widgets["variable 1"], l1d),
+                                                  (widgets["variable 2"], m1d),
+                                                  (widgets["scale"], r1d),
+                                                  (widgets["equi_label"], m2u),
+                                                  (widgets["equi_entry"], m2d),
+                                                  (widgets["num_bins_label"], r2u),
+                                                  (widgets["num_bins_entry"], r2d),
+                                                  (widgets["thickness_label"], l3u),
+                                                  (widgets["thickness"], l3d),
+                                                  (widgets["xlim_label"], m3u),
+                                                  (widgets["xlim_l"], ml3d),
+                                                  (widgets["xlim_u"], mr3d),
+                                                  (widgets["chain_vis"], chainvis),
+                                                  (widgets["export this"], export)]
                                  )
