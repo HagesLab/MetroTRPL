@@ -55,10 +55,17 @@ def traceplot2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
     axes.set_xlabel(f"{x_label}")
     axes.set_ylabel(f"{y_label}")
 
-def histogram1d(axes: Axes, x_list: np.ndarray, title: str, x_label: str, scale: str, bins: int,
+def histogram1d(axes: Axes, x_list: np.ndarray, title: str, x_label: str, scale: str, bins: int, bin_shape: str,
                 color: str) -> None:
     """1D histogram, showing distribution of values visited by one parameter"""
-    axes.hist(x_list, bins, edgecolor='k', facecolor=color)
+    if bin_shape == "log":
+        nonzero = x_list > 0
+        logbins = np.logspace(np.log10(x_list[nonzero].min()), np.log10(x_list[nonzero].max()), bins)
+        axes.hist(x_list[nonzero], logbins, edgecolor='k', facecolor=color)
+        axes.set_xscale("log")
+    else:
+        axes.hist(x_list, bins, edgecolor='k', facecolor=color)
+
     if scale == "symlog":
         axes.set_yscale(scale, linthresh=LINTHRESH)
     else:

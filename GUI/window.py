@@ -108,6 +108,7 @@ class Window(TkGUI):
 
         variables["combined_hist"].trace("w", self.redraw)
         variables["scale"].trace("w", self.redraw)
+        variables["bin_shape"].trace("w", self.redraw)
         widgets["hori_marker_entry"].bind("<FocusOut>", self.redraw)
         widgets["equi_entry"].bind("<FocusOut>", self.redraw)
         widgets["num_bins_entry"].bind("<FocusOut>", self.redraw)
@@ -406,12 +407,20 @@ class Window(TkGUI):
 
         # Histogram specific entries
         bins = DEFAULT_HIST_BINS
+        bin_shape = "linear"
         if "Histogram" in self.side_panel.state:
             bins = self.side_panel.variables["bins"].get()
             try:
                 bins = int(bins)
             except ValueError:
                 pass
+            bin_shape = self.side_panel.variables["bin_shape"].get()
+
+            if bin_shape == "Linear":
+                bin_shape = "linear"
+            elif bin_shape == "Log":
+                bin_shape = "log"
+
 
         # 2D specific entries
         y_val = "select"
@@ -451,7 +460,7 @@ class Window(TkGUI):
                                         title, scale, xlim, hline, (equi,), color)
                     
                     if 0 <= equi < len(chain.data[x_val]):
-                        if 1e-3 < chain.data[x_val][equi] < 1e6:
+                        if 1e-3 < np.abs(chain.data[x_val][equi]) < 1e6:
                             self.status(f"Chain {i} {x_val}({equi}): {chain.data[x_val][equi]:.3f}")
                         else:
                             self.status(f"Chain {i} {x_val}({equi}): {chain.data[x_val][equi]:.3e}")
@@ -500,12 +509,21 @@ class Window(TkGUI):
                         vals = np.hstack((vals, chain.data[x_val][equi:]))
 
                     # Print some statistics
-                    mean = np.nanmean(vals)
-                    stdev = np.nanstd(vals, ddof=1)
-                    self.status(f"Mean: {mean}, stdev: {stdev}")
+                    
+                    if bin_shape == "linear":
+                        mean = np.nanmean(vals)
+                        stdev = np.nanstd(vals, ddof=1)
+                        self.status(f"Mean: {mean:.3e}, stdev: {stdev:.3e}")
+                    elif bin_shape == "log":
+                        nonzero = vals > 0
+                        mean = np.nanmean(np.log10(vals[nonzero]))
+                        stdev = np.nanstd(np.log10(vals[nonzero]), ddof=1)
+                        self.status(f"Ignored {len(vals) - np.sum(nonzero)} zero values")
+                        self.status(f"Log mean: {mean:.3e}, stdev: {stdev:.3e}")
+                        self.status(f"Mean: {10 ** mean:.3e}, 1-sigma: ({10 ** (mean - stdev):.3e}, {10 ** (mean + stdev):.3e})")
 
                     color = PLOT_COLOR_CYCLE[0]
-                    mc_plot.histogram1d(axes, vals, f"{x_val}", x_val, scale, bins, color)
+                    mc_plot.histogram1d(axes, vals, f"{x_val}", x_val, scale, bins, bin_shape, color)
                 else:
                     for i, chain in enumerate(self.chains):
                         if not chain.is_visible():
@@ -521,7 +539,7 @@ class Window(TkGUI):
                                 continue
 
                         mc_plot.histogram1d(axes, chain.data[x_val][equi:],
-                                            f"{x_val}", x_val, scale, bins, color)
+                                            f"{x_val}", x_val, scale, bins, bin_shape, color)
 
             case "2D Histogram":
                 xy_val = {"x": x_val, "y": y_val}
