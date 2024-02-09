@@ -150,7 +150,7 @@ def one_sim_likelihood(meas_index, state, unique_fields, shared_fields, logger):
             ll_func = lambda T: -np.sum(
                 err_sq
                 / (
-                    unique_fields["current_sigma"][meas_type] ** 2 * T
+                    unique_fields["model_uncertainty"][meas_type] ** 2 * T
                     + 2 * uncs_c**2
                 )
             )

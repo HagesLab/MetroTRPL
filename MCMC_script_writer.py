@@ -35,7 +35,7 @@ if __name__ == "__main__":
     # Filenames
     init_fname = "staub_MAPI_threepower_twothick_fluences.csv"
     exp_fname = "staub_MAPI_threepower_twothick_nonoise.csv"
-    out_fname = "sample_output"
+    out_fname = "DEBUG_sig"
 
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
@@ -140,10 +140,10 @@ if __name__ == "__main__":
                    "measurement_path": os.path.join(init_dir, exp_fname),
                    "output_path": output_path,
                    "ini_mode": "fluence", # "density"
-                   "num_iters": 10,
+                   "num_iters": 100,
                    "solver": ("solveivp",),
                    "model": "std",
-                   "likel2move_ratio": 333.33,
+                   "model_uncertainty": 1, #{"TRPL": 1, "TRTS": 1},
                    "log_y": 1,
                    "scale_factor": None,
                    "irf_convolution": None,

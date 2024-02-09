@@ -108,7 +108,7 @@ class Ensemble(EnsembleTemplate):
         # Essential fields with no defaults
         for field in ["output_path", "load_checkpoint", "init_cond_path",
                       "measurement_path", "checkpoint_freq", "ini_mode",
-                      "solver", "model", "num_iters", "log_y", "likel2move_ratio"]:
+                      "solver", "model", "num_iters", "log_y"]:
             self.ensemble_fields[field] = MCMC_fields.pop(field)
 
         # Optional fields that can default to None
@@ -120,6 +120,14 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["temper_freq"] = MCMC_fields.pop(
             "temper_freq", DEFAULT_TEMPER_FREQ
         )
+
+        # Discard l2v if model_uncertainty also exists
+        if "model_uncertainty" in MCMC_fields and "likel2move_ratio" in MCMC_fields:
+            MCMC_fields.pop("likel2move_ratio")
+
+        if "likel2move_ratio" in MCMC_fields:
+            self.ensemble_fields["likel2move_ratio"] = MCMC_fields.pop("likel2move_ratio")
+
         self.ensemble_fields["hard_bounds"] = MCMC_fields.pop("hard_bounds", 0)
         self.ensemble_fields["hmax"] = MCMC_fields.pop("hmax", DEFAULT_HMAX)
         self.ensemble_fields["force_min_y"] = MCMC_fields.pop("force_min_y", 0)
@@ -180,11 +188,12 @@ class Ensemble(EnsembleTemplate):
         for i in range(self.ensemble_fields["_n_chains"]):
             self.unique_fields.append(dict(MCMC_fields))
             self.unique_fields[-1]["_T"] = self.ensemble_fields["_T"][i]
-            self.unique_fields[-1]["current_sigma"] = {
-                m: max(self.ensemble_fields["base_trial_move"])
-                * self.ensemble_fields["likel2move_ratio"][m]
-                for m in sim_info["meas_types"]
-            }
+            if "likel2move_ratio" in self.ensemble_fields:
+                self.unique_fields[-1]["model_uncertainty"] = {
+                    m: max(self.ensemble_fields["base_trial_move"])
+                    * self.ensemble_fields["likel2move_ratio"][m]
+                    for m in sim_info["meas_types"]
+                }
 
         self.ensemble_fields["do_parallel_tempering"] = self.ensemble_fields["_n_chains"] > 1
 
