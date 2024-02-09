@@ -384,6 +384,13 @@ def read_config_script_file(path):
                         except ValueError: # Not a float; must be dict
                             l2v = extract_tuples(line_split[1], delimiter="|", dtype=float)
                             MCMC_fields["likel2move_ratio"] = {m[0]:float(m[1]) for m in l2v}
+                    elif line.startswith("Model uncertainty"):
+                        try:
+                            sigma = float(line_split[1])
+                            MCMC_fields["model_uncertainty"] = {m:sigma for m in grid["meas_types"]}
+                        except ValueError: # Not a float; must be dict
+                            sigma = extract_tuples(line_split[1], delimiter="|", dtype=float)
+                            MCMC_fields["model_uncertainty"] = {m[0]:float(m[1]) for m in sigma}
                     elif line.startswith("Use log of measurements"):
                         MCMC_fields["log_y"] = int(line_split[1])
                     elif line.startswith("Scale factor"):
