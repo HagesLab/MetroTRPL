@@ -72,6 +72,7 @@ class TestUtils(unittest.TestCase):
         ensemble_fields = {"units": units, "solver": ("solveivp",),
                      "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "_sim_info": simPar, "_param_indexes": indexes, "_init_params": iniPar,
+                     "ini_mode": "density",
                      "_times": times, "_vals": vals, "_uncs": uncs}
         logll, _ = eval_trial_move(state, sim_flags, ensemble_fields, self.logger)
 
@@ -128,6 +129,7 @@ class TestUtils(unittest.TestCase):
         ensemble_fields = {"units": units, "solver": ("solveivp",),
                      "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8, "force_min_y": True,
                      "_sim_info": simPar, "_param_indexes": indexes, "_init_params": iniPar,
+                     "ini_mode": "density",
                      "_times": times, "_vals": vals, "_uncs": uncs}
         logll1, _ = eval_trial_move(state, sim_flags, ensemble_fields, self.logger)
 
@@ -196,6 +198,7 @@ class TestUtils(unittest.TestCase):
         ensemble_fields = {"units": units, "solver": ("solveivp",),
                      "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "_sim_info": simPar, "_param_indexes": indexes, "_init_params": iniPar,
+                     "ini_mode": "density",
                      "_times": times, "_vals": vals, "_uncs": uncs}
 
         logll, _ = eval_trial_move(state, sim_flags, ensemble_fields, self.logger)
@@ -267,6 +270,7 @@ class TestUtils(unittest.TestCase):
                      "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "scale_factor": (0.02, [0, 1, 2, 3, 4, 5], [(0, 2, 4), (1, 3, 5)]),
                      "_sim_info": simPar, "_param_indexes": indexes, "_init_params": iniPar,
+                     "ini_mode": "density",
                      "_times": times, "_vals": vals, "_uncs": uncs}
 
         logll, _ = eval_trial_move(state, sim_flags, ensemble_fields, self.logger)
@@ -328,6 +332,7 @@ class TestUtils(unittest.TestCase):
         ensemble_fields = {"units": units, "solver": ("solveivp",),
                      "model": "std", "hmax": 4, "rtol": 1e-5, "atol": 1e-8,
                      "_sim_info": simPar, "_param_indexes": indexes, "_init_params": iniPar,
+                     "ini_mode": "density",
                      "_times": times, "_vals": vals, "_uncs": uncs}
         logll, _ = eval_trial_move(state, sim_flags, ensemble_fields, self.logger)
 

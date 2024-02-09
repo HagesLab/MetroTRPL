@@ -103,6 +103,7 @@ class TestUtils(unittest.TestCase):
                        "solver": ("solveivp",),
                        "model": "std",
                        "likel2move_ratio": {"TRPL": 500},
+                       "ini_mode": "density",
                        "log_y": 1,
                        "hard_bounds": 1,
                        "checkpoint_freq": 5,

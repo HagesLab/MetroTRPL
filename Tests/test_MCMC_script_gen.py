@@ -113,6 +113,7 @@ class TestUtils(unittest.TestCase):
                             "num_iters": 25000,
                             "solver": ("solveivp",),
                             "model": "std",
+                            "ini_mode": "density",
                             "rtol": 1e-7,
                             "atol": 1e-10,
                             "hmax": 4,
