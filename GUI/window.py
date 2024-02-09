@@ -71,6 +71,7 @@ class Window(TkGUI):
 
         # List of loaded MCMC chains
         self.chains = list[Chain]()
+        self.n_files = 0
 
         # List of additional variables needed for simulations
         self.ext_variables = ["thickness", "nx", "final_time", "nt",
@@ -242,6 +243,7 @@ class Window(TkGUI):
         self.widget.title(f"{self.application_name} - {file_names}")
 
         self.chains = []
+        self.n_files = len(file_names)
         for file_name in file_names:
             with open(file_name, "rb") as rfile:
                 MS_list = pickle.load(rfile)
@@ -259,8 +261,6 @@ class Window(TkGUI):
                         MS_list = MS_list.unique_fields  # Might have to accomodate outdated MS_list.MS
                     except AttributeError:
                         MS_list = MS_list.MS
-                    
-                    
 
             for i in range(len(MS_list)):
                 chain = Chain(file_name + f"-{i}")
