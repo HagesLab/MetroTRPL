@@ -38,7 +38,7 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
    * do_log - Whether trial moves should be made in log scale. **This should be active (=1) for any parameter for which reasonable values can span several orders of magnitude.**
    * prior_dist - Ranges of reasonable values within which the optimal parameters are expected. For instance, bulk lifetimes may range from a few to a few hundred nanoseconds.
    * init_guess - Initial guess / starting values for each parameter.
-   * trial_move - Maximum size of trial move for each parameter. Trial moves will be proposed from a uniform distribution with widths determined by this setting. Smaller moves increase the precision of inferences but also increase the equilibration time for the chains. **If in doubt, a trial_move of 0.01 with do_log activated is a good first try.**
+   * trial_move - Maximum size of trial move for each parameter. Trial moves will be proposed from a uniform distribution with widths determined by this setting. Smaller moves are accepted more often but also increase the equilibration time for the chains. **Adjust this to maintain an acceptance rate of 10-50%. Though it will vary from measurement data to measurement data, a trial_move of 0.01 with do_log activated is a good first try.**
 3. **meas_fields** - measurement data settings
    * time_cutoff - Truncate measurements to this time range. For instance, [0-10] means that only the first 10 nanoseconds of each measurement will be kept for the MCMC algorithm. This can be used to make inferences on specific time regimes of the measurements.
    * select_obs_sets - Select specific measurements out of the measurement data file for the MCMC algorithm. A list such as [0,2] means to keep only the first and third measurements, while omitting the second and others. Set to None to keep ALL measurements.
@@ -51,7 +51,7 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
    * model - Choice of carrier transport model. std for the standard carrier model, or traps for the shallow trapping carrier model.
    * ini_mode - Set to "fluence" if the initial condition input is a fluence/absorption/direction trio, or to "density" if it is a carrier density list.
    * rtol, atol, hmax - Solver tolerances and adaptive stepsize. See the [solve_ivp docs](https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html) for more details.
-   * likel2move_ratio - Ratio to maintain betwen Model uncertainty and trial move size. Model uncertainty will be taken as this times trial move size. Larger values increase the acceptance rate. but lower the precision of inferences. **For greatest sampling efficiency, adjust this value to maintain an acceptance rate between 10% and 50%.**
+   * model_uncertainty - The model uncertainty, or how selective the sampling is. Smaller values make the precision of inferences higher, up to the limit of your measurement uncertainty, but are harder to equilibrate. **Try starting with 1, and adjust according to your precision needs.**
    * log_y - Whether to compare measurements and simulations on log scale. **Set to 1 for measurements which span many orders of magnitude.**
    * hard_bounds - Whether to automatically reject all trial moves leading outside of the prior_dist boundaries.
    * force_min_y - Whether to raise abnormally small simulation values to the minimum measured data value. May make the MCMC algorithm more sensitive in regions of low probability.
