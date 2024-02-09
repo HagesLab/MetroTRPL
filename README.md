@@ -52,7 +52,7 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
    * ini_mode - Set to "fluence" if the initial condition input is a fluence/absorption/direction trio, or to "density" if it is a carrier density list.
    * rtol, atol, hmax - Solver tolerances and adaptive stepsize. See the [solve_ivp docs](https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html) for more details.
    * model_uncertainty - The model uncertainty, or how selective the sampling is. Smaller values make the precision of inferences higher, up to the limit of your measurement uncertainty, but are harder to equilibrate. **Try starting with 1, and adjust according to your precision needs.**
-   * log_y - Whether to compare measurements and simulations on log scale. **Set to 1 for measurements which span many orders of magnitude.**
+   * log_y - Whether to compare measurements and simulations on log scale. **Only works for measurements with all positive values. Set to 1 for measurements which span many orders of magnitude.**
    * hard_bounds - Whether to automatically reject all trial moves leading outside of the prior_dist boundaries.
    * force_min_y - Whether to raise abnormally small simulation values to the minimum measured data value. May make the MCMC algorithm more sensitive in regions of low probability.
    * checkpoint_freq - Interval in which the MCMC algorithm will save snapshots of partially completed inferences. Checkpoints files are formatted identically to output files.
@@ -70,6 +70,14 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
 **ValueErrors from get_data() or get_initpoints() with unusual symbols**
 
 Software such as MS Excel can add invisible formatting or characters to data files. **Be sure to save your data as ".csv" - not ".csv UTF-8" or any other variants.** After you save your data, reopen your .csv file with a text editor (e.g. notepad) to verify that there are no unusual symbols.
+
+**My TRPL predicted lifetimes are too high**
+
+One reason this can happen with TRPL data is if the dataset is not background level subtracted or overly noisy, as any background noise component can be though of as a decay with a lifetime of infinity. First, be sure to subtract any background noise from your TRPL measurements. Second, **truncate** your data just before the signal decays to the noise level; otherwise the noisy points will artificially inflate the lifetime.
+
+**My log likelihoods are extremely low (< -10^6) and don't improve over time**
+
+If you have the do_log setting active, make sure all of your measurement data are positive. Consider using scale_factor if you aren't using already. Keeping in mind that simulated I_PL values are ~10^22 cm^-2 s^-1 at t=0 and simulated TRTS values are ~10^-3, good initial guesses for scale_factors are 10^-20 for TRPL and 10^3 for TRTS.
 
 ## File Overview
 
