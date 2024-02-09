@@ -58,7 +58,7 @@ class TestUtils(unittest.TestCase):
                          "m": 1}
         param_info["init_guess"] = initial_guess
 
-        sim_flags = {"current_sigma": {"TRPL": 1},
+        sim_flags = {"model_uncertainty": {"TRPL": 1},
                      }
 
         indexes = {name: param_names.index(name) for name in param_names}
@@ -113,7 +113,7 @@ class TestUtils(unittest.TestCase):
                          "m": 1}
         param_info["init_guess"] = initial_guess
 
-        sim_flags = {"current_sigma": {"TRPL": 1},
+        sim_flags = {"model_uncertainty": {"TRPL": 1},
                      }
 
         indexes = {name: param_names.index(name) for name in param_names}
@@ -182,7 +182,7 @@ class TestUtils(unittest.TestCase):
                          "m": 1}
         param_info["init_guess"] = initial_guess
 
-        sim_flags = {"current_sigma": {"TRPL": 1},}
+        sim_flags = {"model_uncertainty": {"TRPL": 1},}
 
         indexes = {name: param_names.index(name) for name in param_names}
         state = [param_info["init_guess"][name] for name in param_names]
@@ -245,7 +245,7 @@ class TestUtils(unittest.TestCase):
                          "eps": 10}
         param_info["init_guess"] = initial_guess
 
-        sim_flags = {"current_sigma": {"TRPL": 1},
+        sim_flags = {"model_uncertainty": {"TRPL": 1},
                      }
 
         # These would normally be inserted when the script file is read by bayes_io
@@ -314,7 +314,7 @@ class TestUtils(unittest.TestCase):
                          "m": 1}
         param_info["init_guess"] = initial_guess
 
-        sim_flags = {"current_sigma": {"TRPL": 1, "TRTS": 10},}
+        sim_flags = {"model_uncertainty": {"TRPL": 1, "TRTS": 10},}
 
         indexes = {name: param_names.index(name) for name in param_names}
         state = [param_info["init_guess"][name] for name in param_names]
