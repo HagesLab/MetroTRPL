@@ -89,9 +89,12 @@ def histogram2d(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
     axes.set_ylabel(f"{y_label}")
 
 def sim_plot(axes: Axes, x_list: np.ndarray, y_list: np.ndarray,
-                  x_label: str, y_label: str, scale: str, color: str) -> None:
+                  x_label: str, y_label: str, scale: str, color: str, size: float = 1, mode: str = "line") -> None:
     """Ordinary plot of TRPL, TRTS, etc... decay, e.g. for quicksim feature"""
-    axes.plot(x_list, y_list, color=color)
+    if mode == "line":
+        axes.plot(x_list, y_list, color=color, lw=size)
+    elif mode == "scatter":
+        axes.scatter(x_list, y_list, color=color, s=size, alpha=0.5)
     axes.set_yscale(scale)
     axes.set_xlabel(x_label)
     axes.set_ylabel(y_label)
