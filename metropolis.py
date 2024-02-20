@@ -290,7 +290,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
 
     make_dir(MCMC_fields["output_path"])
 
-    load_checkpoint = MCMC_fields["load_checkpoint"]
+    load_checkpoint = MCMC_fields.get("load_checkpoint", None)
     num_iters = MCMC_fields["num_iters"]
     checkpoint_freq = MCMC_fields.get("checkpoint_freq", num_iters)
     RNG = np.random.default_rng(235817049752375780)

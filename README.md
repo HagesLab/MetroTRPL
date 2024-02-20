@@ -56,7 +56,7 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
    * hard_bounds - Whether to automatically reject all trial moves leading outside of the prior_dist boundaries.
    * force_min_y - Whether to raise abnormally small simulation values to the minimum measured data value. May make the MCMC algorithm more sensitive in regions of low probability.
    * checkpoint_freq - Interval in which the MCMC algorithm will save snapshots of partially completed inferences. Checkpoints files are formatted identically to output files.
-   * load_checkpoint - If None, starts a new inference. If the file name of a checkpoint is supplied, the MCMC algorithm will continue an inference from where that checkpoint left off.
+   * load_checkpoint (Optional) - If absent from the list or is None, starts a new inference. If the file name of a checkpoint is supplied, the MCMC algorithm will continue an inference from where that checkpoint left off.
    * scale_factor (Optional) - Add additional scale factors that the MCMC algorithm will attempt to apply on the simulations to account for calibration/detector efficiency factors between simulations and measurement data. Must be None, in which no scaling will be done to the simulations, or a list of four elements:
      1. A trial move size, as described in **param_info**. All factors are fitted by log scale and will use the same move size.
      2. A list of indices for measurements for which factors will be fitted. e.g. [0, 1, 2] means to create scale factors for the first, second, and third measurements. Additional parameters named _s0, _s1, _s2... will be created for such measurements.

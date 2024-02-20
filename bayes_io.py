@@ -939,11 +939,12 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         chpt_f = MCMC_fields["checkpoint_freq"]
         ofstream.write(f"Checkpoint freq: {chpt_f}\n")
 
-        if verbose:
-            ofstream.write(
-                "# Name of a checkpoint file to resume an MCMC from.\n")
-        load_chpt = MCMC_fields["load_checkpoint"]
-        ofstream.write(f"Load checkpoint: {load_chpt}\n")
+        if "load_checkpoint" in MCMC_fields:
+            if verbose:
+                ofstream.write(
+                    "# Name of a checkpoint file to resume an MCMC from.\n")
+            load_chpt = MCMC_fields["load_checkpoint"]
+            ofstream.write(f"Load checkpoint: {load_chpt}\n")
 
         if verbose:
             ofstream.write(

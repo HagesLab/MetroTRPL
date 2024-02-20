@@ -106,13 +106,13 @@ class Ensemble(EnsembleTemplate):
         # Transfer shared fields from chains to ensemble
         self.ensemble_fields = {}
         # Essential fields with no defaults
-        for field in ["output_path", "load_checkpoint", "init_cond_path",
+        for field in ["output_path", "init_cond_path",
                       "measurement_path", "checkpoint_freq", "ini_mode",
                       "solver", "model", "num_iters", "log_y"]:
             self.ensemble_fields[field] = MCMC_fields.pop(field)
 
         # Optional fields that can default to None
-        for field in ["rtol", "atol", "scale_factor",
+        for field in ["rtol", "atol", "scale_factor", "load_checkpoint",
                       "fittable_fluences", "fittable_absps", "irf_convolution",
                       "do_mu_constraint"]:
             self.ensemble_fields[field] = MCMC_fields.pop(field, None)

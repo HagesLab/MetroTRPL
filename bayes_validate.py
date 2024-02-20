@@ -284,7 +284,6 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
                      "num_iters", "solver", "model", "ini_mode",
                      "log_y",
                      "checkpoint_freq",
-                     "load_checkpoint",
                      )
     for k in required_keys:
         if k not in MCMC_fields:
@@ -483,9 +482,10 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
     else:
         raise ValueError("checkpoint_freq must be positive integer")
 
-    load = MCMC_fields["load_checkpoint"]
-    if load is None or isinstance(load, str):
-        pass
-    else:
-        raise ValueError("Invalid name of checkpoint to load")
+    if "load_checkpoint" in MCMC_fields:
+        load = MCMC_fields["load_checkpoint"]
+        if load is None or isinstance(load, str):
+            pass
+        else:
+            raise ValueError("Invalid name of checkpoint to load")
     return
