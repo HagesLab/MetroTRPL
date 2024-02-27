@@ -54,7 +54,7 @@ class QSRClickmenu(Clickmenu):
 
 class QuicksimResultPopup(Popup):
 
-    def __init__(self, window, master, n_chains, n_sims, active_chain_inds):
+    def __init__(self, window, master, n_chains, n_sims, active_chain_inds, qse_info):
         self.width = int(BASE_WIDTH + WIDTH_PER_CHAIN * n_chains)
         super().__init__(window, master, self.width, HEIGHT)
         self.toplevel.resizable(False, False)
@@ -97,6 +97,8 @@ class QuicksimResultPopup(Popup):
             self.all_scale_factors[s_f] = []
             for c in range(self.n_chains):
                 self.all_scale_factors[s_f].append(self.window.chains[self.active_chain_inds[c]].data[s_f][-1])
+
+        self.qse_info = qse_info
 
         self.draw_s_frame()
 
@@ -276,7 +278,7 @@ class QuicksimResultPopup(Popup):
     def plot(self, x, y, color, mode, size):
         """Add a curve to the quicksim plot"""
         xlabel = "delay time [ns]"
-        ylabel = "TRPL"
+        ylabel = self.qse_info["meas"]
         scale = "log"
         mc_plot.sim_plot(self.qs_axes, x, y, xlabel,
                          ylabel, scale, color, size=size, mode=mode)
