@@ -10,7 +10,7 @@ from matplotlib.backends._backend_tk import NavigationToolbar2Tk
 import mc_plot
 from popup import Popup
 from bayes_io import get_data
-from rclickmenu import Clickmenu, CLICK_EVENTS
+from rclickmenu import FigureClickmenu, Clickmenu, CLICK_EVENTS
 from gui_colors import BLACK, WHITE, PLOT_COLOR_CYCLE, LIGHT_GREY, DARK_GREY
 from gui_styles import LABEL_KWARGS
 
@@ -100,12 +100,20 @@ class QuicksimResultPopup(Popup):
 
         self.draw_s_frame()
 
-        self.clickmenu = QSRClickmenu(self, self.toplevel, self.s_frame.widget, self.all_scale_factors, self.scale_var, self.redraw)
-        self.toplevel.bind(CLICK_EVENTS["click"]["right"], self.clickmenu.show)
-
         self.o_frame = self.window.Panel(self.toplevel, width=PLOT_SIZE, height=HEIGHT-PLOT_SIZE,
                                          color=LIGHT_GREY)
         self.o_frame.place(x=0, y=PLOT_SIZE)
+
+        self.qsrclickmenu = QSRClickmenu(self, self.toplevel, self.s_frame.widget, self.all_scale_factors, self.scale_var, self.redraw)
+        self.figure_clickmenu = FigureClickmenu(self, self.toplevel, self.qs_chart)
+        
+        def select_clickmenu(event):
+            if event.widget == self.s_frame.widget:
+                self.qsrclickmenu.show(event)
+            elif event.widget == self.qs_chart.widget:
+                self.figure_clickmenu.show(event)
+
+        self.toplevel.bind(CLICK_EVENTS["click"]["right"], select_clickmenu)
 
         toolbar = NavigationToolbar2Tk(self.qs_chart.canvas, self.o_frame.widget, pack_toolbar=False)
         toolbar.place(x=0, y=0, width=PLOT_SIZE-10)
