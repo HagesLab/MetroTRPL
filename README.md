@@ -38,7 +38,7 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
    * do_log - Whether trial moves should be made in log scale. **This should be active (=1) for any parameter for which reasonable values can span several orders of magnitude.**
    * prior_dist - Ranges of reasonable values within which the optimal parameters are expected. For instance, bulk lifetimes may range from a few to a few hundred nanoseconds.
    * init_guess - Initial guess / starting values for each parameter.
-   * trial_move - Maximum size of trial move for each parameter. Trial moves will be proposed from a uniform distribution with widths determined by this setting. Smaller moves increase the precision of inferences but also increase the equilibration time for the chains. **If in doubt, a trial_move of 0.01 with do_log activated is a good first try.**
+   * trial_move - Maximum size of trial move for each parameter. Trial moves will be proposed from a uniform distribution with widths determined by this setting. Smaller moves are accepted more often but also increase the equilibration time for the chains. **Adjust this to maintain an acceptance rate of 10-50%. Though it will vary from measurement data to measurement data, a trial_move of 0.01 with do_log activated is a good first try.**
 3. **meas_fields** - measurement data settings
    * time_cutoff - Truncate measurements to this time range. For instance, [0-10] means that only the first 10 nanoseconds of each measurement will be kept for the MCMC algorithm. This can be used to make inferences on specific time regimes of the measurements.
    * select_obs_sets - Select specific measurements out of the measurement data file for the MCMC algorithm. A list such as [0,2] means to keep only the first and third measurements, while omitting the second and others. Set to None to keep ALL measurements.
@@ -51,12 +51,12 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
    * model - Choice of carrier transport model. std for the standard carrier model, or traps for the shallow trapping carrier model.
    * ini_mode - Set to "fluence" if the initial condition input is a fluence/absorption/direction trio, or to "density" if it is a carrier density list.
    * rtol, atol, hmax - Solver tolerances and adaptive stepsize. See the [solve_ivp docs](https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html) for more details.
-   * likel2move_ratio - Ratio to maintain betwen Model uncertainty and trial move size. Model uncertainty will be taken as this times trial move size. Larger values increase the acceptance rate. but lower the precision of inferences. **For greatest sampling efficiency, adjust this value to maintain an acceptance rate between 10% and 50%.**
-   * log_y - Whether to compare measurements and simulations on log scale. **Set to 1 for measurements which span many orders of magnitude.**
+   * model_uncertainty - The model uncertainty, or how selective the sampling is. Smaller values make the precision of inferences higher, up to the limit of your measurement uncertainty, but are harder to equilibrate. **Try starting with 1, and adjust according to your precision needs.**
+   * log_y - Whether to compare measurements and simulations on log scale. **Only works for measurements with all positive values. Set to 1 for measurements which span many orders of magnitude.**
    * hard_bounds - Whether to automatically reject all trial moves leading outside of the prior_dist boundaries.
    * force_min_y - Whether to raise abnormally small simulation values to the minimum measured data value. May make the MCMC algorithm more sensitive in regions of low probability.
    * checkpoint_freq - Interval in which the MCMC algorithm will save snapshots of partially completed inferences. Checkpoints files are formatted identically to output files.
-   * load_checkpoint - If None, starts a new inference. If the file name of a checkpoint is supplied, the MCMC algorithm will continue an inference from where that checkpoint left off.
+   * load_checkpoint (Optional) - If absent from the list or is None, starts a new inference. If the file name of a checkpoint is supplied, the MCMC algorithm will continue an inference from where that checkpoint left off.
    * scale_factor (Optional) - Add additional scale factors that the MCMC algorithm will attempt to apply on the simulations to account for calibration/detector efficiency factors between simulations and measurement data. Must be None, in which no scaling will be done to the simulations, or a list of four elements:
      1. A trial move size, as described in **param_info**. All factors are fitted by log scale and will use the same move size.
      2. A list of indices for measurements for which factors will be fitted. e.g. [0, 1, 2] means to create scale factors for the first, second, and third measurements. Additional parameters named _s0, _s1, _s2... will be created for such measurements.
@@ -70,6 +70,14 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
 **ValueErrors from get_data() or get_initpoints() with unusual symbols**
 
 Software such as MS Excel can add invisible formatting or characters to data files. **Be sure to save your data as ".csv" - not ".csv UTF-8" or any other variants.** After you save your data, reopen your .csv file with a text editor (e.g. notepad) to verify that there are no unusual symbols.
+
+**My TRPL predicted lifetimes are too high**
+
+One reason this can happen with TRPL data is if the dataset is not background level subtracted or overly noisy, as any background noise component can be though of as a decay with a lifetime of infinity. First, be sure to subtract any background noise from your TRPL measurements. Second, **truncate** your data just before the signal decays to the noise level; otherwise the noisy points will artificially inflate the lifetime.
+
+**My log likelihoods are extremely low (< -10^6) and don't improve over time**
+
+If you have the do_log setting active, make sure all of your measurement data are positive. Consider using scale_factor if you aren't using already. Keeping in mind that simulated I_PL values are ~10^22 cm^-2 s^-1 at t=0 and simulated TRTS values are ~10^-3, good initial guesses for scale_factors are 10^-20 for TRPL and 10^3 for TRTS.
 
 ## File Overview
 

@@ -282,14 +282,17 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
 
     required_keys = ("init_cond_path", "measurement_path", "output_path",
                      "num_iters", "solver", "model", "ini_mode",
-                     "likel2move_ratio",
                      "log_y",
                      "checkpoint_freq",
-                     "load_checkpoint",
                      )
     for k in required_keys:
         if k not in MCMC_fields:
             raise ValueError(f"MCMC control flags missing entry '{k}'")
+        
+    if "likel2move_ratio" in MCMC_fields or "model_uncertainty" in MCMC_fields:
+        pass
+    else:
+        raise ValueError("Either likel2move_ratio or model_uncertainty must be defined under MCMC_fields")
 
     if isinstance(MCMC_fields["init_cond_path"], str):
         pass
@@ -368,20 +371,37 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
         else:
             raise ValueError("hmax must be a non-negative value")
 
-    l2v = MCMC_fields["likel2move_ratio"]
+    if "likel2move_ratio" in MCMC_fields:
+        l2v = MCMC_fields["likel2move_ratio"]
 
-    if isinstance(l2v, (int, np.integer, float)):
-        if l2v < 0:
-            raise ValueError("Likelihood-to-trial-move must be non-negative value")
-    elif isinstance(l2v, dict):
-        for meas_type, val in l2v.items():
-            if isinstance(meas_type, str) and isinstance(val, (int, np.integer, float)) and val >= 0:
-                pass
-            else:
-                raise ValueError(f"{meas_type}: Likelihood-to-trial-move must have one non-negative value"
-                                 " per measurement type")
-    else:
-        raise ValueError("Invalid likelihood-to-trial-move")
+        if isinstance(l2v, (int, np.integer, float)):
+            if l2v < 0:
+                raise ValueError("Likelihood-to-trial-move must be non-negative value")
+        elif isinstance(l2v, dict):
+            for meas_type, val in l2v.items():
+                if isinstance(meas_type, str) and isinstance(val, (int, np.integer, float)) and val >= 0:
+                    pass
+                else:
+                    raise ValueError(f"{meas_type}: Likelihood-to-trial-move must have one non-negative value"
+                                    " per measurement type")
+        else:
+            raise ValueError("Invalid likelihood-to-trial-move")
+        
+    if "model_uncertainty" in MCMC_fields:
+        sigma = MCMC_fields["model_uncertainty"]
+
+        if isinstance(sigma, (int, np.integer, float)):
+            if sigma < 0:
+                raise ValueError("Model uncertainty must be non-negative value")
+        elif isinstance(sigma, dict):
+            for meas_type, val in sigma.items():
+                if isinstance(meas_type, str) and isinstance(val, (int, np.integer, float)) and val >= 0:
+                    pass
+                else:
+                    raise ValueError(f"{meas_type}: Model uncertainty must have one non-negative value"
+                                    " per measurement type")
+        else:
+            raise ValueError("Invalid model uncertainty")
 
     logpl = MCMC_fields["log_y"]
     if (isinstance(logpl, (int, np.integer)) and
@@ -462,9 +482,10 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
     else:
         raise ValueError("checkpoint_freq must be positive integer")
 
-    load = MCMC_fields["load_checkpoint"]
-    if load is None or isinstance(load, str):
-        pass
-    else:
-        raise ValueError("Invalid name of checkpoint to load")
+    if "load_checkpoint" in MCMC_fields:
+        load = MCMC_fields["load_checkpoint"]
+        if load is None or isinstance(load, str):
+            pass
+        else:
+            raise ValueError("Invalid name of checkpoint to load")
     return

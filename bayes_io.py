@@ -384,6 +384,13 @@ def read_config_script_file(path):
                         except ValueError: # Not a float; must be dict
                             l2v = extract_tuples(line_split[1], delimiter="|", dtype=float)
                             MCMC_fields["likel2move_ratio"] = {m[0]:float(m[1]) for m in l2v}
+                    elif line.startswith("Model uncertainty"):
+                        try:
+                            sigma = float(line_split[1])
+                            MCMC_fields["model_uncertainty"] = {m:sigma for m in grid["meas_types"]}
+                        except ValueError: # Not a float; must be dict
+                            sigma = extract_tuples(line_split[1], delimiter="|", dtype=float)
+                            MCMC_fields["model_uncertainty"] = {m[0]:float(m[1]) for m in sigma}
                     elif line.startswith("Use log of measurements"):
                         MCMC_fields["log_y"] = int(line_split[1])
                     elif line.startswith("Scale factor"):
@@ -731,30 +738,59 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         if "one_param_at_a_time" in MCMC_fields:
             print("Script generator warning: setting \"one_param_at_a_time\" is deprecated and will have no effect.")
 
-        if verbose:
-            ofstream.write("# Ratio to maintain betwen Model uncertainty and trial move size.\n"
-                           "# Model uncertainty will be taken as this times trial move size.\n"
-                           "# Should be a single value, or \n"
-                           "# Should be a dict with one value per unique measurement type, \n"
-                           "# which will be shared by all measurements with that type.\n")
-        l2v = MCMC_fields["likel2move_ratio"]
-        if isinstance(l2v, (int, np.integer, float)):
-            ofstream.write(f"Likelihood-to-trial-move: {l2v}\n")
-        else:
-            ofstream.write("Likelihood-to-trial-move: ")
-            l2v = iter(l2v.items())
-            meas_type, val = next(l2v)
-            while True:
-                try:
-                    ofstream.write(f"({meas_type}, {val})")
-                    meas_type, val = next(l2v)
-                    ofstream.write("|")
-                except StopIteration:
-                    break
-            ofstream.write("\n")
+        if "likel2move_ratio" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Ratio to maintain betwen Model uncertainty and trial move size.\n"
+                            "# Model uncertainty will be taken as this times trial move size.\n"
+                            "# Should be a single value, or \n"
+                            "# Should be a dict with one value per unique measurement type, \n"
+                            "# which will be shared by all measurements with that type.\n")
+            l2v = MCMC_fields["likel2move_ratio"]
+            if isinstance(l2v, (int, np.integer, float)):
+                ofstream.write(f"Likelihood-to-trial-move: {l2v}\n")
+            else:
+                ofstream.write("Likelihood-to-trial-move: ")
+                l2v = iter(l2v.items())
+                meas_type, val = next(l2v)
+                while True:
+                    try:
+                        ofstream.write(f"({meas_type}, {val})")
+                        meas_type, val = next(l2v)
+                        ofstream.write("|")
+                    except StopIteration:
+                        break
+                ofstream.write("\n")
+
+        if "model_uncertainty" in MCMC_fields:
+            if verbose:
+                ofstream.write("# Model uncertainty.\n"
+                            "# Determines how selective the sampling is.\n"
+                            "# Should be a single value, or \n"
+                            "# Should be a dict with one value per unique measurement type, \n"
+                            "# which will be shared by all measurements with that type.\n")
+            sigma = MCMC_fields["model_uncertainty"]
+            if isinstance(sigma, (int, np.integer, float)):
+                ofstream.write(f"Model uncertainty: {sigma}\n")
+            else:
+                ofstream.write("Model uncertainty: ")
+                sigma = iter(sigma.items())
+                meas_type, val = next(sigma)
+                while True:
+                    try:
+                        ofstream.write(f"({meas_type}, {val})")
+                        meas_type, val = next(sigma)
+                        ofstream.write("|")
+                    except StopIteration:
+                        break
+                ofstream.write("\n")
+
+        if "likel2move_ratio" in MCMC_fields and "model_uncertainty" in MCMC_fields:
+            print("Script generator warning: both likel2move_ratio and model_uncertainty were defined.\n"
+                  "Likel2move_ratio values will be ignored!")
 
         if "likel2variance_ratio" in MCMC_fields:
-            raise KeyError("Outdated key likel2variance_ratio - please replace with likel2move_ratio")
+            raise KeyError("Outdated key likel2variance_ratio - "
+                           "please replace with likel2move_ratio or model_uncertainty")
 
         if verbose:
             ofstream.write("# Compare log of measurements and simulations for "
@@ -903,11 +939,12 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
         chpt_f = MCMC_fields["checkpoint_freq"]
         ofstream.write(f"Checkpoint freq: {chpt_f}\n")
 
-        if verbose:
-            ofstream.write(
-                "# Name of a checkpoint file to resume an MCMC from.\n")
-        load_chpt = MCMC_fields["load_checkpoint"]
-        ofstream.write(f"Load checkpoint: {load_chpt}\n")
+        if "load_checkpoint" in MCMC_fields:
+            if verbose:
+                ofstream.write(
+                    "# Name of a checkpoint file to resume an MCMC from.\n")
+            load_chpt = MCMC_fields["load_checkpoint"]
+            ofstream.write(f"Load checkpoint: {load_chpt}\n")
 
         if verbose:
             ofstream.write(

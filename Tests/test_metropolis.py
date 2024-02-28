@@ -373,7 +373,7 @@ class TestUtils(unittest.TestCase):
         PL_by_initvals = solve(init_dN, g, state, indexes, meas="TRPL", units=units, solver=("solveivp",),
                                RTOL=1e-10, ATOL=1e-14)
 
-        PL_by_initparams = solve([fluence, alpha], g, state, indexes, meas="TRPL", units=units, solver=("solveivp",),
+        PL_by_initparams = solve([fluence, alpha], g, state, indexes, meas="TRPL", units=units, solver=("solveivp",), ini_mode="fluence",
                                  RTOL=1e-10, ATOL=1e-14)
 
         np.testing.assert_almost_equal(PL_by_initvals / np.amax(PL_by_initvals), PL_by_initparams / np.amax(PL_by_initvals))

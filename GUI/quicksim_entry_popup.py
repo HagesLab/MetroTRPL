@@ -299,6 +299,10 @@ class QuicksimEntryPopup(Popup):
         for kb in keybinds:
             def keybind(kb, *args) -> None:
                 vals = np.loadtxt(os.path.join(KEYBIND_DIR, f"{kb}.txt")).T
+
+                if vals.ndim == 1: # Only one simulation
+                    vals = np.expand_dims(vals, axis=1)
+
                 for i in range(self.n_sims):
                     for e, ev in enumerate(self.ext_var):
                         try:

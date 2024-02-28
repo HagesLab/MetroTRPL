@@ -103,6 +103,7 @@ class TestUtils(unittest.TestCase):
                        "solver": ("solveivp",),
                        "model": "std",
                        "likel2move_ratio": {"TRPL": 500},
+                       "ini_mode": "density",
                        "log_y": 1,
                        "hard_bounds": 1,
                        "checkpoint_freq": 5,
@@ -136,7 +137,7 @@ class TestUtils(unittest.TestCase):
         ending_iter = min(starting_iter + self.MS_list.ensemble_fields["checkpoint_freq"], self.num_iters)
         need_initial_state = True
         while ending_iter <= self.num_iters:
-            global_states, global_logll, global_accept = main_metro_loop_serial(
+            global_states, global_logll, global_accept, _, _ = main_metro_loop_serial(
                 global_states, global_logll, global_accept,
                 starting_iter, ending_iter, shared_fields, unique_fields,
                 self.RNG, self.logger, need_initial_state=need_initial_state
@@ -172,7 +173,7 @@ class TestUtils(unittest.TestCase):
         ending_iter = min(starting_iter + self.ensemble_from_chpt.ensemble_fields["checkpoint_freq"], self.num_iters)
 
         while ending_iter <= self.num_iters:
-            global_states, global_logll, global_accept = main_metro_loop_serial(
+            global_states, global_logll, global_accept, _, _ = main_metro_loop_serial(
                 global_states, global_logll, global_accept,
                 starting_iter, ending_iter, shared_fields, unique_fields,
                 self.RNG, self.logger, need_initial_state=need_initial_state

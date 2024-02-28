@@ -71,6 +71,7 @@ class Window(TkGUI):
 
         # List of loaded MCMC chains
         self.chains = list[Chain]()
+        self.n_files = 0
 
         # List of additional variables needed for simulations
         self.ext_variables = ["thickness", "nx", "final_time", "nt",
@@ -152,17 +153,20 @@ class Window(TkGUI):
         self.base_panel.widgets["status_box"].delete(1.0, tk.END)
         self.base_panel.widgets["status_box"].insert(1.0, "\n".join(self.status_msg[::-1]))
 
-    def do_quicksim_entry_popup(self) -> None:
+    def do_quicksim_entry_popup(self) -> dict[str, str]:
         """Collect quicksim settings"""
         self.qse_popup = QuicksimEntryPopup(self, self.side_panel.widget,
                                             self.ext_variables)
         self.widget.wait_window(self.qse_popup.toplevel)
+        return {"model": self.qse_popup.model.get(),
+                "meas": self.qse_popup.meas.get(),
+                }
 
-    def do_quicksim_result_popup(self, n_chains, n_sims) -> None:
+    def do_quicksim_result_popup(self, n_chains, n_sims, qse_info) -> None:
         """Show quicksim results"""
         active_chain_inds = [i for i in range(len(self.chains)) if self.chains[i].is_visible()]
         self.qsr_popup = QuicksimResultPopup(self, self.side_panel.widget, n_chains, n_sims,
-                                             active_chain_inds)
+                                             active_chain_inds, qse_info)
 
     def query_quicksim(self, expected_num_sims : int) -> None:
         """Periodically check and plot completed quicksims"""
@@ -208,7 +212,7 @@ class Window(TkGUI):
         self.mini_panel.widgets["quicksim button"].configure(state=tk.DISABLED) # type: ignore
         self.mini_panel.widgets["load button"].configure(state=tk.DISABLED)  # type: ignore
 
-        self.do_quicksim_entry_popup()
+        qse_info = self.do_quicksim_entry_popup()
 
         if not self.qse_popup.continue_:
             self.mini_panel.widgets["quicksim button"].configure(state=tk.NORMAL) # type: ignore
@@ -224,7 +228,7 @@ class Window(TkGUI):
                 else:
                     sim_tasks[ev].append(float(self.qse_popup.ext_var[ev][i].get()))
 
-        self.do_quicksim_result_popup(self.get_n_chains(), self.qse_popup.n_sims)
+        self.do_quicksim_result_popup(self.get_n_chains(), self.qse_popup.n_sims, qse_info)
         self.qsr_popup.toplevel.attributes('-topmost', 'false')
         self.widget.after(10, self.qsm.quicksim, sim_tasks,
                           self.qse_popup.model.get(), self.qse_popup.meas.get())
@@ -242,6 +246,7 @@ class Window(TkGUI):
         self.widget.title(f"{self.application_name} - {file_names}")
 
         self.chains = []
+        self.n_files = len(file_names)
         for file_name in file_names:
             with open(file_name, "rb") as rfile:
                 MS_list = pickle.load(rfile)
@@ -259,8 +264,6 @@ class Window(TkGUI):
                         MS_list = MS_list.unique_fields  # Might have to accomodate outdated MS_list.MS
                     except AttributeError:
                         MS_list = MS_list.MS
-                    
-                    
 
             for i in range(len(MS_list)):
                 chain = Chain(file_name + f"-{i}")
