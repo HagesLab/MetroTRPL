@@ -1,7 +1,9 @@
 """Menu of options that should appear on right-click"""
 import platform
+from functools import partial
 from io import BytesIO
 from tkinter import Menu
+from tkinter import filedialog
 from PIL import Image
 
 CLICK_EVENTS = {#"key": {"escape": "<Escape>", "enter": "<Return>"},
@@ -42,7 +44,12 @@ class FigureClickmenu(Clickmenu):
     def __init__(self, window, master, chart):
         super().__init__(window, master, target_widget=chart.widget)
         self.chart = chart
+        # Might want this dict in a more general location
+        self.options = {"png": ("Portable Network Graphics", "*.png"),
+                        "svg": ("Scalable Vector Graphics", "*.svg")}
         self.menu.add_command(label="Copy", command=self.copy_fig)
+        self.menu.add_command(label="Save as PNG", command=partial(self.save_fig, "png"))
+        self.menu.add_command(label="Save as SVG", command=partial(self.save_fig, "svg"))
 
     def copy_fig(self):
         """
@@ -68,3 +75,16 @@ class FigureClickmenu(Clickmenu):
         win32clipboard.EmptyClipboard()
         win32clipboard.SetClipboardData(format_id, data)
         win32clipboard.CloseClipboard()
+
+    def save_fig(self, ftype):
+        # The returned fname from asksaveasfilename() does not include the selected extension - unlike askopenfilename()
+        fname = filedialog.asksaveasfilename(filetypes=[self.options[ftype]], title="Save as")
+        if fname == "":
+            return
+        
+        if not fname.endswith(f".{ftype}"):
+            fname += f".{ftype}"
+
+        if hasattr(self.window, "status"):
+            self.window.status(f"Saved figure to {fname}")
+        self.chart.canvas.figure.savefig(fname)
