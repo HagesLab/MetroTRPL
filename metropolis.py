@@ -137,8 +137,6 @@ def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shar
                 i = r_sigma * chains_per_sigma + offset_1
                 j = (r_sigma + 1) * chains_per_sigma + offset_2
 
-                # print(f"DEBUG: Swapping chain {i} with sigma {unique_fields[i]['_T']} and chain {j} with sigma {unique_fields[j]['_T']}")
-
                 swap_attempts[i] += 1
                 swap_success = swap_move_serial(k, i, j, states, logll, ll_funcs, unique_fields, shared_fields, RNG, logger)
                 if swap_success:
@@ -217,19 +215,19 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
                 i = None
                 j = None
                 if m == 0:
-                    # Select a pair (the ith and (i+1)th) of chains
-                    # i = RNG.integers(0, shared_fields["_n_chains"]-1)
+                    # Select a pair (the ith and jth) of chains
                     r_sigma = RNG.integers(0, shared_fields["_n_sigmas"] - 1)
                     offset_1 = RNG.integers(0, shared_fields["chains_per_sigma"])
                     offset_2 = RNG.integers(0, shared_fields["chains_per_sigma"])
 
                     i = r_sigma * shared_fields["chains_per_sigma"] + offset_1
                     j = (r_sigma + 1) * shared_fields["chains_per_sigma"] + offset_2
+
                 i = COMM.bcast(i, root=0)
                 j = COMM.bcast(j, root=0)
 
-                # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
-                T_j = shared_fields["_T"][i+1]
+                # Do a tempering move between (swap the positions of) the ith and jth chains
+                T_j = shared_fields["_T"][j]
                 T_i = shared_fields["_T"][i]
 
                 bi_ui, bj_ui = 0, 0
@@ -239,11 +237,11 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
 
                 log_ri = bi_ui - bj_ui
 
-                # Must get log_rj (log_ri from i+1) from other process
+                # Must get log_rj (log_ri from j) from other process
                 log_rj = 0
                 if m == i:
-                    log_rj = COMM.recv(source=i+1)
-                elif m == i + 1:
+                    log_rj = COMM.recv(source=j)
+                elif m == j:
                     COMM.send(-log_ri, dest=i)
 
                 logratio = log_ri + log_rj
@@ -252,22 +250,22 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
                 if m == i:
                     swap_attempts += 1
                     accepted = roll_acceptance(RNG, -logratio)
-                    COMM.send(accepted, dest=i+1)
-                elif m == i + 1:
+                    COMM.send(accepted, dest=j)
+                elif m == j:
                     accepted = COMM.recv(source=i)
 
                 if m == i and accepted:
                     swap_accept += 1
-                    logll[k] = COMM.recv(source=i+1)
-                    COMM.send(bj_ui, dest=i+1)
+                    logll[k] = COMM.recv(source=j)
+                    COMM.send(bj_ui, dest=j)
 
-                    temp_states = COMM.recv(source=i+1)
-                    COMM.send(states[:, k], dest=i+1)
+                    temp_states = COMM.recv(source=j)
+                    COMM.send(states[:, k], dest=j)
                     states[:, k] = temp_states
 
                     _, ll_func = eval_trial_move(states[:, k], unique_fields, shared_fields, logger)
 
-                elif m == i + 1 and accepted:
+                elif m == j and accepted:
                     COMM.send(bi_ui, dest=i)
                     logll[k] = COMM.recv(source=i)
 
@@ -476,7 +474,8 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
         MS_list.latest_iter = ending_iter
         MS_list.H.pack(global_states, global_logll, global_accept)
         MS_list.random_state = RNG.bit_generator.state
-        logger.info(f"Swap accept rate: {MS_list.H.swap_accept} accepted of {MS_list.H.swap_attempts} attempts ({100*MS_list.H.swap_accept[:-1] / MS_list.H.swap_attempts[:-1]} %)")
+        swap_percent =  100*MS_list.H.swap_accept[:-MS_list.ensemble_fields['chains_per_sigma']] / MS_list.H.swap_attempts[:-MS_list.ensemble_fields['chains_per_sigma']]
+        logger.info(f"Swap accept rate: {MS_list.H.swap_accept} accepted of {MS_list.H.swap_attempts} attempts ({swap_percent} %)")
         logger.info(f"Exporting to {MS_list.ensemble_fields['output_path']}")
         MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
 
