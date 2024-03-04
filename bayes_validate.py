@@ -475,6 +475,13 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
             pass
         else:
             raise ValueError("temper_freq must be positive integer")
+        
+    if "chains_per_sigma" in MCMC_fields:
+        cs = MCMC_fields["chains_per_sigma"]
+        if isinstance(cs, (int, np.integer)) and cs > 0:
+            pass
+        else:
+            raise ValueError("chains_per_sigma must be positive integer")
 
     chpt_f = MCMC_fields["checkpoint_freq"]
     if isinstance(chpt_f, (int, np.integer)) and chpt_f > 0:

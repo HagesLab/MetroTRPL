@@ -487,6 +487,8 @@ def read_config_script_file(path):
                                                                            dtype=float)
                     elif line.startswith("Tempering frequency"):
                         MCMC_fields["temper_freq"] = int(line_split[1])
+                    elif line.startswith("Chains per sigma"):
+                        MCMC_fields["chains_per_sigma"] = int(line_split[1])
                     elif line.startswith("Checkpoint freq"):
                         MCMC_fields["checkpoint_freq"] = int(line_split[1])
                     elif line.startswith("Load checkpoint"):
@@ -927,6 +929,14 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                 )
             tf = MCMC_fields["temper_freq"]
             ofstream.write(f"Tempering frequency: {tf}\n")
+
+        if "chains_per_sigma" in MCMC_fields:
+            if verbose:
+                ofstream.write(
+                    "# Number of chain copies to create for each temperature. Defaults to one chain per temperature. \n"
+                )
+            cs = MCMC_fields["chains_per_sigma"]
+            ofstream.write(f"Chains per sigma: {cs}\n")
 
         if "checkpoint_dirname" in MCMC_fields:
             print("Script generator warning: setting \"checkpoint_dirname\" is deprecated and will have no effect.")
