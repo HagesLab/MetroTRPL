@@ -215,10 +215,18 @@ def main_metro_loop(m, states, logll, accept, starting_iter, num_iters, shared_f
             # TODO: Precalculate these, to avoid the bcast
             for _ in range(shared_fields["_n_chains"] - 1):
                 i = None
+                j = None
                 if m == 0:
                     # Select a pair (the ith and (i+1)th) of chains
-                    i = RNG.integers(0, shared_fields["_n_chains"]-1)
+                    # i = RNG.integers(0, shared_fields["_n_chains"]-1)
+                    r_sigma = RNG.integers(0, shared_fields["_n_sigmas"] - 1)
+                    offset_1 = RNG.integers(0, shared_fields["chains_per_sigma"])
+                    offset_2 = RNG.integers(0, shared_fields["chains_per_sigma"])
+
+                    i = r_sigma * shared_fields["chains_per_sigma"] + offset_1
+                    j = (r_sigma + 1) * shared_fields["chains_per_sigma"] + offset_2
                 i = COMM.bcast(i, root=0)
+                j = COMM.bcast(j, root=0)
 
                 # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
                 T_j = shared_fields["_T"][i+1]
