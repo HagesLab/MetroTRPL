@@ -63,18 +63,18 @@ def trial_displacement_move(k, states, logll, accept, unique_fields, shared_fiel
         return None
 
 
-def swap_move_serial(k, i, states, logll, ll_funcs, unique_fields, shared_fields, RNG, logger):
-    # Select a pair (the ith and (i+1)th) of chains
-    # Do a tempering move between (swap the positions of) the ith and (i+1)th chains
-    T_j = shared_fields["_T"][i+1]
+def swap_move_serial(k, i, j, states, logll, ll_funcs, unique_fields, shared_fields, RNG, logger):
+    # Select a pair (the ith and jth) of chains
+    # Do a tempering move between (swap the positions of) the ith and jth chains
+    T_j = shared_fields["_T"][j]
     T_i = shared_fields["_T"][i]
 
     bi_ui, bj_ui, bi_uj, bj_uj = 0, 0, 0, 0
     for ss in range(shared_fields["_sim_info"]["num_meas"]):
         bi_ui += ll_funcs[i][ss](T_i)
         bj_ui += ll_funcs[i][ss](T_j)
-        bi_uj += ll_funcs[i+1][ss](T_i)
-        bj_uj += ll_funcs[i+1][ss](T_j)
+        bi_uj += ll_funcs[j][ss](T_i)
+        bj_uj += ll_funcs[j][ss](T_j)
 
     logratio = bi_ui + bj_uj - bi_uj - bj_ui
 
@@ -82,9 +82,9 @@ def swap_move_serial(k, i, states, logll, ll_funcs, unique_fields, shared_fields
 
     if accepted:
         logll[i, k] = bi_uj
-        logll[i+1, k] = bj_ui
-        states[i, :, k], states[i+1, :, k] = states[i+1, :, k], states[i, :, k]
-        _, ll_funcs[i+1] = eval_trial_move(states[i+1, :, k], unique_fields[i+1], shared_fields, logger)
+        logll[j, k] = bj_ui
+        states[i, :, k], states[j, :, k] = states[j, :, k], states[i, :, k]
+        _, ll_funcs[j] = eval_trial_move(states[j, :, k], unique_fields[j], shared_fields, logger)
         _, ll_funcs[i] = eval_trial_move(states[i, :, k], unique_fields[i], shared_fields, logger)
 
     return accepted
@@ -99,6 +99,8 @@ def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shar
     """
 
     n_chains = shared_fields["_n_chains"]
+    n_sigmas = shared_fields["_n_sigmas"]
+    chains_per_sigma = shared_fields["chains_per_sigma"]
     swap_accept = np.zeros(n_chains, dtype=int)
     swap_attempts = np.zeros(n_chains, dtype=int)
     ll_funcs = [None for _ in range(n_chains)]
@@ -128,9 +130,17 @@ def main_metro_loop_serial(states, logll, accept, starting_iter, num_iters, shar
 
         if shared_fields["do_parallel_tempering"] and k % shared_fields["temper_freq"] == 0:
             for _ in range(n_chains - 1):
-                i = RNG.integers(0, n_chains-1)
+                r_sigma = RNG.integers(0, n_sigmas - 1)
+                offset_1 = RNG.integers(0, chains_per_sigma)
+                offset_2 = RNG.integers(0, chains_per_sigma)
+
+                i = r_sigma * chains_per_sigma + offset_1
+                j = (r_sigma + 1) * chains_per_sigma + offset_2
+
+                # print(f"DEBUG: Swapping chain {i} with sigma {unique_fields[i]['_T']} and chain {j} with sigma {unique_fields[j]['_T']}")
+
                 swap_attempts[i] += 1
-                swap_success = swap_move_serial(k, i, states, logll, ll_funcs, unique_fields, shared_fields, RNG, logger)
+                swap_success = swap_move_serial(k, i, j, states, logll, ll_funcs, unique_fields, shared_fields, RNG, logger)
                 if swap_success:
                     swap_accept[i] += 1
 
