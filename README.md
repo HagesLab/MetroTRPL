@@ -63,8 +63,9 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
      3. Either None, in which all factors will be independently fitted, or a list of constraint groups, in which each measurement in a group will share a factor with all other members. E.g. [(0, 2, 4), (1, 3, 5)] means that the third and fifth measurments will share a factor value with the first, while the fourth and sixth measurements will share a factor value with the second. Note that in Python, the first item is indexed as zero.
      4. (Optional) A list of initial guesses for each factor. Defaults to 1 if not specified.
     * irf_convolution (Optional) - A list of wavelengths for each measurement, for each of which there should be a corresponding IRF added to the IRFs folder. The MCMC algorithm will convolve the simulation for each measurement with the corresponding IRF by wavelength. Entering a wavelength of zero omits the convolution for the corresponding measurements.
-    * parallel_tempering (Optional) - A list of temperature factors used to create an ensemble of chains. One chain per temperature. **We suggest starting with a base temperature of 1 and adding a geometric sequence of additional temperatures.**
+    * parallel_tempering (Optional) - A list of temperature factors used to create an ensemble of chains. One chain per temperature. **We suggest starting with a base temperature of 1 and adding a geometric sequence of additional temperatures.** If unspecified, only the base temperature of 1 will be used.
     * temper_freq (Optional) - Interval in which the MCMC algorithm will attempt swap moves between chains of adjacent temperature. **We suggest between 10 and 100.**
+    * chains_per_sigma (Optional) - Number of chains to initialize at each temperature factor specified by parallel_tempering. Defaults to 1 if unspecified. If parallel_tempering is unspecified, multiple chains will be initialized with temperatures of 1. **This can be used to setup multiple chains at different initial states**, which can then be run in parallel through the MPI interface.
 
 ## FAQ
 **ValueErrors from get_data() or get_initpoints() with unusual symbols**
