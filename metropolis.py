@@ -368,6 +368,13 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
                     MS_list.H.extend(num_iters)
                     MS_list.ensemble_fields["num_iters"] = MCMC_fields["num_iters"]
 
+                # Compatibility with prior ensembles
+                if "_n_sigmas" not in MS_list.ensemble_fields:
+                    MS_list.ensemble_fields["_n_sigmas"] = MS_list.ensemble_fields["_n_chains"]
+                if "chains_per_sigma" not in MS_list.ensemble_fields:
+                    MS_list.ensemble_fields["chains_per_sigma"] = 1
+
+
         global_states = MS_list.H.states
         global_logll = MS_list.H.loglikelihood
         global_accept = MS_list.H.accept
