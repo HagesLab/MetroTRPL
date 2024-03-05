@@ -200,7 +200,7 @@ class Ensemble(EnsembleTemplate):
                     for m in sim_info["meas_types"]
                 }
 
-        self.ensemble_fields["do_parallel_tempering"] = self.ensemble_fields["_n_chains"] > 1
+        self.ensemble_fields["do_parallel_tempering"] = self.ensemble_fields["_n_sigmas"] > 1
 
         self.ensemble_fields["_sim_info"] = sim_info
         self.latest_iter = 0
