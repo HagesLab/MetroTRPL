@@ -168,7 +168,7 @@ class Ensemble(EnsembleTemplate):
             name: param_info["names"].index(name) for name in param_info["names"]
         }
 
-        self.ensemble_fields["_T"] = MCMC_fields.pop("parallel_tempering", [1])
+        self.ensemble_fields["_T"] = MCMC_fields.pop("parallel_tempering", [1.0])
         self.ensemble_fields["_n_sigmas"] = len(self.ensemble_fields["_T"])
         self.ensemble_fields["chains_per_sigma"] = MCMC_fields.pop("chains_per_sigma", 1)
         if self.ensemble_fields["chains_per_sigma"] > 1:

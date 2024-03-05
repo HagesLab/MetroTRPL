@@ -141,7 +141,7 @@ def one_sim_likelihood(meas_index, state, unique_fields, shared_fields, logger):
 
     if meas_type == "pa":
         ll_func = lambda T: -sol[0] * T ** -1
-        likelihood = ll_func(unique_fields.get('_T', 1))
+        likelihood = ll_func(unique_fields.get('_T', 1.0))
     else:
         try:
             err_sq = (np.log10(sol) + scale_shift - vals_c) ** 2
@@ -155,7 +155,7 @@ def one_sim_likelihood(meas_index, state, unique_fields, shared_fields, logger):
                 )
             )
 
-            likelihood = ll_func(unique_fields.get('_T', 1))
+            likelihood = ll_func(unique_fields.get('_T', 1.0))
             if np.isnan(likelihood):
                 raise ValueError(
                     f"{meas_index}: Simulation failed: invalid likelihood"
