@@ -151,6 +151,14 @@ def validate_param_info(param_info: dict):
         else:
             raise ValueError("mu_constraint must be list with center and width values \n"
                              "E.g. [100, 10] to restrict ambipolar mu between 90 and 110.")
+        
+    # Random spread of initial states
+    if "random_spread" in param_info:
+        rdm = param_info["random_spread"]
+        if isinstance(rdm, (int, float)) and rdm >= 0:
+            pass
+        else:
+            raise ValueError("random_spread must be a nonnegative number")
 
     # Others must have ALL entries
     for k in names:
@@ -475,6 +483,20 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
             pass
         else:
             raise ValueError("temper_freq must be positive integer")
+        
+    if "chains_per_sigma" in MCMC_fields:
+        cs = MCMC_fields["chains_per_sigma"]
+        if isinstance(cs, (int, np.integer)) and cs > 0:
+            pass
+        else:
+            raise ValueError("chains_per_sigma must be positive integer")
+        
+    if "random_seed" in MCMC_fields:
+        rs = MCMC_fields["random_seed"]
+        if isinstance(rs, (int, np.integer)) and rs >= 0:
+            pass
+        else:
+            raise ValueError("random seed must be nonnegative integer")
 
     chpt_f = MCMC_fields["checkpoint_freq"]
     if isinstance(chpt_f, (int, np.integer)) and chpt_f > 0:

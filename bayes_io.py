@@ -344,6 +344,8 @@ def read_config_script_file(path):
                         vals = extract_values(
                             line_split[1], delimiter='\t', dtype=float)
                         param_info["do_mu_constraint"] = vals
+                    elif line.startswith("Random spread"):
+                        param_info["random_spread"] = float(line_split[1])
 
                 if (init_flag == 'm'):
                     if line.startswith("Time cutoffs"):
@@ -487,6 +489,10 @@ def read_config_script_file(path):
                                                                            dtype=float)
                     elif line.startswith("Tempering frequency"):
                         MCMC_fields["temper_freq"] = int(line_split[1])
+                    elif line.startswith("Chains per sigma"):
+                        MCMC_fields["chains_per_sigma"] = int(line_split[1])
+                    elif line.startswith("Random seed"):
+                        MCMC_fields["random_seed"] = int(line_split[1])
                     elif line.startswith("Checkpoint freq"):
                         MCMC_fields["checkpoint_freq"] = int(line_split[1])
                     elif line.startswith("Load checkpoint"):
@@ -655,6 +661,12 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                                "Ambipolar mobility is limited within A +/- B.\n")
             mu = param_info["do_mu_constraint"]
             ofstream.write(f"Mu constraint: {mu[0]}\t{mu[1]}\n")
+
+        if "random_spread" in param_info:
+            if verbose:
+                ofstream.write("# Randomly spread out the initial states by this many orders of magnitude.\n")
+            rdm = param_info["random_spread"]
+            ofstream.write(f"Random spread: {rdm}\n")
         #######################################################################
         ofstream.write("##\n")
         ofstream.write("p$ Measurement handling flags:\n")
@@ -927,6 +939,22 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                 )
             tf = MCMC_fields["temper_freq"]
             ofstream.write(f"Tempering frequency: {tf}\n")
+
+        if "chains_per_sigma" in MCMC_fields:
+            if verbose:
+                ofstream.write(
+                    "# Number of chain copies to create for each temperature. Defaults to one chain per temperature. \n"
+                )
+            cs = MCMC_fields["chains_per_sigma"]
+            ofstream.write(f"Chains per sigma: {cs}\n")
+
+        if "random_seed" in MCMC_fields:
+            if verbose:
+                ofstream.write(
+                    "# Seed to use for the random state generation.\n"
+                )
+            rs = MCMC_fields["random_seed"]
+            ofstream.write(f"Random seed: {rs}\n")
 
         if "checkpoint_dirname" in MCMC_fields:
             print("Script generator warning: setting \"checkpoint_dirname\" is deprecated and will have no effect.")

@@ -38,6 +38,7 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
    * do_log - Whether trial moves should be made in log scale. **This should be active (=1) for any parameter for which reasonable values can span several orders of magnitude.**
    * prior_dist - Ranges of reasonable values within which the optimal parameters are expected. For instance, bulk lifetimes may range from a few to a few hundred nanoseconds.
    * init_guess - Initial guess / starting values for each parameter.
+   * random_spread - Randomize the initial guess by up to this many orders of magnitude.
    * trial_move - Maximum size of trial move for each parameter. Trial moves will be proposed from a uniform distribution with widths determined by this setting. Smaller moves are accepted more often but also increase the equilibration time for the chains. **Adjust this to maintain an acceptance rate of 10-50%. Though it will vary from measurement data to measurement data, a trial_move of 0.01 with do_log activated is a good first try.**
 3. **meas_fields** - measurement data settings
    * time_cutoff - Truncate measurements to this time range. For instance, [0-10] means that only the first 10 nanoseconds of each measurement will be kept for the MCMC algorithm. This can be used to make inferences on specific time regimes of the measurements.
@@ -46,6 +47,7 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
    * init_cond_path - Location of the initial excitation file.
    * measurement_path - Location of the measurement data file.
    * output_path - Location to save MCMC results.
+   * random_seed (Optional) - Seed for the random state generation. Set to a large integer if you want reproducible chains.
    * num_iters - Number of iterations / trial moves the MCMC algorithm will try before stopping. **With a trial move of 0.01, most inferences equilibrate within a few thousand iterations.**
    * solver - A tuple of size one indicating which numerical solver to use - solve_ivp (more robust), or odeint (sometimes faster). Can also be set to NN to access a saved neural network, for which the location of the neural network and its scaling factor files must also be provided as second and third arguments.
    * model - Choice of carrier transport model. std for the standard carrier model, or traps for the shallow trapping carrier model.
@@ -63,8 +65,9 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
      3. Either None, in which all factors will be independently fitted, or a list of constraint groups, in which each measurement in a group will share a factor with all other members. E.g. [(0, 2, 4), (1, 3, 5)] means that the third and fifth measurments will share a factor value with the first, while the fourth and sixth measurements will share a factor value with the second. Note that in Python, the first item is indexed as zero.
      4. (Optional) A list of initial guesses for each factor. Defaults to 1 if not specified.
     * irf_convolution (Optional) - A list of wavelengths for each measurement, for each of which there should be a corresponding IRF added to the IRFs folder. The MCMC algorithm will convolve the simulation for each measurement with the corresponding IRF by wavelength. Entering a wavelength of zero omits the convolution for the corresponding measurements.
-    * parallel_tempering (Optional) - A list of temperature factors used to create an ensemble of chains. One chain per temperature. **We suggest starting with a base temperature of 1 and adding a geometric sequence of additional temperatures.**
+    * parallel_tempering (Optional) - A list of temperature factors used to create an ensemble of chains. One chain per temperature. **We suggest starting with a base temperature of 1 and adding a geometric sequence of additional temperatures.** If unspecified, only the base temperature of 1 will be used.
     * temper_freq (Optional) - Interval in which the MCMC algorithm will attempt swap moves between chains of adjacent temperature. **We suggest between 10 and 100.**
+    * chains_per_sigma (Optional) - Number of chains to initialize at each temperature factor specified by parallel_tempering. Defaults to 1 if unspecified. If parallel_tempering is unspecified, multiple chains will be initialized with temperatures of 1. **This can be used to setup multiple chains at different initial states**, which can then be run in parallel through the MPI interface.
 
 ## FAQ
 **ValueErrors from get_data() or get_initpoints() with unusual symbols**
