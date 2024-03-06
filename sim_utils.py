@@ -186,8 +186,15 @@ class Ensemble(EnsembleTemplate):
                 ],
             dtype=float,
         )
+
         self.H = History(self.ensemble_fields["_n_chains"], num_iters, self.ensemble_fields["names"])
         self.H.states[:, :, 0] = init_state
+
+        spr = 0.5
+        init_randomize = 10 ** np.random.uniform(-spr, spr, size=self.H.states[:, :, 0].shape)
+        init_randomize[:, np.logical_not(self.ensemble_fields["active"])] = 1
+
+        self.H.states[:, :, 0] *= init_randomize
 
         self.unique_fields: list[dict] = []
         for i in range(self.ensemble_fields["_n_chains"]):
