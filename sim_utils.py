@@ -190,7 +190,8 @@ class Ensemble(EnsembleTemplate):
         self.H = History(self.ensemble_fields["_n_chains"], num_iters, self.ensemble_fields["names"])
         self.H.states[:, :, 0] = init_state
 
-        spr = 0.5
+        self.ensemble_fields["random_spread"] = param_info.pop("random_spread", 0)
+        spr = self.ensemble_fields["random_spread"]
         init_randomize = 10 ** np.random.uniform(-spr, spr, size=self.H.states[:, :, 0].shape)
         init_randomize[:, np.logical_not(self.ensemble_fields["active"])] = 1
 

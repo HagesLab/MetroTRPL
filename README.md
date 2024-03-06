@@ -38,6 +38,7 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
    * do_log - Whether trial moves should be made in log scale. **This should be active (=1) for any parameter for which reasonable values can span several orders of magnitude.**
    * prior_dist - Ranges of reasonable values within which the optimal parameters are expected. For instance, bulk lifetimes may range from a few to a few hundred nanoseconds.
    * init_guess - Initial guess / starting values for each parameter.
+   * random_spread - Randomize the initial guess by up to this many orders of magnitude.
    * trial_move - Maximum size of trial move for each parameter. Trial moves will be proposed from a uniform distribution with widths determined by this setting. Smaller moves are accepted more often but also increase the equilibration time for the chains. **Adjust this to maintain an acceptance rate of 10-50%. Though it will vary from measurement data to measurement data, a trial_move of 0.01 with do_log activated is a good first try.**
 3. **meas_fields** - measurement data settings
    * time_cutoff - Truncate measurements to this time range. For instance, [0-10] means that only the first 10 nanoseconds of each measurement will be kept for the MCMC algorithm. This can be used to make inferences on specific time regimes of the measurements.

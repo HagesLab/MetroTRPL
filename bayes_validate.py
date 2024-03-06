@@ -151,6 +151,14 @@ def validate_param_info(param_info: dict):
         else:
             raise ValueError("mu_constraint must be list with center and width values \n"
                              "E.g. [100, 10] to restrict ambipolar mu between 90 and 110.")
+        
+    # Random spread of initial states
+    if "random_spread" in param_info:
+        rdm = param_info["random_spread"]
+        if isinstance(rdm, (int, float)) and rdm >= 0:
+            pass
+        else:
+            raise ValueError("random_spread must be a nonnegative number")
 
     # Others must have ALL entries
     for k in names:
