@@ -47,6 +47,7 @@ We recommend creating a virtual environment (e.g. with [venv](https://packaging.
    * init_cond_path - Location of the initial excitation file.
    * measurement_path - Location of the measurement data file.
    * output_path - Location to save MCMC results.
+   * random_seed (Optional) - Seed for the random state generation. Set to a large integer if you want reproducible chains.
    * num_iters - Number of iterations / trial moves the MCMC algorithm will try before stopping. **With a trial move of 0.01, most inferences equilibrate within a few thousand iterations.**
    * solver - A tuple of size one indicating which numerical solver to use - solve_ivp (more robust), or odeint (sometimes faster). Can also be set to NN to access a saved neural network, for which the location of the neural network and its scaling factor files must also be provided as second and third arguments.
    * model - Choice of carrier transport model. std for the standard carrier model, or traps for the shallow trapping carrier model.

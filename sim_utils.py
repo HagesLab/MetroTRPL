@@ -114,7 +114,7 @@ class Ensemble(EnsembleTemplate):
         # Optional fields that can default to None
         for field in ["rtol", "atol", "scale_factor", "load_checkpoint",
                       "fittable_fluences", "fittable_absps", "irf_convolution",
-                      "do_mu_constraint"]:
+                      "do_mu_constraint", "random_seed"]:
             self.ensemble_fields[field] = MCMC_fields.pop(field, None)
 
         self.ensemble_fields["temper_freq"] = MCMC_fields.pop(
@@ -177,6 +177,7 @@ class Ensemble(EnsembleTemplate):
         self.ensemble_fields["_n_chains"] = self.ensemble_fields["_n_sigmas"] * self.ensemble_fields["chains_per_sigma"]
 
         self.ensemble_fields["names"] = param_info.pop("names")
+        self.ensemble_fields["random_spread"] = param_info.pop("random_spread", 0)
 
         # Record initial state
         init_state = np.array(
@@ -189,13 +190,6 @@ class Ensemble(EnsembleTemplate):
 
         self.H = History(self.ensemble_fields["_n_chains"], num_iters, self.ensemble_fields["names"])
         self.H.states[:, :, 0] = init_state
-
-        self.ensemble_fields["random_spread"] = param_info.pop("random_spread", 0)
-        spr = self.ensemble_fields["random_spread"]
-        init_randomize = 10 ** np.random.uniform(-spr, spr, size=self.H.states[:, :, 0].shape)
-        init_randomize[:, np.logical_not(self.ensemble_fields["active"])] = 1
-
-        self.H.states[:, :, 0] *= init_randomize
 
         self.unique_fields: list[dict] = []
         for i in range(self.ensemble_fields["_n_chains"]):

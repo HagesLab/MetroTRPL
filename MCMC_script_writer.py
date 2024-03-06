@@ -40,8 +40,6 @@ if __name__ == "__main__":
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
 
-    np.random.seed(100000000*(jobid+1))
-
     # Info for each measurement's corresponding simulation
     num_measurements = 6
     Length = [311, 2000, 311, 2000, 311, 2000] # in nm
@@ -150,6 +148,7 @@ if __name__ == "__main__":
                    "force_min_y": 0,
                    "checkpoint_freq": 1000,
                    "load_checkpoint": None,
+                   "random_seed": 235817049752375780,
                    }
 
     generate_config_script_file(script_path, simPar, param_info,

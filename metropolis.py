@@ -309,7 +309,7 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     load_checkpoint = MCMC_fields.get("load_checkpoint", None)
     num_iters = MCMC_fields["num_iters"]
     checkpoint_freq = MCMC_fields.get("checkpoint_freq", num_iters)
-    RNG = np.random.default_rng(235817049752375780)
+    RNG = np.random.default_rng(MCMC_fields.get("random_seed", None))
     if serial_fallback:
         rank = 0
     else:
@@ -331,6 +331,13 @@ def metro(sim_info, iniPar, e_data, MCMC_fields, param_info,
     if rank == 0:
         if load_checkpoint is None:
             MS_list = Ensemble(param_info, sim_info, MCMC_fields, num_iters, verbose)
+
+            spr = MS_list.ensemble_fields["random_spread"]
+            init_randomize = 10 ** RNG.uniform(-spr, spr, size=MS_list.H.states[:, :, 0].shape)
+            init_randomize[:, np.logical_not(MS_list.ensemble_fields["active"])] = 1
+
+            MS_list.H.states[:, :, 0] *= init_randomize
+
             MS_list.checkpoint(os.path.join(MS_list.ensemble_fields["output_path"], export_path))
 
             e_string = [f"[{e_data[1][i][0]}...{e_data[1][i][-1]}]" for i in range(len(e_data[1]))]

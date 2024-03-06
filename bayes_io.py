@@ -491,6 +491,8 @@ def read_config_script_file(path):
                         MCMC_fields["temper_freq"] = int(line_split[1])
                     elif line.startswith("Chains per sigma"):
                         MCMC_fields["chains_per_sigma"] = int(line_split[1])
+                    elif line.startswith("Random seed"):
+                        MCMC_fields["random_seed"] = int(line_split[1])
                     elif line.startswith("Checkpoint freq"):
                         MCMC_fields["checkpoint_freq"] = int(line_split[1])
                     elif line.startswith("Load checkpoint"):
@@ -945,6 +947,14 @@ def generate_config_script_file(path, simPar, param_info, measurement_flags,
                 )
             cs = MCMC_fields["chains_per_sigma"]
             ofstream.write(f"Chains per sigma: {cs}\n")
+
+        if "random_seed" in MCMC_fields:
+            if verbose:
+                ofstream.write(
+                    "# Seed to use for the random state generation.\n"
+                )
+            rs = MCMC_fields["random_seed"]
+            ofstream.write(f"Random seed: {rs}\n")
 
         if "checkpoint_dirname" in MCMC_fields:
             print("Script generator warning: setting \"checkpoint_dirname\" is deprecated and will have no effect.")

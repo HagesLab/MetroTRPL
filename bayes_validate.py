@@ -490,6 +490,13 @@ def validate_MCMC_fields(MCMC_fields: dict, num_measurements: int,
             pass
         else:
             raise ValueError("chains_per_sigma must be positive integer")
+        
+    if "random_seed" in MCMC_fields:
+        rs = MCMC_fields["random_seed"]
+        if isinstance(rs, (int, np.integer)) and rs >= 0:
+            pass
+        else:
+            raise ValueError("random seed must be nonnegative integer")
 
     chpt_f = MCMC_fields["checkpoint_freq"]
     if isinstance(chpt_f, (int, np.integer)) and chpt_f > 0:
