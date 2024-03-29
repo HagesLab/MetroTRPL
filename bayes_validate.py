@@ -1,7 +1,8 @@
 import numpy as np
 from forward_solver import MODELS # To verify that the chosen model exists
 
-MODELS["pa"] = lambda x: x
+# For debugging the parallel tempering
+# MODELS["pa"] = lambda x: x
 
 def check_valid_filename(file_name):
     """Screens file_name for prohibited characters
