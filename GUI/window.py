@@ -159,7 +159,6 @@ class Window(TkGUI):
                                             self.ext_variables)
         self.widget.wait_window(self.qse_popup.toplevel)
         return {"model": self.qse_popup.model.get(),
-                "meas": self.qse_popup.meas.get(),
                 }
 
     def do_quicksim_result_popup(self, n_chains, n_sims, qse_info) -> None:

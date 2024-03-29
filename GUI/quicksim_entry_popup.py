@@ -139,11 +139,6 @@ class QuicksimEntryPopup(Popup):
         
         self.c_frame.widgets["model_label"].place(x=140, y=20)
 
-        self.c_frame.widgets["meas_label"] = tk.Label(master=self.c_frame.widget,
-                                                       text="Select meas.", **LABEL_KWARGS)
-        
-        self.c_frame.widgets["meas_label"].place(x=260, y=20)
-
         available_models = list(MODELS)
         default_model = available_models.pop()
         self.model = tk.StringVar(value=default_model)
@@ -151,14 +146,6 @@ class QuicksimEntryPopup(Popup):
                                                       *available_models)
         self.c_frame.widgets["model"].configure(width=10, highlightcolor=DARK_GREY)
         self.c_frame.widgets["model"].place(x=140, y=48)
-
-        available_meas = list(AVAILABLE_MEAS)
-        default_meas = available_meas.pop()
-        self.meas = tk.StringVar(value=default_meas)
-        self.c_frame.widgets["meas"] = tk.OptionMenu(self.c_frame.widget, self.meas, default_meas,
-                                                      *available_meas)
-        self.c_frame.widgets["meas"].configure(width=10, highlightcolor=DARK_GREY)
-        self.c_frame.widgets["meas"].place(x=260, y=48)
 
         self.c_frame.widgets["copy down"] = tk.Button(master=self.c_frame.widget, width=12, text="Copy #1",
                                                       background=BLACK, foreground=WHITE,
@@ -203,14 +190,24 @@ class QuicksimEntryPopup(Popup):
         Add more widgets for the additional ith simulation
         First simulation is i=0
         """
+        available_meas = list(AVAILABLE_MEAS)
+        default_meas = available_meas.pop()
+
         self.ev_frame.widgets[f"Number-{i}"] = tk.Label(self.ev_frame.widget, text=f"{i+1}.", width=4, border=3,
                                                             background=LIGHT_GREY)
         self.ev_frame.widgets[f"Number-{i}"].place(x=0, y=EV_FRAME_OFFSET[0]+EV_FRAME_OFFSET[1]*i)
         for e, ev in enumerate(self.ext_var):
             tk.Label(self.ev_frame.widget, text=ev, **LABEL_KWARGS).place(x=60+110*e, y=20)
-            self.ext_var[ev].append(tk.StringVar())
-            self.ev_frame.widgets[f"{e}-{i}"] = tk.Entry(master=self.ev_frame.widget, width=16, border=3,
-                textvariable=self.ext_var[ev][-1], highlightthickness=2, highlightcolor=LIGHT_GREY)
+            if ev == "meas_type":
+                self.ext_var[ev].append(tk.StringVar(value=default_meas))
+                self.ev_frame.widgets[f"{e}-{i}"] = tk.OptionMenu(self.ev_frame.widget, self.ext_var[ev][-1],
+                                                                  default_meas, *available_meas)
+                self.ev_frame.widgets[f"{e}-{i}"].configure(width=10, highlightcolor=LIGHT_GREY)
+            else:
+                self.ext_var[ev].append(tk.StringVar())
+                self.ev_frame.widgets[f"{e}-{i}"] = tk.Entry(master=self.ev_frame.widget, width=16, border=3,
+                    textvariable=self.ext_var[ev][-1], highlightthickness=2, highlightcolor=LIGHT_GREY)
+
             self.ev_frame.widgets[f"{e}-{i}"].place(x=60+110*e, y=EV_FRAME_OFFSET[0]+EV_FRAME_OFFSET[1]*i)
 
     def contract_ev_frame(self, i : int) -> None:
@@ -254,8 +251,7 @@ class QuicksimEntryPopup(Popup):
                     if test == "":
                         raise ValueError
                     elif ev == "meas_type":
-                        if test not in AVAILABLE_MEAS:
-                            raise ValueError
+                        pass
                     else:
                         float(test) # and raise ValueError if not float
                     self.ev_frame.widgets[f"{e}-{i}"].config(highlightbackground=LIGHT_GREY)
