@@ -15,7 +15,7 @@ from popup import Popup
 from gui_colors import LIGHT_GREY, BLACK, WHITE, DARK_GREY, RED
 from gui_styles import LABEL_KWARGS
 
-WIDTH = 970
+WIDTH = 1080
 HEIGHT = 600
 EV_FRAME_OFFSET = (60, 30)
 DEFAULT_N_SIMS = 3
@@ -253,7 +253,11 @@ class QuicksimEntryPopup(Popup):
                     test = self.ext_var[ev][i].get()
                     if test == "":
                         raise ValueError
-                    float(test)
+                    elif ev == "meas_type":
+                        if test not in AVAILABLE_MEAS:
+                            raise ValueError
+                    else:
+                        float(test) # and raise ValueError if not float
                     self.ev_frame.widgets[f"{e}-{i}"].config(highlightbackground=LIGHT_GREY)
                 except ValueError:
                     valid = False
@@ -278,12 +282,15 @@ class QuicksimEntryPopup(Popup):
         if fname == "":
             return
 
-        vals = np.zeros((len(self.ext_var), self.n_sims))
+        vals = np.zeros((len(self.ext_var), self.n_sims), dtype=float)
         ext_vars = []
         for e, ev in enumerate(self.ext_var):
             ext_vars.append(ev)
             for i in range(self.n_sims):
-                vals[e, i] = float(self.ext_var[ev][i].get())
+                if ev == "meas_type":
+                    vals[e, i] = float(AVAILABLE_MEAS.index(self.ext_var[ev][i].get()))
+                else:
+                    vals[e, i] = float(self.ext_var[ev][i].get())
 
         np.savetxt(fname, vals.T, delimiter="\t", header="\t".join(ext_vars))
 
@@ -306,7 +313,10 @@ class QuicksimEntryPopup(Popup):
                 for i in range(self.n_sims):
                     for e, ev in enumerate(self.ext_var):
                         try:
-                            self.ext_var[ev][i].set(str(vals[e, i]))
+                            if ev == "meas_type":
+                                self.ext_var[ev][i].set(AVAILABLE_MEAS[int(vals[e, i])])
+                            else:
+                                self.ext_var[ev][i].set(str(vals[e, i]))
                         except IndexError:
                             continue
 
