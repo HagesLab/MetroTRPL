@@ -256,10 +256,15 @@ class Window(TkGUI):
                     names = MS_list.param_info["names"]
                     history = MS_list.H
                     MS_list = [MS_list]
+                    latest_iter = 0
                 else:
                     active = MS_list.ensemble_fields["active"]
                     names = MS_list.ensemble_fields["names"]
                     history = MS_list.H
+                    try:
+                        latest_iter = MS_list.latest_iter
+                    except AttributeError:
+                        latest_iter = 0
                     try:
                         MS_list = MS_list.unique_fields  # Might have to accomodate outdated MS_list.MS
                     except AttributeError:
@@ -280,7 +285,7 @@ class Window(TkGUI):
                     raise ValueError("Invalid chain states format - "
                                         "must be 1D or 2D of size (1, num_states)")
 
-                chain.data["log likelihood"] = logl[1:]
+                chain.data["log likelihood"] = logl[1:latest_iter]
 
                 accept = getattr(history, "accept")
                 if accept.ndim == 2:
@@ -310,7 +315,7 @@ class Window(TkGUI):
                             raise ValueError("Invalid chain states format - "
                                                 "must be 1D or 2D of size (1, num_states)")
 
-                        chain.data[key] = mean_states
+                        chain.data[key] = mean_states[:latest_iter]
 
                     for key in self.sp.func:
                         # TODO: Option to precalculate all of these
