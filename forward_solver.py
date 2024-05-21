@@ -58,8 +58,9 @@ def solve(iniPar, g, state, indexes, meas="TRPL", units=None, solver=("solveivp"
         A map of parameter names and their corresponding indices in the state array.
     meas : str, optional
         Type of measurement (e.g. TRPL, TRTS) being simulated. The default is "TRPL".
-    units : dict[str], optional
-        Unit conversions to be applied to each parameter. The default is None.
+    units : ndarray, optional
+        Unit conversions to be applied to each parameter. This should be an array of conversion factors,
+        one per parameter in the state array. The default is None, in which no conversions will be performed.
     solver : tuple(str), optional
         Solution method used to perform simulation and optional related args.
         The first element is the solver type.
