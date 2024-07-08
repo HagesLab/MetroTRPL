@@ -75,7 +75,7 @@ class Window(TkGUI):
 
         # List of additional variables needed for simulations
         self.ext_variables = ["thickness", "nx", "final_time", "nt",
-                              "fluence", "absp", "direction", "wavelength"]
+                              "fluence", "absp", "direction", "wavelength", "meas_type"]
 
         self.q = multiprocessing.Queue()
         self.qsm = QuicksimManager(self, self.q)
@@ -159,7 +159,6 @@ class Window(TkGUI):
                                             self.ext_variables)
         self.widget.wait_window(self.qse_popup.toplevel)
         return {"model": self.qse_popup.model.get(),
-                "meas": self.qse_popup.meas.get(),
                 }
 
     def do_quicksim_result_popup(self, n_chains, n_sims, qse_info) -> None:
@@ -225,13 +224,14 @@ class Window(TkGUI):
             for i in range(self.qse_popup.n_sims):
                 if ev == "nx" or ev == "nt": # Number of steps must be int
                     sim_tasks[ev].append(int(float(self.qse_popup.ext_var[ev][i].get())))
+                elif ev == "meas_type":
+                    sim_tasks[ev].append(self.qse_popup.ext_var[ev][i].get())
                 else:
                     sim_tasks[ev].append(float(self.qse_popup.ext_var[ev][i].get()))
 
         self.do_quicksim_result_popup(self.get_n_chains(), self.qse_popup.n_sims, qse_info)
         self.qsr_popup.toplevel.attributes('-topmost', 'false')
-        self.widget.after(10, self.qsm.quicksim, sim_tasks,
-                          self.qse_popup.model.get(), self.qse_popup.meas.get())
+        self.widget.after(10, self.qsm.quicksim, sim_tasks, self.qse_popup.model.get())
         self.widget.after(1000, self.query_quicksim, self.qse_popup.n_sims * self.get_n_chains())
 
     def loadfile(self) -> None:
@@ -256,10 +256,15 @@ class Window(TkGUI):
                     names = MS_list.param_info["names"]
                     history = MS_list.H
                     MS_list = [MS_list]
+                    latest_iter = 0
                 else:
                     active = MS_list.ensemble_fields["active"]
                     names = MS_list.ensemble_fields["names"]
                     history = MS_list.H
+                    try:
+                        latest_iter = MS_list.latest_iter
+                    except AttributeError:
+                        latest_iter = 0
                     try:
                         MS_list = MS_list.unique_fields  # Might have to accomodate outdated MS_list.MS
                     except AttributeError:
@@ -280,7 +285,7 @@ class Window(TkGUI):
                     raise ValueError("Invalid chain states format - "
                                         "must be 1D or 2D of size (1, num_states)")
 
-                chain.data["log likelihood"] = logl[1:]
+                chain.data["log likelihood"] = logl[1:latest_iter]
 
                 accept = getattr(history, "accept")
                 if accept.ndim == 2:
@@ -310,7 +315,7 @@ class Window(TkGUI):
                             raise ValueError("Invalid chain states format - "
                                                 "must be 1D or 2D of size (1, num_states)")
 
-                        chain.data[key] = mean_states
+                        chain.data[key] = mean_states[:latest_iter]
 
                     for key in self.sp.func:
                         # TODO: Option to precalculate all of these

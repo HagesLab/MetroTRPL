@@ -114,7 +114,7 @@ class Ensemble(EnsembleTemplate):
         # Optional fields that can default to None
         for field in ["rtol", "atol", "scale_factor", "load_checkpoint",
                       "fittable_fluences", "fittable_absps", "irf_convolution",
-                      "do_mu_constraint"]:
+                      "do_mu_constraint", "random_seed"]:
             self.ensemble_fields[field] = MCMC_fields.pop(field, None)
 
         self.ensemble_fields["temper_freq"] = MCMC_fields.pop(
@@ -168,10 +168,16 @@ class Ensemble(EnsembleTemplate):
             name: param_info["names"].index(name) for name in param_info["names"]
         }
 
-        self.ensemble_fields["_T"] = MCMC_fields.pop("parallel_tempering", [1])
-        self.ensemble_fields["_n_chains"] = len(self.ensemble_fields["_T"])
+        self.ensemble_fields["_T"] = MCMC_fields.pop("parallel_tempering", [1.0])
+        self.ensemble_fields["_n_sigmas"] = len(self.ensemble_fields["_T"])
+        self.ensemble_fields["chains_per_sigma"] = MCMC_fields.pop("chains_per_sigma", 1)
+        if self.ensemble_fields["chains_per_sigma"] > 1:
+            self.ensemble_fields["_T"] = np.array([T for T in self.ensemble_fields["_T"] for i in range(self.ensemble_fields["chains_per_sigma"])])
+
+        self.ensemble_fields["_n_chains"] = self.ensemble_fields["_n_sigmas"] * self.ensemble_fields["chains_per_sigma"]
 
         self.ensemble_fields["names"] = param_info.pop("names")
+        self.ensemble_fields["random_spread"] = param_info.pop("random_spread", 0)
 
         # Record initial state
         init_state = np.array(
@@ -181,6 +187,7 @@ class Ensemble(EnsembleTemplate):
                 ],
             dtype=float,
         )
+
         self.H = History(self.ensemble_fields["_n_chains"], num_iters, self.ensemble_fields["names"])
         self.H.states[:, :, 0] = init_state
 
@@ -195,7 +202,7 @@ class Ensemble(EnsembleTemplate):
                     for m in sim_info["meas_types"]
                 }
 
-        self.ensemble_fields["do_parallel_tempering"] = self.ensemble_fields["_n_chains"] > 1
+        self.ensemble_fields["do_parallel_tempering"] = self.ensemble_fields["_n_sigmas"] > 1
 
         self.ensemble_fields["_sim_info"] = sim_info
         self.latest_iter = 0

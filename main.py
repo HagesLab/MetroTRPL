@@ -33,7 +33,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(e)
         sys.exit()
-    np.random.seed(jobid)
 
     # Get observations and initial condition
     iniPar = get_initpoints(MCMC_fields["init_cond_path"], meas_fields)
@@ -43,7 +42,7 @@ if __name__ == "__main__":
 
     metro(sim_info, iniPar, e_data, MCMC_fields, param_info, verbose=False,
           export_path=export_path, logger_name=logger_name,
-          # serial_fallback=True,
+          serial_fallback=True,
           )
 
     print(f"{jobid} Finished - {export_path}")

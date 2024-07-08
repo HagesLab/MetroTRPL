@@ -40,8 +40,6 @@ if __name__ == "__main__":
     # Save this script to...
     script_path = f"{script_head}{jobid}.txt"
 
-    np.random.seed(100000000*(jobid+1))
-
     # Info for each measurement's corresponding simulation
     num_measurements = 6
     Length = [311, 2000, 311, 2000, 311, 2000] # in nm
@@ -116,17 +114,13 @@ if __name__ == "__main__":
     # Proposal function search widths
     trial_move = {param: 0.003 for param in param_names}
 
-    # Randomize the initial guess a little
-    for name in param_names:
-        if active_params[name]:
-            initial_guesses[name] *= 10 ** np.random.uniform(-0.5, 0.5)
-
     param_info = {"names": param_names,
                   "active": active_params,
                   "unit_conversions": unit_conversions,
                   "do_log": do_log,
                   "prior_dist": prior_dist,
                   "init_guess": initial_guesses,
+                  "random_spread": 1, # Spread out the initial guesses for each chain by this many orders of mag
                   "trial_move": trial_move}
 
     # Measurement preprocessing options
@@ -147,12 +141,14 @@ if __name__ == "__main__":
                    "log_y": 1,
                    "scale_factor": None,
                    "irf_convolution": None,
-                #    "parallel_tempering": [1, 2, 4, 8],
-                #    "temper_freq": 10,
+                   # "parallel_tempering": [1, 2, 4, 8],
+                   # "temper_freq": 10,
+                   "chains_per_sigma": 1,
                    "hard_bounds": 1,
                    "force_min_y": 0,
                    "checkpoint_freq": 1000,
                    "load_checkpoint": None,
+                   "random_seed": 235817049752375780,
                    }
 
     generate_config_script_file(script_path, simPar, param_info,

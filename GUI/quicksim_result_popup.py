@@ -278,7 +278,7 @@ class QuicksimResultPopup(Popup):
     def plot(self, x, y, color, mode, size):
         """Add a curve to the quicksim plot"""
         xlabel = "delay time [ns]"
-        ylabel = self.qse_info["meas"]
+        ylabel = "Intensity"
         scale = "log"
         mc_plot.sim_plot(self.qs_axes, x, y, xlabel,
                          ylabel, scale, color, size=size, mode=mode)
